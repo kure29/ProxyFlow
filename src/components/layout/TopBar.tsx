@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Download, Eye, LayoutTemplate, Redo2, Route, Undo2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import { mockMihomoPreview } from '../../data/demoProject'
 import { useBuilderStore } from '../../store/useBuilderStore'
 
 function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -19,7 +18,7 @@ export function TopBar() {
   const canUndo = useBuilderStore((state) => state.historyPast.length > 0)
   const canRedo = useBuilderStore((state) => state.historyFuture.length > 0)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
-  const setToast = useBuilderStore((state) => state.setToast)
+  const createNewProject = useBuilderStore((state) => state.createNewProject)
 
   useEffect(() => {
     if (!projectMenuOpen) return
@@ -28,30 +27,19 @@ export function TopBar() {
     return () => window.removeEventListener('click', close)
   }, [projectMenuOpen])
 
-  const exportConfig = () => {
-    const blob = new Blob([mockMihomoPreview], { type: 'text/yaml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'proxyflow-mihomo-mock.yaml'
-    anchor.click()
-    URL.revokeObjectURL(url)
-    setToast('Mock Mihomo 配置已导出')
-  }
-
   return (
     <header className="topbar">
       <div className="brand">
         <span className="brand-mark"><Route size={19} /></span>
         <strong>ProxyFlow</strong>
-        <span className="version-pill">V0.2</span>
+        <span className="version-pill">V0.3</span>
       </div>
       <div className="topbar-divider" />
       <div className="project-switcher-wrap">
         <button className="project-switcher" onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}>
           <span><small>当前项目</small><strong>{projectName}</strong></span><ChevronDown size={14} />
         </button>
-        {projectMenuOpen && <div className="project-menu"><span>最近项目</span><button><Check size={13} /> {projectName}</button><button disabled>新建项目 <small>即将推出</small></button></div>}
+        {projectMenuOpen && <div className="project-menu"><span>最近项目</span><button><Check size={13} /> {projectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>新建项目 <small>V0.3</small></button></div>}
       </div>
 
       <div className="save-indicator" aria-live="polite">
@@ -66,7 +54,7 @@ export function TopBar() {
           <IconButton label="自动布局" onClick={() => { autoLayout(); window.setTimeout(() => fitView({ padding: 0.15, duration: 450 }), 40) }}><LayoutTemplate size={16} /></IconButton>
         </div>
         <button className="secondary-action" onClick={() => setPreviewOpen(true)}><Eye size={16} /> 预览</button>
-        <button className="primary-action" onClick={exportConfig}><Download size={16} /> 导出配置</button>
+        <button className="primary-action" onClick={() => setPreviewOpen(true)}><Download size={16} /> 导出配置</button>
       </nav>
     </header>
   )
