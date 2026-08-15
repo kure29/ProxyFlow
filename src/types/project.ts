@@ -64,6 +64,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   services?: string[]
   targetId?: string
   targetLabel?: string
+  targetKind?: 'strategy' | 'direct' | 'reject'
   ruleSource?: string
   client?: TargetClient
   compatibility?: string
@@ -101,9 +102,11 @@ export interface ProxyFlowProject {
 
 export interface CompatibilityIssue {
   target: TargetClient
+  code: string
   severity: 'info' | 'warning' | 'error'
   feature: string
   message: string
+  entityId?: string
 }
 
 export interface ValidationIssue {
