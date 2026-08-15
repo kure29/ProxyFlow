@@ -1,6 +1,7 @@
 import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
+import { explicitProxyIR } from '../../core/__fixtures__/crossTargetFixtures'
 import {
   fallbackFixture,
   hkJpUsChainFixture,
@@ -104,12 +105,24 @@ describe('MihomoCompiler', () => {
     expect(config['proxy-groups']?.[0].use).toEqual(['Provider A', 'Provider B'])
   })
 
+  it('materializes shared HTTP/SOCKS endpoints and a Fixed strategy', () => {
+    const ir = explicitProxyIR()
+    ir.strategies.push({ kind: 'fixed', id: 'fixed-us', name: 'Fixed US', proxyId: 'us-http' })
+    const config = parseConfig(ir).config
+    expect(config.proxies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'HK SOCKS', type: 'socks5', server: 'hk.example.com', port: 1080 }),
+      expect.objectContaining({ name: 'US HTTP', type: 'http', server: 'us-http.example.com', port: 8080 }),
+    ]))
+    expect(config['proxy-groups']).toContainEqual({ name: 'Fixed US', type: 'select', proxies: ['US HTTP'] })
+  })
+
   it.each<[TrafficMatcherIR, string]>([
     [{ kind: 'domain', value: 'api.openai.com' }, 'DOMAIN,api.openai.com,Auto'],
     [{ kind: 'domain-suffix', value: 'openai.com' }, 'DOMAIN-SUFFIX,openai.com,Auto'],
     [{ kind: 'domain-keyword', value: 'openai' }, 'DOMAIN-KEYWORD,openai,Auto'],
     [{ kind: 'ip-cidr', value: '1.1.1.0/24' }, 'IP-CIDR,1.1.1.0/24,Auto'],
     [{ kind: 'ip-cidr6', value: '2001:db8::/32' }, 'IP-CIDR6,2001:db8::/32,Auto'],
+    [{ kind: 'port', port: 443 }, 'DST-PORT,443,Auto'],
     [{ kind: 'asn', value: 13335 }, 'IP-ASN,13335,Auto'],
     [{ kind: 'geo-ip', countryCode: 'CN' }, 'GEOIP,CN,Auto'],
     [{ kind: 'geo-site', category: 'youtube' }, 'GEOSITE,youtube,Auto'],
@@ -156,7 +169,7 @@ describe('MihomoCompiler', () => {
     expect(transformResult.issues.map((issue) => issue.code)).toContain('MIHOMO_UNSUPPORTED_TRANSFORM')
   })
 
-  it('fails closed for unresolved Fixed proxy and unselected Mihomo output', () => {
+  it('fails closed for an unresolved Fixed proxy independently of the selected output', () => {
     const fixed = baseIR()
     fixed.strategies = [{ kind: 'fixed', id: 'auto', name: 'Fixed', proxyId: 'placeholder' }]
     const fixedResult = compileMihomo(fixed, { now: fixedNow })
@@ -166,8 +179,7 @@ describe('MihomoCompiler', () => {
     const wrongOutput = baseIR()
     wrongOutput.outputs[0] = { ...wrongOutput.outputs[0], target: 'sing-box' }
     const outputResult = compileMihomo(wrongOutput, { now: fixedNow })
-    expect(outputResult.success).toBe(false)
-    expect(outputResult.issues.map((issue) => issue.code)).toContain('MIHOMO_OUTPUT_NOT_SELECTED')
+    expect(outputResult.success).toBe(true)
   })
 
   it('lowers Rename through provider override.proxy-name', () => {

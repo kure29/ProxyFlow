@@ -3,7 +3,7 @@ import type { TargetClient, OutputDefinition } from './output'
 import type { ServiceDefinition } from './services'
 
 export type { TargetClient, OutputDefinition } from './output'
-export type { ServiceCategory, RuleSource, ServiceDefinition } from './services'
+export type { ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
 
 export type BlockCategory =
   | 'source'
@@ -51,6 +51,11 @@ export interface BlockNodeData extends Record<string, unknown> {
   highlighted?: boolean
   dimmed?: boolean
   subscriptionUrl?: string
+  proxyProtocol?: 'socks' | 'http'
+  proxyServer?: string
+  proxyPort?: number
+  proxyUsername?: string
+  proxyPassword?: string
   enabled?: boolean
   nodeCount?: number
   updatedAt?: string

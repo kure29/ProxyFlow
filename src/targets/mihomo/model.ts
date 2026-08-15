@@ -17,6 +17,17 @@ export interface MihomoProxyProvider {
   }
 }
 
+export type MihomoProxy = {
+  name: string
+  type: 'socks5' | 'http'
+  server: string
+  port: number
+  username?: string
+  password?: string
+  udp?: boolean
+  'dialer-proxy'?: string
+}
+
 export interface MihomoProxyGroup {
   name: string
   type: 'select' | 'url-test' | 'fallback' | 'load-balance'
@@ -51,6 +62,7 @@ export interface MihomoConfig {
   'allow-lan': boolean
   mode: 'rule'
   'log-level': 'info'
+  proxies?: MihomoProxy[]
   'proxy-providers'?: Record<string, MihomoProxyProvider>
   'proxy-groups'?: MihomoProxyGroup[]
   'rule-providers'?: Record<string, MihomoRuleProvider>

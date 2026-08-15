@@ -6,6 +6,7 @@ export interface DomainSuffixMatcherIR { kind: 'domain-suffix'; value: string }
 export interface DomainKeywordMatcherIR { kind: 'domain-keyword'; value: string }
 export interface IpCidrMatcherIR { kind: 'ip-cidr'; value: string }
 export interface IpCidr6MatcherIR { kind: 'ip-cidr6'; value: string }
+export interface PortMatcherIR { kind: 'port'; port: number }
 export interface AsnMatcherIR { kind: 'asn'; value: number }
 export interface GeoIpMatcherIR { kind: 'geo-ip'; countryCode: string }
 export interface GeoSiteMatcherIR { kind: 'geo-site'; category: string }
@@ -18,6 +19,7 @@ export type TrafficMatcherIR =
   | DomainKeywordMatcherIR
   | IpCidrMatcherIR
   | IpCidr6MatcherIR
+  | PortMatcherIR
   | AsnMatcherIR
   | GeoIpMatcherIR
   | GeoSiteMatcherIR
