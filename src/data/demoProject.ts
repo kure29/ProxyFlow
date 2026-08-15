@@ -1,5 +1,6 @@
 import { MarkerType } from '@xyflow/react'
 import type { BlockNodeData, FlowEdgeData, GraphEdge, GraphNode, OutputDefinition, ProxyFlowProject } from '../types/project'
+import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
@@ -78,7 +79,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', subtitle: '其余流量 · Default Proxy', icon: 'corner-down-right',
-    targetId: 'output', targetLabel: 'Default Proxy', protected: true,
+    targetId: 'us-via-hk', targetLabel: 'US via HK', protected: true,
   }),
   node('output', 1360, 250, {
     blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '配置就绪 · Mock', icon: 'package-check',
@@ -101,11 +102,11 @@ export const demoEdges: GraphEdge[] = [
   edge('e-hk-output', 'hk-auto', 'output', 'output'),
   edge('e-us-output', 'us-auto', 'output', 'output'),
   edge('e-dns-output', 'dns', 'output', 'dns'),
-  edge('e-final-output', 'final-route', 'output', 'output'),
+  edge('e-final-chain', 'final-route', 'us-via-hk', 'route'),
 ]
 
 export const demoProject: ProxyFlowProject = {
-  version: 1,
+  version: PROJECT_SCHEMA_VERSION,
   id: 'proxyflow-demo',
   name: '我的代理配置',
   graph: { nodes: demoNodes, edges: demoEdges },
@@ -114,7 +115,7 @@ export const demoProject: ProxyFlowProject = {
   updatedAt: new Date().toISOString(),
 }
 
-export const mockMihomoPreview = `# ProxyFlow V0.1 Mock Preview
+export const mockMihomoPreview = `# ProxyFlow V0.2 Mock Preview
 # This is a visual prototype — not a production compiler output.
 
 proxy-providers:
