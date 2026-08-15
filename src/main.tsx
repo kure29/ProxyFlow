@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './styles/index.css'
+import './core/compiler'
 import { App } from './app/App'
 
 createRoot(document.getElementById('root')!).render(

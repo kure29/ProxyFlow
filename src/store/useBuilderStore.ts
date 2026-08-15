@@ -2,6 +2,7 @@ import { applyEdgeChanges, applyNodeChanges, MarkerType, type Connection, type E
 import { create } from 'zustand'
 import { blockByType } from '../data/blockLibrary'
 import { demoProject } from '../data/demoProject'
+import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
@@ -25,6 +26,8 @@ interface BuilderState {
   previewOpen: boolean
   saveStatus: 'saved' | 'saving'
   hydrated: boolean
+  recoveryRequired: boolean
+  recoveryNotice: string | null
   toast: string | null
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
@@ -49,7 +52,10 @@ interface BuilderState {
   setPreviewOpen: (open: boolean) => void
   setSaveStatus: (status: 'saved' | 'saving') => void
   setToast: (message: string | null) => void
-  hydrate: (project: ProxyFlowProject | null) => void
+  hydrate: (project: ProxyFlowProject | null | undefined) => void
+  resetToDemo: () => void
+  createNewProject: () => void
+  dismissRecoveryNotice: () => void
   toProject: () => ProxyFlowProject
 }
 
@@ -91,6 +97,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     previewOpen: false,
     saveStatus: 'saved',
     hydrated: false,
+    recoveryRequired: false,
+    recoveryNotice: null,
     toast: null,
 
     onNodesChange: (changes) => {
@@ -204,6 +212,18 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     setRoutingTarget: (nodeId, targetId) => {
       const state = get()
+      if (targetId === '__direct__' || targetId === '__reject__') {
+        const kind = targetId === '__direct__' ? 'direct' : 'reject'
+        record()
+        set({
+          nodes: state.nodes.map((node) => node.id === nodeId ? {
+            ...node,
+            data: { ...node.data, targetId: kind.toUpperCase(), targetLabel: kind.toUpperCase(), targetKind: kind },
+          } : node),
+          edges: state.edges.filter((edge) => edge.source !== nodeId || edge.data?.semantic !== 'route'),
+        })
+        return
+      }
       const target = state.nodes.find((node) => node.id === targetId)
       if (!target) return
       record()
@@ -214,7 +234,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
       }
       set({
-        nodes: state.nodes.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, targetId, targetLabel: target.data.title } } : node),
+        nodes: state.nodes.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, targetId, targetLabel: target.data.title, targetKind: 'strategy' } } : node),
         edges: [...oldEdges, newEdge],
       })
     },
@@ -326,13 +346,41 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
     hydrate: (project) => {
+      if (project === undefined) {
+        set({
+          projectId: demoProject.id, projectName: demoProject.name,
+          nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
+          historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
+          recoveryRequired: true,
+          recoveryNotice: '本地项目无法解析。原始数据尚未覆盖，请重置为 Demo 或新建 Project。',
+        })
+        return
+      }
       const migration = project ? migrateProject(project) : undefined
       const value = migration?.success && migration.project ? migration.project : demoProject
       set({
         projectId: value.id, projectName: value.name, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
+        recoveryRequired: migration?.recoveryRequired ?? false,
+        recoveryNotice: migration?.message ?? null,
       })
     },
+    resetToDemo: () => set({
+      projectId: demoProject.id, projectName: demoProject.name,
+      nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
+      historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
+      recoveryRequired: false, recoveryNotice: '已重置为 V0.3 Demo。',
+    }),
+    createNewProject: () => {
+      const value = createBlankProject()
+      set({
+        projectId: value.id, projectName: value.name,
+        nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
+        historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
+        recoveryRequired: false, recoveryNotice: '已创建新的空白项目。',
+      })
+    },
+    dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
     toProject: () => {
       const state = get()
       return {

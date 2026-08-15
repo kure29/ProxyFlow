@@ -3,8 +3,9 @@ import type { ServiceDefinition } from '../types/project'
 const iosRuleSource = (service: string, ruleCount: number) => ({
   id: `ios-${service.toLowerCase().replaceAll(' ', '-')}`,
   provider: 'ios-rule-script' as const,
-  format: 'multi-client',
-  url: `https://github.com/blackmatrix7/ios_rule_script/tree/master/rule`,
+  format: 'yaml' as const,
+  behavior: 'classical' as const,
+  url: `https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/${service}/${service}.yaml`,
   updatedAt: 'Mock metadata',
   ruleCount,
 })

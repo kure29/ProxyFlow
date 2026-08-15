@@ -6,6 +6,8 @@ import {
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
 import { outputDefinitions } from '../../data/demoProject'
+import { compileGraph } from '../../core/graphCompiler'
+import { compileMihomo } from '../../targets/mihomo'
 import type { BlockNodeData, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 
@@ -105,14 +107,14 @@ function RoutingInspector({ node }: InspectorProps) {
   const activeService = useBuilderStore((state) => state.activeService)
   const update = useBuilderStore((state) => state.updateNodeData)
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
-  const targets = nodes.filter((item) => ['strategy', 'chain', 'output'].includes(item.data.category))
+  const targets = nodes.filter((item) => ['strategy', 'chain'].includes(item.data.category))
   const [rulesOpen, setRulesOpen] = useState(false)
   const services = node.data.services ?? []
   return <>
     <TextField node={node} field="title" label="名称" />
     <div className="section-label"><span>服务</span><button><Plus size={12} /> 添加</button></div>
     <div className="service-list">{services.map((service) => <div className={activeService === service ? 'is-active' : ''} key={service}><span className="service-avatar">{service.slice(0, 1)}</span><span><strong>{service}</strong><small>Service definition</small></span><button onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={13} /></button></div>)}</div>
-    <Field label="目标策略"><select value={node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>选择目标…</option>{targets.map((target) => <option key={target.id} value={target.id}>{target.data.title}</option>)}</select></Field>
+    <Field label="目标策略"><select value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>选择目标…</option><option value="__direct__">DIRECT</option><option value="__reject__">REJECT</option>{targets.map((target) => <option key={target.id} value={target.id}>{target.data.title}</option>)}</select></Field>
     <div className="route-preview"><span className="route-source">{node.data.title}</span><ArrowLeftRight size={14} /><span className="route-target">{node.data.targetLabel ?? '未设置'}</span></div>
     <div className="rule-source-card"><div><span>RULE SOURCE</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow Built-in' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? '通用地域元数据' : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label="查看规则来源"><ExternalLink size={14} /></a></div>
     <button className="inspector-secondary-button" onClick={() => setRulesOpen((open) => !open)}><Eye size={14} /> {rulesOpen ? '收起实际规则' : '查看实际规则'}</button>
@@ -123,16 +125,25 @@ function RoutingInspector({ node }: InspectorProps) {
 function OutputInspector({ node }: InspectorProps) {
   const setOutputClient = useBuilderStore((state) => state.setOutputClient)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
+  const nodes = useBuilderStore((state) => state.nodes)
+  const edges = useBuilderStore((state) => state.edges)
+  const projectName = useBuilderStore((state) => state.projectName)
+  const toProject = useBuilderStore((state) => state.toProject)
+  const graph = useMemo(() => compileGraph(toProject()), [edges, nodes, projectName, toProject])
+  const mihomo = useMemo(() => graph.ir ? compileMihomo(graph.ir) : undefined, [graph])
+  const errors = graph.success ? mihomo?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
+  const warnings = graph.success ? mihomo?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
+  const compiled = node.data.client === 'mihomo' && graph.success && mihomo?.success
   return <>
     <Field label="目标客户端"><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><span>{output.label.slice(0, 1)}</span><strong>{output.label}</strong><small>{output.status === 'supported' ? 'SUPPORTED' : output.status === 'prototype' ? 'PROTOTYPE' : 'SOON'}</small>{node.data.client === output.target && <Check size={13} />}</button>)}</div></Field>
-    <div className="compat-card"><ShieldCheck size={18} /><div><strong>Compatibility</strong><span>{node.data.client === 'mihomo' ? '当前 Blueprint 可完整预览' : '当前客户端仅提供原型映射'}</span></div><b>{node.data.client === 'mihomo' ? 'Supported' : 'Mock'}</b></div>
+    <div className="compat-card"><ShieldCheck size={18} /><div><strong>Compatibility</strong><span>{node.data.client !== 'mihomo' ? '当前客户端尚未实现' : compiled ? `${warnings} warnings · ${mihomo?.issues.filter((issue) => issue.severity === 'info').length ?? 0} info` : `${errors} errors · 无配置输出`}</span></div><b>{node.data.client !== 'mihomo' ? 'Unavailable' : compiled ? 'Compiled' : 'Blocked'}</b></div>
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> 预览配置</button>
-    <div className="mock-note">V0.1 仅生成 Mock 预览，不代表真实编译结果。</div>
+    <div className="mock-note">Mihomo 使用真实 Compiler MVP；失败时不会回退到 Mock YAML。</div>
   </>
 }
 
 function DnsInspector({ node }: InspectorProps) {
-  return <><TextField node={node} field="title" label="名称" /><TextField node={node} field="resolver" label="远程 DNS" /><Field label="解析模式"><select defaultValue="fake-ip"><option value="fake-ip">Fake IP</option><option value="redir-host">真实 IP</option></select></Field><Advanced><Field label="本地 DNS"><input defaultValue="223.5.5.5" /></Field><label className="toggle-row compact"><span><strong>遵循分流策略</strong></span><input type="checkbox" defaultChecked /></label></Advanced><div className="mock-note">DNS 行为仅做界面演示，暂未编译。</div></>
+  return <><TextField node={node} field="title" label="名称" /><TextField node={node} field="resolver" label="远程 DNS" /><Field label="解析模式"><select value="redir-host" disabled><option value="redir-host">真实 IP（MVP）</option></select></Field><Advanced><Field label="Bootstrap DNS"><input value="223.5.5.5" disabled /></Field></Advanced><div className="mock-note">V0.3 只编译 enable、redir-host 与 nameserver；高级 DNS 留待后续。</div></>
 }
 
 function GenericInspector({ node }: InspectorProps) {

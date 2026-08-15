@@ -60,29 +60,29 @@ export const demoNodes: GraphNode[] = [
   }),
   node('ai-services', 520, 650, {
     blockType: 'routing-group', category: 'routing', title: 'AI 服务', subtitle: '3 个服务 · US via HK', icon: 'sparkles',
-    services: ['OpenAI', 'Claude', 'Gemini'], targetId: 'us-via-hk', targetLabel: 'US via HK', ruleSource: 'ios_rule_script',
+    services: ['OpenAI', 'Claude', 'Gemini'], targetId: 'us-via-hk', targetLabel: 'US via HK', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('streaming', 800, 650, {
     blockType: 'routing-group', category: 'routing', title: '流媒体', subtitle: '3 个服务 · US Auto', icon: 'play',
-    services: ['Netflix', 'YouTube', 'Disney+'], targetId: 'us-auto', targetLabel: '美国自动选择', ruleSource: 'ios_rule_script',
+    services: ['Netflix', 'YouTube', 'Disney+'], targetId: 'us-auto', targetLabel: '美国自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('telegram', 1080, 650, {
     blockType: 'service-rule', category: 'routing', title: 'Telegram', subtitle: 'Social · HK Auto', icon: 'send',
-    services: ['Telegram'], targetId: 'hk-auto', targetLabel: '香港自动选择', ruleSource: 'ios_rule_script',
+    services: ['Telegram'], targetId: 'hk-auto', targetLabel: '香港自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('china', 1360, 650, {
     blockType: 'service-rule', category: 'routing', title: '国内网站', subtitle: 'China Mainland · DIRECT', icon: 'landmark',
-    services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', ruleSource: 'builtin',
+    services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', subtitle: '智能解析 · Fake IP', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', subtitle: '基础 DNS · redir-host', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', subtitle: '其余流量 · Default Proxy', icon: 'corner-down-right',
-    targetId: 'us-via-hk', targetLabel: 'US via HK', protected: true,
+    targetId: 'us-via-hk', targetLabel: 'US via HK', targetKind: 'strategy', protected: true,
   }),
   node('output', 1360, 250, {
-    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '配置就绪 · Mock', icon: 'package-check',
+    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', icon: 'package-check',
     client: 'mihomo', compatibility: 'Supported', protected: true,
   }),
 ]
@@ -114,33 +114,3 @@ export const demoProject: ProxyFlowProject = {
   outputs: outputDefinitions,
   updatedAt: new Date().toISOString(),
 }
-
-export const mockMihomoPreview = `# ProxyFlow V0.2 Mock Preview
-# This is a visual prototype — not a production compiler output.
-
-proxy-providers:
-  HKT-Subscription:
-    type: http
-    url: https://example.com/hkt/••••••
-  US-Subscription:
-    type: http
-    url: https://example.com/us/••••••
-
-proxy-groups:
-  - name: HK Auto
-    type: url-test
-    use: [HKT-Subscription]
-  - name: US Auto
-    type: url-test
-    use: [US-Subscription]
-  - name: US via HK
-    type: relay
-    proxies: [HK Auto, US Auto]
-
-rules:
-  - RULE-SET,OpenAI,US via HK
-  - RULE-SET,Netflix,US Auto
-  - RULE-SET,Telegram,HK Auto
-  - GEOIP,CN,DIRECT
-  - MATCH,US via HK
-`

@@ -2,6 +2,7 @@ import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
 
 export interface CompileResult {
+  success: boolean
   content: string
   issues: CompatibilityIssue[]
   generatedAt: string
@@ -25,5 +26,4 @@ export class CompilerRegistry {
   }
 }
 
-// V0.2 intentionally leaves the target registry empty. Real target compilers belong to a later phase.
 export const compilerRegistry = new CompilerRegistry()
