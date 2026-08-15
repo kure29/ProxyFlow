@@ -1,4 +1,5 @@
-import type { CompatibilityIssue, ProxyFlowProject, TargetClient } from '../../types/project'
+import type { CompatibilityIssue, TargetClient } from '../../types/project'
+import type { ProxyFlowIR } from '../ir'
 
 export interface CompileResult {
   content: string
@@ -9,7 +10,7 @@ export interface CompileResult {
 
 export interface ConfigCompiler {
   target: TargetClient
-  compile(project: ProxyFlowProject): Promise<CompileResult>
+  compile(ir: ProxyFlowIR): Promise<CompileResult>
 }
 
 export class CompilerRegistry {
@@ -24,5 +25,5 @@ export class CompilerRegistry {
   }
 }
 
-// V0.1 intentionally leaves the registry empty. Real target compilers belong to a later phase.
+// V0.2 intentionally leaves the target registry empty. Real target compilers belong to a later phase.
 export const compilerRegistry = new CompilerRegistry()
