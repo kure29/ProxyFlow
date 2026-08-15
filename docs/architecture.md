@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-ProxyFlow V0.2 使用单向派生架构：
+ProxyFlow V0.3 继续使用单向派生架构：
 
 ```text
 Visual Graph / ProxyFlow Project
@@ -15,7 +15,7 @@ Visual Graph / ProxyFlow Project
               ▼
        Semantic Issues / Valid IR
               │
-              │ future ConfigCompiler.compile(ir)
+              │ ConfigCompiler.compile(ir)
               ▼
      Target-specific configuration
 ```
@@ -24,12 +24,12 @@ Visual Graph / ProxyFlow Project
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
 - IR 不依赖 React、Zustand、DOM、Canvas 或 `@xyflow/react`。
 - Target Compiler 只接收 IR，不能读取 React Flow Graph。
-- V0.2 没有真实 Target Compiler。
+- V0.3 注册 Mihomo Compiler MVP；其他 Target 仍为空。
 
 Project Schema Version 与 IR Schema Version 是两个独立版本：
 
-- `PROJECT_SCHEMA_VERSION = 1`
-- `PROXYFLOW_IR_VERSION = 1`
+- `PROJECT_SCHEMA_VERSION = 2`
+- `PROXYFLOW_IR_VERSION = 2`
 
 ## Universal IR entities
 
@@ -42,6 +42,7 @@ Project Schema Version 与 IR Schema Version 是两个独立版本：
 - `RouteTargetIR`: strategy、direct、reject
 - `DnsIR`: automatic 或 custom resolver
 - `OutputIR`: 用户请求的目标客户端
+- `ServiceIR`: 客户端无关的 Service 与 Remote Rule Source metadata
 
 Output 不参与流量路由语义。它只描述用户希望生成什么目标配置。
 
@@ -166,9 +167,9 @@ IR validation 可脱离 UI 单独执行，负责：
 
 Issue 使用稳定 `code`，UI、CLI、测试和未来本地化不依赖错误文本。
 
-## Non-goals for V0.2
+## Non-goals for V0.3
 
-- Mihomo / sing-box / Surge compiler
+- 完整 Mihomo Schema 与 sing-box / Surge compiler
 - VMess、VLESS、Trojan 等 protocol model
 - subscription fetching or parsing
 - remote rule fetching
