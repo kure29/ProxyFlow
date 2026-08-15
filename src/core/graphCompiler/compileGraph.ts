@@ -30,6 +30,18 @@ export function compileGraph(project: ProxyFlowProject): GraphCompileResult {
       sources: compileSources(context),
       transforms: compileTransforms(context),
       strategies: compileStrategies(context),
+      services: project.services.map((service) => ({
+        id: service.id,
+        name: service.name,
+        defaultMatchers: service.defaultMatchers,
+        ruleSources: service.ruleSources.map(({ id, provider, format, behavior, url }) => ({
+          id,
+          provider,
+          ...(format ? { format } : {}),
+          ...(behavior ? { behavior } : {}),
+          ...(url ? { url } : {}),
+        })),
+      })),
       routes: routing.routes,
       finalRoute: routing.finalRoute,
       dns: compileDns(context),

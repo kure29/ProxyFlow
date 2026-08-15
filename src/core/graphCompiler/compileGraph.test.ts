@@ -81,7 +81,7 @@ describe('compileGraph', () => {
   it('compiles the full demo graph into client-agnostic IR', () => {
     const result = compileGraph(demoProject)
     expect(result.success).toBe(true)
-    expect(result.ir).toEqual(expect.objectContaining({ version: 1, finalRoute: { target: { kind: 'strategy', id: 'us-via-hk' } } }))
+    expect(result.ir).toEqual(expect.objectContaining({ version: 2, finalRoute: { target: { kind: 'strategy', id: 'us-via-hk' } } }))
     expect(result.ir?.strategies.find((strategy) => strategy.id === 'us-via-hk')).toEqual(expect.objectContaining({ kind: 'chain', hops: [{ kind: 'strategy', id: 'hk-auto' }, { kind: 'strategy', id: 'us-auto' }] }))
     expect(result.ir?.routes.find((route) => route.id === 'ai-services')).toEqual(expect.objectContaining({ matcher: { kind: 'service', serviceIds: ['openai', 'claude', 'gemini'] }, target: { kind: 'strategy', id: 'us-via-hk' } }))
     expect(result.ir?.outputs[0]).toEqual(expect.objectContaining({ target: 'mihomo' }))

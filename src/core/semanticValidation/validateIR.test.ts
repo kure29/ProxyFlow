@@ -9,6 +9,7 @@ const baseIR = (): ProxyFlowIR => ({
   sources: [],
   transforms: [],
   strategies: [],
+  services: [],
   routes: [],
   finalRoute: { target: { kind: 'direct' } },
   outputs: [{ id: 'output', name: 'Output', target: 'mihomo', enabled: true }],

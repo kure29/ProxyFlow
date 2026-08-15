@@ -3,7 +3,8 @@ export type ServiceCategory = 'ai' | 'streaming' | 'social' | 'development' | 'g
 export interface RuleSource {
   id: string
   provider: 'ios-rule-script' | 'builtin' | 'remote' | 'custom'
-  format?: string
+  format?: 'yaml' | 'text' | 'mrs' | 'multi-client' | 'universal'
+  behavior?: 'domain' | 'ipcidr' | 'classical'
   url?: string
   updatedAt?: string
   ruleCount?: number

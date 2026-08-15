@@ -21,7 +21,7 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
       ))
       return []
     }
-    const target = compileRouteTarget(node.data.targetId, node.data.targetLabel, context)
+    const target = compileRouteTarget(node.data.targetKind, node.data.targetId, node.data.targetLabel, context)
     if (!target) {
       context.addIssue(semanticIssue(
         'ROUTE_TARGET_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid target.`,
@@ -48,7 +48,7 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
     { nodeId: finalNodes[0].id, entity: { type: 'final', id: finalNodes[0].id } },
   ))
   const finalNode = finalNodes[0]
-  const target = compileRouteTarget(finalNode.data.targetId, finalNode.data.targetLabel, context)
+  const target = compileRouteTarget(finalNode.data.targetKind, finalNode.data.targetId, finalNode.data.targetLabel, context)
   if (!target) {
     context.addIssue(semanticIssue(
       'FINAL_TARGET_MISSING', 'error', 'compile', `Final route "${finalNode.data.title}" has no valid target.`,
@@ -72,10 +72,13 @@ function compileServiceIds(nodeId: string, name: string, services: string[], con
 }
 
 function compileRouteTarget(
+  targetKind: 'strategy' | 'direct' | 'reject' | undefined,
   targetId: string | undefined,
   targetLabel: string | undefined,
   context: GraphCompileContext,
 ): RouteTargetIR | undefined {
+  if (targetKind === 'direct') return { kind: 'direct' }
+  if (targetKind === 'reject') return { kind: 'reject' }
   const normalized = `${targetId ?? ''} ${targetLabel ?? ''}`.trim().toLowerCase()
   if (/\bdirect\b/.test(normalized)) return { kind: 'direct' }
   if (/\breject\b/.test(normalized)) return { kind: 'reject' }

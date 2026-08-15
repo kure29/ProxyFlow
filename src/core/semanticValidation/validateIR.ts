@@ -9,11 +9,13 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
   const sourceIds = new Set(ir.sources.map((source) => source.id))
   const transformIds = new Set(ir.transforms.map((transform) => transform.id))
   const strategyIds = new Set(ir.strategies.map((strategy) => strategy.id))
+  const serviceIds = new Set(ir.services.map((service) => service.id))
   const add = (issue: SemanticIssue) => issues.push(issue)
 
   validateDuplicateIds(ir.sources, 'source', add)
   validateDuplicateIds(ir.transforms, 'transform', add)
   validateDuplicateIds(ir.strategies, 'strategy', add)
+  validateDuplicateIds(ir.services, 'service', add)
   validateDuplicateIds(ir.routes, 'route', add)
   validateDuplicateIds(ir.outputs, 'output', add)
 
@@ -79,6 +81,11 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     if (route.matcher.kind === 'service' && route.matcher.serviceIds.length === 0) add(entityIssue(
       'ROUTE_MATCHER_MISSING', 'error', `Route "${route.name}" has no services.`, 'route', route.id,
     ))
+    if (route.matcher.kind === 'service') for (const serviceId of route.matcher.serviceIds) {
+      if (!serviceIds.has(serviceId)) add(entityIssue(
+        'SERVICE_REFERENCE_NOT_FOUND', 'error', `Service reference “${serviceId}” does not exist.`, 'route', route.id,
+      ))
+    }
     validateRouteTarget(route.target, strategyIds, 'route', route.id, add)
   }
 
