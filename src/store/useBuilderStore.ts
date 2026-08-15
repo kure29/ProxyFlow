@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { blockByType } from '../data/blockLibrary'
 import { demoProject } from '../data/demoProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
+import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
 
 interface GraphSnapshot {
@@ -325,7 +326,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
     hydrate: (project) => {
-      const value = project?.version === 1 ? project : demoProject
+      const migration = project ? migrateProject(project) : undefined
+      const value = migration?.success && migration.project ? migration.project : demoProject
       set({
         projectId: value.id, projectName: value.name, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
@@ -334,7 +336,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     toProject: () => {
       const state = get()
       return {
-        version: 1, id: state.projectId, name: state.projectName,
+        version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
       }

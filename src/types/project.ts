@@ -1,4 +1,9 @@
 import type { Edge, Node } from '@xyflow/react'
+import type { TargetClient, OutputDefinition } from './output'
+import type { ServiceDefinition } from './services'
+
+export type { TargetClient, OutputDefinition } from './output'
+export type { ServiceCategory, RuleSource, ServiceDefinition } from './services'
 
 export type BlockCategory =
   | 'source'
@@ -34,15 +39,6 @@ export type BlockType =
   | 'output'
 
 export type EdgeSemantic = 'data' | 'route' | 'strategy' | 'chain' | 'output' | 'dns'
-export type TargetClient =
-  | 'mihomo'
-  | 'sing-box'
-  | 'surge'
-  | 'loon'
-  | 'quantumult-x'
-  | 'shadowrocket'
-  | 'stash'
-
 export interface BlockNodeData extends Record<string, unknown> {
   blockType: BlockType
   category: BlockCategory
@@ -72,6 +68,15 @@ export interface BlockNodeData extends Record<string, unknown> {
   client?: TargetClient
   compatibility?: string
   resolver?: string
+  renamePattern?: string
+  renameReplacement?: string
+  sortBy?: 'name' | 'latency'
+  sortDirection?: 'ascending' | 'descending'
+  deduplicateBy?: 'name' | 'server'
+  limit?: number
+  loadBalanceMode?: 'round-robin' | 'consistent-hash'
+  proxyId?: string
+  routePriority?: number
 }
 
 export interface FlowEdgeData extends Record<string, unknown> {
@@ -80,34 +85,6 @@ export interface FlowEdgeData extends Record<string, unknown> {
 
 export type GraphNode = Node<BlockNodeData, 'block'>
 export type GraphEdge = Edge<FlowEdgeData>
-
-export type ServiceCategory = 'ai' | 'streaming' | 'social' | 'development' | 'gaming' | 'regional'
-
-export interface RuleSource {
-  id: string
-  provider: 'ios-rule-script' | 'builtin' | 'remote' | 'custom'
-  format?: string
-  url?: string
-  updatedAt?: string
-  ruleCount?: number
-}
-
-export interface ServiceDefinition {
-  id: string
-  name: string
-  category: ServiceCategory
-  icon?: string
-  description?: string
-  ruleSources: RuleSource[]
-  defaultMatchers?: string[]
-}
-
-export interface OutputDefinition {
-  id: string
-  target: TargetClient
-  label: string
-  status: 'supported' | 'prototype' | 'coming-soon'
-}
 
 export interface ProxyFlowProject {
   version: number

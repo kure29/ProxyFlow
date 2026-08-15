@@ -44,7 +44,7 @@ export function TopBar() {
       <div className="brand">
         <span className="brand-mark"><Route size={19} /></span>
         <strong>ProxyFlow</strong>
-        <span className="version-pill">V0.1</span>
+        <span className="version-pill">V0.2</span>
       </div>
       <div className="topbar-divider" />
       <div className="project-switcher-wrap">
