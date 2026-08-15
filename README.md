@@ -6,7 +6,9 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 
 ## 当前版本
 
-这是 ProxyFlow Frontend Prototype V0.1，聚焦产品结构、UI/UX、可视化画布和交互验证。所有订阅、规则统计、测速、兼容性与配置输出都是 Mock 数据。
+当前版本是 ProxyFlow V0.2 Core Foundation。V0.1 的可视化编辑体验保持不变，V0.2 新增客户端无关的 Universal IR、Graph Compiler 与 Semantic Validator，让 ProxyFlow 能够解释画布表达的真实流量语义。
+
+订阅、规则统计、测速、兼容性与目标配置输出仍是 Mock 数据。
 
 ## 技术栈
 
@@ -32,6 +34,11 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 - Undo / Redo 与键盘快捷键
 - Storage Adapter 封装的本地自动保存
 - Mock Mihomo 配置预览、复制与导出
+- Visual Graph → Universal IR 的纯函数 Graph Compiler
+- Source、Transform、Strategy、Route、Final、DNS、Output IR
+- Graph Structure Validation 与独立 IR Semantic Validation
+- Proxy Chain 自引用和多层循环检测
+- Universal IR Developer Preview、复制与 JSON 导出
 - 1280px 以上桌面布局与小屏提示
 
 ## 架构边界
@@ -39,14 +46,22 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 ```text
 Visual Graph
     ↓
-Universal Project / IR (future)
+Graph Semantic Compiler
     ↓
-Compiler Registry
+Universal Proxy IR
     ↓
-Mihomo / sing-box / Surge / ...
+Semantic Validator
+    ↓
+Target Compiler Registry (future)
+    ↓
+Mihomo / sing-box / Surge / ... (future)
 ```
 
-画布数据使用客户端无关的 `BlockType`、`GraphNode`、`GraphEdge` 和 `EdgeSemantic`。Compiler Registry 已预留接口，但 V0.1 不包含真实 Compiler。
+Graph / Project 是编辑器与本地存储的唯一事实来源，IR 是按需重新生成的只读派生物，不进行双写。`src/core/ir` 不依赖 React、Zustand、DOM 或 `@xyflow/react`。
+
+Graph Compiler 使用显式 `EdgeSemantic` 和有类型引用生成 IR。规则优先级采用明确的 `routePriority`，缺失时使用稳定的 Graph node insertion order；Canvas 坐标不会影响业务语义。Proxy Chain 顺序只以 `hopIds` 为准，视觉 Edge 不一致时返回 warning。
+
+Target Compiler Registry 的接口已经调整为 `Universal IR → Target Config`，但 V0.2 不包含真实 Mihomo、sing-box 或 Surge Compiler。完整说明见 [Core Architecture](docs/architecture.md)。
 
 规则体验以 Service 为第一层。Demo 中的 `ios_rule_script` 只保存来源名称、仓库引用和 Mock 元数据，没有复制规则文件。来源项目位于 [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，其许可证为 GPL-2.0。
 
@@ -70,13 +85,19 @@ npm run build
 src/
   app/             应用装配、快捷键与自动保存
   components/      画布、节点、布局、检查器、预览
-  core/            Graph 约束、路径、验证、Compiler 边界
+  core/
+    graph/          编辑器连接约束与路径
+    graphCompiler/  Visual Graph → Universal IR
+    ir/             纯客户端无关领域模型
+    semanticValidation/ 独立 IR 校验与 Chain Cycle 检测
+    compiler/       未来 Target Compiler Registry
+    project/        Project Schema Version 边界
   data/            Demo Blueprint、模块库与服务目录
   storage/         ProjectStorage 适配器
   store/           Zustand Builder Store 与历史记录
   types/           Universal Project 类型
 ```
 
-## 明确不在 V0.1 中
+## 明确不在 V0.2 中
 
 后端、账号、数据库、真实订阅解析、节点测速、远程规则同步、协议解析、真实 Mihomo/sing-box/Surge Compiler、配置发布 URL 与云同步均未实现。
