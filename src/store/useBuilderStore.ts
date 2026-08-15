@@ -68,6 +68,7 @@ const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' &&
 
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'subscription') return { subscriptionUrl: '', enabled: true, nodeCount: 0, updatedAt: '尚未更新' }
+  if (type === 'manual-proxy') return { proxyProtocol: 'socks', proxyServer: '', proxyPort: 1080 }
   if (type === 'filter') return { include: [], exclude: [] }
   if (type === 'auto-select') return { strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'proxy-chain') return { hopIds: [] }
@@ -297,7 +298,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     setOutputClient: (id, client) => {
       const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
-      get().updateNodeData(id, { client, title: `${labels[client]} Output`, compatibility: client === 'mihomo' ? 'Supported' : 'Prototype' })
+      get().updateNodeData(id, { client, title: `${labels[client]} Output`, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
     },
     beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.nodes, state.edges) })),
     commitTransaction: () => {
@@ -369,7 +370,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       projectId: demoProject.id, projectName: demoProject.name,
       nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
       historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
-      recoveryRequired: false, recoveryNotice: '已重置为 V0.3 Demo。',
+      recoveryRequired: false, recoveryNotice: '已重置为 V0.4 Demo。',
     }),
     createNewProject: () => {
       const value = createBlankProject()

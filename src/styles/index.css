@@ -68,6 +68,8 @@
   .saved-dot, .saving-dot { width: 7px; height: 7px; border-radius: 50%; background: #48a274; box-shadow: 0 0 0 3px #e9f5ee; }
   .saving-dot { background: #d19a52; box-shadow: 0 0 0 3px #faf0e1; animation: pulse-save 1s infinite; }
   @keyframes pulse-save { 50% { opacity: .4; } }
+  .spin { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .top-actions { display: flex; align-items: center; gap: 8px; }
   .top-action-group { display: flex; align-items: center; gap: 2px; padding-right: 8px; border-right: 1px solid var(--line); }
   .icon-button { width: 32px; height: 32px; display: grid; place-items: center; background: transparent; border-radius: 7px; color: #666d79; transition: background .16s ease, color .16s ease, transform .16s ease; }

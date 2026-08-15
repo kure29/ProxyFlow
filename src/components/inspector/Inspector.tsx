@@ -7,9 +7,9 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
 import { outputDefinitions } from '../../data/demoProject'
 import { compileGraph } from '../../core/graphCompiler'
-import { compileMihomo } from '../../targets/mihomo'
 import type { BlockNodeData, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
+import { useTargetCompile } from '../compiler/useTargetCompile'
 
 interface InspectorProps { node: GraphNode }
 
@@ -36,6 +36,18 @@ function SubscriptionInspector({ node }: InspectorProps) {
     <div className="metric-cards"><div><span>节点数量</span><strong>{node.data.nodeCount ?? 0}</strong></div><div><span>最后更新</span><strong>{node.data.updatedAt ?? '—'}</strong></div></div>
     <button className="inspector-secondary-button" onClick={() => { update(node.id, { updatedAt: '刚刚', subtitle: `${node.data.nodeCount ?? 0} 个可用节点` }); setToast('订阅已更新（Mock）') }}><RefreshCw size={14} /> 更新订阅</button>
     <div className="mock-note">Mock 数据：当前不会发送网络请求。</div>
+  </>
+}
+
+function ManualProxyInspector({ node }: InspectorProps) {
+  const update = useBuilderStore((state) => state.updateNodeData)
+  return <>
+    <TextField node={node} field="title" label="名称" />
+    <Field label="协议"><select value={node.data.proxyProtocol ?? 'socks'} onChange={(event) => update(node.id, { proxyProtocol: event.target.value as 'socks' | 'http' })}><option value="socks">SOCKS5</option><option value="http">HTTP</option></select></Field>
+    <TextField node={node} field="proxyServer" label="服务器" placeholder="proxy.example.com" />
+    <Field label="端口"><input type="number" min="1" max="65535" value={node.data.proxyPort ?? 1080} onChange={(event) => update(node.id, { proxyPort: Number(event.target.value) })} /></Field>
+    <Advanced><TextField node={node} field="proxyUsername" label="用户名" /><Field label="密码"><input type="password" value={node.data.proxyPassword ?? ''} onChange={(event) => update(node.id, { proxyPassword: event.target.value })} /></Field></Advanced>
+    <div className="mock-note">显式 HTTP/SOCKS endpoint 可同时编译到 Mihomo 与 sing-box。</div>
   </>
 }
 
@@ -75,6 +87,17 @@ function StrategyInspector({ node }: InspectorProps) {
     <TextField node={node} field="testUrl" label="测试地址" />
     <div className="metric-cards"><div><span>当前节点</span><strong className="compact-metric">{node.data.title.includes('香港') ? 'HK-03' : 'LA-02'}</strong></div><div><span>延迟</span><strong className="good-metric">{node.data.title.includes('香港') ? '42 ms' : '126 ms'}</strong></div></div>
     <Advanced><Field label="测试间隔"><div className="input-with-unit"><input type="number" value={node.data.interval ?? 300} onChange={(event) => update(node.id, { interval: Number(event.target.value) })} /><span>秒</span></div></Field><Field label="切换容差"><div className="input-with-unit"><input type="number" value={node.data.tolerance ?? 50} onChange={(event) => update(node.id, { tolerance: Number(event.target.value) })} /><span>ms</span></div></Field></Advanced>
+  </>
+}
+
+function FixedStrategyInspector({ node }: InspectorProps) {
+  const nodes = useBuilderStore((state) => state.nodes)
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const proxies = nodes.filter((item) => item.data.blockType === 'manual-proxy')
+  return <>
+    <TextField node={node} field="title" label="名称" />
+    <Field label="固定代理"><select value={node.data.proxyId ?? ''} onChange={(event) => update(node.id, { proxyId: event.target.value })}><option value="" disabled>选择手动节点…</option>{proxies.map((proxy) => <option key={proxy.id} value={proxy.id}>{proxy.data.title}</option>)}</select></Field>
+    <div className="mock-note">Fixed 只引用已经建模的手动 HTTP/SOCKS endpoint。</div>
   </>
 }
 
@@ -127,23 +150,26 @@ function OutputInspector({ node }: InspectorProps) {
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
+  const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
   const toProject = useBuilderStore((state) => state.toProject)
-  const graph = useMemo(() => compileGraph(toProject()), [edges, nodes, projectName, toProject])
-  const mihomo = useMemo(() => graph.ir ? compileMihomo(graph.ir) : undefined, [graph])
-  const errors = graph.success ? mihomo?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
-  const warnings = graph.success ? mihomo?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
-  const compiled = node.data.client === 'mihomo' && graph.success && mihomo?.success
+  const graph = useMemo(() => compileGraph(toProject()), [edges, nodes, projectId, projectName, toProject])
+  const supported = node.data.client === 'mihomo' || node.data.client === 'sing-box'
+  const target = useTargetCompile(graph.ir, supported ? node.data.client : undefined, graph.success)
+  const errors = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
+  const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
+  const info = target.result?.issues.filter((issue) => issue.severity === 'info').length ?? 0
+  const compiled = supported && graph.success && target.status === 'success'
   return <>
     <Field label="目标客户端"><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><span>{output.label.slice(0, 1)}</span><strong>{output.label}</strong><small>{output.status === 'supported' ? 'SUPPORTED' : output.status === 'prototype' ? 'PROTOTYPE' : 'SOON'}</small>{node.data.client === output.target && <Check size={13} />}</button>)}</div></Field>
-    <div className="compat-card"><ShieldCheck size={18} /><div><strong>Compatibility</strong><span>{node.data.client !== 'mihomo' ? '当前客户端尚未实现' : compiled ? `${warnings} warnings · ${mihomo?.issues.filter((issue) => issue.severity === 'info').length ?? 0} info` : `${errors} errors · 无配置输出`}</span></div><b>{node.data.client !== 'mihomo' ? 'Unavailable' : compiled ? 'Compiled' : 'Blocked'}</b></div>
+    <div className="compat-card"><ShieldCheck size={18} /><div><strong>Compatibility</strong><span>{!supported ? '当前客户端尚未实现' : target.status === 'loading' ? 'Loading compiler…' : compiled ? `${warnings} warnings · ${info} info` : `${errors} errors · 无配置输出`}</span></div><b>{!supported ? 'Unavailable' : target.status === 'loading' ? 'Loading' : compiled ? 'Compiled' : 'Blocked'}</b></div>
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> 预览配置</button>
-    <div className="mock-note">Mihomo 使用真实 Compiler MVP；失败时不会回退到 Mock YAML。</div>
+    <div className="mock-note">Mihomo 与 sing-box 都使用真实 Compiler；失败时不会回退到 Mock 配置。</div>
   </>
 }
 
 function DnsInspector({ node }: InspectorProps) {
-  return <><TextField node={node} field="title" label="名称" /><TextField node={node} field="resolver" label="远程 DNS" /><Field label="解析模式"><select value="redir-host" disabled><option value="redir-host">真实 IP（MVP）</option></select></Field><Advanced><Field label="Bootstrap DNS"><input value="223.5.5.5" disabled /></Field></Advanced><div className="mock-note">V0.3 只编译 enable、redir-host 与 nameserver；高级 DNS 留待后续。</div></>
+  return <><TextField node={node} field="title" label="名称" /><TextField node={node} field="resolver" label="远程 DNS" /><Field label="解析模式"><select value="basic" disabled><option value="basic">基础 DNS MVP</option></select></Field><Advanced><Field label="Bootstrap DNS"><input value="223.5.5.5" disabled /></Field></Advanced><div className="mock-note">Mihomo 与 sing-box 会各自 lower 基础 resolver；高级 DNS 语义留待后续。</div></>
 }
 
 function GenericInspector({ node }: InspectorProps) {
@@ -153,12 +179,13 @@ function GenericInspector({ node }: InspectorProps) {
 
 const inspectorRegistry: Partial<Record<BlockNodeData['blockType'], ComponentType<InspectorProps>>> = {
   subscription: SubscriptionInspector,
+  'manual-proxy': ManualProxyInspector,
   filter: FilterInspector,
   'auto-select': StrategyInspector,
   'manual-select': StrategyInspector,
   fallback: StrategyInspector,
   'load-balance': StrategyInspector,
-  'fixed-proxy': StrategyInspector,
+  'fixed-proxy': FixedStrategyInspector,
   'proxy-chain': ChainInspector,
   'routing-group': RoutingInspector,
   'service-rule': RoutingInspector,

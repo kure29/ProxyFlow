@@ -32,14 +32,14 @@ export function TopBar() {
       <div className="brand">
         <span className="brand-mark"><Route size={19} /></span>
         <strong>ProxyFlow</strong>
-        <span className="version-pill">V0.3</span>
+        <span className="version-pill">V0.4</span>
       </div>
       <div className="topbar-divider" />
       <div className="project-switcher-wrap">
         <button className="project-switcher" onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}>
           <span><small>当前项目</small><strong>{projectName}</strong></span><ChevronDown size={14} />
         </button>
-        {projectMenuOpen && <div className="project-menu"><span>最近项目</span><button><Check size={13} /> {projectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>新建项目 <small>V0.3</small></button></div>}
+        {projectMenuOpen && <div className="project-menu"><span>最近项目</span><button><Check size={13} /> {projectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>新建项目 <small>V0.4</small></button></div>}
       </div>
 
       <div className="save-indicator" aria-live="polite">
