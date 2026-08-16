@@ -3,8 +3,9 @@ import { AlertTriangle, ArrowRight, Check, GripVertical, MoreHorizontal, Zap } f
 import { BlockIcon } from '../icons/BlockIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { GraphNode } from '../../types/project'
-import { categoryKey, localizeDataValue, localizeKnownSystemText, useI18n } from '../../i18n'
+import { categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, useI18n } from '../../i18n'
 import { detectRegion } from '../../core/proxy'
+import { snapshotFreshness } from '../../core/subscription'
 
 const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final'])
 const noOutput = new Set(['output'])
@@ -12,8 +13,13 @@ const noOutput = new Set(['output'])
 export function BlockNode({ id, data, selected, isConnectable }: NodeProps<GraphNode>) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
+  const subscriptionRuntime = useBuilderStore((state) => state.subscriptionRuntimes[id])
   const selectNode = useBuilderStore((state) => state.selectNode)
   const hopNodes = (data.hopIds ?? []).map((hopId) => nodes.find((node) => node.id === hopId)).filter(Boolean)
+  const subscriptionStatus = data.blockType === 'subscription' ? subscriptionNodeStatus(subscriptionRuntime) : undefined
+  const subscriptionTooltip = subscriptionRuntime?.latestError
+    ? localizeDiagnosticMessage(subscriptionRuntime.latestError.code, subscriptionRuntime.latestError.message, locale)
+    : undefined
 
   return (
     <article
@@ -37,7 +43,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       <div className="node-content">
         {data.blockType === 'subscription' && (
           <div className="node-metric-row">
-            <span className={`status-dot-label status-${data.runtimeStatus ?? 'unavailable'}`}><i /> {runtimeStatusLabel(data.runtimeStatus, t)}</span>
+            <span className={`status-dot-label status-${subscriptionStatus ?? data.runtimeStatus ?? 'unavailable'}`} title={subscriptionTooltip}><i /> {subscriptionStatusLabel(subscriptionRuntime, t)}</span>
             <strong>{data.runtimeOutputCount ?? data.nodeCount ?? 0}<small> {t('node.count', { count: '' }).trim()}</small></strong>
           </div>
         )}
@@ -98,6 +104,22 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       )}
     </article>
   )
+}
+
+function subscriptionNodeStatus(runtime: ReturnType<typeof useBuilderStore.getState>['subscriptionRuntimes'][string] | undefined) {
+  if (runtime?.refreshStatus === 'loading') return 'loading'
+  if (runtime?.refreshStatus === 'failed') return 'error'
+  if (runtime?.activeSnapshot && snapshotFreshness(runtime.activeSnapshot.committedAt) === 'stale') return 'stale'
+  if (runtime?.activeSnapshot) return 'ready'
+  return 'unavailable'
+}
+
+function subscriptionStatusLabel(runtime: ReturnType<typeof useBuilderStore.getState>['subscriptionRuntimes'][string] | undefined, t: ReturnType<typeof useI18n>['t']) {
+  if (runtime?.refreshStatus === 'loading') return t('inspector.sourceStatus.loading')
+  if (runtime?.refreshStatus === 'failed') return t('inspector.refreshFailed')
+  if (runtime?.activeState === 'empty') return t('inspector.sourceStatus.empty')
+  if (runtime?.activeSnapshot && snapshotFreshness(runtime.activeSnapshot.committedAt) === 'stale') return t('inspector.sourceStatus.stale')
+  return runtimeStatusLabel(runtime?.activeSnapshot ? 'ready' : 'unavailable', t)
 }
 
 function FilterSummary({ nodeId, data }: { nodeId: string; data: GraphNode['data'] }) {

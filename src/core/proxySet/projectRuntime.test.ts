@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { invalidMissingTransformInputFixture } from '../__fixtures__/graphFixtures'
+import { subscriptionSnapshotFixture } from '../__fixtures__/subscriptionFixtures'
 import { compileGraph } from '../graphCompiler'
 import { parseSubscription, type SubscriptionSnapshot } from '../subscription'
 import { deriveProjectRuntime } from './projectRuntime'
@@ -20,7 +21,7 @@ describe('project runtime diagnostics', () => {
     )
     const parsed = parseSubscription('http://fixture:password@healthy.example.com:8080#Healthy', { sourceId: 'source', sourceName: 'Source' })
     const snapshots: Record<string, SubscriptionSnapshot> = {
-      source: { inputKind: 'paste', fetchStatus: 'ready', result: parsed, lastSuccessfulAt: '2026-08-16T00:00:00.000Z' },
+      source: subscriptionSnapshotFixture('source', parsed),
     }
 
     const graph = compileGraph(project, { subscriptionSnapshots: snapshots })

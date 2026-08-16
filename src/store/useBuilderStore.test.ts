@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { IDBFactory } from 'fake-indexeddb'
 import { demoProject } from '../data/demoProject'
+import { hktDemoSubscription } from '../data/demoSubscriptions'
+import { compileGraph } from '../core/graphCompiler'
+import { deriveProjectRuntime } from '../core/proxySet'
+import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
 
 describe('builder store', () => {
@@ -9,6 +14,7 @@ describe('builder store', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   it('adds and removes a node', () => {
@@ -144,14 +150,221 @@ describe('builder store', () => {
 
     await useBuilderStore.getState().refreshSubscription(sourceId)
     const successful = useBuilderStore.getState().subscriptionSnapshots[sourceId]
-    expect(successful.fetchStatus).toBe('ready')
-    expect(successful.result?.readyCount).toBe(1)
+    const successfulRuntime = useBuilderStore.getState().subscriptionRuntimes[sourceId]
+    expect(successful.quality).toBe('usable')
+    expect(successful.result.readyCount).toBe(1)
+    expect(successfulRuntime.refreshStatus).toBe('succeeded')
 
     await useBuilderStore.getState().refreshSubscription(sourceId)
-    const stale = useBuilderStore.getState().subscriptionSnapshots[sourceId]
-    expect(stale.fetchStatus).toBe('cors')
-    expect(stale.stale).toBe(true)
-    expect(stale.result?.proxies.map((proxy) => proxy.id)).toEqual(successful.result?.proxies.map((proxy) => proxy.id))
-    expect(stale.latestErrorMessage).not.toContain('token=private')
+    const retained = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+    const failedRuntime = useBuilderStore.getState().subscriptionRuntimes[sourceId]
+    expect(retained).toBe(successful)
+    expect(retained.result.proxies.map((proxy) => proxy.id)).toEqual(successful.result.proxies.map((proxy) => proxy.id))
+    expect(failedRuntime.refreshStatus).toBe('failed')
+    expect(failedRuntime.activeSnapshot).toBe(successful)
+    expect(failedRuntime.lastSuccessfulAt).toBe(successfulRuntime.lastSuccessfulAt)
+    expect(failedRuntime.lastFailureAt).toBeTruthy()
+    expect(failedRuntime.latestError?.message).not.toContain('token=private')
+  })
+
+  it('keeps downstream Filter output and graph compilation stable after a failed refresh', async () => {
+    useBuilderStore.getState().hydrate(structuredClone(demoProject))
+    useBuilderStore.getState().updateNodeData('hkt-subscription', { subscriptionUrl: 'https://downstream.example.invalid/list', subscriptionInputKind: 'url' })
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(hktDemoSubscription))
+      .mockResolvedValueOnce(new Response('fictional upstream failure', { status: 502 })))
+    await useBuilderStore.getState().refreshSubscription('hkt-subscription')
+    const beforeSnapshots = useBuilderStore.getState().subscriptionSnapshots
+    const beforeGraph = compileGraph(useBuilderStore.getState().toProject(), { subscriptionSnapshots: beforeSnapshots })
+    const beforeFilter = deriveProjectRuntime(useBuilderStore.getState().toProject(), beforeSnapshots).get('hk-filter')
+    expect(beforeGraph.ir).toBeDefined()
+    expect(beforeFilter?.outputCount).toBeGreaterThan(0)
+
+    await useBuilderStore.getState().refreshSubscription('hkt-subscription')
+    const afterSnapshots = useBuilderStore.getState().subscriptionSnapshots
+    const afterGraph = compileGraph(useBuilderStore.getState().toProject(), { subscriptionSnapshots: afterSnapshots })
+    const afterFilter = deriveProjectRuntime(useBuilderStore.getState().toProject(), afterSnapshots).get('hk-filter')
+    expect(afterSnapshots['hkt-subscription']).toBe(beforeSnapshots['hkt-subscription'])
+    expect(afterFilter?.outputCount).toBe(beforeFilter?.outputCount)
+    expect(afterGraph.ir?.sources).toEqual(beforeGraph.ir?.sources)
+    expect(afterGraph.ir?.strategies).toEqual(beforeGraph.ir?.strategies)
+  })
+
+  it('invalidates active runtime immediately when the subscription URL changes', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://one.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://user:fictional-secret@one.example.invalid:1080#One')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeDefined()
+
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://two.example.invalid/list' })
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.nodeCount).toBe(0)
+  })
+
+  it('requires confirmation before a non-empty LKG can be replaced by a valid empty snapshot', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://empty-guard.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response('socks5://user:fictional-secret@active.example.invalid:1080#Active'))
+      .mockResolvedValueOnce(new Response('proxies: []'))
+      .mockResolvedValueOnce(new Response('proxies: []')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const lkg = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBe(lkg)
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestOutcome).toBe('empty-confirmation-required')
+    useBuilderStore.getState().keepCurrentSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBe(lkg)
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    await useBuilderStore.getState().applyEmptySubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toEqual(expect.objectContaining({ quality: 'empty', readyCount: 0 }))
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.nodeCount).toBe(0)
+  })
+
+  it('refreshes only enabled URL sources with partial success and isolated LKG retention', async () => {
+    useBuilderStore.getState().createNewProject()
+    const makeUrlSource = (name: string, enabled = true) => {
+      const id = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+      useBuilderStore.getState().updateNodeData(id, { title: name, subscriptionUrl: `https://${name.toLowerCase()}.example.invalid/list`, subscriptionInputKind: 'url', enabled })
+      return id
+    }
+    const a = makeUrlSource('A')
+    const b = makeUrlSource('B')
+    const c = makeUrlSource('C')
+    makeUrlSource('D', false)
+    const paste = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    await useBuilderStore.getState().parseSubscriptionInput(paste, 'socks5://paste:fictional@paste.example.invalid:1080#Paste', 'paste')
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://b:fictional@b-lkg.example.invalid:1080#B%20LKG')))
+    await useBuilderStore.getState().refreshSubscription(b)
+    const bLkg = useBuilderStore.getState().subscriptionSnapshots[b]
+
+    let active = 0
+    let maximum = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      active += 1
+      maximum = Math.max(maximum, active)
+      await Promise.resolve()
+      active -= 1
+      const url = String(input)
+      if (url.includes('b.example.invalid')) throw new TypeError('fictional network failure')
+      const label = url.includes('a.example.invalid') ? 'A' : 'C'
+      return new Response(`socks5://${label.toLowerCase()}:fictional@${label.toLowerCase()}-fresh.example.invalid:1080#${label}`)
+    }))
+    const summary = await useBuilderStore.getState().refreshAllSubscriptions()
+    expect(summary).toEqual({ succeeded: 2, failed: 1, skipped: 2, confirmationRequired: 0, retainedPrevious: 1 })
+    expect(maximum).toBeLessThanOrEqual(3)
+    expect(useBuilderStore.getState().subscriptionSnapshots[a]).toBeDefined()
+    expect(useBuilderStore.getState().subscriptionSnapshots[c]).toBeDefined()
+    expect(useBuilderStore.getState().subscriptionSnapshots[b]).toBe(bLkg)
+  })
+
+  it('hydrates a matching IndexedDB LKG and clears it without changing the Project URL', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    const url = 'https://cache.example.invalid/list?token=fictional-project-token'
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: url })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://cache-user:fictional-cache-password@cache-node.example.invalid:1080#Cached')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const project = structuredClone(useBuilderStore.getState().toProject())
+
+    useBuilderStore.getState().hydrate(project)
+    await useBuilderStore.getState().hydrateSubscriptionCache()
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.readyCount).toBe(1)
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].activeState).toBe('usable')
+
+    await useBuilderStore.getState().clearCachedSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].activeState).toBe('none')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionUrl).toBe(url)
+  })
+
+  it('does not let late cache hydration overwrite a newer network refresh', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://hydration-race.example.invalid/list' })
+    const project = structuredClone(useBuilderStore.getState().toProject())
+    let resolveRead!: (snapshot: undefined) => void
+    const pendingRead = new Promise<undefined>((resolve) => { resolveRead = resolve })
+    const readActive = vi.spyOn(subscriptionRuntimeRepository, 'readActive').mockReturnValue(pendingRead)
+
+    useBuilderStore.getState().hydrate(project)
+    await vi.waitFor(() => expect(readActive).toHaveBeenCalledTimes(1))
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://fresh:fictional@fresh.example.invalid:1080#Fresh')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.nodes[0].name).toBe('Fresh')
+
+    resolveRead(undefined)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.nodes[0].name).toBe('Fresh')
+  })
+
+  it('deletes a subscription source from graph/runtime and ignores late hydration', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://delete.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://delete:fixture@delete-node.example.invalid:1080#Delete')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const project = structuredClone(useBuilderStore.getState().toProject())
+    const lkg = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+    expect(lkg).toBeDefined()
+
+    let resolveRead!: (snapshot: typeof lkg) => void
+    const readActive = vi.spyOn(subscriptionRuntimeRepository, 'readActive').mockReturnValue(new Promise((resolve) => { resolveRead = resolve }))
+    useBuilderStore.getState().hydrate(project)
+    await vi.waitFor(() => expect(readActive).toHaveBeenCalled())
+
+    useBuilderStore.getState().removeNode(sourceId)
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().toProject().graph.nodes.some((node) => node.id === sourceId)).toBe(false)
+
+    resolveRead(lkg)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(JSON.stringify(useBuilderStore.getState().toProject())).not.toContain(sourceId)
+  })
+
+  it('does not let a late refresh response resurrect a deleted source', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://delete-refresh.example.invalid/list' })
+    let resolveFetch!: (response: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve })))
+    const refresh = useBuilderStore.getState().refreshSubscription(sourceId)
+    await vi.waitFor(() => expect(resolveFetch).toBeTypeOf('function'))
+    useBuilderStore.getState().removeNode(sourceId)
+    resolveFetch(new Response('socks5://late:fixture@late.example.invalid:1080#Late'))
+    await refresh
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId]).toBeUndefined()
+  })
+
+  it('keeps URL runtime snapshots, credentials, diffs, errors and cache metadata out of Project export', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://export.example.invalid/list?token=fictional-url-token' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://export-user:fictional-export-password@private-node.example.invalid:1080#Private')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const serialized = JSON.stringify(useBuilderStore.getState().toProject())
+    expect(serialized).not.toContain('fictional-export-password')
+    expect(serialized).not.toContain('private-node.example.invalid')
+    expect(serialized).not.toContain('snapshotId')
+    expect(serialized).not.toContain('latestDiff')
+    expect(serialized).not.toContain('latestError')
+    expect(serialized).not.toContain('sourceConfigFingerprint')
+    expect(JSON.parse(serialized).version).toBe(2)
   })
 })

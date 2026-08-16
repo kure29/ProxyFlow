@@ -4,7 +4,15 @@ import { parseAnyTlsLink, parseHttpLink, parseHysteria2Link, parseShadowsocksLin
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, SubscriptionIssue } from './types'
 import type { ParsedProtocolResult } from './utils'
 
-const UNSUPPORTED_SCHEMES = new Set(['hysteria', 'wireguard', 'wg', 'shadowtls'])
+const UNSUPPORTED_SCHEMES = new Set([
+  'hysteria', 'wireguard', 'wg', 'shadowtls', 'ssr', 'snell', 'mieru', 'ssh',
+  'masque', 'tailscale', 'naive', 'juicity', 'socks4', 'socks4a',
+])
+const KNOWN_PROXY_SCHEMES = new Set([
+  'http', 'https', 'socks', 'socks5', 'ss', 'ssr', 'trojan', 'vmess', 'vless',
+  'hysteria', 'hysteria2', 'hy2', 'tuic', 'anytls', 'wireguard', 'wg', 'shadowtls',
+  'snell', 'mieru', 'ssh', 'masque', 'tailscale', 'naive', 'juicity', 'socks4', 'socks4a',
+])
 
 export function parseShareLinks(input: string, options: ParseSubscriptionOptions) {
   const sourceId = options.sourceId
@@ -48,7 +56,51 @@ export function parseShareLinks(input: string, options: ParseSubscriptionOptions
 }
 
 export function containsShareLinks(input: string) {
-  return /(?:^|\n)\s*(?:https?|socks5?|ss|trojan|vmess|vless|hysteria2?|hy2|tuic|wireguard|shadowtls|anytls):\/\//im.test(input)
+  return uriLines(input).some((line) => {
+    const scheme = uriScheme(line)
+    return Boolean(scheme && KNOWN_PROXY_SCHEMES.has(scheme) && isProxyUriCandidate(line, scheme))
+  })
+}
+
+/**
+ * Detects URI subscriptions independently of whether each protocol is supported.
+ * A plain web URL is deliberately excluded unless it has proxy-like authority
+ * (credentials or an explicit port); unknown schemes need a known proxy scheme or
+ * a multi-line URI list to avoid treating arbitrary text as a subscription.
+ */
+export function looksLikeUriSubscription(input: string) {
+  const lines = uriLines(input)
+  if (!lines.length || lines.some((line) => !uriScheme(line))) return false
+  const schemes = lines.map((line) => uriScheme(line)!)
+  const proxyLines = lines.filter((line) => {
+    const scheme = uriScheme(line)
+    return Boolean(scheme && isProxyUriCandidate(line, scheme))
+  })
+  if (proxyLines.length !== lines.length) return false
+  if (schemes.some((scheme) => KNOWN_PROXY_SCHEMES.has(scheme))) return true
+  return lines.length >= 2
+}
+
+function uriLines(input: string) {
+  return input.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+}
+
+function uriScheme(line: string) {
+  return /^([a-z][a-z0-9+.-]*):\/\//i.exec(line)?.[1].toLocaleLowerCase()
+}
+
+function isProxyUriCandidate(line: string, scheme: string) {
+  if (scheme !== 'http' && scheme !== 'https') return new RegExp(`^${scheme.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\/\\/$`, 'i').test(line) || /^\S+:\/\/\S+$/.test(line)
+  if (/^https?:\/\/$/i.test(line)) return true
+  try {
+    const url = new URL(line)
+    if (!url.hostname) return false
+    return Boolean(url.port || url.username || url.password)
+  } catch {
+    return false
+  }
 }
 
 function safeFragmentName(line: string) {

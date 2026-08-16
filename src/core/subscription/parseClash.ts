@@ -4,7 +4,7 @@ import { subscriptionIssue } from './errors'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, ProxyEndpointDraft, SubscriptionIssue } from './types'
 import { booleanValue, isValidUuid, mergeEndpointSemanticCompatibility, stringValue, validPort } from './utils'
 
-interface ClashParseResult {
+export interface ClashParseResult {
   nodes: ParsedSubscriptionNode[]
   issues: SubscriptionIssue[]
   hasNonProxySections: boolean
@@ -16,13 +16,17 @@ export function parseClashSubscription(input: string, options: Required<Pick<Par
   let value: unknown
   try { value = document.toJS({ maxAliasCount: 32 }) } catch { return undefined }
   if (!isRecord(value) || !Array.isArray(value.proxies)) return undefined
+  return parseClashRecords(value.proxies, options, Object.keys(value).some((key) => key !== 'proxies'))
+}
+
+export function parseClashRecords(records: unknown[], options: Required<Pick<ParseSubscriptionOptions, 'sourceId'>> & ParseSubscriptionOptions, hasNonProxySections = false): ClashParseResult {
   const sourceName = options.sourceName ?? 'Subscription'
   const issues: SubscriptionIssue[] = []
-  const nodes = value.proxies.map((raw, index) => parseClashNode(raw, options.sourceId, sourceName, index + 1, issues))
+  const nodes = records.map((raw, index) => parseClashNode(raw, options.sourceId, sourceName, index + 1, issues))
   return {
     nodes,
     issues,
-    hasNonProxySections: Object.keys(value).some((key) => key !== 'proxies'),
+    hasNonProxySections,
   }
 }
 

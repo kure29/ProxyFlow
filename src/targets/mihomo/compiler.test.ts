@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import { hktDemoSubscription, usDemoSubscription } from '../../data/demoSubscriptions'
 import { explicitProxyIR } from '../../core/__fixtures__/crossTargetFixtures'
+import { subscriptionSnapshotFixture } from '../../core/__fixtures__/subscriptionFixtures'
 import {
   fallbackFixture,
   hkJpUsChainFixture,
@@ -20,8 +21,8 @@ const fixedNow = () => new Date('2026-08-16T00:00:00.000Z')
 function demoIR() {
   const parsedAt = '2026-08-16T00:00:00.000Z'
   const snapshots: Record<string, SubscriptionSnapshot> = {
-    'hkt-subscription': { inputKind: 'paste', fetchStatus: 'ready', result: parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' }), lastSuccessfulAt: parsedAt },
-    'us-subscription': { inputKind: 'paste', fetchStatus: 'ready', result: parseSubscription(usDemoSubscription, { sourceId: 'us-subscription', sourceName: 'US 订阅源' }), lastSuccessfulAt: parsedAt },
+    'hkt-subscription': subscriptionSnapshotFixture('hkt-subscription', parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' }), parsedAt),
+    'us-subscription': subscriptionSnapshotFixture('us-subscription', parseSubscription(usDemoSubscription, { sourceId: 'us-subscription', sourceName: 'US 订阅源' }), parsedAt),
   }
   const graph = compileGraph(demoProject, { subscriptionSnapshots: snapshots })
   expect(graph.success).toBe(true)

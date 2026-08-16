@@ -1,4 +1,4 @@
-import type { SubscriptionIssue } from './types'
+import type { SubscriptionIssue, SubscriptionRefreshErrorCode } from './types'
 
 export function subscriptionIssue(
   code: string,
@@ -10,7 +10,18 @@ export function subscriptionIssue(
 }
 
 export class SubscriptionFetchError extends Error {
-  constructor(public readonly code: 'FETCH_FAILED' | 'CORS_OR_NETWORK_ERROR' | 'SUBSCRIPTION_TOO_LARGE' | 'INVALID_SUBSCRIPTION_URL', message: string) {
+  constructor(
+    public readonly code: Extract<SubscriptionRefreshErrorCode,
+      | 'SUBSCRIPTION_INVALID_URL'
+      | 'SUBSCRIPTION_HTTP_ERROR'
+      | 'SUBSCRIPTION_CORS_BLOCKED'
+      | 'SUBSCRIPTION_NETWORK_ERROR'
+      | 'SUBSCRIPTION_TIMEOUT'
+      | 'SUBSCRIPTION_TOO_LARGE'
+      | 'SUBSCRIPTION_REFRESH_SUPERSEDED'>,
+    message: string,
+    public readonly httpStatus?: number,
+  ) {
     super(message)
     this.name = 'SubscriptionFetchError'
   }

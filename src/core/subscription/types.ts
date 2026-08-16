@@ -1,9 +1,33 @@
 import type { ResolvedProxyEndpointIR, SupportedProxyProtocol } from '../proxy'
 
-export type SubscriptionFormat = 'share-links' | 'base64' | 'clash-yaml' | 'unsupported'
+export type SubscriptionFormat =
+  | 'share-links' | 'base64' | 'clash-yaml' | 'clash-json' | 'sing-box-json' | 'v2ray-json'
+  | 'sub-store-json' | 'surge' | 'surfboard' | 'loon' | 'quantumult-x' | 'egern' | 'stash' | 'unsupported'
 export type SubscriptionInputKind = 'url' | 'paste' | 'file'
-export type SubscriptionFetchStatus = 'idle' | 'loading' | 'ready' | 'failed' | 'cors'
 export type ParsedNodeStatus = 'ready' | 'partial' | 'unsupported'
+export type SubscriptionRefreshStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
+export type SubscriptionActiveState = 'none' | 'usable' | 'empty'
+export type SubscriptionFreshness = 'fresh' | 'stale'
+export type SubscriptionLatestOutcome = 'success' | 'failure' | 'superseded' | 'empty-confirmation-required'
+export type SubscriptionSnapshotQuality = 'usable' | 'empty' | 'invalid'
+
+export type SubscriptionRefreshErrorCode =
+  | 'SUBSCRIPTION_INVALID_URL'
+  | 'SUBSCRIPTION_HTTP_ERROR'
+  | 'SUBSCRIPTION_CORS_BLOCKED'
+  | 'SUBSCRIPTION_NETWORK_ERROR'
+  | 'SUBSCRIPTION_TIMEOUT'
+  | 'SUBSCRIPTION_TOO_LARGE'
+  | 'SUBSCRIPTION_UNSUPPORTED_FORMAT'
+  | 'SUBSCRIPTION_PARSE_FAILED'
+  | 'SUBSCRIPTION_NO_USABLE_NODES'
+  | 'SUBSCRIPTION_EMPTY_CONFIRMATION_REQUIRED'
+  | 'SUBSCRIPTION_REFRESH_SUPERSEDED'
+  | 'SUBSCRIPTION_CACHE_READ_FAILED'
+  | 'SUBSCRIPTION_CACHE_WRITE_FAILED'
+  | 'SUBSCRIPTION_SNAPSHOT_COMMIT_FAILED'
+  | 'SUBSCRIPTION_IDENTITY_AMBIGUOUS'
+  | 'SUBSCRIPTION_RUNTIME_INTERNAL_ERROR'
 
 export interface SubscriptionIssue {
   code: string
@@ -47,15 +71,97 @@ export interface ParseSubscriptionOptions {
 }
 
 export interface SubscriptionSnapshot {
+  snapshotId: string
+  sourceId: string
+  snapshotSchemaVersion: 1
+  identityAlgorithmVersion: 1
   inputKind: SubscriptionInputKind
-  fetchStatus: SubscriptionFetchStatus
-  result?: SubscriptionParseResult
+  createdAt: string
+  fetchedAt: string
+  parsedAt: string
+  committedAt: string
+  contentHash: string
+  sourceConfigFingerprint: string
+  format: SubscriptionFormat
+  result: SubscriptionParseResult
+  readyCount: number
+  partialCount: number
+  unsupportedCount: number
+  issues: SubscriptionIssue[]
+  quality: Exclude<SubscriptionSnapshotQuality, 'invalid'>
+  http?: {
+    status: number
+    contentType?: string
+    contentLength?: number
+    responseBytes?: number
+    etag?: string
+    lastModified?: string
+    durationMs: number
+  }
+}
+
+export type SubscriptionSnapshotCandidate = Omit<SubscriptionSnapshot, 'committedAt' | 'quality'> & {
+  quality: SubscriptionSnapshotQuality
+}
+
+export type SubscriptionDiffKind = 'added' | 'removed' | 'changed' | 'unchanged'
+export type SubscriptionChangeType = 'renamed' | 'authentication' | 'connection' | 'metadata' | 'readiness'
+
+export interface SubscriptionDiffEntry {
+  kind: SubscriptionDiffKind
+  identity: string
+  name: string
+  previousName?: string
+  changeTypes: SubscriptionChangeType[]
+  changedFields: string[]
+}
+
+export interface SubscriptionDiff {
+  oldSnapshotId?: string
+  newSnapshotId: string
+  isInitialBaseline: boolean
+  entries: SubscriptionDiffEntry[]
+  added: number
+  removed: number
+  changed: number
+  unchanged: number
+  issues: Array<Pick<SubscriptionIssue, 'code' | 'severity' | 'message'>>
+}
+
+export interface SubscriptionRefreshError {
+  code: SubscriptionRefreshErrorCode
+  message: string
+  at: string
+  httpStatus?: number
+}
+
+export interface SubscriptionRuntimeRecord {
+  sourceId: string
+  inputKind: SubscriptionInputKind
+  sourceConfigFingerprint: string
+  refreshStatus: SubscriptionRefreshStatus
+  activeState: SubscriptionActiveState
+  freshness: SubscriptionFreshness
+  latestOutcome?: SubscriptionLatestOutcome
+  activeSnapshot?: SubscriptionSnapshot
+  pendingEmptySnapshot?: SubscriptionSnapshotCandidate
+  pendingEmptyDiff?: SubscriptionDiff
+  latestDiff?: SubscriptionDiff
+  lastAttemptAt?: string
   lastSuccessfulAt?: string
-  latestAttemptAt?: string
-  latestErrorCode?: string
-  latestErrorMessage?: string
+  lastFailureAt?: string
+  latestError?: SubscriptionRefreshError
+  cacheError?: SubscriptionRefreshError
+  requestGeneration: number
   fileName?: string
-  stale?: boolean
+}
+
+export interface RefreshAllSummary {
+  succeeded: number
+  failed: number
+  skipped: number
+  confirmationRequired: number
+  retainedPrevious: number
 }
 
 export type ProxyEndpointDraft = ResolvedProxyEndpointIR extends infer Endpoint

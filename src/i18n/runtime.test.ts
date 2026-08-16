@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../data/demoProject'
 import { hktDemoSubscription } from '../data/demoSubscriptions'
 import { parseSubscription } from '../core/subscription'
+import { subscriptionSnapshotFixture } from '../core/__fixtures__/subscriptionFixtures'
 import {
   localizeDiagnosticMessage, localizeKnownSystemText, localizeProject, localizeSubscriptionSnapshots, translate,
 } from './runtime'
@@ -47,13 +48,13 @@ describe('i18n runtime', () => {
   it('localizes built-in subscription metadata without changing user subscriptions', () => {
     const demoResult = parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' })
     demoResult.proxies[0].name = '🇭🇰 香港 SS 01'
-    const localized = localizeSubscriptionSnapshots({ 'hkt-subscription': { inputKind: 'paste', fetchStatus: 'ready', result: demoResult } }, 'en-US')
+    const localized = localizeSubscriptionSnapshots({ 'hkt-subscription': subscriptionSnapshotFixture('hkt-subscription', demoResult) }, 'en-US')
     expect(localized['hkt-subscription'].result?.proxies[0].name).toBe('🇭🇰 HK SS 01')
     expect(localized['hkt-subscription'].result?.proxies[0].metadata?.sourceName).toBe('HKT subscription')
 
     const userResult = structuredClone(demoResult)
     userResult.proxies[0].name = '用户自定义节点'
-    const user = localizeSubscriptionSnapshots({ custom: { inputKind: 'paste', fetchStatus: 'ready', result: userResult } }, 'en-US')
+    const user = localizeSubscriptionSnapshots({ custom: subscriptionSnapshotFixture('custom', userResult) }, 'en-US')
     expect(user.custom.result?.proxies[0].name).toBe('用户自定义节点')
   })
 
