@@ -1,4 +1,5 @@
-import { detectRegion, makeProxyId, stableOpaqueHash, type ProxyCompatibilityHint, type ResolvedProxyEndpointIR } from '../proxy'
+import { detectRegion, makeProxyId, stableOpaqueHash, validateProxyEndpointSemantics, type ProxyCompatibilityHint, type ResolvedProxyEndpointIR } from '../proxy'
+import { subscriptionIssue } from './errors'
 import type { ParsedSubscriptionNode, ProxyEndpointDraft, SubscriptionIssue } from './types'
 
 export interface ProtocolParseContext {
@@ -19,17 +20,27 @@ export function finalizeEndpoint(
   compatibility?: ProxyCompatibilityHint,
 ): ParsedProtocolResult {
   const identity = { ...draft } as ProxyEndpointDraft
-  const endpoint = {
+  const endpointWithoutCompatibility = {
     ...identity,
     id: makeProxyId(context.sourceId, identity),
     metadata: {
       sourceId: context.sourceId,
       sourceName: context.sourceName,
       region: detectRegion(draft.name),
-      ...(compatibility ? { compatibility } : {}),
     },
   } as ResolvedProxyEndpointIR
-  const status = compatibility?.status === 'partial' || issues.some((issue) => issue.severity === 'warning') ? 'partial' : 'ready'
+  const mergedCompatibility = mergeEndpointSemanticCompatibility(endpointWithoutCompatibility, compatibility, issues, {
+    nodeName: draft.name,
+    line: context.line,
+  })
+  const endpoint = {
+    ...endpointWithoutCompatibility,
+    metadata: {
+      ...endpointWithoutCompatibility.metadata,
+      ...(mergedCompatibility ? { compatibility: mergedCompatibility } : {}),
+    },
+  } as ResolvedProxyEndpointIR
+  const status = mergedCompatibility?.status === 'partial' ? 'partial' : 'ready'
   return {
     node: {
       id: endpoint.id,
@@ -44,6 +55,36 @@ export function finalizeEndpoint(
       issues,
     },
     issues,
+  }
+}
+
+export function mergeEndpointSemanticCompatibility(
+  endpoint: ResolvedProxyEndpointIR,
+  compatibility: ProxyCompatibilityHint | undefined,
+  issues: SubscriptionIssue[],
+  location: { nodeName: string; line?: number },
+): ProxyCompatibilityHint | undefined {
+  const semanticIssues = validateProxyEndpointSemantics(endpoint)
+  for (const semantic of semanticIssues) {
+    if (!issues.some((issue) => issue.code === semantic.code)) issues.push(subscriptionIssue(
+      semantic.code,
+      'warning',
+      semantic.message,
+      location,
+    ))
+  }
+  const unsupportedFeatures = unique([
+    ...(compatibility?.unsupportedFeatures ?? []),
+    ...semanticIssues.map((issue) => issue.feature),
+  ])
+  const unrecognizedParams = compatibility?.unrecognizedParams?.length
+    ? unique(compatibility.unrecognizedParams)
+    : undefined
+  if (!unsupportedFeatures.length && !unrecognizedParams?.length) return undefined
+  return {
+    status: unsupportedFeatures.length || compatibility?.status === 'partial' ? 'partial' : 'ready',
+    ...(unsupportedFeatures.length ? { unsupportedFeatures } : {}),
+    ...(unrecognizedParams?.length ? { unrecognizedParams } : {}),
   }
 }
 
@@ -94,10 +135,35 @@ export function booleanValue(value: unknown): boolean | undefined {
 export function parseTransport(params: URLSearchParams) {
   const kind = (params.get('type') ?? params.get('network') ?? 'tcp').toLocaleLowerCase()
   if (kind === 'tcp') return { transport: { kind: 'tcp' as const } }
-  if (kind === 'ws') return { transport: { kind: 'ws' as const, ...(params.get('path') ? { path: params.get('path')! } : {}), ...(params.get('host') ? { host: params.get('host')! } : {}) } }
-  if (kind === 'http' || kind === 'h2') return { transport: { kind: 'http' as const, ...(params.get('path') ? { path: params.get('path')! } : {}), ...(params.get('host') ? { host: params.get('host')! } : {}) } }
+  if (kind === 'ws') {
+    const earlyDataValue = params.get('ed') ?? params.get('max-early-data')
+    const maxEarlyData = nonNegativeInteger(earlyDataValue)
+    return { transport: {
+      kind: 'ws' as const,
+      ...(params.get('path') ? { path: params.get('path')! } : {}),
+      ...(params.get('host') ? { host: params.get('host')! } : {}),
+      ...(maxEarlyData !== undefined ? { maxEarlyData } : {}),
+      ...(params.get('eh') || params.get('early-data-header-name') ? { earlyDataHeaderName: params.get('eh') ?? params.get('early-data-header-name')! } : {}),
+    }, ...(earlyDataValue !== null && maxEarlyData === undefined ? { unsupported: 'ws-early-data:invalid' } : {}) }
+  }
+  if (kind === 'http' || kind === 'h2') return { transport: { kind: 'http' as const, variant: kind as 'http' | 'h2', ...(params.get('path') ? { path: params.get('path')! } : {}), ...(params.get('host') ? { host: params.get('host')! } : {}) } }
   if (kind === 'grpc') return { transport: { kind: 'grpc' as const, ...(params.get('serviceName') || params.get('service-name') ? { serviceName: params.get('serviceName') ?? params.get('service-name')! } : {}) } }
+  if (kind === 'httpupgrade') return { transport: { kind: 'httpupgrade' as const, ...(params.get('path') ? { path: params.get('path')! } : {}), ...(params.get('host') ? { host: params.get('host')! } : {}) } }
+  if (kind === 'xhttp') {
+    const mode = params.get('mode')?.toLocaleLowerCase()
+    const supportedMode: 'auto' | 'stream-one' | 'stream-up' | 'packet-up' | undefined = mode === 'auto' || mode === 'stream-one' || mode === 'stream-up' || mode === 'packet-up' ? mode : undefined
+    return {
+      transport: { kind: 'xhttp' as const, ...(params.get('path') ? { path: params.get('path')! } : {}), ...(params.get('host') ? { host: params.get('host')! } : {}), ...(supportedMode ? { mode: supportedMode } : {}) },
+      ...(mode && !supportedMode ? { unsupported: `xhttp-mode:${mode}` } : {}),
+    }
+  }
   return { transport: undefined, unsupported: `transport:${kind}` }
+}
+
+function nonNegativeInteger(value: string | null) {
+  if (value === null || !/^\d+$/.test(value.trim())) return undefined
+  const number = Number(value.trim())
+  return Number.isSafeInteger(number) ? number : undefined
 }
 
 export function duplicateParamNames(params: URLSearchParams): string[] {
@@ -105,3 +171,19 @@ export function duplicateParamNames(params: URLSearchParams): string[] {
   for (const [key] of params) counts.set(key, (counts.get(key) ?? 0) + 1)
   return [...counts].filter(([, count]) => count > 1).map(([key]) => key).sort()
 }
+
+export interface ConnectionCriticalParamGroup {
+  feature: string
+  names: string[]
+  caseInsensitive?: boolean
+}
+
+export function conflictingParamGroups(params: URLSearchParams, groups: ConnectionCriticalParamGroup[]): string[] {
+  return groups.flatMap((group) => {
+    const values = group.names.flatMap((name) => params.getAll(name)).map((value) => value.trim())
+    const normalized = values.map((value) => group.caseInsensitive ? value.toLocaleLowerCase() : value)
+    return new Set(normalized).size > 1 ? [group.feature] : []
+  })
+}
+
+const unique = <T>(values: T[]) => [...new Set(values)]

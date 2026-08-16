@@ -1,6 +1,6 @@
 # Mihomo Compiler MVP
 
-ProxyFlow V0.5 的真实编译链路：
+ProxyFlow V0.6 的真实编译链路：
 
 ```text
 ProxyFlowIR
@@ -29,6 +29,9 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 - [Trojan](https://wiki.metacubex.one/en/config/proxies/trojan/)
 - [VMess](https://wiki.metacubex.one/en/config/proxies/vmess/)
 - [VLESS](https://wiki.metacubex.one/en/config/proxies/vless/)
+- [Transport](https://wiki.metacubex.one/en/config/proxies/transport/)
+- [Hysteria2](https://wiki.metacubex.one/en/config/proxies/hysteria2/)
+- [TUIC](https://wiki.metacubex.one/en/config/proxies/tuic/)
 
 ## Mapping table
 
@@ -45,6 +48,16 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 | Fallback | `type: fallback` | Supported |
 | Load Balance | `type: load-balance` | Supported；`consistent-hash` → `consistent-hashing` |
 | HTTP / SOCKS5 / SS / Trojan / VMess / VLESS | explicit `proxies` entry | Supported basic subset |
+| Reality / Vision | `reality-opts`、`client-fingerprint`、`flow` | Supported |
+| WS / HTTP / H2 / gRPC / HTTPUpgrade / XHTTP | target transport opts | Supported |
+| Hysteria2 / TUIC v5 | explicit `hysteria2` / `tuic` entry | Supported normalized subset |
+| Hysteria2 port hopping | `ports: 443,5000-6000` | Supported；由结构化 IR 序列化 |
+| Hysteria2 fixed / random hop interval | `hop-interval: 30` / `15-30` | Supported |
+| TUIC allow-insecure / disable-SNI | `skip-cert-verify` / `disable-sni` | Supported |
+| Hysteria2 pin / ECH、Clash certificate fingerprint | — | Partial；从可用集合排除 |
+| non-TUIC disable-SNI | — | Error；`MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED` |
+| Hysteria2 / TUIC client fingerprint | — | Error；`MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED` |
+| HTTP proxy client fingerprint | — | Error；不误映射为 certificate `fingerprint` |
 | Fixed explicit proxy | one-member `select` group | Supported |
 | Service | Remote `rule-providers` + `RULE-SET` | Supported when a safe source exists |
 | Domain / Suffix / Keyword | `DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD` | Supported |
@@ -96,7 +109,8 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 ## Known limitations
 
 - Target Compiler 本身不解析 Subscription；它只消费已经 materialized 的 IR，或保留无需本地处理的 remote provider URL
-- 支持六种基础协议，不支持 Reality、Vision、复杂 XTLS 等 Partial variant
+- 支持基础协议、Reality/Vision、结构化 Hysteria2 port hopping、TUIC security flags 与现代 transport；未知 security/flow、pin/ECH、证书指纹或缺失必需字段仍为 Partial
+- Universal endpoint semantic error 会在 `validateIR()` 阶段停止；合法但 Mihomo schema 无法表达的 non-TUIC disable-SNI 或 QUIC client fingerprint 会在 target compatibility 阶段停止，绝不 omit 后继续
 - Imported Config source 仍未实现
 - 不执行网络请求或验证 Remote Rule 可达性
 - Latency Sort 需要真实测速，因此返回 `SPEED_TEST_REQUIRED`

@@ -1,4 +1,4 @@
-/** Methods supported by both the V0.5 Mihomo and sing-box target baselines. */
+/** Methods supported by both the V0.6 Mihomo and sing-box target baselines. */
 const SHADOWSOCKS_METHODS = new Set([
   '2022-blake3-aes-128-gcm',
   '2022-blake3-aes-256-gcm',
@@ -24,7 +24,7 @@ export function isSupportedShadowsocksMethod(value: string) {
   return SHADOWSOCKS_METHODS.has(value.toLocaleLowerCase())
 }
 
-/** v2ray-plugin is the only plugin name accepted unchanged by both V0.5 targets. */
+/** v2ray-plugin is the only plugin name accepted unchanged by both V0.6 targets. */
 export function isPortableShadowsocksPlugin(value: string) {
   return value.toLocaleLowerCase() === 'v2ray-plugin'
 }

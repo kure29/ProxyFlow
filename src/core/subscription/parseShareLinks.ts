@@ -1,10 +1,10 @@
 import { stableOpaqueHash } from '../proxy'
 import { subscriptionIssue } from './errors'
-import { parseHttpLink, parseShadowsocksLink, parseSocksLink, parseTrojanLink, parseVlessLink, parseVmessLink } from './parsers'
+import { parseHttpLink, parseHysteria2Link, parseShadowsocksLink, parseSocksLink, parseTrojanLink, parseTuicLink, parseVlessLink, parseVmessLink } from './parsers'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, SubscriptionIssue } from './types'
 import type { ParsedProtocolResult } from './utils'
 
-const UNSUPPORTED_SCHEMES = new Set(['hysteria', 'hysteria2', 'hy2', 'tuic', 'wireguard', 'wg', 'shadowtls', 'anytls'])
+const UNSUPPORTED_SCHEMES = new Set(['hysteria', 'wireguard', 'wg', 'shadowtls', 'anytls'])
 
 export function parseShareLinks(input: string, options: ParseSubscriptionOptions) {
   const sourceId = options.sourceId
@@ -22,13 +22,15 @@ export function parseShareLinks(input: string, options: ParseSubscriptionOptions
     else if (scheme === 'socks' || scheme === 'socks5') parsed = parseSocksLink(line, context)
     else if (scheme === 'ss') parsed = parseShadowsocksLink(line, context)
     else if (scheme === 'trojan') parsed = parseTrojanLink(line, context)
+    else if (scheme === 'hysteria2' || scheme === 'hy2') parsed = parseHysteria2Link(line, context)
+    else if (scheme === 'tuic') parsed = parseTuicLink(line, context)
     else if (scheme === 'vmess') parsed = parseVmessLink(line, context)
     else if (scheme === 'vless') parsed = parseVlessLink(line, context)
     else {
       const code = scheme && UNSUPPORTED_SCHEMES.has(scheme) ? 'PROXY_PROTOCOL_UNSUPPORTED' : 'PROXY_LINK_UNRECOGNIZED'
       const name = safeFragmentName(line) ?? `Unsupported line ${index + 1}`
       const issue = subscriptionIssue(code, 'error', scheme
-        ? `${name} 使用了 V0.5 不支持的协议 “${scheme}”。`
+        ? `${name} 使用了 V0.6 不支持的协议 “${scheme}”。`
         : `第 ${index + 1} 行不是可识别的代理分享链接。`, { nodeName: name, line: index + 1 })
       parsed = {
         node: {

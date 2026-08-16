@@ -27,6 +27,28 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
         'SINGBOX_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
         `Proxy “${proxy.name}” 包含 sing-box 映射尚未可靠支持的特性，已从本次节点集合排除：${proxy.metadata.compatibility.unsupportedFeatures?.join(', ') || proxy.metadata.compatibility.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
       ))
+      else if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'xhttp') issues.push(singBoxIssue(
+        'SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 使用 sing-box 1.13.14 不支持的 XHTTP transport。`, source.id,
+      ))
+      else if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'http'
+        && proxy.transport.variant === 'h2' && !proxy.tls?.enabled) issues.push(singBoxIssue(
+        'SINGBOX_TRANSPORT_H2_REQUIRES_TLS', 'error', 'source',
+        `Proxy “${proxy.name}” 的 H2 intent 缺少 TLS；sing-box 会退化为 HTTP/1.1，因此拒绝生成。`, source.id,
+      ))
+      else if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'http'
+        && proxy.transport.variant === 'http' && proxy.tls?.enabled) issues.push(singBoxIssue(
+        'SINGBOX_TRANSPORT_HTTP_TLS_VARIANT_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 要求 HTTP/1.1 transport + TLS；sing-box 1.13.14 会切换为 HTTP/2，因此拒绝语义降级。`, source.id,
+      ))
+      else if ((proxy.protocol === 'hysteria2' || proxy.protocol === 'tuic') && proxy.tls.fingerprint) issues.push(singBoxIssue(
+        'SINGBOX_QUIC_TLS_FINGERPRINT_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 QUIC TLS fingerprint intent 无法在 sing-box 1.13.14 中可靠 lowering。`, source.id,
+      ))
+      else if (proxy.protocol === 'hysteria2' && proxy.hopInterval?.kind === 'range') issues.push(singBoxIssue(
+        'SINGBOX_HYSTERIA2_RANDOM_HOP_INTERVAL_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 使用随机 hop interval；sing-box 1.13.14 仅支持固定 hop_interval，因此拒绝生成。`, source.id,
+      ))
     }
   }
 
@@ -101,7 +123,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
 
   issues.push(singBoxIssue(
     'SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED', 'info', 'inbound',
-    'V0.5 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
+    'V0.6 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
   ))
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }

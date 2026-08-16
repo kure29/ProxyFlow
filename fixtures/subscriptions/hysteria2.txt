@@ -1,0 +1,1 @@
+hysteria2://hy2-demo-password@hy2.example.com:443,5000-6000/?sni=hy2.example.com&insecure=0&alpn=h3&obfs=salamander&obfs-password=hy2-obfs-password&upmbps=30&downmbps=200&hop-interval=30#Hysteria2%20Ready

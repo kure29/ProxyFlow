@@ -1,0 +1,5 @@
+vless://33333333-3333-4333-8333-333333333331@ws.example.com:443?security=tls&sni=ws.example.com&type=ws&path=%2Fsocket&host=cdn.example.com&ed=2048&eh=Sec-WebSocket-Protocol#WebSocket
+vless://33333333-3333-4333-8333-333333333332@grpc.example.com:443?security=tls&sni=grpc.example.com&type=grpc&serviceName=proxyflow#GRPC
+vless://33333333-3333-4333-8333-333333333333@h2.example.com:443?security=tls&sni=h2.example.com&type=h2&path=%2Fh2&host=h2-host.example.com#HTTP2
+vless://33333333-3333-4333-8333-333333333334@upgrade.example.com:443?security=tls&sni=upgrade.example.com&type=httpupgrade&path=%2Fupgrade&host=upgrade-host.example.com#HTTPUpgrade
+vless://33333333-3333-4333-8333-333333333335@xhttp.example.com:443?security=tls&sni=xhttp.example.com&type=xhttp&path=%2Fxhttp&host=xhttp-host.example.com&mode=stream-up#XHTTP

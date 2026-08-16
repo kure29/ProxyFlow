@@ -43,18 +43,11 @@ export function materializeProxySet(
     const source = ir.sources.find((item) => item.id === ref.id)
     if (!source) return cache(context, key, failed('SOURCE_UNAVAILABLE', '节点来源不存在。', ref.id))
     if (source.kind === 'manual-proxy') {
-      const proxies = source.proxies.filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy))
-      return cache(context, key, ready(proxies, proxies.length))
+      const resolved = source.proxies.filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy))
+      return cache(context, key, readyProxySource(resolved))
     }
     if (source.kind === 'subscription' && source.proxies) {
-      const proxies = source.proxies.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial')
-      const result = ready(proxies, source.proxies.length)
-      const excluded = source.proxies.length - proxies.length
-      if (excluded > 0) result.issues.push({
-        code: 'PROXY_VARIANT_EXCLUDED', severity: 'warning', entityId: source.id,
-        message: `${excluded} 个包含未可靠支持特性的节点已从处理结果中排除；它们仍保留在 Import Summary 与节点预览中。`,
-      })
-      return cache(context, key, result)
+      return cache(context, key, readyProxySource(source.proxies, source.id))
     }
     if (source.kind === 'subscription' && source.materialization?.status === 'error') return cache(context, key, failed(
       source.materialization.issueCode ?? 'SOURCE_UNAVAILABLE', '订阅源解析失败；下游处理已被阻止。', source.id,
@@ -69,6 +62,17 @@ export function materializeProxySet(
     ? materializeMerge(ir, transform, context, nextStack)
     : materializeSingle(ir, transform, context, nextStack)
   return cache(context, key, result)
+}
+
+function readyProxySource(resolved: ResolvedProxyEndpointIR[], entityId?: string) {
+  const proxies = resolved.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial')
+  const result = ready(proxies, resolved.length)
+  const excluded = resolved.length - proxies.length
+  if (excluded > 0) result.issues.push({
+    code: 'PROXY_VARIANT_EXCLUDED', severity: 'warning', ...(entityId ? { entityId } : {}),
+    message: `${excluded} 个包含未可靠支持特性的节点已从处理结果中排除；它们仍保留在 Import Summary 与节点预览中。`,
+  })
+  return result
 }
 
 function materializeMerge(ir: ProxyFlowIR, transform: Extract<TransformIR, { kind: 'merge' }>, context: MaterializationContext, stack: string[]) {
@@ -100,7 +104,7 @@ function materializeSingle(ir: ProxyFlowIR, transform: Exclude<TransformIR, { ki
     return withIssues(ready(proxies, before.length), input.issues)
   }
   if (transform.kind === 'sort') {
-    if (transform.by === 'latency') return failedWithIssues('SPEED_TEST_REQUIRED', '延迟排序需要真实测速；V0.5 不生成假延迟。', transform.id, input.issues)
+    if (transform.by === 'latency') return failedWithIssues('SPEED_TEST_REQUIRED', '延迟排序需要真实测速；V0.6 不生成假延迟。', transform.id, input.issues)
     const by = transform.by ?? 'name'
     const proxies = [...before].sort((left, right) => sortValue(left, by).localeCompare(sortValue(right, by), undefined, { numeric: true, sensitivity: 'base' }))
     if (transform.direction === 'descending') proxies.reverse()

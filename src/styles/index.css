@@ -235,7 +235,7 @@
   .loading-screen { position: fixed; z-index: 600; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; background: #f7f8fa; transition: opacity .2s; }.loading-screen strong { font-size: 17px; }.loading-screen small { color: #9298a3; font-size: 9px; }.loading-screen .brand-mark { margin-bottom: 3px; }
 .small-screen-blocker { display: none; }
 
-/* V0.5 real subscription and proxy processing */
+/* V0.6 modern subscription and proxy processing */
 .source-status-card { margin: 12px 0; padding: 12px 13px; border: 1px solid #dfe4eb; border-radius: 10px; background: #f8fafc; display: grid; gap: 3px; }
 .source-status-card > span, .source-summary-list > span, .rename-preview > span { color: #8a94a3; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .source-status-card strong { color: #263243; font-size: 14px; }
@@ -260,7 +260,7 @@
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .nodes-preview-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 36px; background: rgba(24, 31, 43, .52); backdrop-filter: blur(5px); }
-.nodes-preview { width: min(1080px, calc(100vw - 72px)); max-height: min(780px, calc(100vh - 72px)); overflow: hidden; border: 1px solid rgba(255,255,255,.42); border-radius: 16px; background: #f7f9fc; box-shadow: 0 28px 80px rgba(20, 29, 44, .28); display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; }
+.nodes-preview { width: min(1180px, calc(100vw - 72px)); max-height: min(780px, calc(100vh - 72px)); overflow: hidden; border: 1px solid rgba(255,255,255,.42); border-radius: 16px; background: #f7f9fc; box-shadow: 0 28px 80px rgba(20, 29, 44, .28); display: grid; grid-template-rows: auto auto minmax(0,1fr) auto; }
 .nodes-preview > header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 22px 16px; border-bottom: 1px solid #e1e5eb; background: #fff; }
 .nodes-preview > header span { color: #7766b6; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
 .nodes-preview > header h2 { margin: 3px 0 2px; color: #253143; font-size: 21px; }
@@ -271,7 +271,7 @@
 .nodes-preview-filters input, .nodes-preview-filters select { width: 100%; height: 34px; border: 1px solid #dbe0e8; border-radius: 8px; background: #fff; color: #344153; font-size: 11px; }
 .nodes-preview-filters label input { border: 0; outline: 0; }
 .nodes-preview-table { min-height: 0; overflow: auto; padding: 0 18px 18px; }
-.nodes-preview-row { display: grid; grid-template-columns: minmax(220px, 1.6fr) .8fr .65fr 1fr .45fr .72fr; gap: 12px; align-items: center; min-height: 52px; padding: 8px 11px; border-bottom: 1px solid #e8ebf0; background: #fff; color: #455164; font-size: 11px; }
+.nodes-preview-row { display: grid; grid-template-columns: minmax(190px, 1.4fr) .65fr .55fr .85fr .35fr minmax(150px, 1fr) .68fr; gap: 12px; align-items: center; min-height: 52px; padding: 8px 11px; border-bottom: 1px solid #e8ebf0; background: #fff; color: #455164; font-size: 11px; }
 .nodes-preview-row.is-heading { position: sticky; top: 0; z-index: 1; min-height: 34px; background: #f3f5f8; color: #8a94a3; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .nodes-preview-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nodes-preview-row.has-issues { cursor: pointer; }
@@ -279,6 +279,7 @@
 .nodes-preview-row strong, .nodes-preview-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nodes-preview-row strong { color: #2d394a; }
 .nodes-preview-row small { margin-top: 3px; color: #929aa7; font-size: 9px; }
+.nodes-preview-row .node-safe-summary { margin-top: 0; color: #667386; white-space: normal; line-height: 1.35; }
 .nodes-preview-row code { color: #596678; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .node-parse-status { display: inline-flex !important; align-items: center; gap: 5px; font-weight: 700; text-transform: capitalize; }
 .node-parse-status.is-ready { color: #38845f; }.node-parse-status.is-partial { color: #b27730; }.node-parse-status.is-unsupported { color: #be574e; }

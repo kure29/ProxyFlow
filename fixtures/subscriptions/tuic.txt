@@ -1,0 +1,1 @@
+tuic://44444444-4444-4444-8444-444444444444:tuic-demo-password@tuic.example.com:443?sni=tuic.example.com&insecure=0&alpn=h3&congestion_control=bbr&udp_relay_mode=native#TUIC%20Ready

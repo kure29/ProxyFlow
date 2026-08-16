@@ -6,14 +6,18 @@ export type SingBoxDialFields = {
 export interface SingBoxTls {
   enabled: true
   server_name?: string
+  disable_sni?: boolean
   insecure?: boolean
   alpn?: string[]
+  utls?: { enabled: true; fingerprint: string }
+  reality?: { enabled: true; public_key: string; short_id?: string }
 }
 
 export type SingBoxV2RayTransport =
-  | { type: 'ws'; path?: string; headers?: Record<string, string> }
+  | { type: 'ws'; path?: string; headers?: Record<string, string>; max_early_data?: number; early_data_header_name?: string }
   | { type: 'http'; path?: string; host?: string[] }
   | { type: 'grpc'; service_name?: string }
+  | { type: 'httpupgrade'; path?: string; host?: string }
 
 export type SingBoxOutbound =
   | { type: 'direct'; tag: string }
@@ -23,7 +27,9 @@ export type SingBoxOutbound =
   | ({ type: 'shadowsocks'; tag: string; server: string; server_port: number; method: string; password: string; plugin?: string; plugin_opts?: string } & SingBoxDialFields)
   | ({ type: 'trojan'; tag: string; server: string; server_port: number; password: string; tls: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
   | ({ type: 'vmess'; tag: string; server: string; server_port: number; uuid: string; security: string; alter_id?: number; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
-  | ({ type: 'vless'; tag: string; server: string; server_port: number; uuid: string; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
+  | ({ type: 'vless'; tag: string; server: string; server_port: number; uuid: string; flow?: 'xtls-rprx-vision'; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
+  | ({ type: 'hysteria2'; tag: string; server: string; server_port: number; server_ports?: string[]; hop_interval?: string; up_mbps?: number; down_mbps?: number; obfs?: { type: 'salamander'; password: string }; password: string; tls: SingBoxTls } & SingBoxDialFields)
+  | ({ type: 'tuic'; tag: string; server: string; server_port: number; uuid: string; password: string; congestion_control?: 'cubic' | 'new_reno' | 'bbr'; udp_relay_mode?: 'native' | 'quic'; tls: SingBoxTls } & SingBoxDialFields)
   | { type: 'selector'; tag: string; outbounds: string[]; default?: string }
   | { type: 'urltest'; tag: string; outbounds: string[]; url: string; interval: string; tolerance: number }
 

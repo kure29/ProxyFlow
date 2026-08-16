@@ -462,7 +462,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         projectId: demoProject.id, projectName: demoProject.name,
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
-        recoveryRequired: false, recoveryNotice: '已重置为 V0.5 Real Subscription Demo。',
+        recoveryRequired: false, recoveryNotice: '已重置为 V0.6 Modern Protocols Demo。',
         subscriptionSnapshots: {},
       })
       void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)

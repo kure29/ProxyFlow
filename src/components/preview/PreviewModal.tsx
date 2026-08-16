@@ -70,7 +70,7 @@ export function PreviewModal() {
       <header>
         <div className="preview-icon">{mode === 'ir' ? <Braces size={19} /> : <FileCode2 size={19} />}</div>
         <div><span>{mode === 'ir' ? 'DEVELOPER PREVIEW' : 'REAL TARGET COMPILE'}</span><h2 id="preview-title">{targetLabel}</h2></div>
-        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.5'}</span>
+        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.6'}</span>
         <button onClick={() => setOpen(false)} aria-label="关闭预览"><X size={18} /></button>
       </header>
       <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>

@@ -22,7 +22,11 @@ export function proxyIdentityMaterial(endpoint: ProxyIdentity): string {
     case 'vmess':
       return JSON.stringify([...common, endpoint.uuid, endpoint.security, endpoint.alterId ?? 0, endpoint.tls ?? null, endpoint.transport ?? null])
     case 'vless':
-      return JSON.stringify([...common, endpoint.uuid, endpoint.tls ?? null, endpoint.transport ?? null])
+      return JSON.stringify([...common, endpoint.uuid, endpoint.security ?? '', endpoint.encryption ?? '', endpoint.flow ?? '', endpoint.tls ?? null, endpoint.transport ?? null])
+    case 'hysteria2':
+      return JSON.stringify([...common, endpoint.password, endpoint.tls, endpoint.obfs ?? null, endpoint.upMbps ?? null, endpoint.downMbps ?? null, endpoint.serverPorts ?? null, endpoint.hopInterval ?? null])
+    case 'tuic':
+      return JSON.stringify([...common, endpoint.uuid, endpoint.password, endpoint.congestionControl ?? '', endpoint.udpRelayMode ?? '', endpoint.tls])
   }
 }
 

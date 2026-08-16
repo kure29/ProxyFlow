@@ -1,0 +1,4 @@
+vless://55555555-5555-4555-8555-555555555551@reality-mixed.example.com:443?security=reality&sni=www.example.com&fp=chrome&pbk=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB&sid=1234&type=tcp&flow=xtls-rprx-vision#Reality%20Vision
+vless://55555555-5555-4555-8555-555555555552@ws-mixed.example.com:443?security=tls&sni=ws-mixed.example.com&type=ws&path=%2Fws&host=cdn.example.com#WS
+hysteria2://mixed-hy2-password@hy2-mixed.example.com:443?sni=hy2-mixed.example.com&obfs=salamander&obfs-password=mixed-obfs#HY2
+tuic://55555555-5555-4555-8555-555555555555:mixed-tuic-password@tuic-mixed.example.com:443?sni=tuic-mixed.example.com&congestion_control=cubic&udp_relay_mode=quic#TUIC
