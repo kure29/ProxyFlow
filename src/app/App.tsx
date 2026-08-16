@@ -11,6 +11,7 @@ import { ResizableWorkspace } from '../components/layout/ResizableWorkspace'
 import { useBuilderStore } from '../store/useBuilderStore'
 import { projectStorage } from '../storage/projectStorage'
 import { localizeKnownSystemText, useI18n } from '../i18n'
+import { SubscriptionEmptyConfirmation } from '../components/subscription/SubscriptionEmptyConfirmation'
 
 export function App() {
   const { locale, t } = useI18n()
@@ -92,6 +93,7 @@ export function App() {
     />
     <StatusBar />
     <PreviewModal />
+    <SubscriptionEmptyConfirmation />
     {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>
       <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>
       <div><button className="secondary-action" onClick={createNewProject}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}>×</button>}</div>

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ExternalLink,
-  ClipboardPaste, Eye, FileUp, GripVertical, Link2, Plus, RefreshCw, ShieldCheck, Trash2, X,
+  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, Link2, Plus, RefreshCw, ShieldCheck, Trash2, X,
 } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
@@ -11,7 +11,9 @@ import type { BlockNodeData, GraphEdge, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { NodesPreview } from '../subscription/NodesPreview'
+import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
+import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
 import { createMaterializationContext, deriveProjectRuntime, materializeProxySet, parseLimitDraft } from '../../core/proxySet'
 import {
   categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
@@ -41,15 +43,22 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const { locale, t, formatDateTime } = useI18n()
   const update = useBuilderStore((state) => state.updateNodeData)
   const snapshot = useBuilderStore((state) => state.subscriptionSnapshots[node.id])
+  const runtime = useBuilderStore((state) => state.subscriptionRuntimes[node.id])
   const refresh = useBuilderStore((state) => state.refreshSubscription)
   const parseInput = useBuilderStore((state) => state.parseSubscriptionInput)
+  const clearCache = useBuilderStore((state) => state.clearCachedSubscription)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [paste, setPaste] = useState(node.data.subscriptionInputKind === 'paste' ? node.data.subscriptionContent ?? '' : '')
   const [nodesOpen, setNodesOpen] = useState(false)
+  const [changesOpen, setChangesOpen] = useState(false)
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [nodePreviewStatus, setNodePreviewStatus] = useState<'all' | 'issues'>('all')
   const fileRef = useRef<HTMLInputElement>(null)
+  const clearCancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
   const localizedSnapshot = snapshot ? localizeSubscriptionSnapshots({ [node.id]: snapshot }, locale)[node.id] : undefined
   const result = localizedSnapshot?.result
+  const freshness = snapshot ? snapshotFreshness(snapshot.committedAt) : runtime?.freshness ?? 'fresh'
   const protocols = summarize(result?.proxies.map((proxy) => proxy.protocol) ?? [])
   const regions = summarize(result?.proxies.map((proxy) => proxy.metadata?.region?.code ?? 'UNKNOWN') ?? [])
   const onFile = async (file?: File) => {
@@ -60,18 +69,23 @@ function SubscriptionInspector({ node }: InspectorProps) {
     <TextField node={node} field="title" label={t('inspector.name')} />
     <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
-    <div className={`source-status-card is-${snapshot?.fetchStatus ?? 'idle'}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(snapshot?.fetchStatus, t)}</strong><small>{snapshot?.latestErrorMessage ? localizeDiagnosticMessage(snapshot.latestErrorCode ?? 'FETCH_FAILED', snapshot.latestErrorMessage, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format) }) : t('inspector.waitingInput')}</small></div>
-    {snapshot && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(snapshot.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(snapshot.latestAttemptAt, formatDateTime)}</strong></div></div>}
+    <div className={`source-status-card is-${statusClass(runtime)}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(runtime, freshness, t)}</strong><small>{runtime?.refreshStatus === 'failed' && runtime.latestError ? localizeDiagnosticMessage(runtime.latestError.code, runtime.latestError.message, locale) : runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format) }) : t('inspector.waitingInput')}</small></div>
+    {runtime && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(runtime.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(runtime.lastAttemptAt, formatDateTime)}</strong></div><div><span>{t('inspector.snapshotAge')}</span><strong>{formatSnapshotAge(snapshot?.committedAt, t)}</strong></div></div>}
     <div className="metric-cards"><div><span>{t('inspector.detected')}</span><strong>{result?.detectedCount ?? 0}</strong></div><div><span>{t('inspector.usable')}</span><strong>{result?.readyCount ?? 0}</strong></div></div>
     {result && <div className="import-summary"><div><span>{t('inspector.ready')}</span><strong>{result.readyCount}</strong></div><div><span>{t('inspector.warnings')}</span><strong>{result.partialCount}</strong></div><div><span>{t('inspector.unsupported')}</span><strong>{result.unsupportedCount}</strong></div></div>}
+    {runtime?.refreshStatus === 'failed' && runtime.activeSnapshot && <div className="validation-banner validation-banner--warning"><AlertTriangle size={15} /><span><strong>{t('inspector.refreshFailed')}</strong>{t('inspector.cachedResult')}</span></div>}
+    {freshness === 'stale' && runtime?.activeSnapshot && <div className="runtime-inline-status"><span className="status-dot-label status-stale"><i /> {t('inspector.sourceStatus.stale')}</span></div>}
+    {runtime?.latestDiff && <button className="diff-summary-button" onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /><span>{runtime.latestDiff.isInitialBaseline ? t('subscription.diff.initial', { count: result?.detectedCount ?? 0 }) : `+${runtime.latestDiff.added}  -${runtime.latestDiff.removed}  ~${runtime.latestDiff.changed}  =${runtime.latestDiff.unchanged}`}</span></button>}
     {protocols.length > 0 && <SummaryList label={t('inspector.protocols')} items={protocols} />}
     {regions.length > 0 && <SummaryList label={t('inspector.regions')} items={regions.map(([code, count]) => [`${code} · ${regionLabel(code, locale)}`, count])} />}
-    <div className="subscription-actions"><button className="inspector-secondary-button" disabled={snapshot?.fetchStatus === 'loading'} onClick={() => void refresh(node.id)}><RefreshCw className={snapshot?.fetchStatus === 'loading' ? 'spin' : ''} size={14} /> {t('inspector.refresh')}</button><button className="inspector-secondary-button" onClick={() => setPasteOpen((open) => !open)}><ClipboardPaste size={14} /> {t('inspector.pasteContent')}</button><button className="inspector-secondary-button" onClick={() => fileRef.current?.click()}><FileUp size={14} /> {t('inspector.importFile')}</button><button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button></div>
+    <div className="subscription-actions"><button className="inspector-secondary-button" onClick={() => void refresh(node.id)}><RefreshCw className={runtime?.refreshStatus === 'loading' ? 'spin' : ''} size={14} /> {runtime?.refreshStatus === 'failed' ? t('inspector.retry') : t('inspector.refresh')}</button><button className="inspector-secondary-button" onClick={() => setPasteOpen((open) => !open)}><ClipboardPaste size={14} /> {t('inspector.pasteContent')}</button><button className="inspector-secondary-button" onClick={() => fileRef.current?.click()}><FileUp size={14} /> {t('inspector.importFile')}</button><button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button><button className="inspector-secondary-button" disabled={!runtime?.latestDiff} onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /> {t('inspector.viewChanges')}</button><button className="inspector-secondary-button" disabled={!snapshot || snapshot.inputKind !== 'url'} onClick={() => setClearConfirmOpen(true)}><Database size={14} /> {t('inspector.clearCachedSnapshot')}</button></div>
     <input ref={fileRef} className="visually-hidden" type="file" accept=".txt,.yaml,.yml,text/plain,text/yaml,application/yaml" onChange={(event) => { void onFile(event.target.files?.[0]); event.target.value = '' }} />
     {pasteOpen && <div className="subscription-paste"><textarea value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => { void parseInput(node.id, paste, 'paste'); setPasteOpen(false) }}>{t('inspector.parseImport')}</button></div>}
-    {snapshot?.stale && <div className="validation-banner validation-banner--warning"><AlertTriangle size={15} /><span><strong>{t('inspector.refreshFailed')}</strong>{t('inspector.cachedResult')}</span></div>}
+    <p className="cache-privacy-note">{t('inspector.cachePrivacy')}</p>
     {node.data.subscriptionInputKind === 'file' && !snapshot && <div className="mock-note">{t('inspector.fileReimport')}</div>}
     {nodesOpen && <NodesPreview snapshot={localizedSnapshot} initialStatus={nodePreviewStatus} onClose={() => setNodesOpen(false)} />}
+    {changesOpen && runtime?.latestDiff && <ChangesPreview diff={runtime.latestDiff} nodeCount={result?.detectedCount ?? 0} onClose={() => setChangesOpen(false)} />}
+    {clearConfirmOpen && <div className="subscription-dialog-backdrop" role="presentation" onMouseDown={() => setClearConfirmOpen(false)}><section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-cache-title" onMouseDown={(event) => event.stopPropagation()}><span className="confirmation-icon"><Database size={20} /></span><h2 id="clear-cache-title">{t('subscription.cache.clearTitle')}</h2><p>{t('subscription.cache.clearDescription')}</p><footer><button ref={clearCancelRef} className="secondary-action" onClick={() => setClearConfirmOpen(false)}>{t('subscription.cache.cancel')}</button><button className="danger-action" onClick={() => { setClearConfirmOpen(false); void clearCache(node.id) }}>{t('subscription.cache.confirm')}</button></footer></section></div>}
   </>
 }
 
@@ -85,12 +99,21 @@ function summarize(values: string[]): Array<[string, number]> {
   return [...counts].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
 }
 
-function sourceStatus(status: string | undefined, t: ReturnType<typeof useI18n>['t']) {
-  if (status === 'ready') return t('inspector.sourceStatus.ready')
-  if (status === 'loading') return t('inspector.sourceStatus.loading')
-  if (status === 'cors') return t('inspector.sourceStatus.cors')
-  if (status === 'failed') return t('inspector.sourceStatus.failed')
+function sourceStatus(runtime: SubscriptionRuntimeRecord | undefined, freshness: SubscriptionFreshness, t: ReturnType<typeof useI18n>['t']) {
+  if (runtime?.refreshStatus === 'loading') return t('inspector.sourceStatus.loading')
+  if (runtime?.refreshStatus === 'failed' && runtime.activeSnapshot) return t('inspector.sourceStatus.usingLkg')
+  if (runtime?.refreshStatus === 'failed') return t('inspector.sourceStatus.failed')
+  if (runtime?.activeState === 'empty') return t('inspector.sourceStatus.empty')
+  if (runtime?.activeSnapshot && freshness === 'stale') return t('inspector.sourceStatus.stale')
+  if (runtime?.activeSnapshot) return t('inspector.sourceStatus.ready')
   return t('inspector.sourceStatus.idle')
+}
+
+function statusClass(runtime: SubscriptionRuntimeRecord | undefined) {
+  if (runtime?.refreshStatus === 'loading') return 'loading'
+  if (runtime?.refreshStatus === 'failed') return 'failed'
+  if (runtime?.activeSnapshot) return 'ready'
+  return 'idle'
 }
 
 function formatLabel(format: string) {
@@ -102,6 +125,15 @@ function formatSourceTimestamp(value: string | undefined, format: ReturnType<typ
   return format(value, {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   })
+}
+
+function formatSnapshotAge(value: string | undefined, t: ReturnType<typeof useI18n>['t']) {
+  if (!value) return t('inspector.notAvailable')
+  const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(value)) / 60_000))
+  if (minutes < 60) return t('inspector.ageMinutes', { count: minutes })
+  const hours = Math.floor(minutes / 60)
+  if (hours < 48) return t('inspector.ageHours', { count: hours })
+  return t('inspector.ageDays', { count: Math.floor(hours / 24) })
 }
 
 function ManualProxyInspector({ node }: InspectorProps) {
@@ -348,9 +380,13 @@ function ProcessingDebug({ materialized }: { materialized: NodeMaterializationVi
 }
 
 function snapshotFromProxies(proxies: import('../../core/ir').ResolvedProxyEndpointIR[]) {
+  const timestamp = new Date(0).toISOString()
+  const result = { format: 'share-links' as const, proxies, issues: [], nodes: proxies.map((endpoint) => ({ id: endpoint.id, name: endpoint.name, protocol: endpoint.protocol, server: endpoint.server, port: endpoint.port, sourceId: endpoint.metadata?.sourceId ?? 'pipeline', sourceName: endpoint.metadata?.sourceName ?? 'Pipeline', status: endpoint.metadata?.compatibility?.status === 'partial' ? 'partial' as const : 'ready' as const, endpoint, issues: [] })), detectedCount: proxies.length, readyCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial').length, partialCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status === 'partial').length, unsupportedCount: 0 }
   return {
-    inputKind: 'paste' as const, fetchStatus: 'ready' as const,
-    result: { format: 'share-links' as const, proxies, issues: [], nodes: proxies.map((endpoint) => ({ id: endpoint.id, name: endpoint.name, protocol: endpoint.protocol, server: endpoint.server, port: endpoint.port, sourceId: endpoint.metadata?.sourceId ?? 'pipeline', sourceName: endpoint.metadata?.sourceName ?? 'Pipeline', status: endpoint.metadata?.compatibility?.status === 'partial' ? 'partial' as const : 'ready' as const, endpoint, issues: [] })), detectedCount: proxies.length, readyCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial').length, partialCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status === 'partial').length, unsupportedCount: 0 },
+    snapshotId: 'pipeline-preview', sourceId: 'pipeline', snapshotSchemaVersion: 1 as const, identityAlgorithmVersion: 1 as const,
+    inputKind: 'paste' as const, createdAt: timestamp, fetchedAt: timestamp, parsedAt: timestamp, committedAt: timestamp,
+    contentHash: 'pipeline-preview', sourceConfigFingerprint: 'pipeline-preview', format: 'share-links' as const,
+    result, readyCount: result.readyCount, partialCount: result.partialCount, unsupportedCount: 0, issues: [], quality: proxies.length ? 'usable' as const : 'empty' as const,
   }
 }
 

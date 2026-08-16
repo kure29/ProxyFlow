@@ -61,6 +61,8 @@ V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS 
 ### Post-V0.6 enhancement（未改写 V0.6 发布历史）
 
 当前开发分支在 V0.6 架构上增加 Keyword / Region / Regex 三种 Filter mode、基于稳定 ISO code 的地区目录与名称推断、正确归因的 transform diagnostics，以及 target-neutral AnyTLS endpoint。AnyTLS 分享链接与 Clash/Mihomo `proxies` 条目会进入同一 Endpoint Semantic Firewall；支持的基础字段可分别 lowering 到 Mihomo 与 sing-box 1.13.14。AnyTLS + Reality、未知连接关键参数、sing-box 显式 `udp: false` 与 1.13.14 尚无的 `client_metadata` 均失败闭合，不会降级成其他协议。
+
+V0.7 Phase 1 的当前开发能力进一步加入手动 Refresh、并发上限为 3 的 Refresh All、Last Known Good、IndexedDB 本地 normalized snapshot cache、secret-safe diff、竞态保护与空结果确认。刷新失败不会清空活动节点，Project JSON 仍不包含远程 snapshot 或凭据。该能力尚未作为 V0.7 正式发布，设计与隐私边界见 [V0.7 Subscription Lifecycle](docs/v0.7-subscription-lifecycle.md)。
 - discriminated、客户端无关的 `ProxyEndpointIR` 与 Service inline matcher
 - 异步 Compiler Registry 与 target chunk 按需加载
 - 同一 IR → 两个 Compiler 的 cross-target fixtures 与能力缺口测试
@@ -94,7 +96,7 @@ Graph Compiler 使用显式 `EdgeSemantic` 和有类型引用生成 IR。规则�
 
 Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 仍未实现。完整说明见 [V0.6 Modern Protocols](docs/v0.6-modern-protocols.md)、[Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
 
-订阅解析器按需加载，解析结果和处理结果只存在当前运行时；Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
+订阅解析和处理结果仍属于 runtime；URL source 的 normalized active snapshot 可保存在当前浏览器 IndexedDB 中作为 Last Known Good，但不会进入 Project。Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
 
 规则体验以 Service 为第一层。Demo 只引用 `ios_rule_script` 的公开 Remote Rule Provider URL，不复制第三方规则内容。来源项目位于 [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，其许可证为 GPL-2.0。
 

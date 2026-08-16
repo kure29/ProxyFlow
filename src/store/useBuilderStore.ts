@@ -6,7 +6,12 @@ import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
-import type { SubscriptionInputKind, SubscriptionSnapshot } from '../core/subscription'
+import {
+  commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
+  snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
+  type RefreshAllSummary, type RefreshHandlers, type SubscriptionInputKind, type SubscriptionRefreshError,
+  type SubscriptionRuntimeRecord, type SubscriptionSnapshot,
+} from '../core/subscription'
 import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
@@ -34,6 +39,7 @@ interface BuilderState {
   recoveryNotice: string | null
   toast: string | null
   subscriptionSnapshots: Record<string, SubscriptionSnapshot>
+  subscriptionRuntimes: Record<string, SubscriptionRuntimeRecord>
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
@@ -63,6 +69,11 @@ interface BuilderState {
   dismissRecoveryNotice: () => void
   parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
   refreshSubscription: (id: string) => Promise<void>
+  refreshAllSubscriptions: () => Promise<RefreshAllSummary>
+  applyEmptySubscription: (id: string) => Promise<void>
+  keepCurrentSubscription: (id: string) => void
+  clearCachedSubscription: (id: string) => Promise<void>
+  hydrateSubscriptionCache: () => Promise<void>
   toProject: () => ProxyFlowProject
 }
 
@@ -93,6 +104,31 @@ function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat(getCurrentLocale(), { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
 }
 
+const subscriptionRefreshCoordinator = new RefreshCoordinator()
+
+function emptySubscriptionRuntime(sourceId: string, inputKind: SubscriptionInputKind, fingerprint = ''): SubscriptionRuntimeRecord {
+  return {
+    sourceId, inputKind, sourceConfigFingerprint: fingerprint, refreshStatus: 'idle', activeState: 'none',
+    freshness: 'fresh', requestGeneration: 0,
+  }
+}
+
+function withoutKey<T>(record: Record<string, T>, key: string) {
+  const next = { ...record }
+  delete next[key]
+  return next
+}
+
+function snapshotNodeData(snapshot: SubscriptionSnapshot) {
+  return {
+    subscriptionInputKind: snapshot.inputKind,
+    nodeCount: snapshot.result.detectedCount,
+    updatedAt: formatTimestamp(snapshot.committedAt),
+    subtitle: translateCurrent('demo.subscription.dynamicSubtitle', { detected: snapshot.result.detectedCount, ready: snapshot.readyCount }),
+    subtitleKey: undefined,
+  } as const
+}
+
 async function rehydrateEmbeddedSubscriptions(
   nodes: GraphNode[],
   parseInput: BuilderState['parseSubscriptionInput'],
@@ -105,10 +141,92 @@ async function rehydrateEmbeddedSubscriptions(
 }
 
 export const useBuilderStore = create<BuilderState>((set, get) => {
+  const inputGenerations = new Map<string, number>()
+  const nextInputGeneration = (projectId: string, sourceId: string) => {
+    const key = `${projectId}\u0000${sourceId}`
+    const generation = (inputGenerations.get(key) ?? 0) + 1
+    inputGenerations.set(key, generation)
+    return generation
+  }
+  const isCurrentInput = (projectId: string, sourceId: string, generation: number) => (inputGenerations.get(`${projectId}\u0000${sourceId}`) ?? 0) === generation
   const record = () => set((state) => ({
     historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.nodes, state.edges)],
     historyFuture: [],
   }))
+
+  const refreshHandlers = (id: string): RefreshHandlers => ({
+    onStart: (generation, attemptedAt, fingerprint) => set((state) => {
+      const previous = state.subscriptionRuntimes[id]
+      const configChanged = Boolean(previous?.sourceConfigFingerprint && previous.sourceConfigFingerprint !== fingerprint)
+      const base = configChanged ? emptySubscriptionRuntime(id, 'url', fingerprint) : previous ?? emptySubscriptionRuntime(id, 'url', fingerprint)
+      return {
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: {
+            ...base,
+            inputKind: 'url', sourceConfigFingerprint: fingerprint, refreshStatus: 'loading',
+            lastAttemptAt: attemptedAt, requestGeneration: generation,
+            pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined, cacheError: undefined,
+          },
+        },
+        ...(configChanged ? { subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id) } : {}),
+      }
+    }),
+    onCommit: (snapshot, diff, generation) => set((state) => {
+      const previous = state.subscriptionRuntimes[id]
+      if (previous?.requestGeneration !== generation || state.projectId !== get().projectId) return state
+      return {
+        subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: snapshot },
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: {
+            ...previous, sourceId: id, inputKind: 'url', sourceConfigFingerprint: snapshot.sourceConfigFingerprint,
+            refreshStatus: 'succeeded', activeState: snapshot.quality, freshness: 'fresh', latestOutcome: 'success',
+            activeSnapshot: snapshot, latestDiff: diff, lastSuccessfulAt: snapshot.committedAt,
+            latestError: undefined, cacheError: undefined, pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined,
+            requestGeneration: generation,
+          },
+        },
+        nodes: state.nodes.map((item) => item.id === id ? {
+          ...item,
+          data: { ...item.data, ...snapshotNodeData(snapshot), subscriptionContent: undefined, subscriptionFileName: undefined },
+        } : item),
+        toast: translateCurrent('toast.subscriptionParsed', { count: snapshot.result.detectedCount }),
+      }
+    }),
+    onEmptyConfirmation: (candidate, diff, generation) => set((state) => {
+      const previous = state.subscriptionRuntimes[id]
+      if (previous?.requestGeneration !== generation) return state
+      return {
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: {
+            ...previous, refreshStatus: 'succeeded', latestOutcome: 'empty-confirmation-required',
+            pendingEmptySnapshot: candidate, pendingEmptyDiff: diff, latestError: undefined,
+          },
+        },
+      }
+    }),
+    onFailure: (error, generation) => set((state) => {
+      const previous = state.subscriptionRuntimes[id]
+      if (previous?.requestGeneration !== generation) return state
+      return {
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: {
+            ...previous, refreshStatus: 'failed', latestOutcome: 'failure', lastFailureAt: error.at,
+            latestError: error, freshness: previous.activeSnapshot ? snapshotFreshness(previous.activeSnapshot.committedAt) : 'fresh',
+          },
+        },
+        toast: previous.activeSnapshot ? translateCurrent('toast.refreshCached') : translateCurrent('issue.generic', { code: error.code }),
+      }
+    }),
+    onCacheError: (error, generation) => set((state) => {
+      const previous = state.subscriptionRuntimes[id]
+      if (!previous || previous.requestGeneration !== generation) return state
+      return { subscriptionRuntimes: { ...state.subscriptionRuntimes, [id]: { ...previous, cacheError: error } } }
+    }),
+  })
 
   return {
     projectId: demoProject.id,
@@ -128,6 +246,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     recoveryNotice: null,
     toast: null,
     subscriptionSnapshots: {},
+    subscriptionRuntimes: {},
 
     onNodesChange: (changes) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
@@ -196,10 +315,13 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         return
       }
       record()
+      subscriptionRefreshCoordinator.cancel(get().projectId, id)
       set((state) => ({
         nodes: state.nodes.filter((item) => item.id !== id),
         edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
         selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+        subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
+        subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
       }))
     },
     deleteSelected: () => {
@@ -207,11 +329,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const protectedSelection = state.nodes.find((node) => node.selected && node.data.protected)
       const selectedNodeIds = new Set(state.nodes.filter((node) => node.selected && !node.data.protected).map((node) => node.id))
       if (selectedNodeIds.size > 0) {
+        for (const id of selectedNodeIds) subscriptionRefreshCoordinator.cancel(state.projectId, id)
         record()
         set({
           nodes: state.nodes.filter((node) => !selectedNodeIds.has(node.id)),
           edges: state.edges.filter((edge) => !selectedNodeIds.has(edge.source) && !selectedNodeIds.has(edge.target)),
           selectedNodeId: null,
+          subscriptionSnapshots: Object.fromEntries(Object.entries(state.subscriptionSnapshots).filter(([id]) => !selectedNodeIds.has(id))),
+          subscriptionRuntimes: Object.fromEntries(Object.entries(state.subscriptionRuntimes).filter(([id]) => !selectedNodeIds.has(id))),
         })
         return
       }
@@ -236,8 +361,23 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       edges: state.edges.map((edge) => ({ ...edge, selected: edge.id === id })),
     })),
     updateNodeData: (id, patch) => {
+      const current = get()
+      const node = current.nodes.find((item) => item.id === id)
+      const urlChanged = node?.data.blockType === 'subscription'
+        && patch.subscriptionUrl !== undefined
+        && patch.subscriptionUrl !== node.data.subscriptionUrl
       record()
-      set((state) => ({ nodes: state.nodes.map((node) => node.id === id ? { ...node, data: { ...node.data, ...patch } } : node) }))
+      if (urlChanged) {
+        nextInputGeneration(current.projectId, id)
+        subscriptionRefreshCoordinator.cancel(current.projectId, id)
+      }
+      set((state) => ({
+        nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) } } : item),
+        ...(urlChanged ? {
+          subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
+          subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
+        } : {}),
+      }))
     },
     setRoutingTarget: (nodeId, targetId) => {
       const state = get()
@@ -375,31 +515,70 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
     parseSubscriptionInput: async (id, content, inputKind, fileName) => {
+      const projectId = get().projectId
       const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
       if (!node) return
-      const { parseSubscription } = await import('../core/subscription')
+      const inputGeneration = nextInputGeneration(projectId, id)
+      subscriptionRefreshCoordinator.cancel(get().projectId, id)
+      const attemptedAt = new Date().toISOString()
       const result = parseSubscription(content, { sourceId: id, sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()), filename: fileName })
-      const now = new Date().toISOString()
-      const firstError = result.issues.find((issue) => issue.severity === 'error')
-      const parsed = result.readyCount + result.partialCount
-      const snapshot: SubscriptionSnapshot = {
-        inputKind, fetchStatus: firstError && parsed === 0 ? 'failed' : 'ready', result,
-        lastSuccessfulAt: parsed > 0 ? now : undefined, latestAttemptAt: now,
-        ...(firstError ? { latestErrorCode: firstError.code, latestErrorMessage: firstError.message } : {}),
-        ...(fileName ? { fileName } : {}),
+      const fingerprint = await sourceConfigFingerprint(inputKind, content)
+      const parsedAt = new Date().toISOString()
+      const candidate = await createSnapshotCandidate({
+        sourceId: id, inputKind, sourceConfigFingerprint: fingerprint, content, result,
+        fetchedAt: attemptedAt, parsedAt,
+      })
+      if (!isCurrentInput(projectId, id, inputGeneration) || get().projectId !== projectId || !get().nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
+      if (candidate.quality === 'invalid') {
+        const code = result.detectedCount > 0 ? 'SUBSCRIPTION_NO_USABLE_NODES'
+          : result.format === 'unsupported' && content.trim() ? 'SUBSCRIPTION_UNSUPPORTED_FORMAT' : 'SUBSCRIPTION_PARSE_FAILED'
+        const latestError: SubscriptionRefreshError = {
+          code, at: parsedAt, message: code === 'SUBSCRIPTION_NO_USABLE_NODES'
+            ? 'The subscription contains no Ready nodes.'
+            : code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT' ? 'The subscription format is not supported.' : 'The subscription could not be parsed.',
+        }
+        set((state) => ({
+          subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
+          subscriptionRuntimes: {
+            ...state.subscriptionRuntimes,
+            [id]: {
+              ...emptySubscriptionRuntime(id, inputKind, fingerprint), refreshStatus: 'failed', latestOutcome: 'failure',
+              lastAttemptAt: attemptedAt, lastFailureAt: parsedAt, latestError, fileName,
+            },
+          },
+          nodes: state.nodes.map((item) => item.id === id ? {
+            ...item,
+            data: {
+              ...item.data, subscriptionInputKind: inputKind,
+              ...(inputKind === 'paste' ? { subscriptionContent: content, subscriptionFileName: undefined } : { subscriptionContent: undefined, subscriptionFileName: fileName }),
+              nodeCount: 0,
+            },
+          } : item),
+          toast: translateCurrent('toast.importFailed'),
+        }))
+        return
       }
+      const committedAt = new Date().toISOString()
+      const snapshot = commitCandidate(candidate, committedAt)
+      const diff = await diffSubscriptionSnapshots(undefined, candidate)
       set((state) => ({
         subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: snapshot },
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: {
+            ...emptySubscriptionRuntime(id, inputKind, fingerprint), refreshStatus: 'succeeded', activeState: snapshot.quality,
+            latestOutcome: 'success', activeSnapshot: snapshot, latestDiff: diff, lastAttemptAt: attemptedAt,
+            lastSuccessfulAt: committedAt, fileName,
+          },
+        },
         nodes: state.nodes.map((item) => item.id === id ? {
           ...item,
           data: {
-            ...item.data, subscriptionInputKind: inputKind,
+            ...item.data, ...snapshotNodeData(snapshot), subscriptionInputKind: inputKind,
             ...(inputKind === 'paste' ? { subscriptionContent: content, subscriptionFileName: undefined } : { subscriptionContent: undefined, subscriptionFileName: fileName }),
-            nodeCount: result.detectedCount, updatedAt: parsed > 0 ? formatTimestamp(now) : item.data.updatedAt,
-            subtitle: translateCurrent('demo.subscription.dynamicSubtitle', { detected: result.detectedCount, ready: result.readyCount }), subtitleKey: undefined,
           },
         } : item),
-        toast: parsed > 0 ? translateCurrent('toast.importComplete', { detected: result.detectedCount, ready: result.readyCount }) : translateCurrent('toast.importFailed'),
+        toast: translateCurrent('toast.importComplete', { detected: result.detectedCount, ready: result.readyCount }),
       }))
     },
     refreshSubscription: async (id) => {
@@ -409,40 +588,152 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         set({ toast: translateCurrent('toast.enterSubscriptionUrl') })
         return
       }
-      const previous = get().subscriptionSnapshots[id]
-      const attemptedAt = new Date().toISOString()
-      set((state) => ({
-        subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: { ...previous, inputKind: 'url', fetchStatus: 'loading', latestAttemptAt: attemptedAt } },
-      }))
-      try {
-        const { BrowserSourceFetcher, parseSubscription } = await import('../core/subscription')
-        const content = await new BrowserSourceFetcher().fetchText(url)
-        const result = parseSubscription(content, { sourceId: id, sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()) })
-        const firstError = result.issues.find((issue) => issue.severity === 'error')
-        const parsed = result.readyCount + result.partialCount
-        if (parsed === 0 && firstError) throw Object.assign(new Error(firstError.message), { code: firstError.code })
-        const successfulAt = new Date().toISOString()
-        set((state) => ({
-          subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: { inputKind: 'url', fetchStatus: 'ready', result, lastSuccessfulAt: successfulAt, latestAttemptAt: successfulAt } },
-          nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, subscriptionInputKind: 'url', subscriptionContent: undefined, subscriptionFileName: undefined, nodeCount: result.detectedCount, updatedAt: formatTimestamp(successfulAt), subtitle: translateCurrent('demo.subscription.dynamicSubtitle', { detected: result.detectedCount, ready: result.readyCount }), subtitleKey: undefined } } : item),
-          toast: translateCurrent('toast.subscriptionParsed', { count: result.detectedCount }),
-        }))
-      } catch (error) {
-        const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : 'FETCH_FAILED'
-        const message = error instanceof Error ? error.message : '无法读取订阅。'
-        set((state) => ({
-          subscriptionSnapshots: {
-            ...state.subscriptionSnapshots,
-            [id]: {
-              ...previous, inputKind: 'url', fetchStatus: code === 'CORS_OR_NETWORK_ERROR' ? 'cors' : 'failed',
-              latestAttemptAt: attemptedAt, latestErrorCode: code, latestErrorMessage: message, stale: Boolean(previous?.result?.proxies.length),
-            },
-          },
-          toast: previous?.result?.proxies.length ? translateCurrent('toast.refreshCached') : translateCurrent('issue.generic', { code }),
-        }))
+      nextInputGeneration(get().projectId, id)
+      const state = get()
+      await subscriptionRefreshCoordinator.refresh({
+        projectId: state.projectId, sourceId: id,
+        sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+        url, activeSnapshot: state.subscriptionSnapshots[id],
+      }, refreshHandlers(id))
+    },
+    refreshAllSubscriptions: async () => {
+      const state = get()
+      const subscriptions = state.nodes.filter((node) => node.data.blockType === 'subscription')
+      const eligible = subscriptions.filter((node) => node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim()))
+      const retainedBefore = new Set(eligible.filter((node) => state.subscriptionSnapshots[node.id]).map((node) => node.id))
+      const settled = await mapWithConcurrency(eligible, 3, async (node) => {
+        const before = get().subscriptionRuntimes[node.id]?.latestOutcome
+        await get().refreshSubscription(node.id)
+        const runtime = get().subscriptionRuntimes[node.id]
+        return { id: node.id, outcome: runtime?.latestOutcome ?? before }
+      })
+      const outcomes = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+      const summary: RefreshAllSummary = {
+        succeeded: outcomes.filter(({ outcome }) => outcome === 'success').length,
+        failed: outcomes.filter(({ outcome }) => outcome === 'failure').length + settled.filter((result) => result.status === 'rejected').length,
+        skipped: subscriptions.length - eligible.length,
+        confirmationRequired: outcomes.filter(({ outcome }) => outcome === 'empty-confirmation-required').length,
+        retainedPrevious: outcomes.filter(({ id, outcome }) => outcome === 'failure' && retainedBefore.has(id)).length,
       }
+      set({ toast: translateCurrent('toast.refreshAllComplete', { succeeded: summary.succeeded, failed: summary.failed, skipped: summary.skipped }) })
+      return summary
+    },
+    applyEmptySubscription: async (id) => {
+      const state = get()
+      const runtime = state.subscriptionRuntimes[id]
+      const candidate = runtime?.pendingEmptySnapshot
+      if (!runtime || !candidate || candidate.quality !== 'empty') return
+      const snapshot = commitCandidate(candidate, new Date().toISOString())
+      const diff = runtime.pendingEmptyDiff ?? await diffSubscriptionSnapshots(runtime.activeSnapshot, candidate)
+      set((current) => ({
+        subscriptionSnapshots: { ...current.subscriptionSnapshots, [id]: snapshot },
+        subscriptionRuntimes: {
+          ...current.subscriptionRuntimes,
+          [id]: {
+            ...runtime, refreshStatus: 'succeeded', activeState: 'empty', freshness: 'fresh', latestOutcome: 'success',
+            activeSnapshot: snapshot, latestDiff: diff, lastSuccessfulAt: snapshot.committedAt,
+            pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined, latestError: undefined, cacheError: undefined,
+          },
+        },
+        nodes: current.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item),
+      }))
+      await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot, {
+        onCacheError: (error) => refreshHandlers(id).onCacheError(error, runtime.requestGeneration),
+      }, runtime.requestGeneration)
+    },
+    keepCurrentSubscription: (id) => set((state) => {
+      const runtime = state.subscriptionRuntimes[id]
+      if (!runtime?.pendingEmptySnapshot) return state
+      return {
+        subscriptionRuntimes: {
+          ...state.subscriptionRuntimes,
+          [id]: { ...runtime, latestOutcome: 'success', pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined },
+        },
+      }
+    }),
+    clearCachedSubscription: async (id) => {
+      const state = get()
+      const node = state.nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
+      if (!node) return
+      const projectId = state.projectId
+      const clearGeneration = nextInputGeneration(projectId, id)
+      subscriptionRefreshCoordinator.cancel(state.projectId, id)
+      const fingerprint = state.subscriptionRuntimes[id]?.sourceConfigFingerprint
+        || await sourceConfigFingerprint('url', node.data.subscriptionUrl ?? '')
+      let cacheError: SubscriptionRefreshError | undefined
+      try {
+        await subscriptionRefreshCoordinator.clearPersistedSnapshot(
+          { projectId, sourceId: id, sourceConfigFingerprint: fingerprint },
+          () => isCurrentInput(projectId, id, clearGeneration),
+        )
+      } catch {
+        cacheError = { code: 'SUBSCRIPTION_CACHE_WRITE_FAILED', message: 'The cached subscription snapshot could not be removed from this browser.', at: new Date().toISOString() }
+      }
+      set((current) => {
+        if (!isCurrentInput(projectId, id, clearGeneration) || current.projectId !== projectId) return current
+        return {
+          subscriptionSnapshots: withoutKey(current.subscriptionSnapshots, id),
+          subscriptionRuntimes: {
+            ...current.subscriptionRuntimes,
+            [id]: { ...emptySubscriptionRuntime(id, 'url', fingerprint), ...(cacheError ? { cacheError } : {}) },
+          },
+          nodes: current.nodes.map((item) => item.id === id ? {
+            ...item,
+            data: { ...item.data, nodeCount: 0, subtitle: translateCurrent('demo.subscription.notParsed'), subtitleKey: undefined, updatedAt: translateCurrent('demo.subscription.notParsed') },
+          } : item),
+          toast: cacheError ? translateCurrent('issue.generic', { code: cacheError.code }) : translateCurrent('toast.cacheCleared'),
+        }
+      })
+    },
+    hydrateSubscriptionCache: async () => {
+      const initial = get()
+      const projectId = initial.projectId
+      const sources = initial.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.subscriptionInputKind === 'url')
+      await Promise.all(sources.map(async (node) => {
+        const url = node.data.subscriptionUrl ?? ''
+        const hydrationGeneration = inputGenerations.get(`${projectId}\u0000${node.id}`) ?? 0
+        const fingerprint = await sourceConfigFingerprint('url', url)
+        try {
+          const snapshot = await subscriptionRuntimeRepository.readActive({ projectId, sourceId: node.id, sourceConfigFingerprint: fingerprint })
+          const current = get()
+          const currentNode = current.nodes.find((item) => item.id === node.id)
+          if (!isCurrentInput(projectId, node.id, hydrationGeneration)
+            || current.projectId !== projectId
+            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl) return
+          set((state) => ({
+            ...(snapshot ? { subscriptionSnapshots: { ...state.subscriptionSnapshots, [node.id]: snapshot } } : {}),
+            subscriptionRuntimes: {
+              ...state.subscriptionRuntimes,
+              [node.id]: snapshot ? {
+                ...emptySubscriptionRuntime(node.id, 'url', fingerprint), activeState: snapshot.quality,
+                freshness: snapshotFreshness(snapshot.committedAt), activeSnapshot: snapshot, lastSuccessfulAt: snapshot.committedAt,
+              } : emptySubscriptionRuntime(node.id, 'url', fingerprint),
+            },
+            ...(snapshot ? { nodes: state.nodes.map((item) => item.id === node.id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item) } : {}),
+          }))
+        } catch {
+          const at = new Date().toISOString()
+          const cacheError: SubscriptionRefreshError = { code: 'SUBSCRIPTION_CACHE_READ_FAILED', message: 'The cached subscription snapshot could not be read.', at }
+          const current = get()
+          const currentNode = current.nodes.find((item) => item.id === node.id)
+          if (!isCurrentInput(projectId, node.id, hydrationGeneration)
+            || current.projectId !== projectId
+            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl) return
+          set((state) => ({
+            subscriptionRuntimes: {
+              ...state.subscriptionRuntimes,
+              [node.id]: { ...emptySubscriptionRuntime(node.id, 'url', fingerprint), cacheError },
+            },
+          }))
+        }
+      }))
     },
     hydrate: (project) => {
+      const previous = get()
+      for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
+        nextInputGeneration(previous.projectId, source.id)
+        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+      }
       if (project === undefined) {
         set({
           projectId: demoProject.id, projectName: demoProject.name,
@@ -451,7 +742,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           recoveryRequired: true,
           recoveryNotice: translateCurrent('recovery.unreadable'),
           subscriptionSnapshots: {},
+          subscriptionRuntimes: {},
         })
+        void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
         return
       }
       const migration = project ? migrateProject(project) : undefined
@@ -462,20 +755,33 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         recoveryRequired: migration?.recoveryRequired ?? false,
         recoveryNotice: migration?.message ?? null,
         subscriptionSnapshots: {},
+        subscriptionRuntimes: {},
       })
       void rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput)
+      void get().hydrateSubscriptionCache()
     },
     resetToDemo: () => {
+      const previous = get()
+      for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
+        nextInputGeneration(previous.projectId, source.id)
+        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+      }
       set({
         projectId: demoProject.id, projectName: demoProject.name,
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.resetDemo'),
         subscriptionSnapshots: {},
+        subscriptionRuntimes: {},
       })
       void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
     },
     createNewProject: () => {
+      const previous = get()
+      for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
+        nextInputGeneration(previous.projectId, source.id)
+        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+      }
       const value = createBlankProject()
       set({
         projectId: value.id, projectName: value.name,
@@ -483,6 +789,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
         subscriptionSnapshots: {},
+        subscriptionRuntimes: {},
       })
     },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),

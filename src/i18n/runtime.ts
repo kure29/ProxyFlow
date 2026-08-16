@@ -176,6 +176,7 @@ export function localizeKnownSystemText(value: string, locale: Locale): string {
 }
 
 export function localizeDiagnosticMessage(code: string, message: string, locale: Locale) {
+  if (code === 'SUBSCRIPTION_HTTP_ERROR' && /^HTTP \d{3}$/.test(message)) return message
   const copy = issueCopy[code]?.[locale]
   if (copy) return copy
   const containsCjk = /[\u3400-\u9fff]/u.test(message)
@@ -242,6 +243,19 @@ systemTextLookup.set('AI 服务', 'demo.ai.title')
 systemTextLookup.set('DNS 配置', 'block.dns.title')
 
 const issueCopy: Record<string, Record<Locale, string>> = {
+  SUBSCRIPTION_INVALID_URL: { 'en-US': 'Subscription URL must use HTTP or HTTPS.', 'zh-CN': '订阅地址必须使用 HTTP 或 HTTPS。' },
+  SUBSCRIPTION_HTTP_ERROR: { 'en-US': 'The subscription server returned an HTTP error.', 'zh-CN': '订阅服务器返回了 HTTP 错误。' },
+  SUBSCRIPTION_CORS_BLOCKED: { 'en-US': 'The browser blocked this cross-origin request. Use Paste Content, Local File, or a URL that supports CORS.', 'zh-CN': '浏览器阻止了此跨域请求。请使用粘贴内容、本地文件或支持 CORS 的订阅地址。' },
+  SUBSCRIPTION_NETWORK_ERROR: { 'en-US': 'The subscription request failed because of a network error.', 'zh-CN': '订阅请求因网络错误而失败。' },
+  SUBSCRIPTION_TIMEOUT: { 'en-US': 'The subscription request timed out.', 'zh-CN': '订阅请求超时。' },
+  SUBSCRIPTION_TOO_LARGE: { 'en-US': 'The subscription exceeds the browser size limit.', 'zh-CN': '订阅内容超过浏览器大小限制。' },
+  SUBSCRIPTION_UNSUPPORTED_FORMAT: { 'en-US': 'The subscription format is not supported.', 'zh-CN': '不支持该订阅格式。' },
+  SUBSCRIPTION_PARSE_FAILED: { 'en-US': 'The subscription could not be parsed.', 'zh-CN': '订阅内容无法解析。' },
+  SUBSCRIPTION_NO_USABLE_NODES: { 'en-US': 'The subscription contains no Ready nodes; the previous snapshot was retained.', 'zh-CN': '订阅中没有可用节点，已保留之前的快照。' },
+  SUBSCRIPTION_CACHE_READ_FAILED: { 'en-US': 'The locally cached subscription snapshot could not be read.', 'zh-CN': '无法读取浏览器中的订阅缓存快照。' },
+  SUBSCRIPTION_CACHE_WRITE_FAILED: { 'en-US': 'The active snapshot could not be saved to browser cache.', 'zh-CN': '活动快照无法写入浏览器缓存。' },
+  SUBSCRIPTION_SNAPSHOT_COMMIT_FAILED: { 'en-US': 'The refreshed snapshot could not be committed.', 'zh-CN': '刷新后的快照无法提交。' },
+  SUBSCRIPTION_RUNTIME_INTERNAL_ERROR: { 'en-US': 'Subscription refresh failed because of an internal runtime error.', 'zh-CN': '订阅刷新因内部运行时错误而失败。' },
   UI_SOURCE_DISCONNECTED: { 'en-US': 'This source is not connected to the processing flow.', 'zh-CN': '该数据源尚未连接到处理流程。' },
   UI_STRATEGY_SOURCE_MISSING: { 'en-US': 'This strategy has no proxy source.', 'zh-CN': '该策略尚未连接节点来源。' },
   UI_CHAIN_EMPTY: { 'en-US': 'A proxy chain needs at least one hop.', 'zh-CN': '代理链至少需要一跳。' },

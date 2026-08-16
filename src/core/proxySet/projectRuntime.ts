@@ -24,7 +24,7 @@ export function deriveProjectRuntime(project: ProxyFlowProject, subscriptionSnap
     const result = materializeProxySet(graph.ir, { kind: 'source', id: source.id }, context)
     const snapshot = subscriptionSnapshots[source.id]
     runtime.set(source.id, {
-      status: snapshot?.stale ? 'stale' : result.status === 'error' ? source.kind === 'subscription' && !snapshot ? 'unavailable' : 'error' : 'ready',
+      status: result.status === 'error' ? source.kind === 'subscription' && !snapshot ? 'unavailable' : 'error' : 'ready',
       inputCount: result.inputCount, outputCount: result.outputCount, removedCount: result.removedCount,
       protocolCount: new Set(result.proxies.map((proxy) => proxy.protocol)).size,
       issues: result.issues,

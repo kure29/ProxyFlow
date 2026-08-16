@@ -80,14 +80,11 @@ function compileSubscription(
 ): Extract<SourceIR, { kind: 'subscription' }> {
   const snapshot = context.subscriptionSnapshots[id]
   const result = snapshot?.result
-  const hasUsable = Boolean(result?.proxies.length)
-  const hasParseError = Boolean(result && !hasUsable && result.issues.some((issue) => issue.severity === 'error'))
   return {
     id, name, kind: 'subscription', url: data.subscriptionUrl || undefined, enabled: data.enabled ?? true,
     ...(result ? { proxies: result.proxies } : {}),
     materialization: {
-      status: snapshot?.stale && hasUsable ? 'stale' : hasUsable ? 'ready' : hasParseError ? 'error' : 'unavailable',
-      ...(snapshot?.latestErrorCode || hasParseError ? { issueCode: snapshot?.latestErrorCode ?? result?.issues.find((issue) => issue.severity === 'error')?.code } : {}),
+      status: snapshot ? 'ready' : 'unavailable',
     },
   }
 }

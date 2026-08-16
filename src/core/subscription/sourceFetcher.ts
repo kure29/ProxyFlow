@@ -2,53 +2,85 @@ import { SubscriptionFetchError } from './errors'
 import { DEFAULT_MAX_SUBSCRIPTION_BYTES } from './parseSubscription'
 
 export interface SourceFetcher {
-  fetchText(url: string, options?: { signal?: AbortSignal; timeoutMs?: number; maxBytes?: number }): Promise<string>
+  fetch(url: string, options?: SourceFetchOptions): Promise<SourceFetchResult>
+}
+
+export interface SourceFetchOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
+  maxBytes?: number
+}
+
+export interface SourceFetchResult {
+  text: string
+  status: number
+  contentType?: string
+  etag?: string
+  lastModified?: string
+  durationMs: number
 }
 
 export class BrowserSourceFetcher implements SourceFetcher {
-  async fetchText(url: string, options: { signal?: AbortSignal; timeoutMs?: number; maxBytes?: number } = {}): Promise<string> {
-    if (!isSafeSubscriptionUrl(url)) throw new SubscriptionFetchError('INVALID_SUBSCRIPTION_URL', '订阅地址必须使用 HTTP 或 HTTPS。')
+  async fetch(url: string, options: SourceFetchOptions = {}): Promise<SourceFetchResult> {
+    if (!isSafeSubscriptionUrl(url)) throw new SubscriptionFetchError('SUBSCRIPTION_INVALID_URL', 'Subscription URL must use HTTP or HTTPS.')
     const timeoutMs = options.timeoutMs ?? 12_000
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_SUBSCRIPTION_BYTES
     const controller = new AbortController()
-    const timeout = globalThis.setTimeout(() => controller.abort('timeout'), timeoutMs)
+    const startedAt = performance.now()
+    let timedOut = false
+    const timeout = globalThis.setTimeout(() => { timedOut = true; controller.abort('timeout') }, timeoutMs)
     const abort = () => controller.abort(options.signal?.reason)
     options.signal?.addEventListener('abort', abort, { once: true })
     try {
       const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'text/plain, text/yaml, application/yaml, */*' } })
-      if (!response.ok) throw new SubscriptionFetchError('FETCH_FAILED', `订阅服务器返回 HTTP ${response.status}。`)
+      if (!response.ok) throw new SubscriptionFetchError('SUBSCRIPTION_HTTP_ERROR', `HTTP ${response.status}`, response.status)
       const declaredLength = Number(response.headers.get('content-length'))
-      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', '订阅响应超过浏览器安全限制。')
+      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
+      let text: string
       if (!response.body) {
-        const text = await response.text()
-        if (new TextEncoder().encode(text).byteLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', '订阅响应超过浏览器安全限制。')
-        return text
-      }
-      const reader = response.body.getReader()
-      const chunks: Uint8Array[] = []
-      let length = 0
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        length += value.byteLength
-        if (length > maxBytes) {
-          await reader.cancel()
-          throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', '订阅响应超过浏览器安全限制。')
+        text = await response.text()
+        if (new TextEncoder().encode(text).byteLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
+      } else {
+        const reader = response.body.getReader()
+        const chunks: Uint8Array[] = []
+        let length = 0
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          length += value.byteLength
+          if (length > maxBytes) {
+            await reader.cancel()
+            throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
+          }
+          chunks.push(value)
         }
-        chunks.push(value)
+        const bytes = new Uint8Array(length)
+        let offset = 0
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+        text = new TextDecoder().decode(bytes)
       }
-      const bytes = new Uint8Array(length)
-      let offset = 0
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
-      return new TextDecoder().decode(bytes)
+      return {
+        text,
+        status: response.status,
+        contentType: response.headers.get('content-type') ?? undefined,
+        etag: response.headers.get('etag') ?? undefined,
+        lastModified: response.headers.get('last-modified') ?? undefined,
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      }
     } catch (error) {
       if (error instanceof SubscriptionFetchError) throw error
-      if (controller.signal.aborted) throw new SubscriptionFetchError('FETCH_FAILED', '订阅请求超时或已取消。')
-      throw new SubscriptionFetchError('CORS_OR_NETWORK_ERROR', '该订阅服务器不允许浏览器直接读取。你可以粘贴订阅内容或导入文件。')
+      if (timedOut) throw new SubscriptionFetchError('SUBSCRIPTION_TIMEOUT', 'Subscription request timed out.')
+      if (options.signal?.aborted) throw new SubscriptionFetchError('SUBSCRIPTION_REFRESH_SUPERSEDED', 'Subscription refresh was superseded.')
+      if (error instanceof TypeError) throw new SubscriptionFetchError('SUBSCRIPTION_CORS_BLOCKED', 'The browser blocked this cross-origin request. Use Paste Content, Local File, or a URL that supports CORS.')
+      throw new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'Subscription request failed because of a network error.')
     } finally {
       globalThis.clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abort)
     }
+  }
+
+  async fetchText(url: string, options: SourceFetchOptions = {}) {
+    return (await this.fetch(url, options)).text
   }
 }
 
