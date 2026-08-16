@@ -3,11 +3,27 @@ export type SingBoxDialFields = {
   domain_resolver?: string
 }
 
+export interface SingBoxTls {
+  enabled: true
+  server_name?: string
+  insecure?: boolean
+  alpn?: string[]
+}
+
+export type SingBoxV2RayTransport =
+  | { type: 'ws'; path?: string; headers?: Record<string, string> }
+  | { type: 'http'; path?: string; host?: string[] }
+  | { type: 'grpc'; service_name?: string }
+
 export type SingBoxOutbound =
   | { type: 'direct'; tag: string }
   | { type: 'block'; tag: string }
   | ({ type: 'socks'; tag: string; server: string; server_port: number; version: '5'; username?: string; password?: string } & SingBoxDialFields)
-  | ({ type: 'http'; tag: string; server: string; server_port: number; username?: string; password?: string } & SingBoxDialFields)
+  | ({ type: 'http'; tag: string; server: string; server_port: number; username?: string; password?: string; tls?: SingBoxTls } & SingBoxDialFields)
+  | ({ type: 'shadowsocks'; tag: string; server: string; server_port: number; method: string; password: string; plugin?: string; plugin_opts?: string } & SingBoxDialFields)
+  | ({ type: 'trojan'; tag: string; server: string; server_port: number; password: string; tls: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
+  | ({ type: 'vmess'; tag: string; server: string; server_port: number; uuid: string; security: string; alter_id?: number; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
+  | ({ type: 'vless'; tag: string; server: string; server_port: number; uuid: string; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
   | { type: 'selector'; tag: string; outbounds: string[]; default?: string }
   | { type: 'urltest'; tag: string; outbounds: string[]; url: string; interval: string; tolerance: number }
 

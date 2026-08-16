@@ -1,5 +1,10 @@
 import type { GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
 import type { SemanticIssue } from '../ir'
+import type { SubscriptionSnapshot } from '../subscription'
+
+export interface GraphCompileOptions {
+  subscriptionSnapshots?: Record<string, SubscriptionSnapshot>
+}
 
 export interface GraphCompileContext {
   project: ProxyFlowProject
@@ -9,9 +14,10 @@ export interface GraphCompileContext {
   serviceIdsByLookup: Map<string, string>
   issues: SemanticIssue[]
   addIssue: (issue: SemanticIssue) => void
+  subscriptionSnapshots: Record<string, SubscriptionSnapshot>
 }
 
-export function createGraphCompileContext(project: ProxyFlowProject): GraphCompileContext {
+export function createGraphCompileContext(project: ProxyFlowProject, options: GraphCompileOptions = {}): GraphCompileContext {
   const nodesById = new Map(project.graph.nodes.map((node) => [node.id, node]))
   const incomingEdges = new Map<string, GraphEdge[]>()
   const outgoingEdges = new Map<string, GraphEdge[]>()
@@ -36,5 +42,6 @@ export function createGraphCompileContext(project: ProxyFlowProject): GraphCompi
     serviceIdsByLookup,
     issues,
     addIssue: (issue) => issues.push(issue),
+    subscriptionSnapshots: options.subscriptionSnapshots ?? {},
   }
 }

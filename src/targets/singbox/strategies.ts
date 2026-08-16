@@ -1,8 +1,8 @@
-import type { StrategyIR } from '../../core/ir'
+import { isUnmodeledProxy, type ResolvedProxyEndpointIR, type StrategyIR } from '../../core/ir'
 import type { SingBoxCompileContext, SingBoxStrategyTemplate } from './context'
 import { SINGBOX_DEFAULTS } from './defaults'
 import { singBoxIssue } from './errors'
-import { resolveSingBoxProxySet } from './outbounds'
+import { registerSingBoxEndpoint, resolveSingBoxProxySet } from './outbounds'
 
 export function compileSingBoxStrategies(context: SingBoxCompileContext) {
   for (const strategy of context.ir.strategies) {
@@ -27,8 +27,10 @@ function compileStrategy(
   const tag = context.strategyTags.get(strategy.id)!
 
   if (strategy.kind === 'fixed') {
-    const proxyTag = strategy.proxyId ? context.endpointTags.get(strategy.proxyId) : undefined
-    if (!proxyTag || !context.outbounds.has(proxyTag)) {
+    const endpoint = strategy.proxyId ? context.ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
+      ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status !== 'partial') : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
+    const proxyTag = endpoint ? registerSingBoxEndpoint(endpoint, context) : undefined
+    if (!proxyTag) {
       context.issues.push(singBoxIssue(
         'SINGBOX_INVALID_OUTBOUND', 'error', 'strategy', `Fixed strategy “${strategy.name}” 没有已解析 outbound。`, strategy.id,
       ))

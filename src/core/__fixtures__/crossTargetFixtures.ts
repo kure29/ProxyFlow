@@ -11,13 +11,13 @@ export function explicitProxyIR(): ProxyFlowIR {
     sources: [
       {
         kind: 'manual-proxy', id: 'hk-source', name: 'Hong Kong', proxies: [
-          { kind: 'socks', version: '5', id: 'hk-socks', name: 'HK SOCKS', server: 'hk.example.com', port: 1080 },
+          { kind: 'socks', protocol: 'socks5', version: '5', id: 'hk-socks', name: 'HK SOCKS', server: 'hk.example.com', port: 1080 },
         ],
       },
       {
         kind: 'manual-proxy', id: 'us-source', name: 'United States', proxies: [
-          { kind: 'http', id: 'us-http', name: 'US HTTP', server: 'us-http.example.com', port: 8080, username: 'alice', password: 'secret' },
-          { kind: 'socks', version: '5', id: 'us-socks', name: 'US SOCKS', server: '203.0.113.20', port: 1080 },
+          { kind: 'http', protocol: 'http', id: 'us-http', name: 'US HTTP', server: 'us-http.example.com', port: 8080, username: 'alice', password: 'secret' },
+          { kind: 'socks', protocol: 'socks5', version: '5', id: 'us-socks', name: 'US SOCKS', server: '203.0.113.20', port: 1080 },
         ],
       },
     ],
@@ -71,7 +71,7 @@ export function chainIR(hops: 2 | 3): ProxyFlowIR {
   if (hops === 3) {
     ir.sources.splice(1, 0, {
       kind: 'manual-proxy', id: 'jp-source', name: 'Japan', proxies: [
-        { kind: 'http', id: 'jp-http', name: 'JP HTTP', server: 'jp.example.com', port: 8080 },
+        { kind: 'http', protocol: 'http', id: 'jp-http', name: 'JP HTTP', server: 'jp.example.com', port: 8080 },
       ],
     })
     ir.strategies.splice(1, 0, {

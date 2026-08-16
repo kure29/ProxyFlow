@@ -1,4 +1,10 @@
 import type { SourceId } from './references'
+import type { ResolvedProxyEndpointIR } from '../proxy'
+
+export type {
+  HttpProxyIR, ProxyEndpointMetadata, ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR,
+  ShadowsocksProxyIR, SocksProxyIR, TrojanProxyIR, VLESSProxyIR, VMessProxyIR,
+} from '../proxy'
 
 export interface SubscriptionSourceIR {
   kind: 'subscription'
@@ -6,6 +12,11 @@ export interface SubscriptionSourceIR {
   name: string
   url?: string
   enabled: boolean
+  proxies?: ResolvedProxyEndpointIR[]
+  materialization?: {
+    status: 'ready' | 'stale' | 'error' | 'unavailable'
+    issueCode?: string
+  }
 }
 
 export interface ManualProxyPlaceholder {
@@ -16,26 +27,8 @@ export interface ManualProxyPlaceholder {
   name: string
 }
 
-interface ProxyEndpointBase {
-  id: string
-  name: string
-  server: string
-  port: number
-  username?: string
-  password?: string
-}
-
-export interface SocksProxyIR extends ProxyEndpointBase {
-  kind: 'socks'
-  version: '5'
-}
-
-export interface HttpProxyIR extends ProxyEndpointBase {
-  kind: 'http'
-}
-
 /** A resolved, client-neutral proxy endpoint. Target runtime fields do not belong here. */
-export type ProxyEndpointIR = ManualProxyPlaceholder | SocksProxyIR | HttpProxyIR
+export type ProxyEndpointIR = ManualProxyPlaceholder | ResolvedProxyEndpointIR
 
 export function isUnmodeledProxy(proxy: ProxyEndpointIR): proxy is ManualProxyPlaceholder {
   return proxy.kind === 'unmodeled' || ('protocol' in proxy && proxy.protocol === 'unmodeled')

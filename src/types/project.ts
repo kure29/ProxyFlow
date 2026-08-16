@@ -1,6 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { TargetClient, OutputDefinition } from './output'
 import type { ServiceDefinition } from './services'
+import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 
 export type { TargetClient, OutputDefinition } from './output'
 export type { ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
@@ -51,16 +52,36 @@ export interface BlockNodeData extends Record<string, unknown> {
   highlighted?: boolean
   dimmed?: boolean
   subscriptionUrl?: string
-  proxyProtocol?: 'socks' | 'http'
+  subscriptionInputKind?: 'url' | 'paste' | 'file'
+  subscriptionContent?: string
+  subscriptionFileName?: string
+  proxyProtocol?: SupportedProxyProtocol | 'socks'
   proxyServer?: string
   proxyPort?: number
   proxyUsername?: string
   proxyPassword?: string
+  proxyUuid?: string
+  proxyMethod?: string
+  proxySecurity?: string
+  proxyAlterId?: number
+  proxyTls?: boolean
+  proxyServerName?: string
+  proxyAllowInsecure?: boolean
+  proxyTransport?: 'tcp' | 'ws' | 'http' | 'grpc'
+  proxyTransportPath?: string
+  proxyTransportHost?: string
+  proxyGrpcServiceName?: string
   enabled?: boolean
   nodeCount?: number
   updatedAt?: string
   include?: string[]
   exclude?: string[]
+  includeRegex?: string
+  excludeRegex?: string
+  includeRegions?: RegionCode[]
+  excludeRegions?: RegionCode[]
+  includeProtocols?: SupportedProxyProtocol[]
+  excludeProtocols?: SupportedProxyProtocol[]
   strategyMode?: string
   testUrl?: string
   interval?: number
@@ -76,13 +97,19 @@ export interface BlockNodeData extends Record<string, unknown> {
   resolver?: string
   renamePattern?: string
   renameReplacement?: string
-  sortBy?: 'name' | 'latency'
+  sortBy?: 'name' | 'region' | 'protocol' | 'latency'
   sortDirection?: 'ascending' | 'descending'
-  deduplicateBy?: 'name' | 'server'
+  deduplicateBy?: 'identity'
   limit?: number
   loadBalanceMode?: 'round-robin' | 'consistent-hash'
   proxyId?: string
   routePriority?: number
+  runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
+  runtimeInputCount?: number
+  runtimeOutputCount?: number
+  runtimeRemovedCount?: number
+  runtimeProtocolCount?: number
+  runtimeIssueCount?: number
 }
 
 export interface FlowEdgeData extends Record<string, unknown> {

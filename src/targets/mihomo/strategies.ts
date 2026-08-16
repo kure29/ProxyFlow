@@ -1,19 +1,21 @@
-import type { HealthCheckIR, StrategyCandidateRef, StrategyIR } from '../../core/ir'
+import { isUnmodeledProxy, type HealthCheckIR, type ResolvedProxyEndpointIR, type StrategyCandidateRef, type StrategyIR } from '../../core/ir'
 import type { CompiledGroupTemplate, MihomoCompileContext, ResolvedProxySet } from './context'
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
 import type { MihomoProxyGroup } from './model'
-import { filtersForProxySet, resolveProxySet } from './providers'
+import { filtersForProxySet, registerMihomoEndpoint, resolveProxySet } from './providers'
 
 export function compileMihomoStrategies(context: MihomoCompileContext) {
   for (const strategy of context.ir.strategies) {
     if (strategy.kind === 'chain') continue
     if (strategy.kind === 'fixed') {
-      const proxyName = strategy.proxyId ? context.proxyNamesById.get(strategy.proxyId) : undefined
-      if (!proxyName || !context.proxies.has(proxyName)) {
+      const endpoint = strategy.proxyId ? context.ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
+        ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status !== 'partial') : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
+      const proxyName = endpoint ? registerMihomoEndpoint(endpoint, context) : undefined
+      if (!proxyName) {
         context.issues.push(mihomoIssue(
           'MIHOMO_FIXED_PROXY_UNRESOLVED', 'error', 'strategy',
-          `Fixed strategy “${strategy.name}” 没有可解析的 HTTP/SOCKS endpoint。`, strategy.id,
+          `Fixed strategy “${strategy.name}” 没有可安全编译的标准代理 endpoint。`, strategy.id,
         ))
         continue
       }
