@@ -1,5 +1,5 @@
 import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCandidateRef } from '../ir'
-import { semanticIssue } from '../ir'
+import { isUnmodeledProxy, semanticIssue } from '../ir'
 import { detectChainCycles } from './detectChainCycles'
 
 const knownTargets = new Set(['mihomo', 'sing-box', 'surge', 'loon', 'quantumult-x', 'shadowrocket', 'stash'])
@@ -24,6 +24,12 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     if (source.kind === 'subscription' && !source.url) add(entityIssue(
       'SUBSCRIPTION_URL_MISSING', 'warning', `Subscription "${source.name}" has no URL.`, 'source', source.id,
     ))
+    if (source.kind === 'manual-proxy') for (const proxy of source.proxies) {
+      if (isUnmodeledProxy(proxy)) continue
+      if (!proxy.name.trim() || !proxy.server.trim() || !Number.isInteger(proxy.port) || proxy.port < 1 || proxy.port > 65_535) add(entityIssue(
+        'PROXY_ENDPOINT_INVALID', 'error', `Proxy endpoint "${proxy.name}" has invalid address or port.`, 'source', source.id,
+      ))
+    }
   }
 
   for (const transform of ir.transforms) {
@@ -47,6 +53,9 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     switch (strategy.kind) {
       case 'fixed':
         if (!strategy.proxyId) add(entityIssue('FIXED_PROXY_MISSING', 'error', `Fixed strategy "${strategy.name}" has no proxy.`, 'strategy', strategy.id))
+        else if (!ir.sources.some((source) => source.kind === 'manual-proxy' && source.proxies.some((proxy) => proxy.id === strategy.proxyId))) add(entityIssue(
+          'FIXED_PROXY_REFERENCE_NOT_FOUND', 'error', `Fixed strategy "${strategy.name}" references missing proxy "${strategy.proxyId}".`, 'strategy', strategy.id,
+        ))
         break
       case 'select':
         if (strategy.candidates.length === 0) add(entityIssue('SELECT_CANDIDATES_EMPTY', 'error', `Select strategy "${strategy.name}" has no candidates.`, 'strategy', strategy.id))
@@ -86,6 +95,9 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
         'SERVICE_REFERENCE_NOT_FOUND', 'error', `Service reference “${serviceId}” does not exist.`, 'route', route.id,
       ))
     }
+    if (route.matcher.kind === 'port' && (!Number.isInteger(route.matcher.port) || route.matcher.port < 1 || route.matcher.port > 65_535)) add(entityIssue(
+      'ROUTE_PORT_INVALID', 'error', `Route "${route.name}" has an invalid port matcher.`, 'route', route.id,
+    ))
     validateRouteTarget(route.target, strategyIds, 'route', route.id, add)
   }
 

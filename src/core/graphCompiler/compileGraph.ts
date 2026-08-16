@@ -34,6 +34,7 @@ export function compileGraph(project: ProxyFlowProject): GraphCompileResult {
         id: service.id,
         name: service.name,
         defaultMatchers: service.defaultMatchers,
+        ...(service.inlineMatchers?.length ? { inlineMatchers: service.inlineMatchers } : {}),
         ruleSources: service.ruleSources.map(({ id, provider, format, behavior, url }) => ({
           id,
           provider,

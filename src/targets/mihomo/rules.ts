@@ -37,6 +37,10 @@ function compileServiceRules(serviceId: string, target: string, routeId: string,
     context.issues.push(mihomoIssue('MIHOMO_SERVICE_NOT_FOUND', 'error', 'route', `Service “${serviceId}” 不存在于 IR catalog。`, routeId))
     return []
   }
+  if (service.inlineMatchers?.length) return service.inlineMatchers.flatMap((matcher) => {
+    const rule = matcherRule(matcher, target, routeId, context)
+    return rule ? [rule] : []
+  })
   const source = service.ruleSources.find((item) => item.provider === 'ios-rule-script' || item.provider === 'remote')
   if (source) {
     const resolved = resolveRuleSource(service, source, context)
@@ -58,6 +62,7 @@ function resolveRuleSource(service: ServiceIR, source: RuleSourceIR, context: Mi
     return undefined
   }
   if (source.format === 'multi-client' || source.format === 'universal'
+    || source.format === 'sing-box-source' || source.format === 'sing-box-binary'
     || (source.format === 'mrs' && (source.behavior ?? 'classical') === 'classical')) {
     context.issues.push(mihomoIssue(
       'MIHOMO_RULE_SOURCE_FORMAT_UNSUPPORTED', 'error', 'rule-provider',
@@ -107,6 +112,7 @@ function matcherRule(matcher: TrafficMatcherIR, target: string, routeId: string,
     case 'domain-keyword': return `DOMAIN-KEYWORD,${matcher.value},${target}`
     case 'ip-cidr': return `IP-CIDR,${matcher.value},${target}`
     case 'ip-cidr6': return `IP-CIDR6,${matcher.value},${target}`
+    case 'port': return `DST-PORT,${matcher.port},${target}`
     case 'asn': return `IP-ASN,${matcher.value},${target}`
     case 'geo-ip': return `GEOIP,${matcher.countryCode},${target}`
     case 'geo-site': return `GEOSITE,${matcher.category},${target}`

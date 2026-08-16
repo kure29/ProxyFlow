@@ -1,4 +1,4 @@
-import type { ProxyFlowIR } from '../../core/ir'
+import { isUnmodeledProxy, type ProxyFlowIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { mihomoIssue } from './errors'
 import { isSafeRemoteUrl } from './security'
@@ -18,8 +18,11 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
     if (source.kind === 'provider' && !isSafeRemoteUrl(source.reference)) issues.push(mihomoIssue(
       'MIHOMO_INVALID_PROVIDER_URL', 'error', 'source', `Provider “${source.name}” 必须使用 http/https URL。`, source.id,
     ))
-    if (source.kind === 'manual-proxy' || source.kind === 'imported-config') issues.push(mihomoIssue(
-      'MIHOMO_UNSUPPORTED_SOURCE', 'error', 'source', `Mihomo MVP 尚不能可靠生成 ${source.kind} source。`, source.id,
+    if (source.kind === 'manual-proxy' && source.proxies.some(isUnmodeledProxy)) issues.push(mihomoIssue(
+      'MIHOMO_UNSUPPORTED_SOURCE', 'error', 'source', `Manual source “${source.name}” 缺少可解析的 HTTP/SOCKS endpoint。`, source.id,
+    ))
+    if (source.kind === 'imported-config') issues.push(mihomoIssue(
+      'MIHOMO_UNSUPPORTED_SOURCE', 'error', 'source', 'Mihomo MVP 尚不能可靠生成 imported-config source。', source.id,
     ))
   }
 
@@ -40,9 +43,10 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
   }
 
   for (const strategy of ir.strategies) {
-    if (strategy.kind === 'fixed') issues.push(mihomoIssue(
+    if (strategy.kind === 'fixed' && !ir.sources.some((source) => source.kind === 'manual-proxy'
+      && source.proxies.some((proxy) => proxy.id === strategy.proxyId && !isUnmodeledProxy(proxy)))) issues.push(mihomoIssue(
       'MIHOMO_FIXED_PROXY_UNRESOLVED', 'error', 'strategy',
-      `Fixed strategy “${strategy.name}” 只有 placeholder proxy reference，不能伪造真实节点。`, strategy.id,
+      `Fixed strategy “${strategy.name}” 没有可解析的 HTTP/SOCKS endpoint。`, strategy.id,
     ))
     if ((strategy.kind === 'auto-select' || strategy.kind === 'fallback')
       && strategy.healthCheck?.url && !isSafeRemoteUrl(strategy.healthCheck.url)) issues.push(mihomoIssue(

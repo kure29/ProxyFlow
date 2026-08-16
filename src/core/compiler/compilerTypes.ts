@@ -14,15 +14,43 @@ export interface ConfigCompiler {
   compile(ir: ProxyFlowIR): Promise<CompileResult>
 }
 
-export class CompilerRegistry {
-  private compilers = new Map<TargetClient, ConfigCompiler>()
+export type CompilerLoader = () => Promise<ConfigCompiler>
 
-  register(compiler: ConfigCompiler) {
-    this.compilers.set(compiler.target, compiler)
+export class CompilerRegistry {
+  private loaders = new Map<TargetClient, CompilerLoader>()
+  private compilers = new Map<TargetClient, ConfigCompiler>()
+  private pending = new Map<TargetClient, Promise<ConfigCompiler>>()
+
+  register(target: TargetClient, loader: CompilerLoader) {
+    this.loaders.set(target, loader)
   }
 
-  get(target: TargetClient) {
+  has(target: TargetClient) {
+    return this.loaders.has(target)
+  }
+
+  getLoaded(target: TargetClient) {
     return this.compilers.get(target)
+  }
+
+  async load(target: TargetClient) {
+    const loaded = this.compilers.get(target)
+    if (loaded) return loaded
+    const existing = this.pending.get(target)
+    if (existing) return existing
+    const loader = this.loaders.get(target)
+    if (!loader) return undefined
+    const pending = loader().then((compiler) => {
+      if (compiler.target !== target) throw new Error(`Compiler loader for ${target} returned ${compiler.target}.`)
+      this.compilers.set(target, compiler)
+      this.pending.delete(target)
+      return compiler
+    }).catch((error) => {
+      this.pending.delete(target)
+      throw error
+    })
+    this.pending.set(target, pending)
+    return pending
   }
 }
 

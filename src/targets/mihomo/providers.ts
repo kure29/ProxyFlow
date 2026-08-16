@@ -1,4 +1,4 @@
-import type { ProxySetRef } from '../../core/ir'
+import { isUnmodeledProxy, type ProxySetRef } from '../../core/ir'
 import type { MihomoCompileContext, ResolvedProxySet } from './context'
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
@@ -6,6 +6,22 @@ import { safePathSegment } from './naming'
 
 export function compileMihomoProviders(context: MihomoCompileContext) {
   for (const source of context.ir.sources) {
+    if (source.kind === 'manual-proxy') {
+      for (const proxy of source.proxies) {
+        if (isUnmodeledProxy(proxy)) continue
+        const name = context.proxyNamesById.get(proxy.id)!
+        context.proxies.set(name, {
+          name,
+          type: proxy.kind === 'socks' ? 'socks5' : 'http',
+          server: proxy.server,
+          port: proxy.port,
+          ...(proxy.username ? { username: proxy.username } : {}),
+          ...(proxy.password ? { password: proxy.password } : {}),
+          ...(proxy.kind === 'socks' ? { udp: true } : {}),
+        })
+      }
+      continue
+    }
     if (source.kind !== 'subscription' && source.kind !== 'provider') continue
     const url = source.kind === 'subscription' ? source.url : source.reference
     if (!url) continue
@@ -32,31 +48,40 @@ export function resolveProxySet(
 ): ResolvedProxySet {
   if (ref.kind === 'source') {
     const name = context.sourceNames.get(ref.id)
-    return { providers: name && context.providers.has(name) ? [name] : [], include: [], exclude: [] }
+    const source = context.ir.sources.find((item) => item.id === ref.id)
+    const proxyNames = source?.kind === 'manual-proxy'
+      ? source.proxies.flatMap((proxy) => {
+        const proxyName = context.proxyNamesById.get(proxy.id)
+        return proxyName && context.proxies.has(proxyName) ? [proxyName] : []
+      })
+      : []
+    return { providers: name && context.providers.has(name) ? [name] : [], proxyNames, include: [], exclude: [] }
   }
 
   if (stack.includes(ref.id)) {
     context.issues.push(mihomoIssue(
       'MIHOMO_TRANSFORM_CYCLE', 'error', 'transform', `Transform cycle detected: ${[...stack, ref.id].join(' → ')}.`, ref.id,
     ))
-    return { providers: [], include: [], exclude: [] }
+    return { providers: [], proxyNames: [], include: [], exclude: [] }
   }
   const transform = context.ir.transforms.find((item) => item.id === ref.id)
-  if (!transform) return { providers: [], include: [], exclude: [] }
+  if (!transform) return { providers: [], proxyNames: [], include: [], exclude: [] }
   const nextStack = [...stack, ref.id]
 
   if (transform.kind === 'merge') return transform.inputs.reduce<ResolvedProxySet>((result, input) => {
     const resolved = resolveProxySet(input, context, nextStack)
     return {
       providers: unique([...result.providers, ...resolved.providers]),
+      proxyNames: unique([...result.proxyNames, ...resolved.proxyNames]),
       include: unique([...result.include, ...resolved.include]),
       exclude: unique([...result.exclude, ...resolved.exclude]),
     }
-  }, { providers: [], include: [], exclude: [] })
+  }, { providers: [], proxyNames: [], include: [], exclude: [] })
 
   const resolved = resolveProxySet(transform.input, context, nextStack)
   if (transform.kind === 'filter') return {
     ...resolved,
+    proxyNames: resolved.proxyNames.filter((name) => matchesFilter(name, transform.include, transform.exclude)),
     include: unique([...resolved.include, ...transform.include]),
     exclude: unique([...resolved.exclude, ...transform.exclude]),
   }
@@ -93,6 +118,12 @@ export function filtersForProxySet(resolved: ResolvedProxySet) {
 
 function keywordPattern(values: string[]) {
   return `(?i)${values.map((value) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}`
+}
+
+function matchesFilter(name: string, include: string[], exclude: string[]) {
+  const normalized = name.toLocaleLowerCase()
+  return (include.length === 0 || include.some((item) => normalized.includes(item.toLocaleLowerCase())))
+    && !exclude.some((item) => normalized.includes(item.toLocaleLowerCase()))
 }
 
 const unique = (values: string[]) => [...new Set(values)]

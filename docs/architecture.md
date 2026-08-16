@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-ProxyFlow V0.3 继续使用单向派生架构：
+ProxyFlow V0.4 继续使用单向派生架构：
 
 ```text
 Visual Graph / ProxyFlow Project
@@ -18,13 +18,15 @@ Visual Graph / ProxyFlow Project
               │ ConfigCompiler.compile(ir)
               ▼
      Target-specific configuration
+          ↙           ↘
+    Mihomo YAML    sing-box JSON
 ```
 
 - Graph / Project 是编辑器和持久化的唯一事实来源。
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
 - IR 不依赖 React、Zustand、DOM、Canvas 或 `@xyflow/react`。
 - Target Compiler 只接收 IR，不能读取 React Flow Graph。
-- V0.3 注册 Mihomo Compiler MVP；其他 Target 仍为空。
+- Mihomo 与 sing-box Compiler 通过异步 loader 注册，只有当前 Preview / Output 目标会被加载。
 
 Project Schema Version 与 IR Schema Version 是两个独立版本：
 
@@ -35,10 +37,10 @@ Project Schema Version 与 IR Schema Version 是两个独立版本：
 
 所有核心实体使用 discriminated union：
 
-- `SourceIR`: subscription、manual-proxy、provider、imported-config
+- `SourceIR`: subscription、manual-proxy（可含显式 HTTP/SOCKS5 endpoint）、provider、imported-config
 - `TransformIR`: filter、rename、sort、deduplicate、merge、limit
 - `StrategyIR`: fixed、select、auto-select、fallback、load-balance、chain
-- `TrafficMatcherIR`: service、domain、domain-suffix、domain-keyword、IP CIDR、ASN、GeoIP、GeoSite、rule-set
+- `TrafficMatcherIR`: service、domain、domain-suffix、domain-keyword、IP CIDR、port、ASN、GeoIP、GeoSite、rule-set
 - `RouteTargetIR`: strategy、direct、reject
 - `DnsIR`: automatic 或 custom resolver
 - `OutputIR`: 用户请求的目标客户端
@@ -167,10 +169,11 @@ IR validation 可脱离 UI 单独执行，负责：
 
 Issue 使用稳定 `code`，UI、CLI、测试和未来本地化不依赖错误文本。
 
-## Non-goals for V0.3
+## Non-goals for V0.4
 
-- 完整 Mihomo Schema 与 sing-box / Surge compiler
+- 完整 Mihomo / sing-box Schema 与第三个 Target compiler
 - VMess、VLESS、Trojan 等 protocol model
 - subscription fetching or parsing
-- remote rule fetching
+- remote rule fetching or conversion
+- runtime inbound profiles
 - backend or cloud persistence

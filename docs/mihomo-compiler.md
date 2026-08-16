@@ -38,7 +38,8 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 | Auto Select | `type: url-test` | Supported |
 | Fallback | `type: fallback` | Supported |
 | Load Balance | `type: load-balance` | Supported；`consistent-hash` → `consistent-hashing` |
-| Fixed placeholder | 无真实 proxy model | Error |
+| Manual HTTP / SOCKS5 | explicit `proxies` entry | Supported |
+| Fixed explicit proxy | one-member `select` group | Supported |
 | Service | Remote `rule-providers` + `RULE-SET` | Supported when a safe source exists |
 | Domain / Suffix / Keyword | `DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD` | Supported |
 | IPv4 / IPv6 / ASN | `IP-CIDR` / `IP-CIDR6` / `IP-ASN` | Supported |

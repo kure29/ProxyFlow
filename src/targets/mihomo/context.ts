@@ -1,10 +1,11 @@
 import type { ProxyFlowIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
-import type { MihomoProxyGroup, MihomoProxyProvider, MihomoRuleProvider } from './model'
+import type { MihomoProxy, MihomoProxyGroup, MihomoProxyProvider, MihomoRuleProvider } from './model'
 import { createOutboundNameRegistry, NameRegistry } from './naming'
 
 export interface ResolvedProxySet {
   providers: string[]
+  proxyNames: string[]
   include: string[]
   exclude: string[]
 }
@@ -21,6 +22,8 @@ export interface MihomoCompileContext {
   outboundNames: NameRegistry
   ruleProviderNames: NameRegistry
   sourceNames: Map<string, string>
+  proxyNamesById: Map<string, string>
+  proxies: Map<string, MihomoProxy>
   strategyNames: Map<string, string>
   providers: Map<string, MihomoProxyProvider>
   groups: MihomoProxyGroup[]
@@ -31,7 +34,12 @@ export interface MihomoCompileContext {
 
 export function createMihomoContext(ir: ProxyFlowIR, issues: CompatibilityIssue[]): MihomoCompileContext {
   const outboundNames = createOutboundNameRegistry()
-  const sourceNames = new Map(ir.sources.map((source) => [source.id, outboundNames.allocate(source.name, source.id)]))
+  const sourceNames = new Map(ir.sources
+    .filter((source) => source.kind === 'subscription' || source.kind === 'provider')
+    .map((source) => [source.id, outboundNames.allocate(source.name, source.id)]))
+  const proxyNamesById = new Map(ir.sources.flatMap((source) => source.kind === 'manual-proxy'
+    ? source.proxies.map((proxy) => [proxy.id, outboundNames.allocate(proxy.name, proxy.id)] as const)
+    : []))
   const strategyNames = new Map(ir.strategies.map((strategy) => [strategy.id, outboundNames.allocate(strategy.name, strategy.id)]))
   return {
     ir,
@@ -39,6 +47,8 @@ export function createMihomoContext(ir: ProxyFlowIR, issues: CompatibilityIssue[
     outboundNames,
     ruleProviderNames: new NameRegistry(),
     sourceNames,
+    proxyNamesById,
+    proxies: new Map(),
     strategyNames,
     providers: new Map(),
     groups: [],

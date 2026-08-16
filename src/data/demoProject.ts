@@ -21,7 +21,7 @@ const edge = (id: string, source: string, target: string, semantic: FlowEdgeData
 
 export const outputDefinitions: OutputDefinition[] = [
   { id: 'mihomo', target: 'mihomo', label: 'Mihomo', status: 'supported' },
-  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'prototype' },
+  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported' },
   { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype' },
   { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon' },
   { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon' },

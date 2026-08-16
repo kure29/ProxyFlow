@@ -7,7 +7,21 @@ import { filtersForProxySet, resolveProxySet } from './providers'
 
 export function compileMihomoStrategies(context: MihomoCompileContext) {
   for (const strategy of context.ir.strategies) {
-    if (strategy.kind === 'chain' || strategy.kind === 'fixed') continue
+    if (strategy.kind === 'chain') continue
+    if (strategy.kind === 'fixed') {
+      const proxyName = strategy.proxyId ? context.proxyNamesById.get(strategy.proxyId) : undefined
+      if (!proxyName || !context.proxies.has(proxyName)) {
+        context.issues.push(mihomoIssue(
+          'MIHOMO_FIXED_PROXY_UNRESOLVED', 'error', 'strategy',
+          `Fixed strategy “${strategy.name}” 没有可解析的 HTTP/SOCKS endpoint。`, strategy.id,
+        ))
+        continue
+      }
+      const group: MihomoProxyGroup = { name: context.strategyNames.get(strategy.id)!, type: 'select', proxies: [proxyName] }
+      context.groups.push(group)
+      context.groupTemplates.set(strategy.id, { group, providerNames: [], proxyNames: [proxyName] })
+      continue
+    }
     const template = compileStrategy(strategy, context)
     if (!template) continue
     context.groups.push(template.group)
@@ -23,11 +37,12 @@ function compileStrategy(
 
   if (strategy.kind === 'auto-select' || strategy.kind === 'load-balance') {
     const resolved = resolveProxySet(strategy.source, context)
-    if (!ensureProviders(resolved, strategy, context)) return undefined
+    if (!ensureMembers(resolved, strategy, context)) return undefined
     const group: MihomoProxyGroup = {
       name,
       type: strategy.kind === 'auto-select' ? 'url-test' : 'load-balance',
-      use: resolved.providers,
+      ...(resolved.providers.length > 0 ? { use: resolved.providers } : {}),
+      ...(resolved.proxyNames.length > 0 ? { proxies: resolved.proxyNames } : {}),
       ...filtersForProxySet(resolved),
       ...healthFields(strategy.kind === 'auto-select' ? strategy.healthCheck : undefined),
       ...(strategy.kind === 'auto-select' && strategy.healthCheck?.toleranceMs !== undefined
@@ -37,7 +52,7 @@ function compileStrategy(
         ? { strategy: strategy.mode === 'consistent-hash' ? 'consistent-hashing' as const : 'round-robin' as const }
         : {}),
     }
-    return { group, providerNames: resolved.providers, proxyNames: [] }
+    return { group, providerNames: resolved.providers, proxyNames: resolved.proxyNames }
   }
 
   const candidates = compileCandidates(strategy.candidates, strategy.id, context)
@@ -72,9 +87,11 @@ function compileCandidates(candidates: StrategyCandidateRef[], ownerId: string, 
   }
   const combined = resolvedSets.reduce<ResolvedProxySet>((result, item) => ({
     providers: [...new Set([...result.providers, ...item.providers])],
+    proxyNames: [...new Set([...result.proxyNames, ...item.proxyNames])],
     include: [...new Set([...result.include, ...item.include])],
     exclude: [...new Set([...result.exclude, ...item.exclude])],
-  }), { providers: [], include: [], exclude: [] })
+  }), { providers: [], proxyNames: [], include: [], exclude: [] })
+  proxyNames.push(...combined.proxyNames)
   if (combined.providers.length === 0 && proxyNames.length === 0) {
     context.issues.push(mihomoIssue('MIHOMO_STRATEGY_EMPTY', 'error', 'strategy', '策略没有可生成的 Provider 或 Proxy Group reference。', ownerId))
     return undefined
@@ -86,10 +103,10 @@ function compileCandidates(candidates: StrategyCandidateRef[], ownerId: string, 
   }
 }
 
-function ensureProviders(resolved: ResolvedProxySet, strategy: StrategyIR, context: MihomoCompileContext) {
-  if (resolved.providers.length > 0) return true
+function ensureMembers(resolved: ResolvedProxySet, strategy: StrategyIR, context: MihomoCompileContext) {
+  if (resolved.providers.length > 0 || resolved.proxyNames.length > 0) return true
   context.issues.push(mihomoIssue(
-    'MIHOMO_STRATEGY_EMPTY', 'error', 'strategy', `Strategy “${strategy.name}” 没有可生成的 Provider。`, strategy.id,
+    'MIHOMO_STRATEGY_EMPTY', 'error', 'strategy', `Strategy “${strategy.name}” 没有可生成的 Provider 或 Proxy。`, strategy.id,
   ))
   return false
 }

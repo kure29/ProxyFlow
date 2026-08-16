@@ -185,7 +185,13 @@ export const loadBalanceFixture = strategyFixture(
 
 export const fixedStrategyFixture = (() => {
   const tail = validTail('fixed')
-  return project('fixed-strategy', [node('fixed', 'fixed-proxy', 'strategy', { proxyId: 'proxy-placeholder-1' }), ...tail.nodes], tail.edges)
+  return project('fixed-strategy', [
+    node('proxy', 'manual-proxy', 'source', {
+      proxyProtocol: 'socks', proxyServer: '127.0.0.1', proxyPort: 1080,
+    }),
+    node('fixed', 'fixed-proxy', 'strategy', { proxyId: 'proxy' }),
+    ...tail.nodes,
+  ], tail.edges)
 })()
 
 function strategyFixture(id: string, strategy: GraphNode, sources: GraphNode[], inputEdges: GraphEdge[]) {

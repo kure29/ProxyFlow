@@ -27,13 +27,8 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     issue.message,
     issue.entity?.id ?? issue.nodeId,
   ))
-  if (irIssues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues, generatedAt, mock: false }
-
   const compatibility = checkMihomoCompatibility(ir)
   issues.push(...compatibility.issues)
-  if (!ir.outputs.some((output) => output.enabled && output.target === 'mihomo')) issues.push(mihomoIssue(
-    'MIHOMO_OUTPUT_NOT_SELECTED', 'error', 'output', 'Universal IR 没有启用 Mihomo Output。',
-  ))
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues, generatedAt, mock: false }
 
   const context = createMihomoContext(ir, issues)
@@ -49,6 +44,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     'allow-lan': false,
     mode: 'rule',
     'log-level': 'info',
+    ...(context.proxies.size > 0 ? { proxies: [...context.proxies.values()] } : {}),
     ...(context.providers.size > 0 ? { 'proxy-providers': Object.fromEntries(context.providers) } : {}),
     ...(context.groups.length > 0 ? { 'proxy-groups': context.groups } : {}),
     ...(context.ruleProviders.size > 0 ? { 'rule-providers': Object.fromEntries(context.ruleProviders) } : {}),

@@ -53,6 +53,10 @@ describe('compileGraph', () => {
     const result = compileGraph(sourceVariantsFixture)
     expect(result.success).toBe(true)
     expect(result.ir?.sources.map((source) => source.kind)).toEqual(['manual-proxy', 'provider', 'imported-config'])
+    const manual = result.ir?.sources[0]
+    expect(manual?.kind === 'manual-proxy' ? manual.proxies[0] : undefined).toEqual(expect.objectContaining({
+      kind: 'unmodeled', protocol: 'unmodeled',
+    }))
   })
 
   it('compiles service and DIRECT routes', () => {
@@ -66,7 +70,7 @@ describe('compileGraph', () => {
     expect(compileGraph(manualSelectFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'select', candidates: [{ kind: 'source', id: 'source' }] }))
     expect(compileGraph(fallbackFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'fallback', candidates: [{ kind: 'source', id: 'source-a' }, { kind: 'source', id: 'source-b' }] }))
     expect(compileGraph(loadBalanceFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'load-balance', mode: 'consistent-hash' }))
-    expect(compileGraph(fixedStrategyFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'fixed', proxyId: 'proxy-placeholder-1' }))
+    expect(compileGraph(fixedStrategyFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'fixed', proxyId: 'proxy' }))
   })
 
   it('preserves two-hop and three-hop chain order', () => {
