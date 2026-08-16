@@ -1,0 +1,2 @@
+ss://YWVzLTEyOC1nY206ZGVtby1oay1wYXNz@duplicate.example.com:8388#First%20Name
+ss://YWVzLTEyOC1nY206ZGVtby1oay1wYXNz@duplicate.example.com:8388#Different%20Name
