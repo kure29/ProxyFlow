@@ -11,6 +11,8 @@ import modernTransports from '../../../fixtures/subscriptions/modern-transports.
 import tuic from '../../../fixtures/subscriptions/tuic.txt?raw'
 import vlessReality from '../../../fixtures/subscriptions/vless-reality.txt?raw'
 import vlessVision from '../../../fixtures/subscriptions/vless-vision.txt?raw'
+import anytls from '../../../fixtures/subscriptions/anytls.txt?raw'
+import anytlsClash from '../../../fixtures/subscriptions/anytls-clash.yaml?raw'
 import { encodeBase64Text } from './base64'
 import { parseSubscription } from './parseSubscription'
 import { redactSecret, redactSubscriptionUrl } from '../proxy'
@@ -356,6 +358,77 @@ describe('subscription parser', () => {
     }
     expect(valid.readyCount).toBe(1)
     expect(valid.proxies[0]).toEqual(expect.objectContaining({ upMbps: 15, downMbps: 30 }))
+  })
+
+  it('parses the official AnyTLS URI shape and defaults an omitted port to 443', () => {
+    const result = parseSubscription(anytls, options)
+    expect([result.readyCount, result.partialCount, result.unsupportedCount]).toEqual([1, 0, 0])
+    expect(result.proxies[0]).toEqual(expect.objectContaining({
+      kind: 'anytls', protocol: 'anytls', server: 'anytls.example.com', port: 8443,
+      password: 'fixture-password', idleSessionCheckIntervalSeconds: 30,
+      idleSessionTimeoutSeconds: 45, minIdleSession: 2,
+      tls: expect.objectContaining({
+        enabled: true, serverName: 'cdn.example.com', allowInsecure: true,
+        fingerprint: 'chrome', alpn: ['h2', 'http/1.1'],
+      }),
+    }))
+    const defaultPort = parseSubscription('anytls://fixture-password@default-anytls.example.com/#Default', options)
+    expect(defaultPort.readyCount).toBe(1)
+    expect(defaultPort.proxies[0]).toEqual(expect.objectContaining({ port: 443, tls: expect.objectContaining({ enabled: true }) }))
+  })
+
+  it('parses Clash AnyTLS into the same target-neutral endpoint model', () => {
+    const result = parseSubscription(anytlsClash, options)
+    expect([result.readyCount, result.partialCount, result.unsupportedCount]).toEqual([1, 0, 0])
+    expect(result.proxies[0]).toEqual(expect.objectContaining({
+      kind: 'anytls', protocol: 'anytls', password: 'fixture-password', udpEnabled: true,
+      idleSessionCheckIntervalSeconds: 30, idleSessionTimeoutSeconds: 45, minIdleSession: 2,
+      tls: expect.objectContaining({
+        enabled: true, serverName: 'cdn-clash.example.com', allowInsecure: true,
+        fingerprint: 'chrome', alpn: ['h2', 'http/1.1'],
+      }),
+    }))
+
+    const invalidUdp = parseSubscription('proxies:\n  - { name: AnyTLS Invalid UDP, type: anytls, server: anytls.example.com, port: 443, password: fixture-password, udp: maybe }\n', options)
+    expect(invalidUdp.partialCount).toBe(1)
+    expect(invalidUdp.issues.map((issue) => issue.code)).toContain('PROXY_ANYTLS_UDP_INVALID')
+  })
+
+  it('fails closed for malformed or unsupported AnyTLS connection semantics without leaking its password', () => {
+    const missingPassword = parseSubscription('anytls://@anytls.example.com:443/#Missing', options)
+    const invalidPort = parseSubscription('anytls://fixture-password@anytls.example.com:70000/#Port', options)
+    const unsupportedSecurity = parseSubscription('anytls://super-secret-value@anytls.example.com:443/?security=reality&pbk=not-logged#Reality', options)
+    const invalidIdle = parseSubscription('anytls://super-secret-value@anytls.example.com:443/?idle-session-timeout=15garbage#Idle', options)
+    const nonCanonicalSni = parseSubscription('anytls://fixture-password@anytls.example.com:443/?SNI=ignored.example.com#Case', options)
+    expect(missingPassword.unsupportedCount).toBe(1)
+    expect(invalidPort.unsupportedCount).toBe(1)
+    expect(unsupportedSecurity.partialCount).toBe(1)
+    expect(unsupportedSecurity.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED', 'PROXY_VARIANT_PARTIAL',
+    ]))
+    expect(invalidIdle.partialCount).toBe(1)
+    expect(invalidIdle.issues.map((issue) => issue.code)).toContain('PROXY_ANYTLS_IDLE_SESSION_INVALID')
+    expect(nonCanonicalSni.partialCount).toBe(1)
+    expect(nonCanonicalSni.issues.map((issue) => issue.code)).toContain('PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED')
+    const publicText = [missingPassword, invalidPort, unsupportedSecurity, invalidIdle, nonCanonicalSni]
+      .flatMap((result) => result.issues.map((issue) => `${issue.code} ${issue.message}`)).join(' ')
+    expect(publicText).not.toContain('super-secret-value')
+    expect(publicText).not.toContain('not-logged')
+
+    const unsafeAlias = parseSubscription('anytls://fixture-password@anytls.example.com:443/?allow_insecure=true#UnsafeAlias', options)
+    expect(unsafeAlias.partialCount).toBe(1)
+    expect(unsafeAlias.issues.map((issue) => issue.code)).toContain('PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED')
+  })
+
+  it('handles duplicate AnyTLS critical parameters deterministically and blocks conflicts', () => {
+    const identical = parseSubscription('anytls://fixture-password@anytls.example.com:443/?sni=cdn.example.com&sni=cdn.example.com#Same', options)
+    const conflicting = parseSubscription('anytls://fixture-password@anytls.example.com:443/?sni=one.example.com&sni=two.example.com#Conflict', options)
+    expect([identical.readyCount, identical.partialCount]).toEqual([1, 0])
+    expect(identical.issues.map((issue) => issue.code)).toContain('DUPLICATE_QUERY_PARAM')
+    expect([conflicting.readyCount, conflicting.partialCount]).toEqual([0, 1])
+    expect(conflicting.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'DUPLICATE_QUERY_PARAM', 'PROXY_PARAMS_CONFLICT', 'PROXY_VARIANT_PARTIAL',
+    ]))
   })
 
   it('enforces payload and node-count limits', () => {

@@ -22,10 +22,20 @@ describe('i18n runtime', () => {
     expect(localized.graph.nodes.find((node) => node.id === 'hk-filter')?.data.title).toBe('Hong Kong filter')
   })
 
+  it('does not translate or mutate stored Filter region codes', () => {
+    const project = structuredClone(demoProject)
+    const filter = project.graph.nodes.find((node) => node.id === 'hk-filter')!
+    filter.data.filterMode = 'region'
+    filter.data.filterRegions = ['HK', 'SG', 'GB']
+    expect(localizeProject(project, 'zh-CN').graph.nodes.find((node) => node.id === 'hk-filter')?.data.filterRegions).toEqual(['HK', 'SG', 'GB'])
+    expect(localizeProject(project, 'en-US').graph.nodes.find((node) => node.id === 'hk-filter')?.data.filterRegions).toEqual(['HK', 'SG', 'GB'])
+  })
+
   it('localizes dynamic system copy in both directions', () => {
     expect(localizeKnownSystemText('检测到 6 个 · 可用 5 个', 'en-US')).toBe('6 detected · 5 usable')
     expect(localizeKnownSystemText('Mihomo Output', 'zh-CN')).toBe('Mihomo 输出')
     expect(localizeKnownSystemText('官网', 'en-US')).toBe('official')
+    expect(localizeKnownSystemText('China Mainland', 'zh-CN')).toBe('中国大陆')
   })
 
   it('never leaks a Chinese core diagnostic into the English interface', () => {
@@ -45,5 +55,14 @@ describe('i18n runtime', () => {
     userResult.proxies[0].name = '用户自定义节点'
     const user = localizeSubscriptionSnapshots({ custom: { inputKind: 'paste', fetchStatus: 'ready', result: userResult } }, 'en-US')
     expect(user.custom.result?.proxies[0].name).toBe('用户自定义节点')
+  })
+
+  it('localizes exact legacy demo strings without translating arbitrary user copy', () => {
+    expect(localizeKnownSystemText('基础 DNS · redir-host', 'en-US')).toBe('Basic DNS · redir-host')
+    expect(localizeKnownSystemText('真实编译 · MVP', 'en-US')).toBe('Real compile · MVP')
+    expect(localizeKnownSystemText('备用故障切换', 'en-US')).toBe('Fallback')
+    expect(localizeKnownSystemText('匹配 8 / 24 个节点', 'en-US')).toBe('Matched 8 / 24 proxies')
+    expect(localizeKnownSystemText('当前 HK-03 · 42 ms', 'en-US')).toBe('Current HK-03 · 42 ms')
+    expect(localizeKnownSystemText('我的香港备用节点', 'en-US')).toBe('我的香港备用节点')
   })
 })

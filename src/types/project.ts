@@ -70,6 +70,10 @@ export interface BlockNodeData extends Record<string, unknown> {
   proxyTls?: boolean
   proxyServerName?: string
   proxyAllowInsecure?: boolean
+  proxyClientFingerprint?: string
+  proxyIdleSessionCheckInterval?: number
+  proxyIdleSessionTimeout?: number
+  proxyMinIdleSession?: number
   proxyTransport?: 'tcp' | 'ws' | 'http' | 'grpc'
   proxyTransportPath?: string
   proxyTransportHost?: string
@@ -86,6 +90,12 @@ export interface BlockNodeData extends Record<string, unknown> {
   excludeRegions?: RegionCode[]
   includeProtocols?: SupportedProxyProtocol[]
   excludeProtocols?: SupportedProxyProtocol[]
+  filterMode?: 'keyword' | 'region' | 'regex'
+  filterOperation?: 'include' | 'exclude'
+  filterKeyword?: string
+  filterRegions?: RegionCode[]
+  filterRegexPattern?: string
+  filterRegexIgnoreCase?: boolean
   strategyMode?: string
   testUrl?: string
   interval?: number
@@ -101,6 +111,9 @@ export interface BlockNodeData extends Record<string, unknown> {
   resolver?: string
   renamePattern?: string
   renameReplacement?: string
+  renameMode?: 'simple' | 'regex'
+  renameIgnoreCase?: boolean
+  renameGlobal?: boolean
   sortBy?: 'name' | 'region' | 'protocol' | 'latency'
   sortDirection?: 'ascending' | 'descending'
   deduplicateBy?: 'identity'

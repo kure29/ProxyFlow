@@ -1,6 +1,8 @@
-export type SupportedProxyProtocol = 'http' | 'socks5' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' | 'hysteria2' | 'tuic'
+import type { IsoAlpha2Code } from './regionCodes'
 
-export type RegionCode = 'HK' | 'US' | 'JP' | 'SG' | 'TW' | 'KR' | 'UK' | 'DE' | 'FR' | 'CA' | 'AU' | 'UNKNOWN'
+export type SupportedProxyProtocol = 'http' | 'socks5' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' | 'hysteria2' | 'tuic' | 'anytls'
+
+export type RegionCode = IsoAlpha2Code | 'UK' | 'UNKNOWN'
 
 export interface RegionHint {
   code: RegionCode
@@ -137,6 +139,17 @@ export interface TuicProxyIR extends ProxyEndpointBase {
   tls: ProxyTlsIR
 }
 
+export interface AnyTlsProxyIR extends ProxyEndpointBase {
+  kind: 'anytls'
+  protocol: 'anytls'
+  password: string
+  tls: ProxyTlsIR
+  udpEnabled?: boolean
+  idleSessionCheckIntervalSeconds?: number
+  idleSessionTimeoutSeconds?: number
+  minIdleSession?: number
+}
+
 export type ResolvedProxyEndpointIR =
   | HttpProxyIR
   | SocksProxyIR
@@ -146,6 +159,7 @@ export type ResolvedProxyEndpointIR =
   | VLESSProxyIR
   | Hysteria2ProxyIR
   | TuicProxyIR
+  | AnyTlsProxyIR
 
 export function proxyProtocolLabel(protocol: SupportedProxyProtocol) {
   return ({
@@ -157,5 +171,6 @@ export function proxyProtocolLabel(protocol: SupportedProxyProtocol) {
     vless: 'VLESS',
     hysteria2: 'Hysteria2',
     tuic: 'TUIC',
+    anytls: 'AnyTLS',
   } as const)[protocol]
 }

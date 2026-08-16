@@ -1,0 +1,1 @@
+anytls://fixture-password@anytls.example.com:8443/?sni=cdn.example.com&insecure=1&fp=chrome&alpn=h2,http%2F1.1&idle-session-check-interval=30&idle-session-timeout=45&min-idle-session=2#AnyTLS%20Fixture

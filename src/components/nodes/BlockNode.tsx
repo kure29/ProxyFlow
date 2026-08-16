@@ -4,6 +4,7 @@ import { BlockIcon } from '../icons/BlockIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { GraphNode } from '../../types/project'
 import { categoryKey, localizeDataValue, localizeKnownSystemText, useI18n } from '../../i18n'
+import { detectRegion } from '../../core/proxy'
 
 const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final'])
 const noOutput = new Set(['output'])
@@ -42,7 +43,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
         )}
 
         {data.blockType === 'filter' && (
-          <><div className="node-chip-row">{(data.includeRegions ?? []).slice(0, 2).map((region) => <span key={region}>{region}</span>)}{(data.include ?? []).slice(0, 2).map((word) => <span key={word}>{word}</span>)}<em>{t('node.excluded', { count: (data.exclude ?? []).length + (data.excludeRegions ?? []).length })}</em></div><RuntimeCount data={data} /></>
+          <><FilterSummary nodeId={id} data={data} /><RuntimeCount data={data} /></>
         )}
 
         {['rename', 'sort', 'deduplicate', 'merge', 'limit'].includes(data.blockType) && <RuntimeCount data={data} />}
@@ -97,6 +98,44 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       )}
     </article>
   )
+}
+
+function FilterSummary({ nodeId, data }: { nodeId: string; data: GraphNode['data'] }) {
+  const { t } = useI18n()
+  const operation = data.filterOperation === 'exclude' ? 'exclude' : 'include'
+  if (data.filterMode === 'region') return <div className="node-chip-row">
+    {(data.filterRegions ?? []).slice(0, 2).map((region) => <span key={region}>{region === 'UK' ? 'GB' : region}</span>)}
+    <em>{t(`inspector.filterOperation.${operation}`)}</em>
+  </div>
+  if (data.filterMode === 'regex') return <div className="node-chip-row">
+    <span>/{data.filterRegexPattern || '…'}/{data.filterRegexIgnoreCase ?? true ? 'i' : ''}</span>
+    <em>{t(`inspector.filterOperation.${operation}`)}</em>
+  </div>
+  if (data.filterMode === 'keyword') return <div className="node-chip-row">
+    <span>{data.filterKeyword?.trim() || '…'}</span>
+    <em>{t(`inspector.filterOperation.${operation}`)}</em>
+  </div>
+  const isLegacyDemoFilter = nodeId === 'hk-filter' || nodeId === 'us-filter'
+  const legacyRegions = [...new Set((data.includeRegions ?? []).map(displayLegacyRegion))]
+  const legacyWords = [...new Set((data.include ?? []).map((word) => isLegacyDemoFilter ? displayLegacyRegion(word) : word))]
+  return <div className="node-chip-row">
+    {legacyRegions.slice(0, 2).map((region) => <span key={region}>{region}</span>)}
+    {legacyWords.filter((word) => !legacyRegions.includes(word) && !isDuplicateLegacyRegion(word, data.includeRegions ?? [])).slice(0, 2).map((word) => <span key={word}>{word}</span>)}
+  </div>
+}
+
+function displayLegacyRegion(value: string) {
+  const normalized = value.normalize('NFKC').trim()
+  if (normalized === 'UK') return 'GB'
+  const legacyAliases: Record<string, string> = { '香港': 'HK', '日本': 'JP', '新加坡': 'SG', '美国': 'US', '美國': 'US', '中国': 'CN', '中國': 'CN' }
+  if (legacyAliases[normalized]) return legacyAliases[normalized]
+  const detected = detectRegion(normalized).code
+  return detected === 'UNKNOWN' ? normalized : detected
+}
+
+function isDuplicateLegacyRegion(value: string, regions: NonNullable<GraphNode['data']['includeRegions']>) {
+  const detected = detectRegion(value).code
+  return detected !== 'UNKNOWN' && regions.some((region) => displayLegacyRegion(region) === detected)
 }
 
 function RuntimeCount({ data }: { data: GraphNode['data'] }) {

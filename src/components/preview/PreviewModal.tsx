@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
+import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { compileGraph } from '../../core/graphCompiler'
+import { diagnosticNodeId, groupDiagnostics, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetClient } from '../../types/project'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 
 type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
-type DisplayIssue = { code: string; severity: 'info' | 'warning' | 'error'; message: string }
+type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
-  mihomo: { label: 'Mihomo', badge: 'M', descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
-  'sing-box': { label: 'sing-box', badge: 'S', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
+  mihomo: { label: 'Mihomo', badge: 'M', icon: undefined, descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
+  'sing-box': { label: 'sing-box', badge: undefined, icon: '/third-party/sing-box/icon.svg', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
 } as const
 
 export function PreviewModal() {
@@ -22,17 +24,19 @@ export function PreviewModal() {
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const setOpen = useBuilderStore((state) => state.setPreviewOpen)
+  const selectNode = useBuilderStore((state) => state.selectNode)
   const setToast = useBuilderStore((state) => state.setToast)
   const toProject = useBuilderStore((state) => state.toProject)
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState<PreviewMode>('mihomo')
+  const { fitView } = useReactFlow()
   const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
   const targetState = useTargetCompile(graphResult.ir, activeTarget, open && graphResult.success && mode !== 'ir')
   if (!open) return null
 
-  const graphIssues: DisplayIssue[] = graphResult.issues.map(({ code, severity, message }) => ({ code, severity, message: localizeDiagnosticMessage(code, message, locale) }))
+  const graphIssues: DisplayIssue[] = graphResult.issues.map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
   const targetIssues: DisplayIssue[] = (targetState.result?.issues ?? []).map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
   const loading = mode !== 'ir' && targetState.status === 'loading'
   const activeIssues = mode === 'ir' || !graphResult.success ? graphIssues : targetIssues
@@ -67,6 +71,16 @@ export function PreviewModal() {
   const failedTitle = !graphResult.success ? t('preview.irFailed') : t('preview.targetFailed', { target: targetLabel })
   const loadError = targetState.error ? [{ code: 'TARGET_COMPILER_LOAD_FAILED', severity: 'error' as const, message: localizeDiagnosticMessage('TARGET_COMPILER_LOAD_FAILED', targetState.error, locale) }] : []
   const shownIssues = activeIssues.length > 0 ? activeIssues : loadError
+  const availableNodeIds = new Set(nodes.map((node) => node.id))
+  const locateIssue = (issue: DisplayIssue) => {
+    const nodeId = diagnosticNodeId(issue, availableNodeIds)
+    if (!nodeId) return
+    setOpen(false)
+    selectNode(nodeId)
+    window.requestAnimationFrame(() => {
+      void fitView({ nodes: [{ id: nodeId }], padding: 0.85, minZoom: 0.5, maxZoom: 1.25, duration: 450 })
+    })
+  }
   return <div className="modal-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
     <section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title" onMouseDown={(event) => event.stopPropagation()}>
       <header>
@@ -86,7 +100,7 @@ export function PreviewModal() {
       <div className="preview-body">
         <aside>
           <span>{t('preview.mode')}</span>
-          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b>{targetMeta[target].badge}</b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
+          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b>{targetMeta[target].icon ? <img src={targetMeta[target].icon} alt="" /> : targetMeta[target].badge}</b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
@@ -97,7 +111,7 @@ export function PreviewModal() {
           {loading
             ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>{t('preview.loadingTitle')}</h3><p>{t('preview.loadingPanel')}</p></div>
             : !compileSuccess
-              ? <IssuePanel title={failedTitle} issues={shownIssues} />
+              ? <IssuePanel title={failedTitle} issues={shownIssues} availableNodeIds={availableNodeIds} onLocate={locateIssue} />
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
@@ -106,9 +120,13 @@ export function PreviewModal() {
   </div>
 }
 
-function IssuePanel({ title, issues }: { title: string; issues: DisplayIssue[] }) {
+function IssuePanel({ title, issues, availableNodeIds, onLocate }: { title: string; issues: DisplayIssue[]; availableNodeIds: ReadonlySet<string>; onLocate: (issue: DisplayIssue) => void }) {
   const { t } = useI18n()
-  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><div>{issues.map((issue, index) => <article key={`${issue.code}-${index}`}><span>{t(`issue.severity.${issue.severity}`)}</span><code>{issue.code}</code><p>{issue.message}</p></article>)}</div></div>
+  const grouped = groupDiagnostics(issues)
+  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><div>{grouped.map(({ issue, count }, index) => {
+    const locatable = Boolean(diagnosticNodeId(issue, availableNodeIds))
+    return <article key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? index}`}><span>{t(`issue.severity.${issue.severity}`)}{count > 1 && <em>× {count}</em>}</span><code>{issue.code}</code><p>{issue.message}</p>{locatable && <button type="button" onClick={() => onLocate(issue)}>{t('preview.locateNode')}</button>}</article>
+  })}</div></div>
 }
 
 function issueLog(issues: DisplayIssue[]) {

@@ -55,6 +55,19 @@ function compileManualProxy(
     case 'vless': return data.proxyUuid
       ? { kind: 'vless' as const, protocol: 'vless' as const, id, name, server, port: port!, uuid: data.proxyUuid, metadata, ...(tls ? { tls } : {}), ...(transport ? { transport } : {}) }
       : { kind: 'unmodeled' as const, protocol: 'unmodeled' as const, id, name }
+    case 'anytls': return data.proxyPassword
+      ? {
+          kind: 'anytls' as const, protocol: 'anytls' as const, id, name, server, port: port!, password: data.proxyPassword, metadata,
+          tls: {
+            enabled: true, serverName: data.proxyServerName ?? server,
+            ...(data.proxyAllowInsecure ? { allowInsecure: true } : {}),
+            ...(data.proxyClientFingerprint?.trim() ? { fingerprint: data.proxyClientFingerprint.trim().toLocaleLowerCase() } : {}),
+          },
+          ...(data.proxyIdleSessionCheckInterval !== undefined ? { idleSessionCheckIntervalSeconds: data.proxyIdleSessionCheckInterval } : {}),
+          ...(data.proxyIdleSessionTimeout !== undefined ? { idleSessionTimeoutSeconds: data.proxyIdleSessionTimeout } : {}),
+          ...(data.proxyMinIdleSession !== undefined ? { minIdleSession: data.proxyMinIdleSession } : {}),
+        }
+      : { kind: 'unmodeled' as const, protocol: 'unmodeled' as const, id, name }
     default: return { kind: 'unmodeled' as const, protocol: 'unmodeled' as const, id, name }
   }
 }

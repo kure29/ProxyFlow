@@ -8,6 +8,21 @@ describe('project schema version', () => {
     expect(migrateProject(demoProject)).toEqual(expect.objectContaining({ success: true, migrated: false, project: demoProject }))
   })
 
+  it('normalizes missing and numeric-string Limit defaults in legacy V2 project data', () => {
+    const project = structuredClone(demoProject)
+    project.graph.nodes.push({
+      id: 'limit-default', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'limit', category: 'processing', title: 'Limit', subtitle: 'Limit', icon: 'list-end' },
+    }, {
+      id: 'limit-string', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'limit', category: 'processing', title: 'Limit', subtitle: 'Limit', icon: 'list-end', limit: '20' as unknown as number },
+    })
+    const result = migrateProject(project)
+    expect(result).toEqual(expect.objectContaining({ success: true, migrated: true }))
+    expect(result.project?.graph.nodes.find((node) => node.id === 'limit-default')?.data.limit).toBe(10)
+    expect(result.project?.graph.nodes.find((node) => node.id === 'limit-string')?.data.limit).toBe(20)
+  })
+
   it('repairs the legacy Final → Output semantic', () => {
     const legacy = structuredClone(demoProject)
     legacy.version = 1

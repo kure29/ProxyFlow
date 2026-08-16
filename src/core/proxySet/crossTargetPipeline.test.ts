@@ -12,6 +12,7 @@ import mixedModern from '../../../fixtures/subscriptions/mixed-modern.txt?raw'
 import modernTransports from '../../../fixtures/subscriptions/modern-transports.txt?raw'
 import tuic from '../../../fixtures/subscriptions/tuic.txt?raw'
 import vlessReality from '../../../fixtures/subscriptions/vless-reality.txt?raw'
+import anytls from '../../../fixtures/subscriptions/anytls.txt?raw'
 
 const now = () => new Date('2026-08-16T00:00:00.000Z')
 
@@ -149,6 +150,52 @@ describe('real subscription cross-target pipeline', () => {
     ]))
   })
 
+  it('lowers AnyTLS security and idle-session intent to both target schemas', () => {
+    const parsed = parseSubscription(anytls, { sourceId: 'anytls', sourceName: 'AnyTLS' })
+    const ir = directIR(parsed.proxies)
+    const mihomoResult = compileMihomo(ir, { now })
+    expect(mihomoResult.success).toBe(true)
+    const mihomo = parseYaml(mihomoResult.content) as MihomoConfig
+    expect(mihomo.proxies).toContainEqual(expect.objectContaining({
+      type: 'anytls', server: 'anytls.example.com', port: 8443, password: 'fixture-password',
+      sni: 'cdn.example.com', 'skip-cert-verify': true, 'client-fingerprint': 'chrome',
+      alpn: ['h2', 'http/1.1'], udp: true, 'idle-session-check-interval': 30,
+      'idle-session-timeout': 45, 'min-idle-session': 2,
+    }))
+    const singBoxResult = compileSingBox(ir, { now })
+    expect(singBoxResult.success).toBe(true)
+    const singBox = JSON.parse(singBoxResult.content) as SingBoxConfig
+    expect(singBox.outbounds).toContainEqual(expect.objectContaining({
+      type: 'anytls', server: 'anytls.example.com', server_port: 8443, password: 'fixture-password',
+      idle_session_check_interval: '30s', idle_session_timeout: '45s', min_idle_session: 2,
+      tls: expect.objectContaining({
+        enabled: true, server_name: 'cdn.example.com', insecure: true,
+        alpn: ['h2', 'http/1.1'], utls: { enabled: true, fingerprint: 'chrome' },
+      }),
+    }))
+  })
+
+  it('fails closed for unsupported AnyTLS Reality and sing-box UDP-disable semantics', () => {
+    const realityIR = directIR([{
+      kind: 'anytls', protocol: 'anytls', id: 'anytls-reality', name: 'AnyTLS Reality',
+      server: 'anytls.example.com', port: 443, password: 'fixture-password',
+      tls: { enabled: true, reality: { publicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', shortId: 'abcd' } },
+    }])
+    for (const result of [compileMihomo(realityIR, { now }), compileSingBox(realityIR, { now })]) {
+      expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+      expect(result.issues.map((issue) => issue.code)).toContain('IR_PROXY_REALITY_PROTOCOL_UNSUPPORTED')
+    }
+
+    const udpDisabledIR = directIR([{
+      kind: 'anytls', protocol: 'anytls', id: 'anytls-no-udp', name: 'AnyTLS No UDP',
+      server: 'anytls.example.com', port: 443, password: 'fixture-password', udpEnabled: false,
+      tls: { enabled: true, serverName: 'anytls.example.com' },
+    }])
+    const singBox = compileSingBox(udpDisabledIR, { now })
+    expect(singBox).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(singBox.issues.map((issue) => issue.code)).toContain('SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED')
+  })
+
   it('lowers TUIC allow_insecure and disable_sni to both targets', () => {
     const parsed = parseSubscription('tuic://99999999-9999-4999-8999-999999999993:demo@tuic.example.com:443?allow_insecure=true&disable_sni=true#TUIC', { sourceId: 'tuic-security', sourceName: 'TUIC Security' })
     const ir = directIR(parsed.proxies)
@@ -230,6 +277,15 @@ describe('real subscription cross-target pipeline', () => {
     expect(singBox.content).not.toContain('blocked.example.com')
     expect(mihomo.issues.map((issue) => issue.code)).toContain('MIHOMO_PROXY_VARIANT_UNSUPPORTED')
     expect(singBox.issues.map((issue) => issue.code)).toContain('SINGBOX_PROXY_VARIANT_UNSUPPORTED')
+
+    const blockedId = parsed.proxies.find((proxy) => proxy.metadata?.compatibility?.status === 'partial')!.id
+    const fixed = directIR(parsed.proxies)
+    fixed.strategies = [{ kind: 'fixed', id: 'blocked-fixed', name: 'Blocked Fixed', proxyId: blockedId }]
+    fixed.finalRoute = { target: { kind: 'strategy', id: 'blocked-fixed' } }
+    for (const result of [compileMihomo(fixed, { now }), compileSingBox(fixed, { now })]) {
+      expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+      expect(result.content).not.toContain('blocked.example.com')
+    }
   })
 
   it.each([100, 500, 1000])('parses and processes %i nodes without changing count', (count) => {

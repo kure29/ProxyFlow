@@ -4,6 +4,8 @@ import type { SubscriptionSnapshot } from '../subscription'
 
 export interface GraphCompileOptions {
   subscriptionSnapshots?: Record<string, SubscriptionSnapshot>
+  /** Inspector/runtime diagnostics only. Target compilers must never consume an invalid retained draft. */
+  retainDraftOnErrorForDiagnostics?: boolean
 }
 
 export interface GraphCompileContext {

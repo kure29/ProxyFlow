@@ -26,11 +26,90 @@ describe('ProxySet materialization', () => {
     expect(result.proxies.map((proxy) => proxy.protocol)).toEqual(['shadowsocks'])
   })
 
-  it('renames with regex and reports invalid expressions', () => {
-    const rename: TransformIR = { kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' }, pattern: 'Demo', replacement: 'Node' }
-    expect(materializeProxySet(irWith([rename]), { kind: 'transform', id: 'rename' }).proxies.map((proxy) => proxy.name)).toContain('HTTP Node')
-    rename.pattern = '('
-    expect(materializeProxySet(irWith([rename]), { kind: 'transform', id: 'rename' }).issues[0].code).toBe('INVALID_RENAME_REGEX')
+  it('applies the new keyword filter deterministically for include, exclude, case and empty input', () => {
+    const content = [
+      'http://demo:pass@hk.example.com:8080#HK%20IEPL',
+      'http://demo:pass@sg.example.com:8080#Singapore%20Premium',
+    ].join('\n')
+    const filter: TransformIR = {
+      kind: 'filter', id: 'filter', name: 'Filter', input: { kind: 'source', id: 'source' }, include: [], exclude: [],
+      criterion: { mode: 'keyword', operation: 'include', keyword: ' hk ' },
+    }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.name)).toEqual(['HK IEPL'])
+    filter.criterion = { mode: 'keyword', operation: 'exclude', keyword: 'PREMIUM' }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.name)).toEqual(['HK IEPL'])
+    filter.criterion = { mode: 'keyword', operation: 'include', keyword: '   ' }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).outputCount).toBe(2)
+  })
+
+  it('filters multiple inferred regions without changing stored region metadata', () => {
+    const content = [
+      'http://demo:pass@hk.example.com:8080#🇭🇰%20香港%2001',
+      'http://demo:pass@sg.example.com:8080#SG%20IEPL',
+      'http://demo:pass@unknown.example.com:8080#Unknown%20Premium',
+    ].join('\n')
+    const filter: TransformIR = {
+      kind: 'filter', id: 'filter', name: 'Filter', input: { kind: 'source', id: 'source' }, include: [], exclude: [],
+      criterion: { mode: 'region', operation: 'include', regions: ['HK', 'SG'] },
+    }
+    const included = materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' })
+    expect([included.inputCount, included.outputCount, included.removedCount]).toEqual([3, 2, 1])
+    expect(included.proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['HK', 'SG'])
+    filter.criterion = { mode: 'region', operation: 'exclude', regions: ['HK', 'SG'] }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['UNKNOWN'])
+  })
+
+  it('supports include/exclude regex and fails closed for invalid patterns without keyword fallback', () => {
+    const content = [
+      'http://demo:pass@hk.example.com:8080#HK%20IEPL',
+      'http://demo:pass@sg.example.com:8080#sg%20premium',
+    ].join('\n')
+    const filter: TransformIR = {
+      kind: 'filter', id: 'filter', name: 'Filter', input: { kind: 'source', id: 'source' }, include: [], exclude: [],
+      criterion: { mode: 'regex', operation: 'include', pattern: '^(HK|SG)', ignoreCase: true },
+    }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).outputCount).toBe(2)
+    filter.criterion = { mode: 'regex', operation: 'include', pattern: '^SG', ignoreCase: false }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).outputCount).toBe(0)
+    filter.criterion = { mode: 'regex', operation: 'exclude', pattern: 'premium$', ignoreCase: true }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.name)).toEqual(['HK IEPL'])
+    filter.criterion = { mode: 'regex', operation: 'include', pattern: '[HK', ignoreCase: true }
+    const invalid = materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' })
+    expect(invalid).toEqual(expect.objectContaining({ status: 'error', proxies: [] }))
+    expect(invalid.issues.map((issue) => issue.code)).toContain('FILTER_INVALID_REGEX')
+  })
+
+  it('supports simple and regex rename modes, captures, flags and non-matches', () => {
+    const content = [
+      'http://demo:pass@hk1.example.com:8080#HK-01',
+      'http://demo:pass@hk2.example.com:8080#HK-02',
+      'http://demo:pass@sg.example.com:8080#SG-IEPL',
+    ].join('\n')
+    const rename: TransformIR = {
+      kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' },
+      mode: 'simple', pattern: 'HK-', replacement: 'HongKong-', global: true,
+    }
+    expect(materializeProxySet(irWith([rename], content), { kind: 'transform', id: 'rename' }).proxies.map((proxy) => proxy.name)).toEqual([
+      'HongKong-01', 'HongKong-02', 'SG-IEPL',
+    ])
+    rename.mode = 'regex'
+    rename.pattern = '^(HK|SG)-(.+)$'
+    rename.replacement = '$1 | $2'
+    rename.ignoreCase = true
+    expect(materializeProxySet(irWith([rename], content), { kind: 'transform', id: 'rename' }).proxies.map((proxy) => proxy.name)).toEqual([
+      'HK | 01', 'HK | 02', 'SG | IEPL',
+    ])
+    rename.pattern = 'hk'
+    rename.replacement = 'HongKong'
+    rename.global = false
+    expect(materializeProxySet(irWith([rename], content), { kind: 'transform', id: 'rename' }).proxies[0].name).toBe('HongKong-01')
+  })
+
+  it('fails closed with a stable issue for invalid rename regex', () => {
+    const rename: TransformIR = { kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' }, mode: 'regex', pattern: '(', replacement: 'Node' }
+    const result = materializeProxySet(irWith([rename]), { kind: 'transform', id: 'rename' })
+    expect(result).toEqual(expect.objectContaining({ status: 'error', proxies: [] }))
+    expect(result.issues[0]).toEqual(expect.objectContaining({ code: 'INVALID_RENAME_REGEX', entityId: 'rename' }))
   })
 
   it('deduplicates by endpoint identity, not display name', () => {
@@ -58,6 +137,13 @@ describe('ProxySet materialization', () => {
     ;(ir.sources[0] as Extract<ProxyFlowIR['sources'][number], { kind: 'subscription' }>).proxies = parsed.proxies
     expect(materializeProxySet(ir, { kind: 'transform', id: 'merge' }).outputCount).toBe(4)
     expect(materializeProxySet(ir, { kind: 'transform', id: 'limit' }).outputCount).toBe(1)
+  })
+
+  it.each([undefined, 0, -1, 1.5, Number.NaN])('fails closed for invalid Limit value %s', (max) => {
+    const limit: TransformIR = { kind: 'limit', id: 'limit', name: 'Limit', input: { kind: 'source', id: 'source' }, max }
+    const result = materializeProxySet(irWith([limit]), { kind: 'transform', id: 'limit' })
+    expect(result).toEqual(expect.objectContaining({ status: 'error', proxies: [] }))
+    expect(result.issues[0]).toEqual(expect.objectContaining({ code: 'LIMIT_INVALID', entityId: 'limit' }))
   })
 
   it('memoizes sources and transforms and propagates upstream errors', () => {
@@ -107,10 +193,12 @@ describe('ProxySet materialization', () => {
     const transforms: TransformIR[] = [
       { kind: 'filter', id: 'filter', name: 'Filter', input: { kind: 'source', id: 'source' }, include: ['Demo'], exclude: [] },
       { kind: 'sort', id: 'sort', name: 'Sort', input: { kind: 'transform', id: 'filter' }, by: 'name', direction: 'ascending' },
-      { kind: 'limit', id: 'limit', name: 'Limit', input: { kind: 'transform', id: 'sort' }, max: 3 },
+      { kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'transform', id: 'sort' }, pattern: 'Demo', replacement: 'Node' },
+      { kind: 'limit', id: 'limit', name: 'Limit', input: { kind: 'transform', id: 'rename' }, max: 3 },
     ]
     const ir = irWith(transforms)
     const baseline = materializeProxySet(ir, { kind: 'transform', id: 'limit' }).proxies.map((proxy) => proxy.id)
     for (let index = 0; index < 100; index += 1) expect(materializeProxySet(ir, { kind: 'transform', id: 'limit' }).proxies.map((proxy) => proxy.id)).toEqual(baseline)
+    expect(materializeProxySet(ir, { kind: 'transform', id: 'rename' }).proxies.every((proxy) => proxy.name.includes('Node'))).toBe(true)
   })
 })

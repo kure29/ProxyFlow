@@ -49,6 +49,10 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
         'SINGBOX_HYSTERIA2_RANDOM_HOP_INTERVAL_UNSUPPORTED', 'error', 'source',
         `Proxy “${proxy.name}” 使用随机 hop interval；sing-box 1.13.14 仅支持固定 hop_interval，因此拒绝生成。`, source.id,
       ))
+      else if (proxy.protocol === 'anytls' && proxy.udpEnabled === false) issues.push(singBoxIssue(
+        'SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 显式禁用 UDP；sing-box 1.13.14 AnyTLS outbound 没有等价字段，因此拒绝生成。`, source.id,
+      ))
     }
   }
 
@@ -58,7 +62,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       `Sort “${transform.name}” 需要运行时延迟数据，纯 Compiler 无法保持语义。`, transform.id,
     ))
     const resolved = materializeProxySet(ir, { kind: 'transform', id: transform.id }, materialization)
-    for (const issue of resolved.issues) issues.push(singBoxIssue(`SINGBOX_${issue.code}`, issue.severity, 'transform', issue.message, transform.id))
+    for (const issue of resolved.issues) issues.push(singBoxIssue(`SINGBOX_${issue.code}`, issue.severity, 'transform', issue.message, issue.entityId ?? transform.id))
   }
 
   for (const strategy of ir.strategies) {

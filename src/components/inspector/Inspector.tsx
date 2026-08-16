@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ExternalLink,
   ClipboardPaste, Eye, FileUp, GripVertical, Link2, Plus, RefreshCw, ShieldCheck, Trash2, X,
@@ -7,14 +7,14 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
 import { outputDefinitions } from '../../data/demoProject'
 import { compileGraph } from '../../core/graphCompiler'
-import type { BlockNodeData, GraphNode } from '../../types/project'
+import type { BlockNodeData, GraphEdge, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { NodesPreview } from '../subscription/NodesPreview'
-import { proxyProtocolLabel, REGION_OPTIONS, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
-import { createMaterializationContext, deriveProjectRuntime, materializeProxySet } from '../../core/proxySet'
+import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
+import { createMaterializationContext, deriveProjectRuntime, materializeProxySet, parseLimitDraft } from '../../core/proxySet'
 import {
-  categoryKey, isBuiltInDemoFilter, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
+  categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
   localizeSubscriptionSnapshots, regionLabel, useI18n,
 } from '../../i18n'
 
@@ -108,13 +108,16 @@ function ManualProxyInspector({ node }: InspectorProps) {
   const { t } = useI18n()
   const update = useBuilderStore((state) => state.updateNodeData)
   const protocol = node.data.proxyProtocol === 'socks' ? 'socks5' : node.data.proxyProtocol ?? 'socks5'
-  const usesPassword = ['shadowsocks', 'trojan'].includes(protocol)
+  const usesPassword = ['shadowsocks', 'trojan', 'anytls'].includes(protocol)
   const usesUuid = ['vmess', 'vless'].includes(protocol)
-  const usesTls = ['http', 'trojan', 'vmess', 'vless'].includes(protocol)
+  const usesTls = ['http', 'trojan', 'vmess', 'vless', 'anytls'].includes(protocol)
   const usesTransport = ['trojan', 'vmess', 'vless'].includes(protocol)
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
-    <Field label={t('inspector.protocol')}><select value={protocol} onChange={(event) => update(node.id, { proxyProtocol: event.target.value as BlockNodeData['proxyProtocol'] })}>{(['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless'] as SupportedProxyProtocol[]).map((value) => <option key={value} value={value}>{proxyProtocolLabel(value)}</option>)}</select></Field>
+    <Field label={t('inspector.protocol')}><select value={protocol} onChange={(event) => {
+      const proxyProtocol = event.target.value as BlockNodeData['proxyProtocol']
+      update(node.id, { proxyProtocol, ...(proxyProtocol === 'anytls' && node.data.proxyPort === 1080 ? { proxyPort: 443 } : {}) })
+    }}>{(['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless', 'anytls'] as SupportedProxyProtocol[]).map((value) => <option key={value} value={value}>{proxyProtocolLabel(value)}</option>)}</select></Field>
     <TextField node={node} field="proxyServer" label={t('inspector.server')} placeholder="proxy.example.com" />
     <Field label={t('inspector.port')}><input type="number" min="1" max="65535" value={node.data.proxyPort ?? 1080} onChange={(event) => update(node.id, { proxyPort: Number(event.target.value) })} /></Field>
     {['http', 'socks5'].includes(protocol) && <><TextField node={node} field="proxyUsername" label={t('inspector.username')} /><Field label={t('inspector.password')}><input type="password" value={node.data.proxyPassword ?? ''} onChange={(event) => update(node.id, { proxyPassword: event.target.value })} /></Field></>}
@@ -122,51 +125,111 @@ function ManualProxyInspector({ node }: InspectorProps) {
     {protocol === 'shadowsocks' && <TextField node={node} field="proxyMethod" label={t('inspector.cipher')} placeholder="aes-128-gcm" />}
     {usesUuid && <TextField node={node} field="proxyUuid" label="UUID" placeholder="00000000-0000-4000-8000-000000000000" />}
     {protocol === 'vmess' && <><TextField node={node} field="proxySecurity" label={t('inspector.security')} placeholder="auto" /><Field label={t('inspector.alterId')}><input type="number" min="0" value={node.data.proxyAlterId ?? 0} onChange={(event) => update(node.id, { proxyAlterId: Number(event.target.value) })} /></Field></>}
-    {usesTls && <Advanced><label className="toggle-row compact"><span><strong>TLS</strong></span><input type="checkbox" checked={node.data.proxyTls ?? protocol === 'trojan'} onChange={(event) => update(node.id, { proxyTls: event.target.checked })} /></label>{(node.data.proxyTls || protocol === 'trojan') && <><TextField node={node} field="proxyServerName" label={t('inspector.serverName')} /><label className="check-row"><input type="checkbox" checked={node.data.proxyAllowInsecure ?? false} onChange={(event) => update(node.id, { proxyAllowInsecure: event.target.checked })} /> {t('inspector.allowInsecure')}</label></>}{usesTransport && <><Field label={t('inspector.transport')}><select value={node.data.proxyTransport ?? 'tcp'} onChange={(event) => update(node.id, { proxyTransport: event.target.value as BlockNodeData['proxyTransport'] })}><option value="tcp">TCP</option><option value="ws">WebSocket</option><option value="http">HTTP</option><option value="grpc">gRPC</option></select></Field>{['ws', 'http'].includes(node.data.proxyTransport ?? 'tcp') && <><TextField node={node} field="proxyTransportPath" label={t('inspector.path')} /><TextField node={node} field="proxyTransportHost" label={t('inspector.host')} /></>}{node.data.proxyTransport === 'grpc' && <TextField node={node} field="proxyGrpcServiceName" label={t('inspector.serviceName')} />}</>}</Advanced>}
+    {usesTls && <Advanced><label className="toggle-row compact"><span><strong>TLS</strong></span><input type="checkbox" disabled={protocol === 'anytls'} checked={protocol === 'anytls' || node.data.proxyTls || protocol === 'trojan'} onChange={(event) => update(node.id, { proxyTls: event.target.checked })} /></label>{(node.data.proxyTls || protocol === 'trojan' || protocol === 'anytls') && <><TextField node={node} field="proxyServerName" label={t('inspector.serverName')} /><label className="check-row"><input type="checkbox" checked={node.data.proxyAllowInsecure ?? false} onChange={(event) => update(node.id, { proxyAllowInsecure: event.target.checked })} /> {t('inspector.allowInsecure')}</label></>}{protocol === 'anytls' && <><TextField node={node} field="proxyClientFingerprint" label={t('inspector.clientFingerprint')} placeholder="chrome" /><Field label={t('inspector.idleCheckInterval')}><input type="number" min="1" value={node.data.proxyIdleSessionCheckInterval ?? 30} onChange={(event) => update(node.id, { proxyIdleSessionCheckInterval: Number(event.target.value) })} /></Field><Field label={t('inspector.idleTimeout')}><input type="number" min="1" value={node.data.proxyIdleSessionTimeout ?? 30} onChange={(event) => update(node.id, { proxyIdleSessionTimeout: Number(event.target.value) })} /></Field><Field label={t('inspector.minIdleSession')}><input type="number" min="0" value={node.data.proxyMinIdleSession ?? 0} onChange={(event) => update(node.id, { proxyMinIdleSession: Number(event.target.value) })} /></Field></>}{usesTransport && <><Field label={t('inspector.transport')}><select value={node.data.proxyTransport ?? 'tcp'} onChange={(event) => update(node.id, { proxyTransport: event.target.value as BlockNodeData['proxyTransport'] })}><option value="tcp">TCP</option><option value="ws">WebSocket</option><option value="http">HTTP</option><option value="grpc">gRPC</option></select></Field>{['ws', 'http'].includes(node.data.proxyTransport ?? 'tcp') && <><TextField node={node} field="proxyTransportPath" label={t('inspector.path')} /><TextField node={node} field="proxyTransportHost" label={t('inspector.host')} /></>}{node.data.proxyTransport === 'grpc' && <TextField node={node} field="proxyGrpcServiceName" label={t('inspector.serviceName')} />}</>}</Advanced>}
     <div className="mock-note">{t('inspector.manualProxyNote')}</div>
   </>
-}
-
-function TokenField({ label, values, localizeValues = false, onChange }: { label: string; values: string[]; localizeValues?: boolean; onChange: (next: string[]) => void }) {
-  const { locale, t } = useI18n()
-  const [draft, setDraft] = useState('')
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && draft.trim()) {
-      event.preventDefault()
-      if (!values.includes(draft.trim())) onChange([...values, draft.trim()])
-      setDraft('')
-    }
-  }
-  return <Field label={label} hint={t('inspector.enterToAdd')}><div className="token-input">
-    <div className="token-list">{values.map((value) => <span key={value}>{localizeValues ? localizeKnownSystemText(value, locale) : value}<button onClick={() => onChange(values.filter((item) => item !== value))}><X size={11} /></button></span>)}</div>
-    <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onKeyDown} placeholder={t('inspector.keywordPlaceholder')} />
-  </div></Field>
 }
 
 function FilterInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()
   const update = useBuilderStore((state) => state.updateNodeData)
-  const projectId = useBuilderStore((state) => state.projectId)
   const materialized = useNodeMaterialization(node.id)
-  const localizeFilterValues = Boolean(node.data.systemFilterKeywords || (projectId === 'proxyflow-demo' && isBuiltInDemoFilter(node.id, node.data)))
+  const mode = node.data.filterMode ?? inferLegacyFilterMode(node.data)
+  const operation = node.data.filterOperation ?? inferLegacyFilterOperation(node.data)
+  const regions = node.data.filterMode === 'region'
+    ? node.data.filterRegions ?? []
+    : operation === 'exclude' ? node.data.excludeRegions ?? [] : node.data.includeRegions ?? []
+  const regexPattern = node.data.filterMode === 'regex'
+    ? node.data.filterRegexPattern ?? ''
+    : operation === 'exclude' ? node.data.excludeRegex ?? '' : node.data.includeRegex ?? ''
+  const regexError = mode === 'regex' ? invalidRegex(regexPattern) : false
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
-    <TokenField label={t('inspector.includeName')} values={node.data.include ?? []} localizeValues={localizeFilterValues} onChange={(include) => update(node.id, { include })} />
-    <TokenField label={t('inspector.excludeName')} values={node.data.exclude ?? []} localizeValues={localizeFilterValues} onChange={(exclude) => update(node.id, { exclude })} />
-    <Field label={t('inspector.includeRegion')}><select value={node.data.includeRegions?.[0] ?? ''} onChange={(event) => update(node.id, { includeRegions: event.target.value ? [event.target.value as RegionCode] : [] })}><option value="">{t('inspector.allRegions')}</option>{REGION_OPTIONS.map((item) => <option value={item.code} key={item.code}>{item.code} · {regionLabel(item.code, locale)}</option>)}</select></Field>
-    <Field label={t('inspector.excludeRegion')}><select value={node.data.excludeRegions?.[0] ?? ''} onChange={(event) => update(node.id, { excludeRegions: event.target.value ? [event.target.value as RegionCode] : [] })}><option value="">{t('inspector.none')}</option>{REGION_OPTIONS.map((item) => <option value={item.code} key={item.code}>{item.code} · {regionLabel(item.code, locale)}</option>)}</select></Field>
-    <Field label={t('inspector.includeProtocol')}><select value={node.data.includeProtocols?.[0] ?? ''} onChange={(event) => update(node.id, { includeProtocols: event.target.value ? [event.target.value as SupportedProxyProtocol] : [] })}><option value="">{t('inspector.allProtocols')}</option>{PROTOCOL_OPTIONS.map((value) => <option key={value} value={value}>{proxyProtocolLabel(value)}</option>)}</select></Field>
-    <Field label={t('inspector.excludeProtocol')}><select value={node.data.excludeProtocols?.[0] ?? ''} onChange={(event) => update(node.id, { excludeProtocols: event.target.value ? [event.target.value as SupportedProxyProtocol] : [] })}><option value="">{t('inspector.none')}</option>{PROTOCOL_OPTIONS.map((value) => <option key={value} value={value}>{proxyProtocolLabel(value)}</option>)}</select></Field>
-    <Advanced><TextField node={node} field="includeRegex" label={t('inspector.includeRegex')} /><TextField node={node} field="excludeRegex" label={t('inspector.excludeRegex')} /></Advanced>
+    <Field label={t('inspector.filterMode')}><div className="segmented-control" role="group" aria-label={t('inspector.filterMode')}>
+      {(['keyword', 'region', 'regex'] as const).map((value) => <button type="button" className={mode === value ? 'is-active' : ''} aria-pressed={mode === value} key={value} onClick={() => update(node.id, { filterMode: value, filterOperation: operation })}>{t(`inspector.filterMode.${value}`)}</button>)}
+    </div></Field>
+    <Field label={t('inspector.filterOperation')}><div className="segmented-control segmented-control--two" role="group" aria-label={t('inspector.filterOperation')}>
+      {(['include', 'exclude'] as const).map((value) => <button type="button" className={operation === value ? 'is-active' : ''} aria-pressed={operation === value} key={value} onClick={() => update(node.id, { filterMode: mode, filterOperation: value })}>{t(`inspector.filterOperation.${value}`)}</button>)}
+    </div></Field>
+    {mode === 'keyword' && <Field label={t('inspector.filterKeyword')} hint={t('inspector.filterKeywordHint')}><input value={node.data.filterMode === 'keyword' ? node.data.filterKeyword ?? '' : legacyKeyword(node.data, operation)} placeholder={t('inspector.filterKeywordPlaceholder')} onChange={(event) => update(node.id, { filterMode: 'keyword', filterOperation: operation, filterKeyword: event.target.value })} /></Field>}
+    {mode === 'region' && <RegionMultiSelect values={regions} onChange={(filterRegions) => update(node.id, { filterMode: 'region', filterOperation: operation, filterRegions })} />}
+    {mode === 'regex' && <>
+      <Field label={t('inspector.filterRegexPattern')} hint={t('inspector.filterRegexHint')}><textarea className={regexError ? 'is-invalid' : ''} value={regexPattern} placeholder="^(HK|SG)-" onChange={(event) => update(node.id, { filterMode: 'regex', filterOperation: operation, filterRegexPattern: event.target.value })} aria-invalid={regexError} /></Field>
+      <label className="toggle-row compact"><span><strong>{t('inspector.filterIgnoreCase')}</strong><small>{t('inspector.filterIgnoreCaseHint')}</small></span><input type="checkbox" checked={node.data.filterRegexIgnoreCase ?? true} onChange={(event) => update(node.id, { filterMode: 'regex', filterOperation: operation, filterRegexIgnoreCase: event.target.checked })} /></label>
+      {regexError && <div className="field-validation is-error"><AlertTriangle size={14} /><span>{localizeDiagnosticMessage('FILTER_INVALID_REGEX', 'Filter regular expression is invalid.', locale)}</span></div>}
+    </>}
     <ProcessingDebug materialized={materialized} />
   </>
 }
 
+function RegionMultiSelect({ values, onChange }: { values: RegionCode[]; onChange: (values: RegionCode[]) => void }) {
+  const { locale, t } = useI18n()
+  const listId = useId()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const canonicalValues = values.map((value) => value === 'UK' ? 'GB' : value)
+  const options = searchRegions(query, locale).filter((entry) => !canonicalValues.includes(entry.code))
+  const select = (code: RegionCode) => {
+    onChange([...canonicalValues, code])
+    setQuery('')
+    setActiveIndex(0)
+    setOpen(true)
+  }
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') { event.preventDefault(); setOpen(false); return }
+    if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); setActiveIndex((index) => options.length ? (index + 1) % options.length : 0); return }
+    if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex((index) => options.length ? (index - 1 + options.length) % options.length : 0); return }
+    if (event.key === 'Enter' && open && options[activeIndex]) { event.preventDefault(); select(options[activeIndex].code) }
+  }
+  return <Field label={t('inspector.filterRegions')} hint={t('inspector.filterRegionsHint')}><div className="region-combobox">
+    {canonicalValues.length > 0 && <div className="region-chip-list">{canonicalValues.map((code) => {
+      const item = REGION_CATALOG.find((entry) => entry.code === code)
+      return <span key={code}>{item?.flag ?? '🌐'} {regionLabel(code, locale)}<button type="button" onClick={() => onChange(canonicalValues.filter((value) => value !== code))} aria-label={t('inspector.removeRegion', { region: regionLabel(code, locale) })}><X size={12} /></button></span>
+    })}</div>}
+    <div className="region-combobox-input"><input role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={open && options[activeIndex] ? `${listId}-${options[activeIndex].code}` : undefined} value={query} placeholder={t('inspector.filterRegionSearch')} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0) }} onKeyDown={onKeyDown} /><ChevronDown size={15} /></div>
+    {open && <div className="region-options" id={listId} role="listbox">{options.map((item, index) => <button type="button" id={`${listId}-${item.code}`} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? 'is-active' : ''} key={item.code} onMouseDown={(event) => event.preventDefault()} onClick={() => select(item.code)}><span>{item.flag}</span><strong>{locale === 'zh-CN' ? item.zh : item.en}</strong><code>{item.code}</code></button>)}{options.length === 0 && <span className="region-options-empty">{t('inspector.filterNoRegions')}</span>}</div>}
+  </div></Field>
+}
+
+function inferLegacyFilterMode(data: BlockNodeData): NonNullable<BlockNodeData['filterMode']> {
+  if (data.includeRegions?.length || data.excludeRegions?.length) return 'region'
+  if (data.includeRegex || data.excludeRegex) return 'regex'
+  return 'keyword'
+}
+
+function inferLegacyFilterOperation(data: BlockNodeData): NonNullable<BlockNodeData['filterOperation']> {
+  return data.exclude?.length || data.excludeRegions?.length || data.excludeRegex ? 'exclude' : 'include'
+}
+
+function legacyKeyword(data: BlockNodeData, operation: NonNullable<BlockNodeData['filterOperation']>) {
+  return (operation === 'exclude' ? data.exclude : data.include)?.[0] ?? ''
+}
+
+function invalidRegex(pattern: string) {
+  if (!pattern.trim()) return false
+  try { new RegExp(pattern); return false } catch { return true }
+}
+
 function RenameInspector({ node }: InspectorProps) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
   const materialized = useNodeMaterialization(node.id)
-  return <><TextField node={node} field="title" label={t('inspector.name')} /><TextField node={node} field="renamePattern" label={t('inspector.regexPattern')} /><TextField node={node} field="renameReplacement" label={t('inspector.replacement')} />
-    <div className="rename-preview"><span>{t('inspector.beforeAfter')}</span>{materialized.input.slice(0, 3).map((proxy, index) => <div key={proxy.id}><code>{proxy.name}</code><b>→</b><code>{materialized.output[index]?.name ?? proxy.name}</code></div>)}</div><ProcessingDebug materialized={materialized} /></>
+  const mode = node.data.renameMode ?? 'regex'
+  const regexError = mode === 'regex' && invalidRegex(node.data.renamePattern ?? '')
+  const modified = materialized.input.filter((proxy, index) => proxy.name !== materialized.output[index]?.name).length
+  return <><TextField node={node} field="title" label={t('inspector.name')} />
+    <Field label={t('inspector.renameMode')}><div className="segmented-control segmented-control--two" role="group" aria-label={t('inspector.renameMode')}>
+      {(['simple', 'regex'] as const).map((value) => <button type="button" className={mode === value ? 'is-active' : ''} aria-pressed={mode === value} key={value} onClick={() => update(node.id, { renameMode: value })}>{t(`inspector.renameMode.${value}`)}</button>)}
+    </div></Field>
+    <Field label={mode === 'regex' ? t('inspector.regexPattern') : t('inspector.renameFind')}><input className={regexError ? 'is-invalid' : ''} value={node.data.renamePattern ?? ''} aria-invalid={regexError} onChange={(event) => update(node.id, { renamePattern: event.target.value })} /></Field>
+    {regexError && <div className="field-validation is-error"><AlertTriangle size={14} /><span>{localizeDiagnosticMessage('INVALID_RENAME_REGEX', 'The rename regular expression is invalid. Processing was blocked.', locale)}</span></div>}
+    <TextField node={node} field="renameReplacement" label={t('inspector.replacement')} />
+    {mode === 'regex' && <>
+      <label className="toggle-row compact"><span><strong>{t('inspector.renameIgnoreCase')}</strong><small>{t('inspector.renameIgnoreCaseHint')}</small></span><input type="checkbox" checked={node.data.renameIgnoreCase ?? false} onChange={(event) => update(node.id, { renameIgnoreCase: event.target.checked })} /></label>
+      <label className="toggle-row compact"><span><strong>{t('inspector.renameGlobal')}</strong><small>{t('inspector.renameGlobalHint')}</small></span><input type="checkbox" checked={node.data.renameGlobal ?? true} onChange={(event) => update(node.id, { renameGlobal: event.target.checked })} /></label>
+    </>}
+    <div className="rename-preview"><span>{t('inspector.beforeAfter')}</span>{materialized.input.slice(0, 3).map((proxy, index) => <div key={proxy.id}><code>{proxy.name}</code><b>→</b><code>{materialized.output[index]?.name ?? proxy.name}</code></div>)}<small>{t('inspector.renameModified', { count: modified })}</small></div><ProcessingDebug materialized={materialized} /></>
 }
 
 function SortInspector({ node }: InspectorProps) {
@@ -184,7 +247,16 @@ function DedupeInspector({ node }: InspectorProps) {
 function LimitInspector({ node }: InspectorProps) {
   const { t } = useI18n()
   const update = useBuilderStore((state) => state.updateNodeData)
-  return <><TextField node={node} field="title" label={t('inspector.name')} /><Field label={t('inspector.firstN')}><input type="number" min="1" value={node.data.limit ?? 10} onChange={(event) => update(node.id, { limit: Number(event.target.value) })} /></Field><ProcessingDebug materialized={useNodeMaterialization(node.id)} /></>
+  const [draft, setDraft] = useState(() => String(node.data.limit ?? 10))
+  useEffect(() => setDraft(String(node.data.limit ?? 10)), [node.id, node.data.limit])
+  const parsed = parseLimitDraft(draft)
+  const invalid = parsed.status !== 'number' || !parsed.valid
+  return <><TextField node={node} field="title" label={t('inspector.name')} /><Field label={t('inspector.firstN')}><input type="number" min="1" step="1" value={draft} aria-invalid={invalid} onChange={(event) => {
+    const nextDraft = event.target.value
+    setDraft(nextDraft)
+    const next = parseLimitDraft(nextDraft)
+    if (next.status === 'number' && next.valid) update(node.id, { limit: next.value })
+  }} /></Field>{invalid && <div className="field-validation is-error"><AlertTriangle size={14} /><span>{t('inspector.limitInvalid')}</span></div>}<ProcessingDebug materialized={useNodeMaterialization(node.id)} /></>
 }
 
 function MergeInspector({ node }: InspectorProps) {
@@ -196,7 +268,7 @@ interface NodeMaterializationView {
   input: import('../../core/ir').ResolvedProxyEndpointIR[]
   output: import('../../core/ir').ResolvedProxyEndpointIR[]
   status: 'ready' | 'error'
-  issues: Array<{ code: string; message: string; severity: 'info' | 'warning' | 'error' }>
+  issues: Array<{ code: string; message: string; severity: 'info' | 'warning' | 'error'; entityId?: string }>
   inputCount: number
   outputCount: number
   removedCount: number
@@ -209,23 +281,70 @@ function useNodeMaterialization(nodeId: string): NodeMaterializationView {
   const snapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const toProject = useBuilderStore((state) => state.toProject)
   return useMemo(() => {
-    const graph = compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(snapshots, locale) })
-    if (!graph.ir) return { input: [], output: [], status: 'error' as const, issues: graph.issues, inputCount: 0, outputCount: 0, removedCount: 0 }
+    const graph = compileGraph(toProject(), {
+      subscriptionSnapshots: localizeSubscriptionSnapshots(snapshots, locale),
+      retainDraftOnErrorForDiagnostics: true,
+    })
+    if (!graph.ir) return { input: [], output: [], status: 'error' as const, issues: [], inputCount: 0, outputCount: 0, removedCount: 0 }
     const transform = graph.ir.transforms.find((item) => item.id === nodeId)
-    if (!transform) return { input: [], output: [], status: 'ready' as const, issues: [], inputCount: 0, outputCount: 0, removedCount: 0 }
+    if (!transform) {
+      const issues = graph.issues.filter((issue) => issue.nodeId === nodeId).map((issue) => ({
+        code: issue.code, message: issue.message, severity: issue.severity, entityId: issue.nodeId,
+      }))
+      return { input: [], output: [], status: issues.some((issue) => issue.severity === 'error') ? 'error' as const : 'ready' as const, issues, inputCount: 0, outputCount: 0, removedCount: 0 }
+    }
     const context = createMaterializationContext()
     const output = materializeProxySet(graph.ir, { kind: 'transform', id: nodeId }, context)
     const inputs = transform.kind === 'merge' ? transform.inputs : [transform.input]
     const input = inputs.flatMap((ref) => materializeProxySet(graph.ir!, ref, context).proxies)
-    return { input, output: output.proxies, status: output.status, issues: output.issues, inputCount: input.length, outputCount: output.outputCount, removedCount: input.length - output.outputCount }
+    const relevantNodeIds = upstreamNodeIds(nodeId, edges)
+    const compileIssues = graph.issues.filter((issue) => issue.nodeId && relevantNodeIds.has(issue.nodeId)).map((issue) => ({
+      code: issue.code, message: issue.message, severity: issue.severity, entityId: issue.nodeId,
+    }))
+    const issues = deduplicateRuntimeIssues([...compileIssues, ...output.issues])
+    return {
+      input, output: output.proxies, status: output.status === 'error' || issues.some((issue) => issue.severity === 'error') ? 'error' : 'ready',
+      issues, inputCount: input.length, outputCount: output.outputCount, removedCount: input.length - output.outputCount,
+    }
   }, [edges, locale, nodeId, nodes, snapshots, toProject])
+}
+
+function upstreamNodeIds(nodeId: string, edges: GraphEdge[]) {
+  const ids = new Set([nodeId])
+  const pending = [nodeId]
+  while (pending.length) {
+    const current = pending.pop()!
+    for (const edge of edges) {
+      if (edge.target !== current || edge.data?.semantic !== 'data' || ids.has(edge.source)) continue
+      ids.add(edge.source)
+      pending.push(edge.source)
+    }
+  }
+  return ids
+}
+
+function deduplicateRuntimeIssues(issues: NodeMaterializationView['issues']) {
+  const seen = new Set<string>()
+  return issues.filter((issue) => {
+    const key = `${issue.code}\u0000${issue.entityId ?? ''}\u0000${issue.message}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function ProcessingDebug({ materialized }: { materialized: NodeMaterializationView }) {
   const { locale, t } = useI18n()
+  const nodes = useBuilderStore((state) => state.nodes)
+  const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
+  const selectNode = useBuilderStore((state) => state.selectNode)
   const [preview, setPreview] = useState<'input' | 'output' | null>(null)
   const proxies = preview === 'input' ? materialized.input : materialized.output
-  return <><div className={`processing-debug${materialized.status === 'error' ? ' is-error' : ''}`}><div><span>{t('inspector.input')}</span><strong>{materialized.inputCount}</strong></div><div><span>{t('inspector.output')}</span><strong>{materialized.outputCount}</strong></div><div><span>{t('inspector.removed')}</span><strong>{materialized.removedCount}</strong></div></div>{materialized.issues.map((issue) => <div className={`processing-issue is-${issue.severity}`} key={`${issue.code}-${issue.message}`}><code>{issue.code}</code><span>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span></div>)}<div className="processing-preview-actions"><button disabled={!materialized.input.length} onClick={() => setPreview('input')}>{t('inspector.viewInput')}</button><button disabled={!materialized.output.length} onClick={() => setPreview('output')}>{t('inspector.viewOutput')}</button></div>{preview && <NodesPreview snapshot={snapshotFromProxies(proxies)} onClose={() => setPreview(null)} />}</>
+  return <><div className={`processing-debug${materialized.status === 'error' ? ' is-error' : ''}`}><div><span>{t('inspector.input')}</span><strong>{materialized.inputCount}</strong></div><div><span>{t('inspector.output')}</span><strong>{materialized.outputCount}</strong></div><div><span>{t('inspector.removed')}</span><strong>{materialized.removedCount}</strong></div></div>{materialized.issues.map((issue) => {
+    const issueNode = issue.entityId ? nodes.find((node) => node.id === issue.entityId) : undefined
+    const upstream = issueNode && issueNode.id !== selectedNodeId
+    return <div className={`processing-issue is-${issue.severity}`} key={`${issue.code}-${issue.entityId ?? ''}-${issue.message}`}><code>{issue.code}</code><span>{upstream && <strong>{t('inspector.upstreamIssue', { node: localizeNodeTitle(issueNode, locale) })}</strong>}{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span>{upstream && <button type="button" onClick={() => selectNode(issueNode.id)}>{t('inspector.locateIssue')}</button>}</div>
+  })}<div className="processing-preview-actions"><button disabled={!materialized.input.length} onClick={() => setPreview('input')}>{t('inspector.viewInput')}</button><button disabled={!materialized.output.length} onClick={() => setPreview('output')}>{t('inspector.viewOutput')}</button></div>{preview && <NodesPreview snapshot={snapshotFromProxies(proxies)} onClose={() => setPreview(null)} />}</>
 }
 
 function snapshotFromProxies(proxies: import('../../core/ir').ResolvedProxyEndpointIR[]) {
@@ -234,8 +353,6 @@ function snapshotFromProxies(proxies: import('../../core/ir').ResolvedProxyEndpo
     result: { format: 'share-links' as const, proxies, issues: [], nodes: proxies.map((endpoint) => ({ id: endpoint.id, name: endpoint.name, protocol: endpoint.protocol, server: endpoint.server, port: endpoint.port, sourceId: endpoint.metadata?.sourceId ?? 'pipeline', sourceName: endpoint.metadata?.sourceName ?? 'Pipeline', status: endpoint.metadata?.compatibility?.status === 'partial' ? 'partial' as const : 'ready' as const, endpoint, issues: [] })), detectedCount: proxies.length, readyCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial').length, partialCount: proxies.filter((proxy) => proxy.metadata?.compatibility?.status === 'partial').length, unsupportedCount: 0 },
   }
 }
-
-const PROTOCOL_OPTIONS: SupportedProxyProtocol[] = ['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic']
 
 function StrategyInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()

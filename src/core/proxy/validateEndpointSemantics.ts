@@ -6,7 +6,7 @@ export interface ProxyEndpointSemanticIssue {
   message: string
 }
 
-const TLS_REQUIRED_PROTOCOLS = new Set(['trojan', 'hysteria2', 'tuic'])
+const TLS_REQUIRED_PROTOCOLS = new Set(['trojan', 'hysteria2', 'tuic', 'anytls'])
 const VLESS_SECURITY_VALUES = new Set(['none', 'tls', 'reality'])
 const CLIENT_FINGERPRINT_VALUES = new Set(['chrome', 'firefox', 'edge', 'safari', '360', 'qq', 'ios', 'android', 'random', 'randomized'])
 
@@ -63,6 +63,7 @@ export function validateProxyEndpointSemantics(endpoint: ResolvedProxyEndpointIR
 
   if (endpoint.protocol === 'vless') validateVless(endpoint, add)
   if (endpoint.protocol === 'hysteria2') validateHysteria2(endpoint, add)
+  if (endpoint.protocol === 'anytls') validateAnyTls(endpoint, add)
   if ('transport' in endpoint && endpoint.transport) {
     validateTransport(endpoint.name, endpoint.transport, add)
     if (endpoint.transport.kind === 'xhttp' && endpoint.protocol !== 'vless') add(
@@ -71,6 +72,32 @@ export function validateProxyEndpointSemantics(endpoint: ResolvedProxyEndpointIR
     )
   }
   return issues
+}
+
+function validateAnyTls(
+  endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'anytls' }>,
+  add: (code: string, feature: string, message: string) => void,
+) {
+  if (!endpoint.password?.trim()) add(
+    'PROXY_ANYTLS_PASSWORD_REQUIRED', 'authentication:password-required',
+    `AnyTLS endpoint "${endpoint.name}" requires a password.`,
+  )
+  if (endpoint.udpEnabled !== undefined && typeof endpoint.udpEnabled !== 'boolean') add(
+    'PROXY_ANYTLS_UDP_INVALID', 'anytls:invalid-udp',
+    `AnyTLS endpoint "${endpoint.name}" has an invalid UDP capability state.`,
+  )
+  if (endpoint.idleSessionCheckIntervalSeconds !== undefined && !positiveInteger(endpoint.idleSessionCheckIntervalSeconds)) add(
+    'PROXY_ANYTLS_IDLE_SESSION_INVALID', 'anytls:invalid-idle-session-check-interval',
+    `AnyTLS endpoint "${endpoint.name}" has an invalid idle session check interval.`,
+  )
+  if (endpoint.idleSessionTimeoutSeconds !== undefined && !positiveInteger(endpoint.idleSessionTimeoutSeconds)) add(
+    'PROXY_ANYTLS_IDLE_SESSION_INVALID', 'anytls:invalid-idle-session-timeout',
+    `AnyTLS endpoint "${endpoint.name}" has an invalid idle session timeout.`,
+  )
+  if (endpoint.minIdleSession !== undefined && (!Number.isInteger(endpoint.minIdleSession) || endpoint.minIdleSession < 0)) add(
+    'PROXY_ANYTLS_IDLE_SESSION_INVALID', 'anytls:invalid-min-idle-session',
+    `AnyTLS endpoint "${endpoint.name}" has an invalid minimum idle session count.`,
+  )
 }
 
 function validateVless(

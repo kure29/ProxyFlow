@@ -172,10 +172,29 @@ describe('SingBoxCompiler', () => {
     expect(outbound(config, 'TUIC Chain')).toEqual(expect.objectContaining({ type: 'tuic', detour: 'Hong Kong Auto' }))
   })
 
+  it('chains an AnyTLS outbound through a resolved first hop via detour', () => {
+    const ir = explicitProxyIR()
+    ir.sources.push({
+      kind: 'manual-proxy', id: 'anytls-source', name: 'AnyTLS Source', proxies: [{
+        kind: 'anytls', protocol: 'anytls', id: 'anytls-exit', name: 'AnyTLS Exit', server: 'anytls.example.com', port: 443,
+        password: 'test-password', tls: { enabled: true, serverName: 'anytls.example.com' },
+      }],
+    })
+    ir.strategies.push({ kind: 'fixed', id: 'anytls-fixed', name: 'AnyTLS Fixed', proxyId: 'anytls-exit' })
+    ir.strategies.push({ kind: 'chain', id: 'anytls-chain', name: 'AnyTLS Chain', hops: [{ kind: 'strategy', id: 'hk-auto' }, { kind: 'strategy', id: 'anytls-fixed' }] })
+    ir.finalRoute = { target: { kind: 'strategy', id: 'anytls-chain' } }
+    const { config } = compile(ir)
+    expect(outbound(config, 'AnyTLS Chain')).toEqual(expect.objectContaining({ type: 'anytls', detour: 'Hong Kong Auto' }))
+  })
+
   it('fails closed for unresolved sources, fallback, load balance and cyclic chains', () => {
     const unresolved = unresolvedSubscriptionIR()
     expect(compileMihomo(unresolved, { now: fixedNow }).success).toBe(true)
-    expect(compileSingBox(unresolved, { now: fixedNow }).issues.map((issue) => issue.code)).toContain('SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES')
+    const unresolvedResult = compileSingBox(unresolved, { now: fixedNow })
+    expect(unresolvedResult.issues).toContainEqual(expect.objectContaining({
+      code: 'SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES', entityId: 'remote',
+    }))
+    expect(new Set(unresolvedResult.issues.map((issue) => `${issue.code}:${issue.entityId}:${issue.message}`)).size).toBe(unresolvedResult.issues.length)
 
     const unsupported = explicitProxyIR()
     unsupported.strategies.push({ kind: 'fallback', id: 'fallback', name: 'Fallback', candidates: [{ kind: 'source', id: 'us-source' }] })

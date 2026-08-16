@@ -1,6 +1,7 @@
 export * from './identity'
 export * from './model'
 export * from './region'
+export * from './regionCodes'
 export * from './security'
 export * from './shadowsocks'
 export * from './validateEndpointSemantics'

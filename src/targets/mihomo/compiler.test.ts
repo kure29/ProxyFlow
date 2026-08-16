@@ -110,7 +110,9 @@ describe('MihomoCompiler', () => {
     ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'transform', id: 'merge' } }]
     const result = compileMihomo(ir, { now: fixedNow })
     expect(result.success).toBe(false)
-    expect(result.issues.map((issue) => issue.code)).toContain('MIHOMO_SOURCE_UNAVAILABLE')
+    const unavailable = result.issues.filter((issue) => issue.code === 'MIHOMO_SOURCE_UNAVAILABLE')
+    expect(unavailable.map((issue) => issue.entityId)).toEqual(expect.arrayContaining(['provider-a', 'provider-b']))
+    expect(new Set(unavailable.map((issue) => `${issue.code}:${issue.entityId}:${issue.message}`)).size).toBe(unavailable.length)
   })
 
   it('materializes shared HTTP/SOCKS endpoints and a Fixed strategy', () => {

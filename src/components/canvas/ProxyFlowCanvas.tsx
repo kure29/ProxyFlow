@@ -111,7 +111,10 @@ export function ProxyFlowCanvas() {
     sourceHandle: candidate.sourceHandle ?? null,
     targetHandle: candidate.targetHandle ?? null,
   }, nodes)
-  const onNodeClick: NodeMouseHandler<GraphNode> = (_event, node) => { setMenu(null); selectNode(node.id) }
+  const onNodeClick: NodeMouseHandler<GraphNode> = (event, node) => {
+    setMenu(null)
+    selectNode(node.id, null, event.metaKey || event.ctrlKey)
+  }
 
   const onDrop = (event: DragEvent) => {
     event.preventDefault()
@@ -153,9 +156,9 @@ export function ProxyFlowCanvas() {
         maxZoom={1.8}
         snapToGrid
         snapGrid={[12, 12]}
-        selectionOnDrag
-        panOnScroll
-        panOnDrag={[1, 2]}
+        selectionOnDrag={false}
+        panOnScroll={false}
+        panOnDrag={[0, 1]}
         multiSelectionKeyCode={['Meta', 'Control']}
         deleteKeyCode={null}
         elevateEdgesOnSelect

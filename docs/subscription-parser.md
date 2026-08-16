@@ -32,12 +32,13 @@ ProxyFlow V0.6 在浏览器中读取订阅内容，将节点规范化为客户�
 | VLESS Reality / Vision | Supported | Supported | Supported |
 | Hysteria2 | Supported | Supported | Supported |
 | TUIC v5 | Supported | Supported | Supported |
+| AnyTLS（post-V0.6 enhancement） | Supported normalized subset | Supported normalized subset | Supported normalized subset |
 
-HTTP、SOCKS5 支持基础认证；Shadowsocks 支持 method、password 与可识别的 plugin metadata；Trojan、VMess、VLESS 支持 TLS、SNI 和 transport intent。Reality 使用同一 `ProxyTlsIR` 保存 client fingerprint、public key 与 short ID，Vision 使用受限 flow enum。Hysteria2 authority 支持单端口、逗号分隔端口与范围，缺省端口为 443；TUIC 保存 allow-insecure 与 disable-SNI。所有端口必须在 1–65535，VMess/VLESS/TUIC UUID 会验证格式。
+HTTP、SOCKS5 支持基础认证；Shadowsocks 支持 method、password 与可识别的 plugin metadata；Trojan、VMess、VLESS 支持 TLS、SNI 和 transport intent。Reality 使用同一 `ProxyTlsIR` 保存 client fingerprint、public key 与 short ID，Vision 使用受限 flow enum。Hysteria2 authority 支持单端口、逗号分隔端口与范围，缺省端口为 443；TUIC 保存 allow-insecure 与 disable-SNI。AnyTLS 支持官方 `anytls://password@host[:port]` URI（缺省 443）、`sni` / `insecure`，并显式读取可同时映射的 fingerprint、ALPN 与 idle-session 扩展；Clash/Mihomo YAML 读取相同的 normalized subset。所有端口必须在 1–65535，VMess/VLESS/TUIC UUID 会验证格式。
 
 ## Partially Supported Variants
 
-未知 VLESS security / XTLS flow、冲突的 Reality/Vision 安全字段、非法 VMess TLS/aid/TCP header、TLS disabled 时出现 TLS-only 字段、非法 WS early-data、无可靠目标映射的 gRPC authority、未知 transport、显式非法 Hysteria2 bandwidth、Hysteria2 `pinSHA256` / ECH 和 Clash TLS certificate fingerprint 不会被猜测。Parser 将此类节点标记为 `Partial`，保留节点名称、协议和问题原因；Import Summary 仍计入 detected / warnings，Node Preview 也继续展示它们。
+未知 VLESS security / XTLS flow、冲突的 Reality/Vision 安全字段、非法 VMess TLS/aid/TCP header、TLS disabled 时出现 TLS-only 字段、非法 WS early-data、无可靠目标映射的 gRPC authority、未知 transport、显式非法 Hysteria2 bandwidth、Hysteria2 `pinSHA256` / ECH、Clash TLS certificate fingerprint，以及 AnyTLS 的未知连接关键参数或 Reality intent 不会被猜测。Parser 将此类节点标记为 `Partial`，保留节点名称、协议和问题原因；Import Summary 仍计入 detected / warnings，Node Preview 也继续展示它们。
 
 重复参数按语义分类：普通 metadata warning 与相同值重复可以保持 Ready；SNI/serverName、security、flow、encryption、ALPN、client fingerprint、Reality public key / short ID、transport、Host/path、gRPC service name、early-data 与 XHTTP mode 等连接关键字段若出现不同值，返回 `PROXY_PARAMS_CONFLICT` 并标为 Partial。选择第一个值只用于保留可检查的规范化记录，不会让该节点进入可编译 ProxySet。
 
@@ -45,7 +46,7 @@ Partial 节点不会进入可用 ProxySet。处理器返回 `PROXY_VARIANT_EXCLU
 
 ## Unsupported Protocols
 
-Hysteria v1、WireGuard、Snell、SSH、AnyTLS 等尚未进入 V0.6 的协议模型。未知 scheme、损坏链接和无法识别的行会作为 `Unsupported` 节点与稳定 issue code 出现在预览中，而不是静默删除。
+Hysteria v1、WireGuard、Snell、SSH 等尚未进入协议模型。损坏的 AnyTLS 链接与其他未知 scheme、损坏链接和无法识别的行一样，会作为 `Unsupported` 节点与稳定 issue code 出现在预览中，而不是静默删除。
 
 ## CORS Limitations
 
@@ -69,7 +70,7 @@ V0.6 不包含后端、Worker、浏览器扩展或公共 CORS proxy。
 
 ## Node Normalization
 
-Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS、Hysteria2、TUIC 各自只拥有协议需要的字段。共同字段包括 stable ID、name、server、port 和 metadata；metadata 可以包含 source、region hint 与 compatibility hint。
+Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS、Hysteria2、TUIC、AnyTLS 各自只拥有协议需要的字段。共同字段包括 stable ID、name、server、port 和 metadata；metadata 可以包含 source、region hint 与 compatibility hint。
 
 地区识别优先读取节点名中的国旗 emoji，再匹配常见地区关键词。当前内置 HK、US、JP、SG、TW、KR、UK、DE、FR、CA、AU 与 UNKNOWN，并保留 confidence 和识别来源。地区只是可解释的 hint，不伪装成精确地理定位。
 
@@ -79,7 +80,7 @@ Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Troja
 
 | Transform | V0.6 status | Semantics |
 | --- | --- | --- |
-| Filter | Supported | name contains / regex、region、protocol include / exclude |
+| Filter | Supported | 新 UI 使用 Keyword / Region / Regex + Include / Exclude；旧项目的组合字段继续可读取 |
 | Rename | Supported | regex replacement；无效表达式返回稳定错误 |
 | Sort | Supported | name、region、protocol；稳定排序 |
 | Dedupe | Supported | 按协议、端点、认证身份和 transport fingerprint，不按显示名 |
@@ -87,6 +88,8 @@ Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Troja
 | Limit | Supported | 确定性保留前 N 个节点 |
 
 Latency Sort 明确返回 `SPEED_TEST_REQUIRED`，因为 V0.6 没有真实测速，也不会生成假延迟。每个 Processing Inspector 显示真实 input / output / removed 数量、问题和输入输出预览。物化 context 会缓存同一次编译中的 source / transform 结果。
+
+Filter 的 persistent model 使用可选字段，不提升 Project Schema V2：Keyword 会 trim 并按不区分大小写的 substring 确定性匹配；空输入为 no-op。Region 使用 ISO 3166-1 alpha-2 code（历史 `UK` 规范化为 `GB`），显示文本随 locale 变化但不修改 project semantics；地区仅从 flag、明确 token 与本地化名称推断，不做 GeoIP。Regex 使用 JavaScript-compatible pattern 与独立 ignore-case flag；非法表达式返回 `FILTER_INVALID_REGEX`、不运行该 transform，也不回退为 keyword。
 
 ## Target Compilation
 
@@ -99,6 +102,7 @@ Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的�
 - XHTTP 只 lowering 到 Mihomo；sing-box 1.13.14 返回 `SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED` 并失败闭合。
 - Hysteria2 随机 hop interval 可 lowering 到 Mihomo；sing-box 1.13.14 不支持 `hop_interval_max`，返回 `SINGBOX_HYSTERIA2_RANDOM_HOP_INTERVAL_UNSUPPORTED` 并失败闭合。
 - Partial variants 被排除并产生目标 warning；无法保持策略或链路语义时仍返回 error、空内容和 `mock: false`。
+- AnyTLS 的 Mihomo lowering 支持 password、SNI、insecure、ALPN、client fingerprint、UDP 与 idle-session 字段；sing-box 1.13.14 支持对应 TLS / uTLS / idle-session 与 Dial Fields `detour`。显式 AnyTLS `udp: false` 在 sing-box 返回 `SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED`。
 
 ## Known Limitations
 
@@ -108,5 +112,6 @@ Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的�
 - Shadowsocks plugin 与协议扩展只保留基础 metadata，不能保证所有客户端插件运行环境都存在。
 - Hysteria2 `pinSHA256`、ECH 与 Clash certificate fingerprint 当前为 Partial；不会以普通 warning 继续编译。
 - Hysteria2/TUIC 上的 client fingerprint 虽可由 Universal TLS IR 表达，但 Mihomo 与 sing-box 1.13.14 的 QUIC TLS lowering 均拒绝该组合，不会静默省略。
+- AnyTLS URI 依据 [anytls-go URI scheme](https://github.com/anytls/anytls-go/blob/main/docs/uri_scheme.md)。官方只定义 password、host/port、`sni` 与 `insecure`；第三方连接关键参数只有在已明确建模时才接受，否则标为 Partial。AnyTLS + Reality 与 sing-box 1.13.14 尚不存在的 `client_metadata` 不受支持。
 - 地区识别来自名称 hint，不检查 IP、ASN 或 GeoIP。
 - Project Schema 保持 V2：新增项目字段均为可选，派生结果不进入 Project；Universal IR 仍保持 V2，因为此次扩展不破坏既有实体语义。

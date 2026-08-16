@@ -1,5 +1,5 @@
 import { CheckCircle2, CircleAlert, Focus, MousePointer2 } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, useViewport } from '@xyflow/react'
 import { useMemo } from 'react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
@@ -7,11 +7,12 @@ import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 
 export function StatusBar() {
   const { locale, t } = useI18n()
-  const { fitView, getZoom } = useReactFlow()
+  const { fitView } = useReactFlow()
+  const { zoom: viewportZoom } = useViewport()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges])
-  const zoom = Math.round(getZoom() * 100)
+  const zoom = Math.round(viewportZoom * 100)
 
   return (
     <footer className="statusbar">

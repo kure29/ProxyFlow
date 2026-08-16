@@ -1,10 +1,10 @@
 import { stableOpaqueHash } from '../proxy'
 import { subscriptionIssue } from './errors'
-import { parseHttpLink, parseHysteria2Link, parseShadowsocksLink, parseSocksLink, parseTrojanLink, parseTuicLink, parseVlessLink, parseVmessLink } from './parsers'
+import { parseAnyTlsLink, parseHttpLink, parseHysteria2Link, parseShadowsocksLink, parseSocksLink, parseTrojanLink, parseTuicLink, parseVlessLink, parseVmessLink } from './parsers'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, SubscriptionIssue } from './types'
 import type { ParsedProtocolResult } from './utils'
 
-const UNSUPPORTED_SCHEMES = new Set(['hysteria', 'wireguard', 'wg', 'shadowtls', 'anytls'])
+const UNSUPPORTED_SCHEMES = new Set(['hysteria', 'wireguard', 'wg', 'shadowtls'])
 
 export function parseShareLinks(input: string, options: ParseSubscriptionOptions) {
   const sourceId = options.sourceId
@@ -24,6 +24,7 @@ export function parseShareLinks(input: string, options: ParseSubscriptionOptions
     else if (scheme === 'trojan') parsed = parseTrojanLink(line, context)
     else if (scheme === 'hysteria2' || scheme === 'hy2') parsed = parseHysteria2Link(line, context)
     else if (scheme === 'tuic') parsed = parseTuicLink(line, context)
+    else if (scheme === 'anytls') parsed = parseAnyTlsLink(line, context)
     else if (scheme === 'vmess') parsed = parseVmessLink(line, context)
     else if (scheme === 'vless') parsed = parseVlessLink(line, context)
     else {

@@ -30,6 +30,7 @@ export type SingBoxOutbound =
   | ({ type: 'vless'; tag: string; server: string; server_port: number; uuid: string; flow?: 'xtls-rprx-vision'; tls?: SingBoxTls; transport?: SingBoxV2RayTransport } & SingBoxDialFields)
   | ({ type: 'hysteria2'; tag: string; server: string; server_port: number; server_ports?: string[]; hop_interval?: string; up_mbps?: number; down_mbps?: number; obfs?: { type: 'salamander'; password: string }; password: string; tls: SingBoxTls } & SingBoxDialFields)
   | ({ type: 'tuic'; tag: string; server: string; server_port: number; uuid: string; password: string; congestion_control?: 'cubic' | 'new_reno' | 'bbr'; udp_relay_mode?: 'native' | 'quic'; tls: SingBoxTls } & SingBoxDialFields)
+  | ({ type: 'anytls'; tag: string; server: string; server_port: number; password: string; idle_session_check_interval?: string; idle_session_timeout?: string; min_idle_session?: number; tls: SingBoxTls } & SingBoxDialFields)
   | { type: 'selector'; tag: string; outbounds: string[]; default?: string }
   | { type: 'urltest'; tag: string; outbounds: string[]; url: string; interval: string; tolerance: number }
 

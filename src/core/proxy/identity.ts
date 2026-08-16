@@ -27,6 +27,9 @@ export function proxyIdentityMaterial(endpoint: ProxyIdentity): string {
       return JSON.stringify([...common, endpoint.password, endpoint.tls, endpoint.obfs ?? null, endpoint.upMbps ?? null, endpoint.downMbps ?? null, endpoint.serverPorts ?? null, endpoint.hopInterval ?? null])
     case 'tuic':
       return JSON.stringify([...common, endpoint.uuid, endpoint.password, endpoint.congestionControl ?? '', endpoint.udpRelayMode ?? '', endpoint.tls])
+    case 'anytls':
+      return JSON.stringify([...common, endpoint.password, endpoint.tls, endpoint.udpEnabled ?? true,
+        endpoint.idleSessionCheckIntervalSeconds ?? null, endpoint.idleSessionTimeoutSeconds ?? null, endpoint.minIdleSession ?? null])
   }
 }
 

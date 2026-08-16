@@ -76,9 +76,20 @@ describe('validateIR', () => {
     { kind: 'trojan', protocol: 'trojan', id: 'trojan', name: 'Trojan', server: 'trojan.example.com', port: 443, password: 'demo', tls: { enabled: false } },
     { kind: 'hysteria2', protocol: 'hysteria2', id: 'hy2', name: 'HY2', server: 'hy2.example.com', port: 443, password: 'demo', tls: { enabled: false } },
     { kind: 'tuic', protocol: 'tuic', id: 'tuic', name: 'TUIC', server: 'tuic.example.com', port: 443, uuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', password: 'demo', tls: { enabled: false } },
+    { kind: 'anytls', protocol: 'anytls', id: 'anytls', name: 'AnyTLS', server: 'anytls.example.com', port: 443, password: 'demo', tls: { enabled: false } },
   ] satisfies ResolvedProxyEndpointIR[])('rejects disabled TLS for direct $protocol IR', (proxy) => {
     const issue = validateIR(irWithProxy(proxy)).find((item) => item.code === 'PROXY_TLS_REQUIRED')
     expect(issue).toEqual(expect.objectContaining({ severity: 'error', entity: { type: 'source', id: 'source' } }))
+  })
+
+  it('rejects direct invalid AnyTLS IR at the semantic firewall', () => {
+    const ir = irWithProxy({
+      kind: 'anytls', protocol: 'anytls', id: 'anytls', name: 'AnyTLS', server: 'anytls.example.com', port: 443,
+      password: '', tls: { enabled: true }, idleSessionCheckIntervalSeconds: 0, idleSessionTimeoutSeconds: Number.NaN, minIdleSession: -1,
+    })
+    expect(validateIR(ir).filter((issue) => issue.severity === 'error').map((issue) => issue.code)).toEqual(expect.arrayContaining([
+      'PROXY_ANYTLS_INVALID', 'PROXY_ANYTLS_PASSWORD_REQUIRED', 'PROXY_ANYTLS_IDLE_SESSION_INVALID',
+    ]))
   })
 
   it('rejects malformed Hysteria2 runtime semantics including bandwidth', () => {

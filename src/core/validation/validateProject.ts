@@ -16,6 +16,23 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[]): Validatio
     if (['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType) && !node.data.targetId) add('UI_ROUTE_TARGET_MISSING', 'This routing rule has no target strategy.')
     if (node.data.blockType === 'final' && !outgoing(node.id)) add('UI_FINAL_TARGET_MISSING', 'Final must connect to an outbound target.', 'error')
     if (node.data.blockType === 'output' && !node.data.client) add('UI_OUTPUT_CLIENT_MISSING', 'Select a target client.', 'error')
+    if (node.data.blockType === 'filter' && node.data.filterMode === 'regex' && node.data.filterRegexPattern?.trim()) {
+      try {
+        new RegExp(node.data.filterRegexPattern)
+      } catch {
+        add('FILTER_INVALID_REGEX', 'The filter regular expression is invalid. Processing was blocked.', 'error')
+      }
+    }
+    if (node.data.blockType === 'rename' && (node.data.renameMode ?? 'regex') === 'regex' && node.data.renamePattern?.trim()) {
+      try {
+        new RegExp(node.data.renamePattern, `${node.data.renameGlobal ?? true ? 'g' : ''}${node.data.renameIgnoreCase ? 'i' : ''}`)
+      } catch {
+        add('INVALID_RENAME_REGEX', 'The rename regular expression is invalid. Processing was blocked.', 'error')
+      }
+    }
+    if (node.data.blockType === 'limit' && (!Number.isInteger(node.data.limit) || node.data.limit! < 1)) {
+      add('LIMIT_INVALID', 'Limit must be a positive integer.', 'error')
+    }
   }
   return issues
 }

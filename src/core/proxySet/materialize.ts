@@ -89,16 +89,24 @@ function materializeSingle(ir: ProxyFlowIR, transform: Exclude<TransformIR, { ki
   const before = input.proxies
   if (transform.kind === 'filter') {
     const regexes = compileFilterRegexes(transform)
-    if ('error' in regexes) return failedWithIssues('INVALID_FILTER_REGEX', regexes.error, transform.id, input.issues)
+    if ('error' in regexes) return failedWithIssues('FILTER_INVALID_REGEX', regexes.error, transform.id, input.issues)
     const proxies = before.filter((proxy) => matchesFilter(proxy, transform, regexes))
     return withIssues(withEmptyWarning(ready(proxies, before.length), transform), input.issues)
   }
   if (transform.kind === 'rename') {
     if (!transform.pattern || transform.replacement === undefined) return withIssues(ready(before, before.length), input.issues)
-    let regex: RegExp
-    try { regex = new RegExp(transform.pattern, 'g') } catch { return failedWithIssues('INVALID_RENAME_REGEX', 'Rename 正则表达式无效。', transform.id, input.issues) }
+    let rename: (value: string) => string
+    if ((transform.mode ?? 'regex') === 'simple') {
+      rename = (value) => value.split(transform.pattern!).join(transform.replacement!)
+    } else {
+      let regex: RegExp
+      try { regex = new RegExp(transform.pattern, `${transform.global ?? true ? 'g' : ''}${transform.ignoreCase ? 'i' : ''}`) } catch {
+        return failedWithIssues('INVALID_RENAME_REGEX', 'The rename regular expression is invalid. Processing was blocked.', transform.id, input.issues)
+      }
+      rename = (value) => value.replace(regex, transform.replacement!)
+    }
     const proxies = before.map((proxy) => {
-      const name = proxy.name.replace(regex, transform.replacement!)
+      const name = rename(proxy.name)
       return name === proxy.name ? proxy : { ...proxy, id: `proxy-${stableOpaqueHash(`${proxy.id}\u0000${transform.id}\u0000${name}`)}`, name }
     })
     return withIssues(ready(proxies, before.length), input.issues)
@@ -120,20 +128,24 @@ function materializeSingle(ir: ProxyFlowIR, transform: Exclude<TransformIR, { ki
     })
     return withIssues(withEmptyWarning(ready(proxies, before.length), transform), input.issues)
   }
-  if (!Number.isInteger(transform.max) || transform.max! < 1) return failedWithIssues('LIMIT_INVALID', 'Limit 必须是大于 0 的整数。', transform.id, input.issues)
+  if (!Number.isInteger(transform.max) || transform.max! < 1) return failedWithIssues('LIMIT_INVALID', 'Limit must be a positive integer.', transform.id, input.issues)
   return withIssues(withEmptyWarning(ready(before.slice(0, transform.max), before.length), transform), input.issues)
 }
 
-function compileFilterRegexes(transform: Extract<TransformIR, { kind: 'filter' }>): { include?: RegExp; exclude?: RegExp } | { error: string } {
+function compileFilterRegexes(transform: Extract<TransformIR, { kind: 'filter' }>): { criterion?: RegExp; include?: RegExp; exclude?: RegExp } | { error: string } {
   try {
     return {
+      ...(transform.criterion?.mode === 'regex' && transform.criterion.pattern.trim()
+        ? { criterion: new RegExp(transform.criterion.pattern, transform.criterion.ignoreCase ? 'i' : '') }
+        : {}),
       ...(transform.includeRegex ? { include: new RegExp(transform.includeRegex, 'i') } : {}),
       ...(transform.excludeRegex ? { exclude: new RegExp(transform.excludeRegex, 'i') } : {}),
     }
-  } catch { return { error: 'Filter 正则表达式无效。' } }
+  } catch { return { error: 'Filter regular expression is invalid.' } }
 }
 
-function matchesFilter(proxy: ResolvedProxyEndpointIR, transform: Extract<TransformIR, { kind: 'filter' }>, regexes: { include?: RegExp; exclude?: RegExp }) {
+function matchesFilter(proxy: ResolvedProxyEndpointIR, transform: Extract<TransformIR, { kind: 'filter' }>, regexes: { criterion?: RegExp; include?: RegExp; exclude?: RegExp }) {
+  if (transform.criterion) return matchesCriterion(proxy, transform.criterion, regexes.criterion)
   const name = proxy.name.toLocaleLowerCase()
   const region = proxy.metadata?.region?.code ?? 'UNKNOWN'
   const includedByName = transform.include.length === 0 || transform.include.some((value) => name.includes(value.toLocaleLowerCase()))
@@ -146,6 +158,28 @@ function matchesFilter(proxy: ResolvedProxyEndpointIR, transform: Extract<Transf
   const excludedByProtocol = Boolean(transform.excludeProtocols?.includes(proxy.protocol))
   return includedByName && !excludedByName && includedByRegex && !excludedByRegex
     && includedByRegion && !excludedByRegion && includedByProtocol && !excludedByProtocol
+}
+
+function matchesCriterion(
+  proxy: ResolvedProxyEndpointIR,
+  criterion: NonNullable<Extract<TransformIR, { kind: 'filter' }>['criterion']>,
+  regex?: RegExp,
+) {
+  let matched = false
+  if (criterion.mode === 'keyword') {
+    const keyword = criterion.keyword.trim().toLocaleLowerCase()
+    matched = Boolean(keyword) && proxy.name.toLocaleLowerCase().includes(keyword)
+  } else if (criterion.mode === 'region') {
+    const regions = criterion.regions.map((code) => code === 'UK' ? 'GB' : code)
+    const proxyRegion = proxy.metadata?.region?.code === 'UK' ? 'GB' : proxy.metadata?.region?.code ?? 'UNKNOWN'
+    matched = regions.length > 0 && regions.includes(proxyRegion)
+  } else {
+    matched = Boolean(criterion.pattern.trim() && regex?.test(proxy.name))
+  }
+  if (criterion.mode === 'keyword' && !criterion.keyword.trim()
+    || criterion.mode === 'region' && criterion.regions.length === 0
+    || criterion.mode === 'regex' && !criterion.pattern.trim()) return true
+  return criterion.operation === 'include' ? matched : !matched
 }
 
 function sortValue(proxy: ResolvedProxyEndpointIR, by: 'name' | 'region' | 'protocol') {

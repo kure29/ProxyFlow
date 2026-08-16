@@ -14,7 +14,7 @@ export interface PipelineNodeRuntime {
 }
 
 export function deriveProjectRuntime(project: ProxyFlowProject, subscriptionSnapshots: Record<string, SubscriptionSnapshot>) {
-  const graph = compileGraph(project, { subscriptionSnapshots })
+  const graph = compileGraph(project, { subscriptionSnapshots, retainDraftOnErrorForDiagnostics: true })
   const runtime = new Map<string, PipelineNodeRuntime>()
   if (!graph.ir) return runtime
   const context = createMaterializationContext()
@@ -49,6 +49,16 @@ export function deriveProjectRuntime(project: ProxyFlowProject, subscriptionSnap
     runtime.set(strategy.id, {
       status: results.some((result) => result.status === 'error') ? 'error' : 'ready', inputCount: outputCount,
       outputCount, removedCount: 0, issues: results.flatMap((result) => result.issues),
+    })
+  }
+
+  for (const issue of graph.issues) {
+    if (!issue.nodeId || runtime.has(issue.nodeId)) continue
+    const node = project.graph.nodes.find((item) => item.id === issue.nodeId)
+    if (!node || !['processing', 'strategy'].includes(node.data.category)) continue
+    runtime.set(issue.nodeId, {
+      status: issue.severity === 'error' ? 'error' : 'ready', inputCount: 0, outputCount: 0, removedCount: 0,
+      issues: [{ code: issue.code, severity: issue.severity, message: issue.message, entityId: issue.nodeId }],
     })
   }
   return runtime
