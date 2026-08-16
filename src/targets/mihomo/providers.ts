@@ -82,6 +82,16 @@ function endpointProxy(endpoint: ResolvedProxyEndpointIR, name: string): MihomoP
       ...(endpoint.congestionControl ? { 'congestion-controller': endpoint.congestionControl } : {}),
       ...(endpoint.udpRelayMode ? { 'udp-relay-mode': endpoint.udpRelayMode } : {}),
     }
+    case 'anytls': return {
+      ...common, type: 'anytls', password: endpoint.password, udp: endpoint.udpEnabled ?? true,
+      ...(endpoint.tls.serverName ? { sni: endpoint.tls.serverName } : {}),
+      ...(endpoint.tls.allowInsecure ? { 'skip-cert-verify': true } : {}),
+      ...(endpoint.tls.alpn?.length ? { alpn: endpoint.tls.alpn } : {}),
+      ...(endpoint.tls.fingerprint ? { 'client-fingerprint': endpoint.tls.fingerprint } : {}),
+      ...(endpoint.idleSessionCheckIntervalSeconds !== undefined ? { 'idle-session-check-interval': endpoint.idleSessionCheckIntervalSeconds } : {}),
+      ...(endpoint.idleSessionTimeoutSeconds !== undefined ? { 'idle-session-timeout': endpoint.idleSessionTimeoutSeconds } : {}),
+      ...(endpoint.minIdleSession !== undefined ? { 'min-idle-session': endpoint.minIdleSession } : {}),
+    }
   }
 }
 

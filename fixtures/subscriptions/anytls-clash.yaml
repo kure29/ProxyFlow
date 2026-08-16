@@ -1,0 +1,16 @@
+proxies:
+  - name: AnyTLS Clash Fixture
+    type: anytls
+    server: anytls-clash.example.com
+    port: 443
+    password: fixture-password
+    sni: cdn-clash.example.com
+    skip-cert-verify: true
+    client-fingerprint: chrome
+    alpn:
+      - h2
+      - http/1.1
+    udp: true
+    idle-session-check-interval: 30
+    idle-session-timeout: 45
+    min-idle-session: 2

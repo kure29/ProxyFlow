@@ -51,7 +51,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     }
     const issues = deduplicateIssues([...context.issues, ...validateIR(draft)])
     const success = !issues.some((issue) => issue.severity === 'error')
-    return { success, issues, ir: success ? draft : undefined }
+    return { success, issues, ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined }
   } catch (error) {
     return {
       success: false,

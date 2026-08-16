@@ -41,7 +41,7 @@ interface BuilderState {
   duplicateNode: (id: string) => void
   removeNode: (id: string) => void
   deleteSelected: () => void
-  selectNode: (id: string | null, service?: string | null) => void
+  selectNode: (id: string | null, service?: string | null, additive?: boolean) => void
   selectEdge: (id: string | null) => void
   updateNodeData: (id: string, patch: Partial<BlockNodeData>) => void
   setRoutingTarget: (nodeId: string, targetId: string) => void
@@ -76,7 +76,11 @@ const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' &&
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
   if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
-  if (type === 'filter') return { include: [], exclude: [] }
+  if (type === 'filter') return {
+    include: [], exclude: [], filterMode: 'keyword', filterOperation: 'include', filterKeyword: '', filterRegexIgnoreCase: true,
+  }
+  if (type === 'rename') return { renameMode: 'regex', renamePattern: '', renameReplacement: '', renameIgnoreCase: false, renameGlobal: true }
+  if (type === 'limit') return { limit: 10 }
   if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'proxy-chain') return { hopIds: [] }
   if (['routing-group', 'service-rule', 'custom-rule'].includes(type)) return { services: [], ruleSource: type === 'custom-rule' ? 'custom' : 'ios_rule_script' }
@@ -129,7 +133,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
       if (hasRemoval) record()
       const protectedIds = new Set(get().nodes.filter((node) => node.data.protected).map((node) => node.id))
-      const safeChanges = changes.filter((change) => change.type !== 'remove' || !protectedIds.has(change.id))
+      const safeChanges = changes.filter((change) => change.type !== 'select' && (change.type !== 'remove' || !protectedIds.has(change.id)))
       set((state) => ({ nodes: applyNodeChanges(safeChanges, state.nodes) }))
     },
     onEdgesChange: (changes) => {
@@ -221,9 +225,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         set({ edges: state.edges.filter((edge) => !selectedEdgeIds.has(edge.id)), selectedEdgeId: null })
       }
     },
-    selectNode: (id, service = null) => set((state) => ({
+    selectNode: (id, service = null, additive = false) => set((state) => ({
       selectedNodeId: id, selectedEdgeId: null, activeService: service,
-      nodes: state.nodes.map((node) => ({ ...node, selected: node.id === id })),
+      nodes: state.nodes.map((node) => ({ ...node, selected: additive ? Boolean(node.selected || node.id === id) : node.id === id })),
       edges: state.edges.map((edge) => ({ ...edge, selected: false })),
     })),
     selectEdge: (id) => set((state) => ({

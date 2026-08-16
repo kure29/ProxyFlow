@@ -37,7 +37,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('hk-filter', 380, 80, {
     blockType: 'filter', category: 'processing', title: '香港节点筛选', titleKey: 'demo.filter.hk', subtitle: 'Region = HK', subtitleKey: 'demo.filter.hkSubtitle', icon: 'list-filter',
-    include: [], exclude: ['official', 'remaining', 'multiplier'], systemFilterKeywords: true, includeRegions: ['HK'],
+    include: [], exclude: [], filterMode: 'region', filterOperation: 'include', filterRegions: ['HK'], includeRegions: ['HK'],
   }),
   node('hk-auto', 680, 80, {
     blockType: 'auto-select', category: 'strategy', title: '香港自动选择', titleKey: 'demo.auto.hk', subtitle: '真实候选节点', subtitleKey: 'demo.auto.subtitle', icon: 'gauge',
@@ -49,7 +49,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('us-filter', 380, 340, {
     blockType: 'filter', category: 'processing', title: '美国节点筛选', titleKey: 'demo.filter.us', subtitle: 'Region = US', subtitleKey: 'demo.filter.usSubtitle', icon: 'list-filter',
-    include: [], exclude: ['official', 'remaining', 'multiplier'], systemFilterKeywords: true, includeRegions: ['US'],
+    include: [], exclude: [], filterMode: 'region', filterOperation: 'include', filterRegions: ['US'], includeRegions: ['US'],
   }),
   node('us-auto', 680, 340, {
     blockType: 'auto-select', category: 'strategy', title: '美国自动选择', titleKey: 'demo.auto.us', subtitle: '真实候选节点', subtitleKey: 'demo.auto.subtitle', icon: 'gauge',

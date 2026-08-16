@@ -7,6 +7,7 @@ import { StatusBar } from '../components/layout/StatusBar'
 import { Inspector } from '../components/inspector/Inspector'
 import { ProxyFlowCanvas } from '../components/canvas/ProxyFlowCanvas'
 import { PreviewModal } from '../components/preview/PreviewModal'
+import { ResizableWorkspace } from '../components/layout/ResizableWorkspace'
 import { useBuilderStore } from '../store/useBuilderStore'
 import { projectStorage } from '../storage/projectStorage'
 import { localizeKnownSystemText, useI18n } from '../i18n'
@@ -84,11 +85,11 @@ export function App() {
   return <div className="app-shell">
     <a href="#canvas" className="skip-link">{t('app.skipToCanvas')}</a>
     <TopBar />
-    <div className="workspace">
-      <BlockLibrary />
-      <div id="canvas" className="canvas-region"><ProxyFlowCanvas /></div>
-      <Inspector />
-    </div>
+    <ResizableWorkspace
+      library={<BlockLibrary />}
+      canvas={<div id="canvas" className="canvas-region"><ProxyFlowCanvas /></div>}
+      inspector={<Inspector />}
+    />
     <StatusBar />
     <PreviewModal />
     {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>

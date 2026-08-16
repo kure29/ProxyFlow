@@ -48,7 +48,7 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
 
   for (const transform of ir.transforms) {
     const resolved = materializeProxySet(ir, { kind: 'transform', id: transform.id }, materialization)
-    for (const issue of resolved.issues) issues.push(mihomoIssue(`MIHOMO_${issue.code}`, issue.severity, 'transform', issue.message, transform.id))
+    for (const issue of resolved.issues) issues.push(mihomoIssue(`MIHOMO_${issue.code}`, issue.severity, 'transform', issue.message, issue.entityId ?? transform.id))
   }
 
   for (const strategy of ir.strategies) {

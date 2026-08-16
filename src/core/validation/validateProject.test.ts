@@ -18,4 +18,14 @@ describe('validateGraph', () => {
     const nodes = demoNodes.map((node) => node.id === 'output' ? { ...node, data: { ...node.data, client: undefined } } : node)
     expect(validateGraph(nodes, demoEdges).some((issue) => issue.nodeId === 'output')).toBe(true)
   })
+
+  it('reports an invalid filter regular expression as an error', () => {
+    const nodes = demoNodes.map((node) => node.id === 'hk-filter' ? {
+      ...node,
+      data: { ...node.data, filterMode: 'regex' as const, filterRegexPattern: '[Hong' },
+    } : node)
+    expect(validateGraph(nodes, demoEdges)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeId: 'hk-filter', code: 'FILTER_INVALID_REGEX', severity: 'error' }),
+    ]))
+  })
 })

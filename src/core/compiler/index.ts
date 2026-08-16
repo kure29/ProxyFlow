@@ -11,3 +11,4 @@ if (!compilerRegistry.has('sing-box')) compilerRegistry.register('sing-box', asy
 })
 
 export * from './compilerTypes'
+export * from './diagnostics'

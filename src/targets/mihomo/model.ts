@@ -47,6 +47,7 @@ export type MihomoProxy = MihomoProxyBase & (
   | { type: 'vless'; uuid: string; flow?: 'xtls-rprx-vision' }
   | { type: 'hysteria2'; password: string; sni?: string; alpn?: string[]; 'skip-cert-verify'?: boolean; obfs?: 'salamander'; 'obfs-password'?: string; up?: number; down?: number; ports?: string; 'hop-interval'?: number | string }
   | { type: 'tuic'; uuid: string; password: string; sni?: string; alpn?: string[]; 'skip-cert-verify'?: boolean; 'disable-sni'?: boolean; 'congestion-controller'?: 'cubic' | 'new_reno' | 'bbr'; 'udp-relay-mode'?: 'native' | 'quic' }
+  | { type: 'anytls'; password: string; sni?: string; alpn?: string[]; 'skip-cert-verify'?: boolean; 'client-fingerprint'?: string; 'idle-session-check-interval'?: number; 'idle-session-timeout'?: number; 'min-idle-session'?: number }
 )
 
 export interface MihomoProxyGroup {

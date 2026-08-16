@@ -48,6 +48,9 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
       if (proxy.protocol === 'tuic' && !proxy.password) add(entityIssue(
         'PROXY_TUIC_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
       ))
+      if (proxy.protocol === 'anytls' && !proxy.password) add(entityIssue(
+        'PROXY_ANYTLS_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
+      ))
       for (const semantic of validateProxyEndpointSemantics(proxy)) add(entityIssue(
         semantic.code,
         proxy.metadata?.compatibility?.status === 'partial' ? 'warning' : 'error',
@@ -66,14 +69,19 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
       transform.inputs.forEach((ref) => validateProxySetRef(ref, sourceIds, transformIds, transform.id, add))
     } else {
       validateProxySetRef(transform.input, sourceIds, transformIds, transform.id, add)
-      if (transform.kind === 'filter' && transform.include.length === 0 && transform.exclude.length === 0
+      if (transform.kind === 'filter' && !hasFilterCriterion(transform) && transform.include.length === 0 && transform.exclude.length === 0
         && !transform.includeRegex && !transform.excludeRegex && !transform.includeRegions?.length && !transform.excludeRegions?.length
         && !transform.includeProtocols?.length && !transform.excludeProtocols?.length) add(entityIssue(
         'FILTER_EMPTY', 'info', `Filter "${transform.name}" has no include or exclude conditions.`, 'transform', transform.id,
       ))
-      if (transform.kind === 'limit' && transform.max !== undefined && transform.max < 1) add(entityIssue(
+      if (transform.kind === 'limit' && (!Number.isInteger(transform.max) || transform.max! < 1)) add(entityIssue(
         'LIMIT_INVALID', 'error', `Limit "${transform.name}" must be greater than zero.`, 'transform', transform.id,
       ))
+      if (transform.kind === 'rename' && (transform.mode ?? 'regex') === 'regex' && transform.pattern) {
+        try { new RegExp(transform.pattern, `${transform.global ?? true ? 'g' : ''}${transform.ignoreCase ? 'i' : ''}`) } catch {
+          add(entityIssue('INVALID_RENAME_REGEX', 'error', `Rename "${transform.name}" has an invalid regular expression.`, 'transform', transform.id))
+        }
+      }
     }
   }
 
@@ -143,6 +151,13 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     'DNS_CUSTOM_RESOLVER_MISSING', 'warning', 'ir', 'Custom DNS mode has no resolvers.', { entity: { type: 'dns', id: 'dns' } },
   ))
   return issues
+}
+
+function hasFilterCriterion(transform: Extract<ProxyFlowIR['transforms'][number], { kind: 'filter' }>) {
+  if (!transform.criterion) return false
+  if (transform.criterion.mode === 'keyword') return Boolean(transform.criterion.keyword.trim())
+  if (transform.criterion.mode === 'region') return transform.criterion.regions.length > 0
+  return Boolean(transform.criterion.pattern.trim())
 }
 
 function isUuid(value: string) {

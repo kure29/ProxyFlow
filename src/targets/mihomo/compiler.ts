@@ -1,4 +1,5 @@
 import { validateIR } from '../../core/semanticValidation'
+import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import { compileMihomoChains } from './chain'
@@ -29,7 +30,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   ))
   const compatibility = checkMihomoCompatibility(ir)
   issues.push(...compatibility.issues)
-  if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues, generatedAt, mock: false }
+  if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 
   const context = createMihomoContext(ir, issues)
   compileMihomoProviders(context)
@@ -37,7 +38,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   compileMihomoChains(context)
   const rules = compileMihomoRules(context)
 
-  if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues, generatedAt, mock: false }
+  if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 
   const config: MihomoConfig = {
     'mixed-port': MIHOMO_DEFAULTS.mixedPort,
@@ -51,7 +52,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     rules,
     ...(ir.dns ? { dns: compileMihomoDns(ir.dns) } : {}),
   }
-  return { success: true, content: serializeMihomoConfig(config), issues, generatedAt, mock: false }
+  return { success: true, content: serializeMihomoConfig(config), issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 }
 
 export class MihomoCompiler implements ConfigCompiler {

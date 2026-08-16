@@ -110,6 +110,16 @@ describe('compileGraph', () => {
     }
   })
 
+  it('retains an invalid draft only for scoped inspector diagnostics', () => {
+    const blocked = compileGraph(invalidMissingTransformInputFixture)
+    const diagnostic = compileGraph(invalidMissingTransformInputFixture, { retainDraftOnErrorForDiagnostics: true })
+    expect(blocked).toEqual(expect.objectContaining({ success: false, ir: undefined }))
+    expect(diagnostic.success).toBe(false)
+    expect(diagnostic.ir).toBeDefined()
+    expect(diagnostic.ir?.transforms.find((transform) => transform.id === 'orphan-filter')).toBeUndefined()
+    expect(diagnostic.issues).toContainEqual(expect.objectContaining({ code: 'TRANSFORM_MISSING_INPUT', nodeId: 'orphan-filter' }))
+  })
+
   it('is deterministic across repeated compilation', () => {
     const baseline = JSON.stringify(compileGraph(demoProject))
     for (let index = 0; index < 100; index += 1) expect(JSON.stringify(compileGraph(demoProject))).toBe(baseline)

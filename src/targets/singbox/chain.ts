@@ -62,12 +62,12 @@ export function lowerSingBoxChain(chain: ChainStrategyIR, context: SingBoxCompil
 }
 
 function isDialCapable(outbound: SingBoxOutbound | undefined) {
-  return Boolean(outbound && ['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic'].includes(outbound.type))
+  return Boolean(outbound && ['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic', 'anytls'].includes(outbound.type))
 }
 
 function withDetour(outbound: SingBoxOutbound, tag: string, detour: string): SingBoxOutbound {
-  if (!['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic'].includes(outbound.type)) return outbound
-  const dialOutbound = outbound as Extract<SingBoxOutbound, { type: 'socks' | 'http' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' | 'hysteria2' | 'tuic' }>
+  if (!['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic', 'anytls'].includes(outbound.type)) return outbound
+  const dialOutbound = outbound as Extract<SingBoxOutbound, { type: 'socks' | 'http' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' | 'hysteria2' | 'tuic' | 'anytls' }>
   const { domain_resolver: _domainResolver, ...base } = dialOutbound
   return { ...base, tag, detour } as SingBoxOutbound
 }

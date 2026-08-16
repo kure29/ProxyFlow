@@ -6,9 +6,16 @@ interface TransformBase {
   name: string
 }
 
+export type FilterCriterionIR =
+  | { mode: 'keyword'; operation: 'include' | 'exclude'; keyword: string }
+  | { mode: 'region'; operation: 'include' | 'exclude'; regions: RegionCode[] }
+  | { mode: 'regex'; operation: 'include' | 'exclude'; pattern: string; ignoreCase: boolean }
+
 export interface FilterTransformIR extends TransformBase {
   kind: 'filter'
   input: ProxySetRef
+  criterion?: FilterCriterionIR
+  /** Legacy V0.6 fields remain readable for persisted projects. */
   include: string[]
   exclude: string[]
   includeRegex?: string
@@ -22,8 +29,11 @@ export interface FilterTransformIR extends TransformBase {
 export interface RenameTransformIR extends TransformBase {
   kind: 'rename'
   input: ProxySetRef
+  mode?: 'simple' | 'regex'
   pattern?: string
   replacement?: string
+  ignoreCase?: boolean
+  global?: boolean
 }
 
 export interface SortTransformIR extends TransformBase {

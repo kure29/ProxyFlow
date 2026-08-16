@@ -13,12 +13,15 @@ export interface ProjectMigrationResult {
 }
 
 export function migrateProject(project: ProxyFlowProject): ProjectMigrationResult {
-  if (project.version === PROJECT_SCHEMA_VERSION) return {
-    success: true,
-    project,
-    fromVersion: project.version,
-    toVersion: PROJECT_SCHEMA_VERSION,
-    migrated: false,
+  if (project.version === PROJECT_SCHEMA_VERSION) {
+    const normalized = normalizeCurrentDefaults(project)
+    return {
+      success: true,
+      project: normalized.project,
+      fromVersion: project.version,
+      toVersion: PROJECT_SCHEMA_VERSION,
+      migrated: normalized.changed,
+    }
   }
 
   if (project.version === 1) return migrateV1(project)
@@ -80,9 +83,10 @@ function migrateV1(project: ProxyFlowProject): ProjectMigrationResult {
     repairedLegacyFinal = true
   }
 
+  const normalized = normalizeCurrentDefaults(migrated)
   return {
     success: true,
-    project: migrated,
+    project: normalized.project,
     fromVersion: 1,
     toVersion: PROJECT_SCHEMA_VERSION,
     migrated: true,
@@ -90,6 +94,29 @@ function migrateV1(project: ProxyFlowProject): ProjectMigrationResult {
       ? '已将旧版 Final → Output 安全迁移到可用策略，并升级为 Project Schema V2。'
       : '项目已升级为 Project Schema V2。',
   }
+}
+
+function normalizeCurrentDefaults(project: ProxyFlowProject) {
+  const normalized = structuredClone(project)
+  let changed = false
+  for (const node of normalized.graph.nodes) {
+    if (node.data.blockType === 'limit') {
+      const raw = node.data.limit as unknown
+      if (raw === undefined || raw === null || raw === '') {
+        node.data.limit = 10
+        changed = true
+      } else if (typeof raw === 'string' && /^-?(?:\d+\.?\d*|\.\d+)$/.test(raw.trim())) {
+        node.data.limit = Number(raw)
+        changed = true
+      }
+    }
+    if (node.data.blockType === 'rename') {
+      if (!node.data.renameMode) { node.data.renameMode = 'regex'; changed = true }
+      if (node.data.renameIgnoreCase === undefined) { node.data.renameIgnoreCase = false; changed = true }
+      if (node.data.renameGlobal === undefined) { node.data.renameGlobal = true; changed = true }
+    }
+  }
+  return { project: normalized, changed }
 }
 
 function preferredLegacyFinalTarget(nodes: GraphNode[]) {

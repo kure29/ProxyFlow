@@ -27,7 +27,6 @@ export function BlockLibrary() {
     <aside className="block-library" aria-label={t('library.aria')}>
       <div className="panel-heading">
         <div><span>{t('library.label')}</span><h2>{t('library.title')}</h2></div>
-        <kbd>B</kbd>
       </div>
       <div className="library-search">
         <Search size={15} />

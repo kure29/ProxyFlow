@@ -211,6 +211,40 @@ function parseClashNode(raw: unknown, sourceId: string, sourceName: string, inde
       }
       break
     }
+    case 'anytls': {
+      const password = stringValue(record.password)
+      if (!password) return fail('PROXY_NODE_INVALID', `${name} 缺少 AnyTLS password。`)
+      const tlsEnabled = booleanValue(record.tls) ?? true
+      const udpEnabled = record.udp === undefined ? true : booleanValue(record.udp)
+      const idleSessionCheckIntervalSeconds = positiveInteger(record['idle-session-check-interval'])
+      const idleSessionTimeoutSeconds = positiveInteger(record['idle-session-timeout'])
+      const minIdleSession = nonNegativeInteger(record['min-idle-session'])
+      const partial = [
+        ...tlsCriticalFeatures(record, false, tlsEnabled),
+        ...partialClashFeatures(record, ['reality-opts', 'shadow-tls-opts', 'restls-opts', 'jls-opts', 'client-metadata']),
+        ...(record.security !== undefined ? [`security:${String(record.security)}`] : []),
+        ...(record.flow !== undefined ? [`flow:${String(record.flow)}`] : []),
+        ...(record.udp !== undefined && udpEnabled === undefined ? ['anytls:invalid-udp'] : []),
+        ...(record['idle-session-check-interval'] !== undefined && idleSessionCheckIntervalSeconds === undefined ? ['anytls:invalid-idle-session-check-interval'] : []),
+        ...(record['idle-session-timeout'] !== undefined && idleSessionTimeoutSeconds === undefined ? ['anytls:invalid-idle-session-timeout'] : []),
+        ...(record['min-idle-session'] !== undefined && minIdleSession === undefined ? ['anytls:invalid-min-idle-session'] : []),
+      ]
+      if (partial.some((feature) => feature.startsWith('anytls:invalid-') && feature !== 'anytls:invalid-udp')) nodeIssues.push(subscriptionIssue(
+        'PROXY_ANYTLS_IDLE_SESSION_INVALID', 'warning', `${name} 包含非法 AnyTLS session 参数。`, { nodeName: name },
+      ))
+      if (partial.includes('anytls:invalid-udp')) nodeIssues.push(subscriptionIssue(
+        'PROXY_ANYTLS_UDP_INVALID', 'warning', `${name} 包含非法 AnyTLS UDP 参数。`, { nodeName: name },
+      ))
+      compatibility = compatibilityFor(partial, nodeIssues, name)
+      draft = {
+        kind: 'anytls', protocol: 'anytls', name, server, port, password, tls: tlsFromClash(record, server, tlsEnabled),
+        ...(udpEnabled !== undefined ? { udpEnabled } : {}),
+        ...(idleSessionCheckIntervalSeconds !== undefined ? { idleSessionCheckIntervalSeconds } : {}),
+        ...(idleSessionTimeoutSeconds !== undefined ? { idleSessionTimeoutSeconds } : {}),
+        ...(minIdleSession !== undefined ? { minIdleSession } : {}),
+      }
+      break
+    }
     default:
       return fail('PROXY_PROTOCOL_UNSUPPORTED', `${name} 使用了 V0.6 不支持的协议 “${type}”。`)
   }
@@ -306,6 +340,11 @@ function nonNegativeInteger(value: unknown) {
   if (typeof value !== 'string' || !/^\d+$/.test(value.trim())) return undefined
   const number = Number(value.trim())
   return Number.isSafeInteger(number) ? number : undefined
+}
+
+function positiveInteger(value: unknown) {
+  const number = nonNegativeInteger(value)
+  return number !== undefined && number > 0 ? number : undefined
 }
 
 function parseClashServerPorts(value: unknown): Hysteria2PortIR[] | undefined {

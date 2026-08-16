@@ -20,6 +20,31 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount)
   })
 
+  it('creates, duplicates and reloads Limit nodes with numeric default 10', () => {
+    const id = useBuilderStore.getState().addNode('limit', { x: 120, y: 120 })!
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.limit).toBe(10)
+    useBuilderStore.getState().duplicateNode(id)
+    const duplicate = useBuilderStore.getState().nodes.find((node) => node.id === useBuilderStore.getState().selectedNodeId)
+    expect(duplicate?.data.limit).toBe(10)
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.limit).toBe(10)
+    expect(typeof useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.limit).toBe('number')
+  })
+
+  it('round-trips explicit Rename mode and regex flags', () => {
+    const id = useBuilderStore.getState().addNode('rename', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(id, {
+      renameMode: 'regex', renamePattern: '^(HK|SG)-(.+)$', renameReplacement: '$1 | $2', renameIgnoreCase: true, renameGlobal: false,
+    })
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === id)?.data).toEqual(expect.objectContaining({
+      renameMode: 'regex', renamePattern: '^(HK|SG)-(.+)$', renameReplacement: '$1 | $2', renameIgnoreCase: true, renameGlobal: false,
+    }))
+  })
+
   it('connects compatible nodes and rejects incompatible nodes', () => {
     const initialCount = useBuilderStore.getState().edges.length
     expect(useBuilderStore.getState().connect({ source: 'hkt-subscription', target: 'hk-filter', sourceHandle: null, targetHandle: null })).toBe(true)
@@ -32,6 +57,32 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.title).toBe('HK Only')
     useBuilderStore.getState().undo()
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.title).toBe('香港节点筛选')
+  })
+
+  it('keeps existing selection when a node is selected additively', () => {
+    useBuilderStore.getState().selectNode('hk-filter')
+    useBuilderStore.getState().selectNode('us-filter', null, true)
+    useBuilderStore.getState().onNodesChange([
+      { id: 'hk-filter', type: 'select', selected: false },
+      { id: 'us-filter', type: 'select', selected: true },
+    ])
+    expect(useBuilderStore.getState().nodes.filter((node) => node.selected).map((node) => node.id)).toEqual(['hk-filter', 'us-filter'])
+    expect(useBuilderStore.getState().selectedNodeId).toBe('us-filter')
+  })
+
+  it('round-trips the optional Filter model without changing the project schema version', () => {
+    useBuilderStore.getState().updateNodeData('hk-filter', {
+      filterMode: 'region', filterOperation: 'exclude', filterRegions: ['HK', 'SG'],
+      filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
+    })
+    const serialized = JSON.stringify(useBuilderStore.getState().toProject())
+    const project = JSON.parse(serialized)
+    expect(project.version).toBe(2)
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data).toEqual(expect.objectContaining({
+      filterMode: 'region', filterOperation: 'exclude', filterRegions: ['HK', 'SG'],
+      filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
+    }))
   })
 
   it('adds, reorders and removes proxy chain hops', () => {

@@ -6,7 +6,7 @@ Verified against the official documentation on **2026-08-16**.
 
 这是一条受版本约束的编译链，不代表无边界地“支持 sing-box”。实现以官方 [Changelog](https://sing-box.sagernet.org/changelog/)、[Configuration](https://sing-box.sagernet.org/configuration/)、[Migration](https://sing-box.sagernet.org/migration/) 和 1.13.14 官方容器标签为依据。
 
-现代协议字段同时核对官方 [VLESS](https://sing-box.sagernet.org/configuration/outbound/vless/)、[TLS / Reality](https://sing-box.sagernet.org/configuration/shared/tls/)、[V2Ray Transport](https://sing-box.sagernet.org/configuration/shared/v2ray-transport/)、[Hysteria2](https://sing-box.sagernet.org/configuration/outbound/hysteria2/) 与 [TUIC](https://sing-box.sagernet.org/configuration/outbound/tuic/) 文档。
+现代协议字段同时核对官方 [VLESS](https://sing-box.sagernet.org/configuration/outbound/vless/)、[TLS / Reality](https://sing-box.sagernet.org/configuration/shared/tls/)、[V2Ray Transport](https://sing-box.sagernet.org/configuration/shared/v2ray-transport/)、[Hysteria2](https://sing-box.sagernet.org/configuration/outbound/hysteria2/)、[TUIC](https://sing-box.sagernet.org/configuration/outbound/tuic/)、[AnyTLS](https://sing-box.sagernet.org/configuration/outbound/anytls/) 与 [Dial Fields](https://sing-box.sagernet.org/configuration/shared/dial/) 文档。
 
 ```text
 ProxyFlowIR
@@ -55,6 +55,11 @@ Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不�
 | XHTTP | `xhttp-opts` | Error | 1.13.14 无对应 transport；`SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED` |
 | Hysteria2 | `hysteria2` proxy | `hysteria2` outbound | Supported normalized subset |
 | TUIC v5 | `tuic` proxy | `tuic` outbound | Supported normalized subset |
+| AnyTLS（post-V0.6 enhancement） | `anytls` proxy | `anytls` outbound | Supported normalized subset |
+| AnyTLS TLS / idle sessions | target TLS fields | `tls` + idle-session fields | Supported；fingerprint → `tls.utls` |
+| AnyTLS explicit UDP disable | `udp: false` | Error | `SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED` |
+| AnyTLS `client_metadata` | target version dependent | Partial / excluded | 仅 1.13.16+；当前 baseline 1.13.14 |
+| AnyTLS + Reality | Unsupported | Unsupported | Endpoint Semantic Firewall fail closed |
 | Hysteria2 port hopping | hyphen target syntax | colon `server_ports` syntax | Supported from structured IR |
 | Hysteria2 fixed hop interval | `hop-interval` | `hop_interval` | Supported |
 | Hysteria2 random hop interval | Supported | Error | 1.13.14 lacks `hop_interval_max`; `SINGBOX_HYSTERIA2_RANDOM_HOP_INTERVAL_UNSUPPORTED` |
@@ -107,7 +112,7 @@ Universal `hops` is defined as:
 client → hops[0] → hops[1] → ... → exit → internet
 ```
 
-For `HK SOCKS → US HTTP`, the derived US outbound has `detour: "HK strategy tag"`. A three-hop chain first derives the middle outbound through hop 0, then derives the exit outbound through that middle strategy. Hysteria2 and TUIC outbounds also expose Dial Fields in 1.13.14 and are covered as two-hop chain exits. Detoured outbounds omit `domain_resolver` because sing-box Dial Fields make other dial fields inapplicable when `detour` is set.
+For `HK SOCKS → US HTTP`, the derived US outbound has `detour: "HK strategy tag"`. A three-hop chain first derives the middle outbound through hop 0, then derives the exit outbound through that middle strategy. Hysteria2、TUIC 与 AnyTLS outbounds expose Dial Fields in 1.13.14 and are covered as two-hop chain exits. Detoured outbounds omit `domain_resolver` because sing-box Dial Fields make other dial fields inapplicable when `detour` is set.
 
 Every hop must ultimately contain explicit supported proxy outbounds. An unresolved Subscription or Provider fails with `SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND`; cycles fail closed in IR validation and again at target lowering boundaries.
 

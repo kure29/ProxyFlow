@@ -50,7 +50,7 @@ export function NodesPreview({ snapshot, onClose, initialStatus = 'all' }: { sna
 }
 
 function protocolName(value: string) {
-  return ['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic'].includes(value)
+  return ['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic', 'anytls'].includes(value)
     ? proxyProtocolLabel(value as SupportedProxyProtocol)
     : value.toUpperCase()
 }
@@ -62,6 +62,10 @@ function safeEndpointSummary(endpoint: ResolvedProxyEndpointIR | undefined, t: R
     endpoint.upMbps || endpoint.downMbps ? t('nodesPreview.bandwidthLimits') : undefined,
   ].filter(Boolean).join(' · ')
   if (endpoint.protocol === 'tuic') return ['TLS', endpoint.congestionControl?.toUpperCase(), endpoint.udpRelayMode ? `UDP ${endpoint.udpRelayMode}` : undefined].filter(Boolean).join(' · ')
+  if (endpoint.protocol === 'anytls') return [
+    'TLS', endpoint.tls.serverName ? `SNI ${endpoint.tls.serverName}` : undefined,
+    endpoint.tls.fingerprint ? `uTLS ${endpoint.tls.fingerprint}` : undefined,
+  ].filter(Boolean).join(' · ')
   const tls = 'tls' in endpoint && endpoint.tls?.enabled ? endpoint.tls.reality ? 'Reality' : 'TLS' : undefined
   const flow = endpoint.protocol === 'vless' && endpoint.flow ? 'Vision' : undefined
   const transport = 'transport' in endpoint && endpoint.transport ? endpoint.transport.kind === 'http' && endpoint.transport.variant === 'h2'

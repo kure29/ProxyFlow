@@ -1,5 +1,6 @@
 import type { BlockNodeData, BlockType, GraphNode, ProxyFlowProject } from '../types/project'
 import type { SubscriptionSnapshot } from '../core/subscription'
+import { regionLabelForLocale } from '../core/proxy/region'
 import { enUS, type MessageKey, zhCN } from './messages'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -161,6 +162,10 @@ export function localizeKnownSystemText(value: string, locale: Locale): string {
   if (subscription) return translate(locale, 'demo.subscription.dynamicSubtitle', { detected: subscription[1], ready: subscription[2] })
   const zhSubscription = value.match(/^检测到 (\d+) 个 · 可用 (\d+) 个$/u)
   if (zhSubscription) return translate(locale, 'demo.subscription.dynamicSubtitle', { detected: zhSubscription[1], ready: zhSubscription[2] })
+  const filterRuntime = value.match(/^(?:匹配|Matched) (\d+) \/ (\d+) (?:个节点|proxies)$/i)
+  if (filterRuntime) return translate(locale, 'demo.filter.dynamicSubtitle', { matched: filterRuntime[1], total: filterRuntime[2] })
+  const strategyRuntime = value.match(/^(?:当前|Current) (.+?) · (\d+) (?:ms|毫秒)$/i)
+  if (strategyRuntime) return translate(locale, 'demo.auto.currentSubtitle', { proxy: strategyRuntime[1], latency: strategyRuntime[2] })
   const output = value.match(/^(.*?) (?:Output|输出)$/i)
   if (output) return translate(locale, 'node.outputTitle', { target: output[1] })
   const schema = value.match(/(?:Project Schema|项目结构) V(\d+)/i)
@@ -179,7 +184,7 @@ export function localizeDiagnosticMessage(code: string, message: string, locale:
 }
 
 export function regionLabel(code: string, locale: Locale) {
-  return regionLabels[code]?.[locale] ?? code
+  return regionLabelForLocale(code, locale)
 }
 
 export function formatDateTime(value: string | Date, locale: Locale, options: Intl.DateTimeFormatOptions) {
@@ -200,6 +205,7 @@ const systemKeys: MessageKey[] = [
   'demo.china.title', 'demo.china.subtitle', 'block.dns.title', 'demo.dns.subtitle',
   'block.final.title', 'demo.final.subtitle', 'demo.output.subtitle',
   'demo.blank.finalSubtitle', 'demo.blank.outputSubtitle', 'demo.strategy.auto', 'demo.strategy.fallback',
+  'demo.filter.dynamicSubtitle', 'demo.auto.currentSubtitle',
   'demo.subscription.notParsed', 'demo.subscription.startup',
   'demo.filter.keywordOfficial', 'demo.filter.keywordRemaining', 'demo.filter.keywordMultiplier',
   'demo.service.chinaMainland',
@@ -220,21 +226,20 @@ for (const key of systemKeys) {
 systemTextLookup.set('旧项目的 Final 指向 Output，且没有可恢复的策略。原始数据尚未覆盖。', 'recovery.legacyNoStrategy')
 systemTextLookup.set('已将旧版 Final → Output 安全迁移到可用策略，并升级为 Project Schema V2。', 'recovery.migratedFinal')
 systemTextLookup.set('项目已升级为 Project Schema V2。', 'recovery.migratedV2')
-
-const regionLabels: Record<string, Record<Locale, string>> = {
-  HK: { 'en-US': 'Hong Kong', 'zh-CN': '香港' },
-  US: { 'en-US': 'United States', 'zh-CN': '美国' },
-  JP: { 'en-US': 'Japan', 'zh-CN': '日本' },
-  SG: { 'en-US': 'Singapore', 'zh-CN': '新加坡' },
-  TW: { 'en-US': 'Taiwan', 'zh-CN': '台湾' },
-  KR: { 'en-US': 'South Korea', 'zh-CN': '韩国' },
-  UK: { 'en-US': 'United Kingdom', 'zh-CN': '英国' },
-  DE: { 'en-US': 'Germany', 'zh-CN': '德国' },
-  FR: { 'en-US': 'France', 'zh-CN': '法国' },
-  CA: { 'en-US': 'Canada', 'zh-CN': '加拿大' },
-  AU: { 'en-US': 'Australia', 'zh-CN': '澳大利亚' },
-  UNKNOWN: { 'en-US': 'Unknown', 'zh-CN': '未知' },
-}
+systemTextLookup.set('China Mainland', 'demo.service.chinaMainland')
+// Exact legacy demo copy from pre-i18n projects. Keep this allowlist narrow so user-authored names remain untouched.
+systemTextLookup.set('基础 DNS · redir-host', 'demo.dns.subtitle')
+systemTextLookup.set('其余流量 · Default Proxy', 'demo.final.subtitle')
+systemTextLookup.set('真实编译 · MVP', 'demo.output.subtitle')
+systemTextLookup.set('3 个服务 · US via HK', 'demo.ai.subtitle')
+systemTextLookup.set('3 个服务 · US Auto', 'demo.streaming.subtitle')
+systemTextLookup.set('Social · HK Auto', 'demo.telegram.subtitle')
+systemTextLookup.set('China Mainland · DIRECT', 'demo.china.subtitle')
+systemTextLookup.set('备用故障切换', 'block.fallback.title')
+systemTextLookup.set('Mock Fallback · Standby', 'block.fallback.description')
+systemTextLookup.set('US 订阅源', 'demo.subscription.us')
+systemTextLookup.set('AI 服务', 'demo.ai.title')
+systemTextLookup.set('DNS 配置', 'block.dns.title')
 
 const issueCopy: Record<string, Record<Locale, string>> = {
   UI_SOURCE_DISCONNECTED: { 'en-US': 'This source is not connected to the processing flow.', 'zh-CN': '该数据源尚未连接到处理流程。' },
@@ -258,6 +263,9 @@ const issueCopy: Record<string, Record<Locale, string>> = {
   PROXY_HYSTERIA2_BANDWIDTH_INVALID: { 'en-US': 'The explicit Hysteria2 bandwidth value is invalid.', 'zh-CN': '显式 Hysteria2 带宽参数无效。' },
   PROXY_HYSTERIA2_HOP_INTERVAL_INVALID: { 'en-US': 'The Hysteria2 hop interval is invalid.', 'zh-CN': 'Hysteria2 跳跃间隔无效。' },
   PROXY_HYSTERIA2_PORT_HOPPING_INVALID: { 'en-US': 'The Hysteria2 port-hopping definition is invalid.', 'zh-CN': 'Hysteria2 端口跳跃定义无效。' },
+  PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED: { 'en-US': 'The AnyTLS endpoint contains unsupported connection-critical semantics and was blocked.', 'zh-CN': 'AnyTLS 节点包含不支持的连接关键语义，已阻止编译。' },
+  PROXY_ANYTLS_IDLE_SESSION_INVALID: { 'en-US': 'The AnyTLS idle-session settings are invalid.', 'zh-CN': 'AnyTLS 空闲会话参数无效。' },
+  PROXY_ANYTLS_UDP_INVALID: { 'en-US': 'The AnyTLS UDP value is invalid.', 'zh-CN': 'AnyTLS UDP 参数无效。' },
   PROXY_VMESS_TLS_UNSUPPORTED: { 'en-US': 'The VMess TLS value is unsupported and plaintext fallback was blocked.', 'zh-CN': 'VMess TLS 参数不受支持，已阻止回退到明文连接。' },
   PROXY_VMESS_ALTER_ID_INVALID: { 'en-US': 'The VMess alter ID is invalid.', 'zh-CN': 'VMess 备用标识无效。' },
   PROXY_VMESS_TCP_HEADER_UNSUPPORTED: { 'en-US': 'The VMess TCP header intent cannot be represented losslessly.', 'zh-CN': 'VMess TCP 请求头语义无法无损表达。' },
@@ -266,9 +274,15 @@ const issueCopy: Record<string, Record<Locale, string>> = {
   SINGBOX_TRANSPORT_HTTP_TLS_VARIANT_UNSUPPORTED: { 'en-US': 'sing-box cannot preserve HTTP/1.1 transport with TLS for this endpoint.', 'zh-CN': 'sing-box 无法为该节点保持启用 TLS 的 HTTP/1.1 传输语义。' },
   SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED: { 'en-US': 'The selected sing-box baseline has no equivalent fallback outbound.', 'zh-CN': '当前 sing-box 基线没有等价的故障切换出站。' },
   SINGBOX_RULE_SOURCE_FORMAT_UNSUPPORTED: { 'en-US': 'This rule source is not available in a sing-box-compatible format.', 'zh-CN': '该规则来源没有兼容 sing-box 的格式。' },
+  SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED: { 'en-US': 'sing-box 1.13.14 cannot preserve an explicit AnyTLS UDP-disable intent.', 'zh-CN': 'sing-box 1.13.14 无法保持显式禁用 AnyTLS UDP 的语义。' },
   MIHOMO_PROXY_VARIANT_UNSUPPORTED: { 'en-US': 'Mihomo cannot represent this endpoint without losing semantics.', 'zh-CN': 'Mihomo 无法在不丢失语义的情况下表达该节点。' },
   MIHOMO_PROXY_VARIANT_EXCLUDED: { 'en-US': 'An incompatible endpoint was excluded from Mihomo output.', 'zh-CN': '不兼容节点已从 Mihomo 输出中排除。' },
   SOURCE_UNAVAILABLE: { 'en-US': 'The source is unavailable and downstream processing was blocked.', 'zh-CN': '数据源不可用，后续处理已阻止。' },
   TRANSFORM_UNAVAILABLE: { 'en-US': 'The transform is unavailable because its input failed.', 'zh-CN': '输入失败，因此该处理步骤不可用。' },
+  TRANSFORM_MISSING_INPUT: { 'en-US': 'This processing node has no valid proxy-set input.', 'zh-CN': '该处理节点没有有效的代理节点集输入。' },
+  FILTER_INVALID_REGEX: { 'en-US': 'The filter regular expression is invalid. Processing was blocked.', 'zh-CN': '筛选正则表达式无效，已阻止该处理步骤。' },
+  INVALID_RENAME_REGEX: { 'en-US': 'The rename regular expression is invalid. Processing was blocked.', 'zh-CN': '重命名正则表达式无效，已阻止该处理步骤。' },
+  LIMIT_INVALID: { 'en-US': 'Limit must be a positive integer.', 'zh-CN': '保留数量必须是大于 0 的整数。' },
+  IR_PROXY_REALITY_PROTOCOL_UNSUPPORTED: { 'en-US': 'Reality is not valid for this proxy protocol.', 'zh-CN': '该代理协议不支持 Reality 语义。' },
   EMPTY_RESULT: { 'en-US': 'Processing completed successfully, but the result is empty.', 'zh-CN': '处理已成功完成，但结果为空。' },
 }

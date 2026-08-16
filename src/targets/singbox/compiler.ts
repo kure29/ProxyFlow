@@ -1,4 +1,5 @@
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
+import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { ProxyFlowIR } from '../../core/ir'
 import { validateIR } from '../../core/semanticValidation'
 import { compileSingBoxChains } from './chain'
@@ -45,11 +46,11 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
       ...(context.dnsTag ? { default_domain_resolver: context.dnsTag } : {}),
     },
   }
-  return { success: true, content: serializeSingBoxConfig(config), issues, generatedAt, mock: false }
+  return { success: true, content: serializeSingBoxConfig(config), issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 }
 
 function failed(issues: CompileResult['issues'], generatedAt: string): CompileResult {
-  return { success: false, content: '', issues, generatedAt, mock: false }
+  return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 }
 
 export class SingBoxCompiler implements ConfigCompiler {

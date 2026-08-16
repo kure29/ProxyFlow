@@ -57,6 +57,10 @@ V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS 
 - sing-box selector、URLTest、现代 Route Action、Rule Set 与基础 DNS 编译
 - 基于 `override.dialer-proxy` 的 Provider Chain lowering
 - 基于 `detour` 的 sing-box 2/3 Hop Chain lowering
+
+### Post-V0.6 enhancement（未改写 V0.6 发布历史）
+
+当前开发分支在 V0.6 架构上增加 Keyword / Region / Regex 三种 Filter mode、基于稳定 ISO code 的地区目录与名称推断、正确归因的 transform diagnostics，以及 target-neutral AnyTLS endpoint。AnyTLS 分享链接与 Clash/Mihomo `proxies` 条目会进入同一 Endpoint Semantic Firewall；支持的基础字段可分别 lowering 到 Mihomo 与 sing-box 1.13.14。AnyTLS + Reality、未知连接关键参数、sing-box 显式 `udp: false` 与 1.13.14 尚无的 `client_metadata` 均失败闭合，不会降级成其他协议。
 - discriminated、客户端无关的 `ProxyEndpointIR` 与 Service inline matcher
 - 异步 Compiler Registry 与 target chunk 按需加载
 - 同一 IR → 两个 Compiler 的 cross-target fixtures 与能力缺口测试
@@ -134,4 +138,4 @@ src/
 
 ## 明确不在 V0.6 中
 
-后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、除 Vision 外的复杂 XTLS flow、Hysteria2 pin/ECH、Clash certificate fingerprint、QUIC client fingerprint lowering、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。sing-box 1.13.14 没有 XHTTP transport，也没有随机 Hysteria2 hop interval 的 `hop_interval_max`；这些能力缺口均失败闭合而不是猜测降级。
+后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、除 Vision 外的复杂 XTLS flow、Hysteria2 pin/ECH、Clash certificate fingerprint、QUIC client fingerprint lowering、AnyTLS + Reality、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。sing-box 1.13.14 没有 XHTTP transport、随机 Hysteria2 hop interval 的 `hop_interval_max`，也没有 AnyTLS `client_metadata`；这些能力缺口均失败闭合而不是猜测降级。

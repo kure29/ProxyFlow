@@ -72,6 +72,12 @@ function endpointOutbound(endpoint: ResolvedProxyEndpointIR, tag: string, dnsTag
       ...(endpoint.congestionControl ? { congestion_control: endpoint.congestionControl } : {}),
       ...(endpoint.udpRelayMode ? { udp_relay_mode: endpoint.udpRelayMode } : {}),
     }
+    case 'anytls': return {
+      type: 'anytls', ...common, password: endpoint.password, tls: singBoxTls(endpoint.tls)!,
+      ...(endpoint.idleSessionCheckIntervalSeconds !== undefined ? { idle_session_check_interval: `${endpoint.idleSessionCheckIntervalSeconds}s` } : {}),
+      ...(endpoint.idleSessionTimeoutSeconds !== undefined ? { idle_session_timeout: `${endpoint.idleSessionTimeoutSeconds}s` } : {}),
+      ...(endpoint.minIdleSession !== undefined ? { min_idle_session: endpoint.minIdleSession } : {}),
+    }
   }
 }
 
