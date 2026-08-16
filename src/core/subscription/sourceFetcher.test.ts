@@ -39,6 +39,20 @@ describe('BrowserSourceFetcher', () => {
     } })))
     const result = await new BrowserSourceFetcher().fetch('https://example.com/sub?token=fictional-private-token')
     expect(result).toEqual(expect.objectContaining({ status: 200, contentType: 'text/yaml', etag: '"fictional-etag"', lastModified: 'Sat, 15 Aug 2026 00:00:00 GMT' }))
+    expect(result.contentLength).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain('fictional-private-token')
+  })
+
+  it('records declared content length and actual response bytes without retaining the request URL', async () => {
+    const body = 'proxies: []'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200, headers: {
+      'content-type': 'application/json', 'content-length': String(new TextEncoder().encode(body).byteLength),
+    } })))
+    const result = await new BrowserSourceFetcher().fetch('https://example.com/sub?token=fictional-private-token')
+    expect(result).toEqual(expect.objectContaining({
+      contentLength: new TextEncoder().encode(body).byteLength,
+      responseBytes: new TextEncoder().encode(body).byteLength,
+    }))
     expect(JSON.stringify(result)).not.toContain('fictional-private-token')
   })
 

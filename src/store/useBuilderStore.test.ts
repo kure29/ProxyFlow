@@ -307,6 +307,51 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.nodes[0].name).toBe('Fresh')
   })
 
+  it('deletes a subscription source from graph/runtime and ignores late hydration', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://delete.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://delete:fixture@delete-node.example.invalid:1080#Delete')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const project = structuredClone(useBuilderStore.getState().toProject())
+    const lkg = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+    expect(lkg).toBeDefined()
+
+    let resolveRead!: (snapshot: typeof lkg) => void
+    const readActive = vi.spyOn(subscriptionRuntimeRepository, 'readActive').mockReturnValue(new Promise((resolve) => { resolveRead = resolve }))
+    useBuilderStore.getState().hydrate(project)
+    await vi.waitFor(() => expect(readActive).toHaveBeenCalled())
+
+    useBuilderStore.getState().removeNode(sourceId)
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().toProject().graph.nodes.some((node) => node.id === sourceId)).toBe(false)
+
+    resolveRead(lkg)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(JSON.stringify(useBuilderStore.getState().toProject())).not.toContain(sourceId)
+  })
+
+  it('does not let a late refresh response resurrect a deleted source', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://delete-refresh.example.invalid/list' })
+    let resolveFetch!: (response: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve })))
+    const refresh = useBuilderStore.getState().refreshSubscription(sourceId)
+    await vi.waitFor(() => expect(resolveFetch).toBeTypeOf('function'))
+    useBuilderStore.getState().removeNode(sourceId)
+    resolveFetch(new Response('socks5://late:fixture@late.example.invalid:1080#Late'))
+    await refresh
+    expect(useBuilderStore.getState().nodes.some((node) => node.id === sourceId)).toBe(false)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId]).toBeUndefined()
+  })
+
   it('keeps URL runtime snapshots, credentials, diffs, errors and cache metadata out of Project export', async () => {
     useBuilderStore.getState().createNewProject()
     const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!

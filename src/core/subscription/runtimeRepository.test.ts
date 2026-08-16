@@ -53,6 +53,41 @@ describe('subscription IndexedDB runtime repository', () => {
     expect(await repository.readActive(secondScope)).toEqual(expect.objectContaining({ sourceId: 'subscription-b' }))
   })
 
+  it('deletes every cache fingerprint for one source without affecting another source', async () => {
+    const repository = new IndexedDbSubscriptionRuntimeRepository(new IDBFactory())
+    const firstScope = cacheScope('fingerprint-a')
+    const secondScope = cacheScope('fingerprint-b')
+    const otherScope = { ...cacheScope('fingerprint-other'), sourceId: 'subscription-b' }
+    await repository.writeActive(firstScope, await snapshotForScope(firstScope, 'First', 'first.example.invalid'))
+    await repository.writeActive(secondScope, await snapshotForScope(secondScope, 'Second', 'second.example.invalid'))
+    await repository.writeActive(otherScope, await snapshotForScope(otherScope, 'Other', 'other.example.invalid'))
+
+    await repository.deleteSource('project-a', 'subscription-a')
+
+    expect(await repository.readActive(firstScope)).toBeUndefined()
+    expect(await repository.readActive(secondScope)).toBeUndefined()
+    expect(await repository.readActive(otherScope)).toEqual(expect.objectContaining({ sourceId: 'subscription-b' }))
+  })
+
+  it('round-trips Sub-Store JSON snapshots with Partial endpoints and fetch byte metadata', async () => {
+    const repository = new IndexedDbSubscriptionRuntimeRepository(new IDBFactory())
+    const scope = cacheScope('sub-store-json-fingerprint')
+    const body = JSON.stringify([
+      { type: 'trojan', name: 'Ready', server: 'ready.example.invalid', port: 443, password: 'fixture-password' },
+      { type: 'trojan', name: 'Partial', server: 'partial.example.invalid', port: 443, password: 'fixture-password', fingerprint: 'fixture-fingerprint' },
+    ])
+    const result = parseSubscription(body, { sourceId: scope.sourceId })
+    expect([result.format, result.readyCount, result.partialCount]).toEqual(['sub-store-json', 1, 1])
+    const candidate = await createSnapshotCandidate({
+      sourceId: scope.sourceId, inputKind: 'url', sourceConfigFingerprint: scope.sourceConfigFingerprint,
+      content: body, result, fetchedAt: '2026-08-15T00:00:00.000Z', parsedAt: '2026-08-15T00:00:00.000Z',
+      http: { status: 200, contentType: 'application/json', contentLength: body.length, responseBytes: body.length, durationMs: 7 },
+    })
+    const stored = commitCandidate(candidate, '2026-08-15T00:00:00.000Z')
+    await repository.writeActive(scope, stored)
+    expect(await repository.readActive(scope)).toEqual(stored)
+  })
+
   it('discards a malformed nested endpoint without affecting another source', async () => {
     const factory = new IDBFactory()
     const repository = new IndexedDbSubscriptionRuntimeRepository(factory)
@@ -90,6 +125,16 @@ async function snapshot(name: string, server: string, committedAt = '2026-08-15T
     fetchedAt: committedAt, parsedAt: committedAt,
   })
   return commitCandidate(candidate, committedAt)
+}
+
+async function snapshotForScope(scope: ReturnType<typeof cacheScope>, name: string, server: string) {
+  const body = `proxies:\n  - name: ${name}\n    type: socks5\n    server: ${server}\n    port: 1080`
+  const result = parseSubscription(body, { sourceId: scope.sourceId })
+  const candidate = await createSnapshotCandidate({
+    sourceId: scope.sourceId, inputKind: 'url', sourceConfigFingerprint: scope.sourceConfigFingerprint, content: body, result,
+    fetchedAt: '2026-08-15T00:00:00.000Z', parsedAt: '2026-08-15T00:00:00.000Z',
+  })
+  return commitCandidate(candidate, '2026-08-15T00:00:00.000Z')
 }
 
 async function corruptActiveSnapshot(factory: IDBFactory, scope: ReturnType<typeof cacheScope>) {

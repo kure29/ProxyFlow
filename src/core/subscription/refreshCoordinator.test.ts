@@ -23,6 +23,18 @@ describe('RefreshCoordinator', () => {
     expect(runtime.diff?.changed).toBe(1)
   })
 
+  it('keeps diff continuity when a logical proxy changes format', async () => {
+    const clash = 'proxies:\n  - { name: Shared, type: trojan, server: shared.example.invalid, port: 443, password: fixture-password, sni: cdn.example.invalid }'
+    const singBox = JSON.stringify({ outbounds: [{ type: 'trojan', tag: 'Shared', server: 'shared.example.invalid', server_port: 443, password: 'fixture-password', tls: { enabled: true, server_name: 'cdn.example.invalid' } }] })
+    const runtime = harness()
+    const coordinator = new RefreshCoordinator(sequenceFetcher(clash, singBox), new MemorySubscriptionRuntimeRepository())
+    await coordinator.refresh(request(), runtime.handlers)
+    const first = runtime.active
+    const second = await coordinator.refresh(request(first), runtime.handlers)
+    expect(second.outcome).toBe('success')
+    expect(runtime.diff).toEqual(expect.objectContaining({ added: 0, removed: 0, changed: 0, unchanged: 1 }))
+  })
+
   it.each([
     ['unsupported format', 'not a subscription', 'SUBSCRIPTION_UNSUPPORTED_FORMAT'],
     ['blank response', '   \n', 'SUBSCRIPTION_PARSE_FAILED'],
@@ -106,6 +118,49 @@ describe('RefreshCoordinator', () => {
     await refresh
     await clear
     expect(events).toEqual(['write-started', 'write-finished', 'delete'])
+  })
+
+  it('does not let a late refresh response commit after source deletion', async () => {
+    let resolveFetch!: (value: SourceFetchResult) => void
+    const fetcher: SourceFetcher = { fetch: vi.fn(() => new Promise<SourceFetchResult>((resolve) => { resolveFetch = resolve })) }
+    const repository = new MemorySubscriptionRuntimeRepository()
+    const coordinator = new RefreshCoordinator(fetcher, repository)
+    const runtime = harness()
+    const refresh = coordinator.refresh(request(), runtime.handlers)
+    await vi.waitFor(() => expect(fetcher.fetch).toHaveBeenCalledTimes(1))
+    const deletion = coordinator.deleteSource('project-a', 'source')
+    resolveFetch(fetchResult(usableBody))
+    await expect(refresh).resolves.toEqual({ outcome: 'superseded' })
+    await deletion
+    expect(runtime.active).toBeUndefined()
+    expect(await repository.readActive({ projectId: 'project-a', sourceId: 'source', sourceConfigFingerprint: 'unused' })).toBeUndefined()
+  })
+
+  it('serializes source deletion after a pending cache write and preserves another source', async () => {
+    let releaseWrite!: () => void
+    const events: string[] = []
+    const repository = new MemorySubscriptionRuntimeRepository()
+    const originalWrite = repository.writeActive.bind(repository)
+    const otherScope = { projectId: 'project-a', sourceId: 'other-source', sourceConfigFingerprint: 'other-fingerprint' }
+    await originalWrite(otherScope, { sourceId: 'other-source' } as SubscriptionSnapshot)
+    repository.writeActive = async (...args) => {
+      events.push(`write:${args[0].sourceId}`)
+      await new Promise<void>((resolve) => { releaseWrite = resolve })
+      await originalWrite(...args)
+    }
+    const coordinator = new RefreshCoordinator(sequenceFetcher(usableBody), repository)
+    const runtime = harness()
+    const refresh = coordinator.refresh(request(), runtime.handlers)
+    await vi.waitFor(() => expect(events).toContain('write:source'))
+
+    const deletion = coordinator.deleteSource('project-a', 'source')
+    expect(events).toEqual(['write:source'])
+    releaseWrite()
+    await refresh
+    await deletion
+    expect(await repository.readActive({ projectId: 'project-a', sourceId: 'source', sourceConfigFingerprint: 'unused' })).toBeUndefined()
+    expect(await repository.readActive(otherScope)).toBeDefined()
+    expect(events).toEqual(['write:source'])
   })
 
   it('lets B win when A completes after B and treats A as superseded', async () => {

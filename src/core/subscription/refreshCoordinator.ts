@@ -38,6 +38,7 @@ export class RefreshCoordinator {
   private readonly activeRequests = new Map<string, ActiveRequest>()
   private readonly generations = new Map<string, number>()
   private readonly cacheWrites = new Map<string, Promise<void>>()
+  private readonly deletedSources = new Set<string>()
 
   constructor(
     private readonly fetcher: SourceFetcher = new BrowserSourceFetcher(),
@@ -47,6 +48,7 @@ export class RefreshCoordinator {
 
   async refresh(request: RefreshRequest, handlers: RefreshHandlers): Promise<RefreshExecutionResult> {
     const key = requestKey(request.projectId, request.sourceId)
+    this.deletedSources.delete(key)
     const previous = this.activeRequests.get(key)
     previous?.controller.abort('superseded')
     const generation = (this.generations.get(key) ?? 0) + 1
@@ -75,6 +77,8 @@ export class RefreshCoordinator {
         http: {
           status: fetched.status,
           contentType: fetched.contentType,
+          ...(fetched.contentLength !== undefined ? { contentLength: fetched.contentLength } : {}),
+          ...(fetched.responseBytes !== undefined ? { responseBytes: fetched.responseBytes } : {}),
           etag: fetched.etag,
           lastModified: fetched.lastModified,
           durationMs: fetched.durationMs,
@@ -120,11 +124,29 @@ export class RefreshCoordinator {
     this.generations.set(key, (this.generations.get(key) ?? 0) + 1)
   }
 
+  async deleteSource(projectId: string, sourceId: string) {
+    const key = requestKey(projectId, sourceId)
+    this.cancel(projectId, sourceId)
+    this.deletedSources.add(key)
+    const previous = this.cacheWrites.get(key) ?? Promise.resolve()
+    const deletion = previous.catch(() => undefined).then(() => this.repository.deleteSource(projectId, sourceId))
+    this.cacheWrites.set(key, deletion)
+    try {
+      await deletion
+    } finally {
+      if (this.cacheWrites.get(key) === deletion) this.cacheWrites.delete(key)
+    }
+  }
+
   async persistSnapshot(projectId: string, snapshot: SubscriptionSnapshot, handlers?: Pick<RefreshHandlers, 'onCacheError'>, generation = 0) {
     const key = requestKey(projectId, snapshot.sourceId)
+    if (this.deletedSources.has(key) || (generation > 0 && !this.isCurrent(key, generation))) return
     const scope = { projectId, sourceId: snapshot.sourceId, sourceConfigFingerprint: snapshot.sourceConfigFingerprint }
     const previous = this.cacheWrites.get(key) ?? Promise.resolve()
-    const write = previous.catch(() => undefined).then(() => this.repository.writeActive(scope, snapshot))
+    const write = previous.catch(() => undefined).then(async () => {
+      if (this.deletedSources.has(key) || (generation > 0 && !this.isCurrent(key, generation))) return
+      await this.repository.writeActive(scope, snapshot)
+    })
     this.cacheWrites.set(key, write)
     try {
       await write

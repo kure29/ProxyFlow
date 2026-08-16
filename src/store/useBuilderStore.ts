@@ -149,6 +149,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     return generation
   }
   const isCurrentInput = (projectId: string, sourceId: string, generation: number) => (inputGenerations.get(`${projectId}\u0000${sourceId}`) ?? 0) === generation
+  const deleteSubscriptionSource = (projectId: string, sourceId: string) => {
+    nextInputGeneration(projectId, sourceId)
+    void subscriptionRefreshCoordinator.deleteSource(projectId, sourceId).catch(() => undefined)
+  }
   const record = () => set((state) => ({
     historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.nodes, state.edges)],
     historyFuture: [],
@@ -174,7 +178,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     }),
     onCommit: (snapshot, diff, generation) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
-      if (previous?.requestGeneration !== generation || state.projectId !== get().projectId) return state
+      if (previous?.requestGeneration !== generation || state.projectId !== get().projectId
+        || !state.nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return state
       return {
         subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: snapshot },
         subscriptionRuntimes: {
@@ -196,7 +201,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     }),
     onEmptyConfirmation: (candidate, diff, generation) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
-      if (previous?.requestGeneration !== generation) return state
+      if (previous?.requestGeneration !== generation
+        || !state.nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return state
       return {
         subscriptionRuntimes: {
           ...state.subscriptionRuntimes,
@@ -209,7 +215,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     }),
     onFailure: (error, generation) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
-      if (previous?.requestGeneration !== generation) return state
+      if (previous?.requestGeneration !== generation
+        || !state.nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return state
       return {
         subscriptionRuntimes: {
           ...state.subscriptionRuntimes,
@@ -223,7 +230,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     }),
     onCacheError: (error, generation) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
-      if (!previous || previous.requestGeneration !== generation) return state
+      if (!previous || previous.requestGeneration !== generation
+        || !state.nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return state
       return { subscriptionRuntimes: { ...state.subscriptionRuntimes, [id]: { ...previous, cacheError: error } } }
     }),
   })
@@ -252,6 +260,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
       if (hasRemoval) record()
       const protectedIds = new Set(get().nodes.filter((node) => node.data.protected).map((node) => node.id))
+      for (const change of changes) {
+        const removed = change.type === 'remove' ? get().nodes.find((node) => node.id === change.id) : undefined
+        if (removed?.data.blockType === 'subscription' && !protectedIds.has(removed.id)) deleteSubscriptionSource(get().projectId, removed.id)
+      }
       const safeChanges = changes.filter((change) => change.type !== 'select' && (change.type !== 'remove' || !protectedIds.has(change.id)))
       set((state) => ({ nodes: applyNodeChanges(safeChanges, state.nodes) }))
     },
@@ -315,7 +327,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         return
       }
       record()
-      subscriptionRefreshCoordinator.cancel(get().projectId, id)
+      if (node.data.blockType === 'subscription') deleteSubscriptionSource(get().projectId, id)
+      else subscriptionRefreshCoordinator.cancel(get().projectId, id)
       set((state) => ({
         nodes: state.nodes.filter((item) => item.id !== id),
         edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
@@ -329,7 +342,11 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const protectedSelection = state.nodes.find((node) => node.selected && node.data.protected)
       const selectedNodeIds = new Set(state.nodes.filter((node) => node.selected && !node.data.protected).map((node) => node.id))
       if (selectedNodeIds.size > 0) {
-        for (const id of selectedNodeIds) subscriptionRefreshCoordinator.cancel(state.projectId, id)
+        for (const id of selectedNodeIds) {
+          const node = state.nodes.find((item) => item.id === id)
+          if (node?.data.blockType === 'subscription') deleteSubscriptionSource(state.projectId, id)
+          else subscriptionRefreshCoordinator.cancel(state.projectId, id)
+        }
         record()
         set({
           nodes: state.nodes.filter((node) => !selectedNodeIds.has(node.id)),
@@ -369,7 +386,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       record()
       if (urlChanged) {
         nextInputGeneration(current.projectId, id)
-        subscriptionRefreshCoordinator.cancel(current.projectId, id)
+        void subscriptionRefreshCoordinator.deleteSource(current.projectId, id).catch(() => undefined)
       }
       set((state) => ({
         nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) } } : item),
@@ -561,6 +578,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const committedAt = new Date().toISOString()
       const snapshot = commitCandidate(candidate, committedAt)
       const diff = await diffSubscriptionSnapshots(undefined, candidate)
+      if (!isCurrentInput(projectId, id, inputGeneration) || get().projectId !== projectId || !get().nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
       set((state) => ({
         subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: snapshot },
         subscriptionRuntimes: {
@@ -623,8 +641,11 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const runtime = state.subscriptionRuntimes[id]
       const candidate = runtime?.pendingEmptySnapshot
       if (!runtime || !candidate || candidate.quality !== 'empty') return
+      const inputGeneration = inputGenerations.get(`${state.projectId}\u0000${id}`) ?? 0
+      if (!isCurrentInput(state.projectId, id, inputGeneration) || !state.nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
       const snapshot = commitCandidate(candidate, new Date().toISOString())
       const diff = runtime.pendingEmptyDiff ?? await diffSubscriptionSnapshots(runtime.activeSnapshot, candidate)
+      if (!isCurrentInput(state.projectId, id, inputGeneration) || !get().nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
       set((current) => ({
         subscriptionSnapshots: { ...current.subscriptionSnapshots, [id]: snapshot },
         subscriptionRuntimes: {
@@ -730,9 +751,15 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     hydrate: (project) => {
       const previous = get()
+      const nextNodes = project?.graph.nodes ?? (project === undefined ? [] : demoProject.graph.nodes)
+      const nextSources = new Map(nextNodes.filter((node) => node.data.blockType === 'subscription').map((node) => [node.id, node.data.subscriptionUrl ?? '']))
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
-        nextInputGeneration(previous.projectId, source.id)
-        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+        const nextUrl = nextSources.get(source.id)
+        if (nextUrl === undefined || nextUrl !== (source.data.subscriptionUrl ?? '')) deleteSubscriptionSource(previous.projectId, source.id)
+        else {
+          nextInputGeneration(previous.projectId, source.id)
+          subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+        }
       }
       if (project === undefined) {
         set({
@@ -762,9 +789,13 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     resetToDemo: () => {
       const previous = get()
+      const nextSources = new Map(demoProject.graph.nodes.filter((node) => node.data.blockType === 'subscription').map((node) => [node.id, node.data.subscriptionUrl ?? '']))
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
-        nextInputGeneration(previous.projectId, source.id)
-        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+        if (nextSources.get(source.id) !== (source.data.subscriptionUrl ?? '')) deleteSubscriptionSource(previous.projectId, source.id)
+        else {
+          nextInputGeneration(previous.projectId, source.id)
+          subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+        }
       }
       set({
         projectId: demoProject.id, projectName: demoProject.name,
@@ -779,8 +810,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     createNewProject: () => {
       const previous = get()
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
-        nextInputGeneration(previous.projectId, source.id)
-        subscriptionRefreshCoordinator.cancel(previous.projectId, source.id)
+        deleteSubscriptionSource(previous.projectId, source.id)
       }
       const value = createBlankProject()
       set({

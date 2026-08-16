@@ -69,7 +69,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     <TextField node={node} field="title" label={t('inspector.name')} />
     <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
-    <div className={`source-status-card is-${statusClass(runtime)}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(runtime, freshness, t)}</strong><small>{runtime?.refreshStatus === 'failed' && runtime.latestError ? localizeDiagnosticMessage(runtime.latestError.code, runtime.latestError.message, locale) : runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format) }) : t('inspector.waitingInput')}</small></div>
+    <div className={`source-status-card is-${statusClass(runtime)}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(runtime, freshness, t)}</strong><small>{runtime?.refreshStatus === 'failed' && runtime.latestError ? localizeDiagnosticMessage(runtime.latestError.code, runtime.latestError.message, locale) : runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format, locale) }) : t('inspector.waitingInput')}</small></div>
     {runtime && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(runtime.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(runtime.lastAttemptAt, formatDateTime)}</strong></div><div><span>{t('inspector.snapshotAge')}</span><strong>{formatSnapshotAge(snapshot?.committedAt, t)}</strong></div></div>}
     <div className="metric-cards"><div><span>{t('inspector.detected')}</span><strong>{result?.detectedCount ?? 0}</strong></div><div><span>{t('inspector.usable')}</span><strong>{result?.readyCount ?? 0}</strong></div></div>
     {result && <div className="import-summary"><div><span>{t('inspector.ready')}</span><strong>{result.readyCount}</strong></div><div><span>{t('inspector.warnings')}</span><strong>{result.partialCount}</strong></div><div><span>{t('inspector.unsupported')}</span><strong>{result.unsupportedCount}</strong></div></div>}
@@ -101,6 +101,8 @@ function summarize(values: string[]): Array<[string, number]> {
 
 function sourceStatus(runtime: SubscriptionRuntimeRecord | undefined, freshness: SubscriptionFreshness, t: ReturnType<typeof useI18n>['t']) {
   if (runtime?.refreshStatus === 'loading') return t('inspector.sourceStatus.loading')
+  if (runtime?.refreshStatus === 'failed' && runtime.latestError?.code === 'SUBSCRIPTION_CORS_BLOCKED') return t('inspector.sourceStatus.cors')
+  if (runtime?.refreshStatus === 'failed' && runtime.latestError && ['SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED', 'SUBSCRIPTION_NO_USABLE_NODES'].includes(runtime.latestError.code)) return t('inspector.sourceStatus.parseFailed')
   if (runtime?.refreshStatus === 'failed' && runtime.activeSnapshot) return t('inspector.sourceStatus.usingLkg')
   if (runtime?.refreshStatus === 'failed') return t('inspector.sourceStatus.failed')
   if (runtime?.activeState === 'empty') return t('inspector.sourceStatus.empty')
@@ -116,8 +118,11 @@ function statusClass(runtime: SubscriptionRuntimeRecord | undefined) {
   return 'idle'
 }
 
-function formatLabel(format: string) {
-  return ({ base64: 'Base64', 'share-links': 'Share Links', 'clash-yaml': 'Clash YAML', unsupported: 'Unsupported' } as Record<string, string>)[format] ?? format
+function formatLabel(format: string, locale: 'en-US' | 'zh-CN') {
+  const labels = locale === 'zh-CN'
+    ? { base64: 'Base64 URI 列表', 'share-links': 'URI 列表', 'clash-yaml': 'Mihomo / Clash YAML', 'clash-json': 'Mihomo / Clash JSON', 'sub-store-json': 'Sub-Store JSON', 'sing-box-json': 'sing-box JSON', 'v2ray-json': 'V2Ray JSON', surge: 'Surge', surfboard: 'Surfboard', loon: 'Loon', 'quantumult-x': 'Quantumult X', egern: 'Egern', stash: 'Stash', unsupported: '不支持的格式' }
+    : { base64: 'Base64 URI List', 'share-links': 'URI List', 'clash-yaml': 'Mihomo / Clash YAML', 'clash-json': 'Mihomo / Clash JSON', 'sub-store-json': 'Sub-Store JSON', 'sing-box-json': 'sing-box JSON', 'v2ray-json': 'V2Ray JSON', surge: 'Surge', surfboard: 'Surfboard', loon: 'Loon', 'quantumult-x': 'Quantumult X', egern: 'Egern', stash: 'Stash', unsupported: 'Unsupported format' }
+  return labels[format as keyof typeof labels] ?? format
 }
 
 function formatSourceTimestamp(value: string | undefined, format: ReturnType<typeof useI18n>['formatDateTime']) {
@@ -538,6 +543,9 @@ export function Inspector() {
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const selectedEdgeId = useBuilderStore((state) => state.selectedEdgeId)
   const deleteSelected = useBuilderStore((state) => state.deleteSelected)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const deleteCancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (deleteConfirmOpen) deleteCancelRef.current?.focus() }, [deleteConfirmOpen])
   const selected = nodes.find((node) => node.id === selectedNodeId)
   const edge = edges.find((item) => item.id === selectedEdgeId)
   const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges])
@@ -548,13 +556,15 @@ export function Inspector() {
   if (!selected) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.title')}</span><h2>{t('inspector.properties')}</h2></div></div><div className="inspector-empty"><div className="inspector-empty-graphic"><span /><span /><span /><Link2 size={18} /></div><h3>{t('inspector.selectNode')}</h3><p>{t('inspector.selectNodeHint')}</p><div><kbd>⌘</kbd><span>+</span><kbd>K</kbd><small>{t('inspector.quickSearch')}</small></div></div></aside>
 
   const Content = inspectorRegistry[selected.data.blockType] ?? GenericInspector
+  const requestDelete = () => selected.data.blockType === 'subscription' ? setDeleteConfirmOpen(true) : deleteSelected()
   return <aside className="inspector">
     <div className="inspector-node-header">
       <div className={`node-icon node-icon--${selected.data.category}`}><BlockIcon name={selected.data.icon} size={18} /></div>
       <div><span>{t(categoryKey(selected.data.category))}</span><h2>{localizeNodeTitle(selected, locale)}</h2></div>
-      {!selected.data.protected && <button onClick={deleteSelected} aria-label={t('inspector.deleteNode')}><Trash2 size={15} /></button>}
+      {!selected.data.protected && <button onClick={requestDelete} aria-label={t('inspector.deleteNode')}><Trash2 size={15} /></button>}
     </div>
     {issue && <div className={`validation-banner validation-banner--${issue.severity}`}><AlertTriangle size={15} /><span><strong>{t('inspector.needsConfig')}</strong>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span></div>}
     <div className="inspector-scroll"><Content node={selected} /></div>
+    {deleteConfirmOpen && <div className="subscription-dialog-backdrop" role="presentation" onMouseDown={() => setDeleteConfirmOpen(false)}><section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-subscription-title" onMouseDown={(event) => event.stopPropagation()}><span className="confirmation-icon is-warning"><Trash2 size={20} /></span><h2 id="delete-subscription-title">{t('subscription.delete.title')}</h2><p>{t('subscription.delete.description')}</p><footer><button ref={deleteCancelRef} className="secondary-action" onClick={() => setDeleteConfirmOpen(false)}>{t('subscription.delete.cancel')}</button><button className="danger-action" onClick={() => { setDeleteConfirmOpen(false); deleteSelected() }}>{t('subscription.delete.confirm')}</button></footer></section></div>}
   </aside>
 }

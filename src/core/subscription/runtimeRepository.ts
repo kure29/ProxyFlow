@@ -13,6 +13,7 @@ export interface SubscriptionRuntimeRepository {
   readActive(scope: SubscriptionCacheScope): Promise<SubscriptionSnapshot | undefined>
   writeActive(scope: SubscriptionCacheScope, snapshot: SubscriptionSnapshot): Promise<void>
   deleteActive(scope: SubscriptionCacheScope): Promise<void>
+  deleteSource(projectId: string, sourceId: string): Promise<void>
 }
 
 interface ActiveMapping extends SubscriptionCacheScope {
@@ -95,6 +96,28 @@ export class IndexedDbSubscriptionRuntimeRepository implements SubscriptionRunti
     }
   }
 
+  async deleteSource(projectId: string, sourceId: string) {
+    const database = await this.open()
+    try {
+      const prefix = `${projectId}\u0000${sourceId}\u0000`
+      const transaction = database.transaction(['active', 'snapshots'], 'readwrite')
+      const active = transaction.objectStore('active')
+      const snapshots = transaction.objectStore('snapshots')
+      const mappings = await request<unknown[]>(active.getAll())
+      for (const mapping of mappings) {
+        if (isRecord(mapping) && typeof mapping.key === 'string' && mapping.key.startsWith(prefix)) active.delete(mapping.key)
+      }
+      const storedSnapshots = await request<unknown[]>(snapshots.getAll())
+      for (const stored of storedSnapshots) {
+        if (!isRecord(stored) || typeof stored.key !== 'string' || typeof stored.cacheKey !== 'string') continue
+        if (stored.cacheKey.startsWith(prefix) && belongsToCache(stored.key, stored.cacheKey)) snapshots.delete(stored.key)
+      }
+      await transactionDone(transaction)
+    } finally {
+      database.close()
+    }
+  }
+
   private open() {
     const factory = this.configuredFactory === undefined ? globalThis.indexedDB : this.configuredFactory
     if (!factory) return Promise.reject(new Error('IndexedDB is unavailable.'))
@@ -132,6 +155,11 @@ export class MemorySubscriptionRuntimeRepository implements SubscriptionRuntimeR
     if (this.writeError) throw this.writeError
     this.snapshots.delete(cacheKey(scope))
   }
+
+  async deleteSource(projectId: string, sourceId: string) {
+    const prefix = `${projectId}\u0000${sourceId}\u0000`
+    for (const key of this.snapshots.keys()) if (key.startsWith(prefix)) this.snapshots.delete(key)
+  }
 }
 
 export const subscriptionRuntimeRepository = new IndexedDbSubscriptionRuntimeRepository()
@@ -168,7 +196,7 @@ function isValidStoredSnapshot(stored: unknown, scope: SubscriptionCacheScope, m
 function isValidSnapshot(value: unknown, scope: SubscriptionCacheScope): value is SubscriptionSnapshot {
   if (!isRecord(value) || !isRecord(value.result)) return false
   const result = value.result
-  const formats = new Set(['share-links', 'base64', 'clash-yaml', 'unsupported'])
+  const formats = new Set(['share-links', 'base64', 'clash-yaml', 'clash-json', 'sub-store-json', 'sing-box-json', 'v2ray-json', 'surge', 'surfboard', 'loon', 'quantumult-x', 'egern', 'stash', 'unsupported'])
   const quality = value.quality
   const detectedCount = result.detectedCount
   const readyCount = result.readyCount
@@ -202,7 +230,7 @@ function isValidSnapshot(value: unknown, scope: SubscriptionCacheScope): value i
     || !Array.isArray(result.issues)
     || !Array.isArray(value.issues)
     || result.nodes.length !== detectedCount
-    || result.proxies.length !== readyCount
+    || result.proxies.length !== readyCount + partialCount
     || !result.nodes.every(isValidParsedNode)
     || !result.proxies.every(isValidEndpoint)
     || !result.issues.every(isValidIssue)
@@ -318,6 +346,8 @@ function isValidHttpMetadata(value: unknown) {
   return isRecord(value)
     && isCount(value.status)
     && optionalString(value.contentType)
+    && optionalCount(value.contentLength)
+    && optionalCount(value.responseBytes)
     && optionalString(value.etag)
     && optionalString(value.lastModified)
     && typeof value.durationMs === 'number'
@@ -333,6 +363,7 @@ function isPort(value: unknown): value is number { return Number.isInteger(value
 function optionalString(value: unknown) { return value === undefined || typeof value === 'string' }
 function optionalNumber(value: unknown) { return value === undefined || (typeof value === 'number' && Number.isFinite(value)) }
 function optionalBoolean(value: unknown) { return value === undefined || typeof value === 'boolean' }
+function optionalCount(value: unknown) { return value === undefined || isCount(value) }
 
 function request<T>(value: IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {

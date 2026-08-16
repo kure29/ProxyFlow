@@ -1,7 +1,9 @@
 import { subscriptionIssue } from './errors'
 import { detectSubscriptionFormat } from './detectFormat'
 import { parseClashSubscription } from './parseClash'
+import { parseProxyLineSubscription } from './parseProxyLines'
 import { parseShareLinks } from './parseShareLinks'
+import { parseStructuredSubscription } from './parseStructured'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, SubscriptionIssue, SubscriptionParseResult } from './types'
 
 export const DEFAULT_MAX_SUBSCRIPTION_BYTES = 2 * 1024 * 1024
@@ -25,9 +27,18 @@ export function parseSubscription(input: string, options: ParseSubscriptionOptio
     const parsed = parseShareLinks(detected.decoded ?? input, options)
     nodes = parsed.nodes
     issues = parsed.issues
+  } else if (detected.format === 'surge' || detected.format === 'surfboard' || detected.format === 'loon' || detected.format === 'quantumult-x') {
+    const parsed = parseProxyLineSubscription(input, options, detected.format)
+    nodes = parsed.nodes
+    issues = parsed.issues
+  } else if (detected.format === 'clash-json' || detected.format === 'sub-store-json' || detected.format === 'sing-box-json' || detected.format === 'v2ray-json' || detected.format === 'egern') {
+    const parsed = parseStructuredSubscription(input, options, detected.format)
+    nodes = parsed?.nodes ?? []
+    issues = parsed?.issues ?? [subscriptionIssue('SUBSCRIPTION_PARSE_FAILED', 'error', 'The detected subscription document could not be parsed.')]
+    if (parsed?.hasNonProxySections) issues.push(subscriptionIssue('ONLY_PROXY_SECTION_IMPORTED', 'info', 'Only proxy endpoint definitions were imported; client routing and control sections were ignored.'))
   } else {
     issues = [subscriptionIssue(input.trim() ? 'UNSUPPORTED_FORMAT' : 'PARSE_FAILED', 'error', input.trim()
-      ? '无法识别订阅格式。支持分享链接列表、Base64 订阅与 Clash/Mihomo YAML proxies。'
+      ? '无法识别订阅格式。支持 URI、Base64 URI、Clash/Mihomo、Egern、sing-box、V2Ray 与常见客户端代理行。'
       : '订阅内容为空。')]
   }
   if (nodes.length > maxNodes) return emptyResult(detected.format, [

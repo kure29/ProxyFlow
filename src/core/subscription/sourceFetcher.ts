@@ -15,6 +15,8 @@ export interface SourceFetchResult {
   text: string
   status: number
   contentType?: string
+  contentLength?: number
+  responseBytes?: number
   etag?: string
   lastModified?: string
   durationMs: number
@@ -34,12 +36,15 @@ export class BrowserSourceFetcher implements SourceFetcher {
     try {
       const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'text/plain, text/yaml, application/yaml, */*' } })
       if (!response.ok) throw new SubscriptionFetchError('SUBSCRIPTION_HTTP_ERROR', `HTTP ${response.status}`, response.status)
-      const declaredLength = Number(response.headers.get('content-length'))
-      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
+      const contentLengthHeader = response.headers.get('content-length')
+      const declaredLength = contentLengthHeader === null ? undefined : Number(contentLengthHeader)
+      if (declaredLength !== undefined && Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
       let text: string
+      let responseBytes = 0
       if (!response.body) {
         text = await response.text()
-        if (new TextEncoder().encode(text).byteLength > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
+        responseBytes = new TextEncoder().encode(text).byteLength
+        if (responseBytes > maxBytes) throw new SubscriptionFetchError('SUBSCRIPTION_TOO_LARGE', 'Subscription response exceeds the browser size limit.')
       } else {
         const reader = response.body.getReader()
         const chunks: Uint8Array[] = []
@@ -57,12 +62,15 @@ export class BrowserSourceFetcher implements SourceFetcher {
         const bytes = new Uint8Array(length)
         let offset = 0
         for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+        responseBytes = length
         text = new TextDecoder().decode(bytes)
       }
       return {
         text,
         status: response.status,
         contentType: response.headers.get('content-type') ?? undefined,
+        ...(declaredLength !== undefined && Number.isFinite(declaredLength) && declaredLength >= 0 ? { contentLength: declaredLength } : {}),
+        responseBytes,
         etag: response.headers.get('etag') ?? undefined,
         lastModified: response.headers.get('last-modified') ?? undefined,
         durationMs: Math.max(0, Math.round(performance.now() - startedAt)),

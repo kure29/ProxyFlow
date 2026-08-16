@@ -1,6 +1,8 @@
 import type { ResolvedProxyEndpointIR, SupportedProxyProtocol } from '../proxy'
 
-export type SubscriptionFormat = 'share-links' | 'base64' | 'clash-yaml' | 'unsupported'
+export type SubscriptionFormat =
+  | 'share-links' | 'base64' | 'clash-yaml' | 'clash-json' | 'sing-box-json' | 'v2ray-json'
+  | 'sub-store-json' | 'surge' | 'surfboard' | 'loon' | 'quantumult-x' | 'egern' | 'stash' | 'unsupported'
 export type SubscriptionInputKind = 'url' | 'paste' | 'file'
 export type ParsedNodeStatus = 'ready' | 'partial' | 'unsupported'
 export type SubscriptionRefreshStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -90,6 +92,8 @@ export interface SubscriptionSnapshot {
   http?: {
     status: number
     contentType?: string
+    contentLength?: number
+    responseBytes?: number
     etag?: string
     lastModified?: string
     durationMs: number
