@@ -2,10 +2,10 @@
 
 ## Source of truth
 
-ProxyFlow V0.4 继续使用单向派生架构：
+ProxyFlow V0.5 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
 
 ```text
-Visual Graph / ProxyFlow Project
+Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
               │
               │ compileGraph(project)
               ▼
@@ -23,6 +23,7 @@ Visual Graph / ProxyFlow Project
 ```
 
 - Graph / Project 是编辑器和持久化的唯一事实来源。
+- Paste 原文属于 Project 输入；Local File 原文、Fetch response、ParseResult 与 ProxySet cache 都是运行时数据，不写入 Project。
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
 - IR 不依赖 React、Zustand、DOM、Canvas 或 `@xyflow/react`。
 - Target Compiler 只接收 IR，不能读取 React Flow Graph。
@@ -37,7 +38,7 @@ Project Schema Version 与 IR Schema Version 是两个独立版本：
 
 所有核心实体使用 discriminated union：
 
-- `SourceIR`: subscription、manual-proxy（可含显式 HTTP/SOCKS5 endpoint）、provider、imported-config
+- `SourceIR`: subscription、manual-proxy（可含六种显式标准 endpoint）、provider、imported-config
 - `TransformIR`: filter、rename、sort、deduplicate、merge、limit
 - `StrategyIR`: fixed、select、auto-select、fallback、load-balance、chain
 - `TrafficMatcherIR`: service、domain、domain-suffix、domain-keyword、IP CIDR、port、ASN、GeoIP、GeoSite、rule-set
@@ -169,11 +170,19 @@ IR validation 可脱离 UI 单独执行，负责：
 
 Issue 使用稳定 `code`，UI、CLI、测试和未来本地化不依赖错误文本。
 
-## Non-goals for V0.4
+## Subscription materialization
+
+`compileGraph(project, { subscriptionSnapshots })` 将当前会话已经解析的节点注入 Subscription Source IR。随后 `materializeProxySet()` 以纯函数方式解析 `ProxySetRef`，对 Source / Transform 结果按 context 缓存，并传播上游 issue。
+
+Partial variant 仍留在 Parser result 与 Import Summary 中，但在 Source materialization 时以 `PROXY_VARIANT_EXCLUDED` warning 排除。这样 Strategy candidate count 与 Target 输出都只包含可安全生成的节点，同时 UI 仍能解释 detected 与 usable 的差异。
+
+Target Compiler 不读取 URL、不访问 Store，也不再次解析订阅。未处理的安全 HTTP(S) URL 只有 Mihomo 可以保留 remote provider 语义；sing-box 必须得到 materialized endpoint。
+
+## Non-goals for V0.5
 
 - 完整 Mihomo / sing-box Schema 与第三个 Target compiler
-- VMess、VLESS、Trojan 等 protocol model
-- subscription fetching or parsing
+- Reality、Vision、复杂 XTLS、Hysteria2、TUIC 等协议或变体
+- node latency measurement or scheduled refresh
 - remote rule fetching or conversion
 - runtime inbound profiles
 - backend or cloud persistence

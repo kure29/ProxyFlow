@@ -6,9 +6,9 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 
 ## 当前版本
 
-当前版本是 ProxyFlow V0.4 sing-box Compiler + Cross-target IR Stress Test。ProxyFlow 只编译一次 Visual Graph，再由同一份 Universal IR 生成真实、可解析的 Mihomo YAML 或 sing-box JSON。
+当前版本是 ProxyFlow V0.5 Real Subscription & Proxy Processing。ProxyFlow 可以在浏览器中读取用户粘贴、导入或直接刷新的订阅，识别并处理真实代理节点，再由同一份 Universal IR 生成真实、可解析的 Mihomo YAML 或 sing-box JSON。
 
-两个 Compiler 都是有明确边界的功能子集，不代表完整支持对应客户端。订阅内容不会在编译期下载或解析，节点统计和测速仍是 Mock 数据。Mihomo 可以保留远程 provider 语义；sing-box 需要显式、已解析的 HTTP/SOCKS endpoint，否则返回兼容性错误。
+V0.5 支持基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS，不代表完整支持这些协议的所有变体。Reality、Vision 与复杂 XTLS 等节点会明确显示为 Partial 并从可用集合排除；节点延迟测速仍未实现，也不会显示假延迟。
 
 ## 技术栈
 
@@ -28,6 +28,12 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 - 14 节点的完整 Demo Blueprint
 - Source、Processing、Strategy、Chain、Routing、DNS、Output 节点视觉体系
 - Subscription、Filter、Strategy、Proxy Chain、Routing、DNS、Output 专属 Inspector
+- URL、Paste Content 与本地 `.txt/.yaml/.yml` Subscription 输入
+- 分享链接、Base64 列表与 Clash YAML `proxies` 的内容优先格式识别
+- HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS 的标准化代理模型
+- Import Summary、协议/地区统计、Partial/Unsupported issue 与安全 Node Preview
+- CORS / Parser / Source / Empty Result 分层错误与失败刷新缓存保留
+- 真实 Filter、Rename、Sort、Dedupe、Merge、Limit 与逐节点 Processing Debug
 - 服务路径高亮与无关节点淡化
 - Proxy Chain Hop 添加、删除与排序
 - 服务目标策略修改
@@ -43,10 +49,11 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 - Proxy Chain 自引用和多层循环检测
 - Universal IR Developer Preview、复制与 JSON 导出
 - Mihomo proxy-provider、策略组、规则、规则集与基础 DNS 编译
-- sing-box HTTP/SOCKS outbound、selector、URLTest、现代 Route Action、Rule Set 与基础 DNS 编译
+- Mihomo / sing-box 六种基础代理协议的 explicit proxy / outbound 编译
+- sing-box selector、URLTest、现代 Route Action、Rule Set 与基础 DNS 编译
 - 基于 `override.dialer-proxy` 的 Provider Chain lowering
 - 基于 `detour` 的 sing-box 2/3 Hop Chain lowering
-- 最小客户端无关 `ProxyEndpointIR` 与 Service inline matcher
+- discriminated、客户端无关的 `ProxyEndpointIR` 与 Service inline matcher
 - 异步 Compiler Registry 与 target chunk 按需加载
 - 同一 IR → 两个 Compiler 的 cross-target fixtures 与能力缺口测试
 - Stable name registry、兼容性错误码与失败闭合
@@ -78,6 +85,8 @@ Graph Compiler 使用显式 `EdgeSemantic` 和有类型引用生成 IR。规则�
 
 Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 仍未实现。完整说明见 [Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
 
+订阅解析器按需加载，解析结果和处理结果只存在当前运行时；Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
+
 规则体验以 Service 为第一层。Demo 只引用 `ios_rule_script` 的公开 Remote Rule Provider URL，不复制第三方规则内容。来源项目位于 [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，其许可证为 GPL-2.0。
 
 ## 本地运行
@@ -104,6 +113,9 @@ src/
     graph/          编辑器连接约束与路径
     graphCompiler/  Visual Graph → Universal IR
     ir/             纯客户端无关领域模型
+    proxy/          标准代理协议、身份、安全与地区 hint
+    subscription/   格式检测、协议 Parser 与浏览器 Source Fetcher
+    proxySet/       真实节点集合处理、缓存与运行时计数
     semanticValidation/ 独立 IR 校验与 Chain Cycle 检测
     compiler/       Target Compiler Registry
     project/        Project Schema Version 边界
@@ -115,6 +127,6 @@ src/
   targets/singbox/ sing-box 专用 Model、Compatibility 与 Compiler
 ```
 
-## 明确不在 V0.4 中
+## 明确不在 V0.5 中
 
-后端、账号、数据库、真实订阅解析、节点测速、远程规则同步/转换、VLESS/VMess/Trojan/Hysteria2 等协议、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。
+后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、Reality、Vision、复杂 XTLS、Hysteria2、TUIC、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。
