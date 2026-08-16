@@ -82,7 +82,7 @@ function compileSubscription(
 function compileTransport(data: GraphCompileContext['project']['graph']['nodes'][number]['data']): ProxyTransportIR | undefined {
   switch (data.proxyTransport) {
     case 'ws': return { kind: 'ws', ...(data.proxyTransportPath ? { path: data.proxyTransportPath } : {}), ...(data.proxyTransportHost ? { host: data.proxyTransportHost } : {}) }
-    case 'http': return { kind: 'http', ...(data.proxyTransportPath ? { path: data.proxyTransportPath } : {}), ...(data.proxyTransportHost ? { host: data.proxyTransportHost } : {}) }
+    case 'http': return { kind: 'http', variant: 'http', ...(data.proxyTransportPath ? { path: data.proxyTransportPath } : {}), ...(data.proxyTransportHost ? { host: data.proxyTransportHost } : {}) }
     case 'grpc': return { kind: 'grpc', ...(data.proxyGrpcServiceName ? { serviceName: data.proxyGrpcServiceName } : {}) }
     case 'tcp': return { kind: 'tcp' }
     default: return undefined

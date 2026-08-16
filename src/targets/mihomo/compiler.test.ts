@@ -10,7 +10,7 @@ import {
   manualSelectFixture,
 } from '../../core/__fixtures__/graphFixtures'
 import { compileGraph } from '../../core/graphCompiler'
-import { PROXYFLOW_IR_VERSION, type ProxyFlowIR, type TrafficMatcherIR } from '../../core/ir'
+import { PROXYFLOW_IR_VERSION, type ProxyFlowIR, type ResolvedProxyEndpointIR, type TrafficMatcherIR } from '../../core/ir'
 import { parseSubscription, type SubscriptionSnapshot } from '../../core/subscription'
 import type { MihomoConfig } from './model'
 import { compileMihomo, MihomoCompiler } from './compiler'
@@ -210,5 +210,34 @@ describe('MihomoCompiler', () => {
     const result = await new MihomoCompiler(fixedNow).compile(demoIR())
     expect(result).toEqual(expect.objectContaining({ success: true, mock: false }))
     expect(() => parse(result.content)).not.toThrow()
+  })
+
+  it.each([
+    [{
+      kind: 'trojan', protocol: 'trojan', id: 'trojan', name: 'Trojan', server: 'trojan.example.com', port: 443,
+      password: 'demo', tls: { enabled: true, disableSni: true },
+    }, 'MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED'],
+    [{
+      kind: 'hysteria2', protocol: 'hysteria2', id: 'hy2', name: 'HY2', server: 'hy2.example.com', port: 443,
+      password: 'demo', tls: { enabled: true, fingerprint: 'chrome' },
+    }, 'MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED'],
+    [{
+      kind: 'tuic', protocol: 'tuic', id: 'tuic', name: 'TUIC', server: 'tuic.example.com', port: 443,
+      uuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', password: 'demo', tls: { enabled: true, fingerprint: 'chrome' },
+    }, 'MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED'],
+    [{
+      kind: 'http', protocol: 'http', id: 'http', name: 'HTTP', server: 'http.example.com', port: 443,
+      tls: { enabled: true, fingerprint: 'chrome' },
+    }, 'MIHOMO_HTTP_TLS_CLIENT_FINGERPRINT_UNSUPPORTED'],
+  ] satisfies Array<[ResolvedProxyEndpointIR, string]>)('fails closed instead of omitting unsupported target TLS intent', (proxy, code) => {
+    const ir = explicitProxyIR()
+    ir.sources = [{ kind: 'manual-proxy', id: 'source', name: 'Source', proxies: [proxy] }]
+    ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' } }]
+    ir.services = []
+    ir.routes = []
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const result = compileMihomo(ir, { now: fixedNow })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues.map((issue) => issue.code)).toContain(code)
   })
 })

@@ -31,6 +31,18 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
         'MIHOMO_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
         `Proxy “${proxy.name}” 包含 Mihomo 映射尚未可靠支持的特性，已从本次节点集合排除：${proxy.metadata.compatibility.unsupportedFeatures?.join(', ') || proxy.metadata.compatibility.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
       ))
+      else if (!isUnmodeledProxy(proxy) && 'tls' in proxy && proxy.tls?.disableSni && proxy.protocol !== 'tuic') issues.push(mihomoIssue(
+        'MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 disable-SNI intent 无法由该 Mihomo proxy schema 无损表达。`, source.id,
+      ))
+      else if (!isUnmodeledProxy(proxy) && (proxy.protocol === 'hysteria2' || proxy.protocol === 'tuic') && proxy.tls.fingerprint) issues.push(mihomoIssue(
+        'MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 QUIC TLS fingerprint intent 无法由 Mihomo Hysteria2/TUIC schema 无损表达。`, source.id,
+      ))
+      else if (!isUnmodeledProxy(proxy) && proxy.protocol === 'http' && proxy.tls?.fingerprint) issues.push(mihomoIssue(
+        'MIHOMO_HTTP_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 TLS client fingerprint 不能映射为 Mihomo HTTP proxy 的 certificate fingerprint。`, source.id,
+      ))
     }
   }
 

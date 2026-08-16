@@ -87,6 +87,20 @@ describe('ProxySet materialization', () => {
     expect(result.inputCount).toBe(2)
     expect(result.outputCount).toBe(1)
     expect(result.issues.map((issue) => issue.code)).toContain('PROXY_VARIANT_EXCLUDED')
+
+    const manual = irWith([], content)
+    manual.sources = [{ kind: 'manual-proxy', id: 'source', name: 'Source', proxies: parsed.proxies }]
+    expect(materializeProxySet(manual, { kind: 'source', id: 'source' })).toEqual(expect.objectContaining({ inputCount: 2, outputCount: 1 }))
+  })
+
+  it('keeps warning-only endpoints in the usable ProxySet', () => {
+    const content = 'trojan://demo-pass@warning.example.com:443?sni=warning.example.com&future-option=1#Warning%20Ready'
+    const parsed = parseSubscription(content, { sourceId: 'source', sourceName: 'Source' })
+    expect(parsed.nodes[0].status).toBe('ready')
+    expect(parsed.issues.map((issue) => issue.code)).toContain('PROXY_PARAMS_UNRECOGNIZED')
+    const result = materializeProxySet(irWith([], content), { kind: 'source', id: 'source' })
+    expect([result.inputCount, result.outputCount, result.removedCount]).toEqual([1, 1, 0])
+    expect(result.issues).toEqual([])
   })
 
   it('is deterministic across 100 pipeline executions', () => {

@@ -1,0 +1,29 @@
+proxies:
+  - name: Clash HTTPUpgrade
+    type: vless
+    server: upgrade.example.com
+    port: 443
+    uuid: 99999999-9999-4999-8999-999999999991
+    tls: true
+    servername: upgrade.example.com
+    network: ws
+    ws-opts:
+      path: /upgrade
+      headers:
+        Host: upgrade-host.example.com
+      v2ray-http-upgrade: true
+  - name: Clash TLS Certificate Fingerprint
+    type: hysteria2
+    server: fingerprint.example.com
+    port: 443
+    password: fixture-password
+    fingerprint: 00:11:22:33
+  - name: Clash TUIC Security Flags
+    type: tuic
+    server: tuic.example.com
+    port: 443
+    uuid: 99999999-9999-4999-8999-999999999997
+    password: fixture-password
+    sni: tuic.example.com
+    skip-cert-verify: true
+    disable-sni: true

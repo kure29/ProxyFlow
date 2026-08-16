@@ -1,4 +1,4 @@
-import type { ProxySetRef, ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR } from '../../core/ir'
+import type { Hysteria2PortIR, ProxySetRef, ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR } from '../../core/ir'
 import { materializeProxySet } from '../../core/proxySet'
 import type { ResolvedProxyItem, SingBoxCompileContext } from './context'
 import { singBoxIssue } from './errors'
@@ -57,22 +57,43 @@ function endpointOutbound(endpoint: ResolvedProxyEndpointIR, tag: string, dnsTag
     }
     case 'vless': return {
       type: 'vless', ...common, uuid: endpoint.uuid,
+      ...(endpoint.flow ? { flow: endpoint.flow } : {}),
       ...(singBoxTls(endpoint.tls) ? { tls: singBoxTls(endpoint.tls) } : {}), ...(singBoxTransport(endpoint.transport) ? { transport: singBoxTransport(endpoint.transport) } : {}),
+    }
+    case 'hysteria2': return {
+      type: 'hysteria2', ...common, password: endpoint.password, tls: singBoxTls(endpoint.tls)!,
+      ...(endpoint.serverPorts?.length ? { server_ports: endpoint.serverPorts.map(singBoxPort) } : {}),
+      ...(endpoint.hopInterval?.kind === 'fixed' ? { hop_interval: `${endpoint.hopInterval.seconds}s` } : {}),
+      ...(endpoint.upMbps !== undefined ? { up_mbps: endpoint.upMbps } : {}), ...(endpoint.downMbps !== undefined ? { down_mbps: endpoint.downMbps } : {}),
+      ...(endpoint.obfs ? { obfs: endpoint.obfs } : {}),
+    }
+    case 'tuic': return {
+      type: 'tuic', ...common, uuid: endpoint.uuid, password: endpoint.password, tls: singBoxTls(endpoint.tls)!,
+      ...(endpoint.congestionControl ? { congestion_control: endpoint.congestionControl } : {}),
+      ...(endpoint.udpRelayMode ? { udp_relay_mode: endpoint.udpRelayMode } : {}),
     }
   }
 }
 
 function singBoxTls(tls?: ProxyTlsIR): SingBoxTls | undefined {
   return tls?.enabled ? {
-    enabled: true, ...(tls.serverName ? { server_name: tls.serverName } : {}), ...(tls.allowInsecure ? { insecure: true } : {}), ...(tls.alpn?.length ? { alpn: tls.alpn } : {}),
+    enabled: true, ...(tls.serverName ? { server_name: tls.serverName } : {}), ...(tls.disableSni ? { disable_sni: true } : {}), ...(tls.allowInsecure ? { insecure: true } : {}), ...(tls.alpn?.length ? { alpn: tls.alpn } : {}),
+    ...(tls.fingerprint ? { utls: { enabled: true, fingerprint: tls.fingerprint } } : {}),
+    ...(tls.reality ? { reality: { enabled: true, public_key: tls.reality.publicKey, ...(tls.reality.shortId ? { short_id: tls.reality.shortId } : {}) } } : {}),
   } : undefined
+}
+
+function singBoxPort(port: Hysteria2PortIR) {
+  return port.kind === 'single' ? String(port.port) : `${port.start}:${port.end}`
 }
 
 function singBoxTransport(transport?: ProxyTransportIR): SingBoxV2RayTransport | undefined {
   if (!transport || transport.kind === 'tcp') return undefined
-  if (transport.kind === 'ws') return { type: 'ws', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { headers: { Host: transport.host } } : {}) }
+  if (transport.kind === 'ws') return { type: 'ws', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { headers: { Host: transport.host } } : {}), ...(transport.maxEarlyData !== undefined ? { max_early_data: transport.maxEarlyData } : {}), ...(transport.earlyDataHeaderName ? { early_data_header_name: transport.earlyDataHeaderName } : {}) }
   if (transport.kind === 'http') return { type: 'http', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { host: [transport.host] } : {}) }
-  return { type: 'grpc', ...(transport.serviceName ? { service_name: transport.serviceName } : {}) }
+  if (transport.kind === 'grpc') return { type: 'grpc', ...(transport.serviceName ? { service_name: transport.serviceName } : {}) }
+  if (transport.kind === 'httpupgrade') return { type: 'httpupgrade', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { host: transport.host } : {}) }
+  return undefined
 }
 
 function pluginOptionsString(value: string | Record<string, string | number | boolean>) {

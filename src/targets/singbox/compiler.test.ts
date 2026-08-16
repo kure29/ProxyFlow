@@ -142,6 +142,36 @@ describe('SingBoxCompiler', () => {
     expect(outbound(config, middleMember!)).toEqual(expect.objectContaining({ detour: 'Hong Kong Auto' }))
   })
 
+  it('chains a Hysteria2 outbound through a resolved first hop via detour', () => {
+    const ir = explicitProxyIR()
+    ir.sources.push({
+      kind: 'manual-proxy', id: 'hy2-source', name: 'Hysteria2 Source', proxies: [{
+        kind: 'hysteria2', protocol: 'hysteria2', id: 'hy2-exit', name: 'HY2 Exit', server: 'hy2.example.com', port: 443,
+        password: 'test-password', tls: { enabled: true, serverName: 'hy2.example.com' },
+      }],
+    })
+    ir.strategies.push({ kind: 'fixed', id: 'hy2-fixed', name: 'HY2 Fixed', proxyId: 'hy2-exit' })
+    ir.strategies.push({ kind: 'chain', id: 'hy2-chain', name: 'HY2 Chain', hops: [{ kind: 'strategy', id: 'hk-auto' }, { kind: 'strategy', id: 'hy2-fixed' }] })
+    ir.finalRoute = { target: { kind: 'strategy', id: 'hy2-chain' } }
+    const { config } = compile(ir)
+    expect(outbound(config, 'HY2 Chain')).toEqual(expect.objectContaining({ type: 'hysteria2', detour: 'Hong Kong Auto' }))
+  })
+
+  it('chains a TUIC outbound through a resolved first hop via detour', () => {
+    const ir = explicitProxyIR()
+    ir.sources.push({
+      kind: 'manual-proxy', id: 'tuic-source', name: 'TUIC Source', proxies: [{
+        kind: 'tuic', protocol: 'tuic', id: 'tuic-exit', name: 'TUIC Exit', server: 'tuic.example.com', port: 443,
+        uuid: '99999999-9999-4999-8999-999999999996', password: 'test-password', tls: { enabled: true, serverName: 'tuic.example.com' },
+      }],
+    })
+    ir.strategies.push({ kind: 'fixed', id: 'tuic-fixed', name: 'TUIC Fixed', proxyId: 'tuic-exit' })
+    ir.strategies.push({ kind: 'chain', id: 'tuic-chain', name: 'TUIC Chain', hops: [{ kind: 'strategy', id: 'hk-auto' }, { kind: 'strategy', id: 'tuic-fixed' }] })
+    ir.finalRoute = { target: { kind: 'strategy', id: 'tuic-chain' } }
+    const { config } = compile(ir)
+    expect(outbound(config, 'TUIC Chain')).toEqual(expect.objectContaining({ type: 'tuic', detour: 'Hong Kong Auto' }))
+  })
+
   it('fails closed for unresolved sources, fallback, load balance and cyclic chains', () => {
     const unresolved = unresolvedSubscriptionIR()
     expect(compileMihomo(unresolved, { now: fixedNow }).success).toBe(true)
@@ -189,4 +219,59 @@ describe('SingBoxCompiler', () => {
     expect(result.success).toBe(false)
     expect(result.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining(['SINGBOX_INVALID_RULESET', 'SINGBOX_MATCHER_UNSUPPORTED']))
   })
+
+  it.each([
+    ['http', false, true, undefined],
+    ['http', true, false, 'SINGBOX_TRANSPORT_HTTP_TLS_VARIANT_UNSUPPORTED'],
+    ['h2', true, true, undefined],
+    ['h2', false, false, 'SINGBOX_TRANSPORT_H2_REQUIRES_TLS'],
+  ] as const)('preserves or rejects sing-box %s transport with TLS=%s without variant collapse', (variant, tlsEnabled, succeeds, code) => {
+    const result = compileSingBox(httpVariantIR(variant, tlsEnabled), { now: fixedNow })
+    expect(result.success).toBe(succeeds)
+    if (!succeeds) {
+      expect(result.content).toBe('')
+      expect(result.issues.map((issue) => issue.code)).toContain(code)
+      return
+    }
+    const config = JSON.parse(result.content) as SingBoxConfig
+    expect(config.outbounds).toContainEqual(expect.objectContaining({
+      type: 'vmess',
+      transport: { type: 'http', path: '/transport', host: ['transport.example.com'] },
+      ...(tlsEnabled ? { tls: expect.objectContaining({ enabled: true }) } : {}),
+    }))
+  })
+
+  it('fails closed rather than omitting an unsupported QUIC TLS fingerprint', () => {
+    const ir = explicitProxyIR()
+    ir.sources = [{
+      kind: 'manual-proxy', id: 'source', name: 'Source', proxies: [{
+        kind: 'hysteria2', protocol: 'hysteria2', id: 'hy2', name: 'HY2', server: 'hy2.example.com', port: 443,
+        password: 'demo', tls: { enabled: true, fingerprint: 'chrome' },
+      }],
+    }]
+    ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' } }]
+    ir.services = []
+    ir.routes = []
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const result = compileSingBox(ir, { now: fixedNow })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues.map((issue) => issue.code)).toContain('SINGBOX_QUIC_TLS_FINGERPRINT_UNSUPPORTED')
+  })
 })
+
+function httpVariantIR(variant: 'http' | 'h2', tlsEnabled: boolean) {
+  const ir = explicitProxyIR()
+  ir.sources = [{
+    kind: 'manual-proxy', id: 'source', name: 'Source', proxies: [{
+      kind: 'vmess', protocol: 'vmess', id: 'vmess', name: 'VMess', server: 'vmess.example.com', port: 443,
+      uuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', security: 'auto',
+      ...(tlsEnabled ? { tls: { enabled: true, serverName: 'vmess.example.com' } } : {}),
+      transport: { kind: 'http', variant, path: '/transport', host: 'transport.example.com' },
+    }],
+  }]
+  ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' } }]
+  ir.services = []
+  ir.routes = []
+  ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+  return ir
+}

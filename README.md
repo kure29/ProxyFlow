@@ -6,9 +6,9 @@ ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连�
 
 ## 当前版本
 
-当前版本是 ProxyFlow V0.5 Real Subscription & Proxy Processing。ProxyFlow 可以在浏览器中读取用户粘贴、导入或直接刷新的订阅，识别并处理真实代理节点，再由同一份 Universal IR 生成真实、可解析的 Mihomo YAML 或 sing-box JSON。
+当前版本是 ProxyFlow V0.6 Modern Protocols。ProxyFlow 可以在浏览器中读取用户粘贴、导入或直接刷新的订阅，识别并处理真实代理节点，再由同一份 Universal IR 生成真实、可解析的 Mihomo YAML 或 sing-box JSON。
 
-V0.5 支持基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS，不代表完整支持这些协议的所有变体。Reality、Vision 与复杂 XTLS 等节点会明确显示为 Partial 并从可用集合排除；节点延迟测速仍未实现，也不会显示假延迟。
+V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS Reality、XTLS Vision、WS early data、HTTP/H2、gRPC、HTTPUpgrade、Hysteria2 与 TUIC v5。Hysteria2 port hopping 在 Universal IR 中是结构化 single/range，分别 lowering 为 Mihomo 与 sing-box 语法；随机 hop interval 仅在 Mihomo Supported，sing-box 1.13.14 会失败闭合。XHTTP 同样只支持 Mihomo。core 层的 endpoint semantic firewall 同时保护 Share/Clash parser、manual/direct IR、`validateIR()` 与 target compiler；无法可靠保持认证、TLS、SNI 或连接语义的变体明确显示为 Partial 并从所有可用集合路径排除，普通 metadata warning 不自动降低节点兼容状态。sing-box 的 HTTP transport 仅在 HTTP+无 TLS 或 H2+TLS 时能保留当前 IR variant，反向组合返回稳定 compatibility error。
 
 ## 技术栈
 
@@ -30,7 +30,11 @@ V0.5 支持基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS，不代表完整�
 - Subscription、Filter、Strategy、Proxy Chain、Routing、DNS、Output 专属 Inspector
 - URL、Paste Content 与本地 `.txt/.yaml/.yml` Subscription 输入
 - 分享链接、Base64 列表与 Clash YAML `proxies` 的内容优先格式识别
-- HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS 的标准化代理模型
+- HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS、Hysteria2、TUIC v5 的标准化代理模型
+- VLESS Reality / Vision 与统一 TLS security intent
+- WS early data、HTTP/H2、gRPC、HTTPUpgrade 与目标专属 XHTTP lowering
+- Hysteria2 authority 多端口、默认 443、结构化 hop interval 与 target-specific serialization
+- TUIC allow-insecure / disable-SNI lowering；未知安全语义与连接关键参数冲突失败闭合
 - Import Summary、协议/地区统计、Partial/Unsupported issue 与安全 Node Preview
 - CORS / Parser / Source / Empty Result 分层错误与失败刷新缓存保留
 - 真实 Filter、Rename、Sort、Dedupe、Merge、Limit 与逐节点 Processing Debug
@@ -49,7 +53,7 @@ V0.5 支持基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS，不代表完整�
 - Proxy Chain 自引用和多层循环检测
 - Universal IR Developer Preview、复制与 JSON 导出
 - Mihomo proxy-provider、策略组、规则、规则集与基础 DNS 编译
-- Mihomo / sing-box 六种基础代理协议的 explicit proxy / outbound 编译
+- Mihomo / sing-box 基础与现代代理协议的 explicit proxy / outbound 编译
 - sing-box selector、URLTest、现代 Route Action、Rule Set 与基础 DNS 编译
 - 基于 `override.dialer-proxy` 的 Provider Chain lowering
 - 基于 `detour` 的 sing-box 2/3 Hop Chain lowering
@@ -83,7 +87,7 @@ Graph / Project 是编辑器与本地存储的唯一事实来源，IR 是按需�
 
 Graph Compiler 使用显式 `EdgeSemantic` 和有类型引用生成 IR。规则优先级采用明确的 `routePriority`，缺失时使用稳定的 Graph node insertion order；Canvas 坐标不会影响业务语义。Proxy Chain 顺序只以 `hopIds` 为准，视觉 Edge 不一致时返回 warning。
 
-Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 仍未实现。完整说明见 [Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
+Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 仍未实现。完整说明见 [V0.6 Modern Protocols](docs/v0.6-modern-protocols.md)、[Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
 
 订阅解析器按需加载，解析结果和处理结果只存在当前运行时；Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
 
@@ -127,6 +131,6 @@ src/
   targets/singbox/ sing-box 专用 Model、Compatibility 与 Compiler
 ```
 
-## 明确不在 V0.5 中
+## 明确不在 V0.6 中
 
-后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、Reality、Vision、复杂 XTLS、Hysteria2、TUIC、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。
+后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、除 Vision 外的复杂 XTLS flow、Hysteria2 pin/ECH、Clash certificate fingerprint、QUIC client fingerprint lowering、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。sing-box 1.13.14 没有 XHTTP transport，也没有随机 Hysteria2 hop interval 的 `hop_interval_max`；这些能力缺口均失败闭合而不是猜测降级。

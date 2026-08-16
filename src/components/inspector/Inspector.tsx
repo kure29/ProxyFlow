@@ -213,7 +213,7 @@ function snapshotFromProxies(proxies: import('../../core/ir').ResolvedProxyEndpo
   }
 }
 
-const PROTOCOL_OPTIONS: SupportedProxyProtocol[] = ['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless']
+const PROTOCOL_OPTIONS: SupportedProxyProtocol[] = ['http', 'socks5', 'shadowsocks', 'trojan', 'vmess', 'vless', 'hysteria2', 'tuic']
 
 function StrategyInspector({ node }: InspectorProps) {
   const update = useBuilderStore((state) => state.updateNodeData)

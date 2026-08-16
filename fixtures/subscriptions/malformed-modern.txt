@@ -1,0 +1,5 @@
+vless://66666666-6666-4666-8666-666666666661@missing-pbk.example.com:443?security=reality&sni=www.example.com&type=tcp#Missing%20PBK
+vless://66666666-6666-4666-8666-666666666662@unknown-flow.example.com:443?security=tls&sni=unknown-flow.example.com&flow=unknown-flow&type=tcp#Unknown%20Flow
+hysteria2://@hy2-invalid.example.com:443#Malformed%20HY2
+tuic://not-a-uuid:password@tuic-invalid.example.com:443#Malformed%20TUIC
+vless://66666666-6666-4666-8666-666666666663@warning.example.com:443?security=tls&sni=warning.example.com&type=tcp&future-option=1#Warning%20Ready

@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-ProxyFlow V0.5 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
+ProxyFlow V0.6 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
 
 ```text
 Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
@@ -38,7 +38,7 @@ Project Schema Version 与 IR Schema Version 是两个独立版本：
 
 所有核心实体使用 discriminated union：
 
-- `SourceIR`: subscription、manual-proxy（可含六种显式标准 endpoint）、provider、imported-config
+- `SourceIR`: subscription、manual-proxy（可含基础与现代显式标准 endpoint）、provider、imported-config
 - `TransformIR`: filter、rename、sort、deduplicate、merge、limit
 - `StrategyIR`: fixed、select、auto-select、fallback、load-balance、chain
 - `TrafficMatcherIR`: service、domain、domain-suffix、domain-keyword、IP CIDR、port、ASN、GeoIP、GeoSite、rule-set
@@ -178,10 +178,10 @@ Partial variant 仍留在 Parser result 与 Import Summary 中，但在 Source m
 
 Target Compiler 不读取 URL、不访问 Store，也不再次解析订阅。未处理的安全 HTTP(S) URL 只有 Mihomo 可以保留 remote provider 语义；sing-box 必须得到 materialized endpoint。
 
-## Non-goals for V0.5
+## Non-goals for V0.6
 
 - 完整 Mihomo / sing-box Schema 与第三个 Target compiler
-- Reality、Vision、复杂 XTLS、Hysteria2、TUIC 等协议或变体
+- 除 Vision 外的复杂 XTLS flow、Hysteria v1 与未建模协议变体
 - node latency measurement or scheduled refresh
 - remote rule fetching or conversion
 - runtime inbound profiles

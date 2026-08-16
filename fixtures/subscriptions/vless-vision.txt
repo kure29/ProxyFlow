@@ -1,0 +1,2 @@
+vless://22222222-2222-4222-8222-222222222222@vision.example.com:443?security=tls&sni=vision.example.com&flow=xtls-rprx-vision&type=tcp#Vision%20Ready
+vless://22222222-2222-4222-8222-222222222223@unknown-flow.example.com:443?security=tls&sni=unknown-flow.example.com&flow=experimental-flow&type=tcp#Unknown%20Flow

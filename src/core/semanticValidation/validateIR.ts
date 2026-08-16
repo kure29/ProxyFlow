@@ -1,6 +1,6 @@
 import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCandidateRef } from '../ir'
 import { isUnmodeledProxy, semanticIssue } from '../ir'
-import { isSupportedShadowsocksMethod } from '../proxy'
+import { isSupportedShadowsocksMethod, validateProxyEndpointSemantics } from '../proxy'
 import { detectChainCycles } from './detectChainCycles'
 
 const knownTargets = new Set(['mihomo', 'sing-box', 'surge', 'loon', 'quantumult-x', 'shadowrocket', 'stash'])
@@ -25,12 +25,12 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     if (source.kind === 'subscription' && !source.url && !source.proxies?.length) add(entityIssue(
       'SUBSCRIPTION_URL_MISSING', 'warning', `Subscription "${source.name}" has no URL.`, 'source', source.id,
     ))
-    if (source.kind === 'manual-proxy') for (const proxy of source.proxies) {
+    if (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies) for (const proxy of source.proxies ?? []) {
       if (isUnmodeledProxy(proxy)) continue
       if (!proxy.name.trim() || !proxy.server.trim() || !Number.isInteger(proxy.port) || proxy.port < 1 || proxy.port > 65_535) add(entityIssue(
         'PROXY_ENDPOINT_INVALID', 'error', `Proxy endpoint "${proxy.name}" has invalid address or port.`, 'source', source.id,
       ))
-      if ((proxy.protocol === 'vmess' || proxy.protocol === 'vless') && !isUuid(proxy.uuid)) add(entityIssue(
+      if ((proxy.protocol === 'vmess' || proxy.protocol === 'vless' || proxy.protocol === 'tuic') && !isUuid(proxy.uuid)) add(entityIssue(
         'PROXY_UUID_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a valid UUID.`, 'source', source.id,
       ))
       if (proxy.protocol === 'shadowsocks' && (!proxy.method || !proxy.password)) add(entityIssue(
@@ -41,6 +41,19 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
       ))
       if (proxy.protocol === 'trojan' && !proxy.password) add(entityIssue(
         'PROXY_TROJAN_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
+      ))
+      if (proxy.protocol === 'hysteria2' && !proxy.password) add(entityIssue(
+        'PROXY_HYSTERIA2_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
+      ))
+      if (proxy.protocol === 'tuic' && !proxy.password) add(entityIssue(
+        'PROXY_TUIC_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
+      ))
+      for (const semantic of validateProxyEndpointSemantics(proxy)) add(entityIssue(
+        semantic.code,
+        proxy.metadata?.compatibility?.status === 'partial' ? 'warning' : 'error',
+        semantic.message,
+        'source',
+        source.id,
       ))
     }
   }
