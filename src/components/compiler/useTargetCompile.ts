@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { compilerRegistry, type CompileResult } from '../../core/compiler'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetClient } from '../../types/project'
+import { translateCurrent } from '../../i18n'
 
 interface TargetCompileState {
   status: 'idle' | 'loading' | 'success' | 'error' | 'unavailable'
@@ -28,7 +29,7 @@ export function useTargetCompile(
     setState({ status: 'loading' })
     void compilerRegistry.load(target).then(async (compiler) => {
       if (!compiler) {
-        if (!cancelled) setState({ status: 'unavailable', error: `尚未实现 ${target} Compiler。` })
+        if (!cancelled) setState({ status: 'unavailable', error: translateCurrent('compiler.notImplemented', { target }) })
         return
       }
       const result = await compiler.compile(ir)
@@ -36,7 +37,7 @@ export function useTargetCompile(
     }).catch((error: unknown) => {
       if (!cancelled) setState({
         status: 'error',
-        error: error instanceof Error ? error.message : 'Compiler 加载失败。',
+        error: error instanceof Error ? error.message : translateCurrent('compiler.loadFailed'),
       })
     })
 

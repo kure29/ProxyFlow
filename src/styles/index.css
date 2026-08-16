@@ -65,6 +65,12 @@
   .project-menu button:hover:not(:disabled) { background: var(--surface-soft); }
   .project-menu button small { margin-left: auto; color: var(--faint); font-size: 9px; }
   .save-indicator { display: flex; align-items: center; gap: 7px; margin-left: auto; color: #747b86; font-size: 11px; white-space: nowrap; }
+  .language-switcher-wrap { position: relative; }
+  .language-switcher { height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #666d79; font-size: 11px; font-weight: 650; white-space: nowrap; transition: background .16s ease, border-color .16s ease; }
+  .language-switcher:hover { background: var(--surface-soft); border-color: var(--line-strong); }
+  .language-menu { position: absolute; z-index: 80; top: 39px; right: 0; width: 138px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 18px 45px rgba(34,38,50,.14); }
+  .language-menu button { width: 100%; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 9px; border-radius: 7px; background: transparent; color: #5f6672; font-size: 11px; }
+  .language-menu button:hover, .language-menu button.is-active { background: var(--surface-soft); color: var(--ink); }
   .saved-dot, .saving-dot { width: 7px; height: 7px; border-radius: 50%; background: #48a274; box-shadow: 0 0 0 3px #e9f5ee; }
   .saving-dot { background: #d19a52; box-shadow: 0 0 0 3px #faf0e1; animation: pulse-save 1s infinite; }
   @keyframes pulse-save { 50% { opacity: .4; } }
@@ -314,6 +320,8 @@
     .brand { min-width: 165px; }
     .save-indicator { font-size: 0; }
     .save-indicator span { margin-right: 3px; }
+    .language-switcher { width: 32px; padding: 0; justify-content: center; }
+    .language-switcher span, .language-switcher > svg:last-child { display: none; }
     .flow-node { width: 222px; }
   }
   @media (max-width: 1100px) {

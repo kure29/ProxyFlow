@@ -8,7 +8,7 @@ const finalNode: GraphNode = {
   type: 'block',
   position: { x: 720, y: 420 },
   data: {
-    blockType: 'final', category: 'routing', title: 'Final', subtitle: '其余流量 · DIRECT', icon: 'corner-down-right',
+    blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · DIRECT', subtitleKey: 'demo.blank.finalSubtitle', icon: 'corner-down-right',
     targetId: 'DIRECT', targetLabel: 'DIRECT', targetKind: 'direct', protected: true,
   },
 }
@@ -18,7 +18,7 @@ const outputNode: GraphNode = {
   type: 'block',
   position: { x: 1080, y: 260 },
   data: {
-    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '等待编译', icon: 'package-check',
+    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '等待编译', subtitleKey: 'demo.blank.outputSubtitle', icon: 'package-check',
     client: 'mihomo', compatibility: 'Supported', protected: true,
   },
 }

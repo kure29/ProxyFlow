@@ -4,16 +4,18 @@ import { compileGraph } from '../../core/graphCompiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetClient } from '../../types/project'
 import { useTargetCompile } from '../compiler/useTargetCompile'
+import { localizeDiagnosticMessage, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 
 type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
 type DisplayIssue = { code: string; severity: 'info' | 'warning' | 'error'; message: string }
 
 const targetMeta = {
-  mihomo: { label: 'Mihomo', badge: 'M', description: 'YAML compiler', extension: 'yaml' },
-  'sing-box': { label: 'sing-box', badge: 'S', description: 'JSON compiler', extension: 'json' },
+  mihomo: { label: 'Mihomo', badge: 'M', descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
+  'sing-box': { label: 'sing-box', badge: 'S', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
 } as const
 
 export function PreviewModal() {
+  const { locale, t } = useI18n()
   const open = useBuilderStore((state) => state.previewOpen)
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
@@ -25,13 +27,13 @@ export function PreviewModal() {
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState<PreviewMode>('mihomo')
-  const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots }), [edges, nodes, projectId, projectName, subscriptionSnapshots, toProject])
+  const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
   const targetState = useTargetCompile(graphResult.ir, activeTarget, open && graphResult.success && mode !== 'ir')
   if (!open) return null
 
-  const graphIssues: DisplayIssue[] = graphResult.issues.map(({ code, severity, message }) => ({ code, severity, message }))
-  const targetIssues: DisplayIssue[] = targetState.result?.issues ?? []
+  const graphIssues: DisplayIssue[] = graphResult.issues.map(({ code, severity, message }) => ({ code, severity, message: localizeDiagnosticMessage(code, message, locale) }))
+  const targetIssues: DisplayIssue[] = (targetState.result?.issues ?? []).map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
   const loading = mode !== 'ir' && targetState.status === 'loading'
   const activeIssues = mode === 'ir' || !graphResult.success ? graphIssues : targetIssues
   const errors = activeIssues.filter((issue) => issue.severity === 'error')
@@ -59,53 +61,54 @@ export function PreviewModal() {
       : `${safeFilename(projectName)}-${mode}.${targetMeta[mode].extension}`
     anchor.click()
     URL.revokeObjectURL(url)
-    setToast(`${targetLabel} 已导出`)
+    setToast(t('preview.exported', { target: targetLabel }))
   }
 
-  const failedTitle = !graphResult.success ? 'IR compilation failed' : `Cannot compile for ${targetLabel}`
-  const loadError = targetState.error ? [{ code: 'TARGET_COMPILER_LOAD_FAILED', severity: 'error' as const, message: targetState.error }] : []
+  const failedTitle = !graphResult.success ? t('preview.irFailed') : t('preview.targetFailed', { target: targetLabel })
+  const loadError = targetState.error ? [{ code: 'TARGET_COMPILER_LOAD_FAILED', severity: 'error' as const, message: localizeDiagnosticMessage('TARGET_COMPILER_LOAD_FAILED', targetState.error, locale) }] : []
   const shownIssues = activeIssues.length > 0 ? activeIssues : loadError
   return <div className="modal-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
     <section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title" onMouseDown={(event) => event.stopPropagation()}>
       <header>
         <div className="preview-icon">{mode === 'ir' ? <Braces size={19} /> : <FileCode2 size={19} />}</div>
-        <div><span>{mode === 'ir' ? 'DEVELOPER PREVIEW' : 'REAL TARGET COMPILE'}</span><h2 id="preview-title">{targetLabel}</h2></div>
+        <div><span>{mode === 'ir' ? t('preview.developerPreview') : t('preview.realCompile')}</span><h2 id="preview-title">{targetLabel}</h2></div>
         <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.6'}</span>
-        <button onClick={() => setOpen(false)} aria-label="关闭预览"><X size={18} /></button>
+        <button onClick={() => setOpen(false)} aria-label={t('preview.closeAria')}><X size={18} /></button>
       </header>
       <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>
         {loading ? <LoaderCircle className="spin" size={15} /> : !compileSuccess ? <AlertTriangle size={15} /> : <Info size={15} />}
         {loading
-          ? <span><strong>Loading compiler…</strong> 正在按需加载 {targetLabel} Compiler。</span>
+          ? <span><strong>{t('preview.loadingTitle')}</strong> {t('preview.loadingDescription', { target: targetLabel })}</span>
           : compileSuccess
-            ? <span><strong>{mode === 'ir' ? 'Valid IR' : 'Compiled'}</strong> {mode === 'ir' ? 'IR 由当前 Graph 实时派生。' : `Graph → IR → ${targetLabel} 已真实完成。`}{warnings.length > 0 && ` ${warnings.length} 个 compatibility warnings。`}</span>
-            : <span><strong>{failedTitle}</strong> {Math.max(errors.length, loadError.length)} 个 errors；不会生成或回退到 Mock 配置。</span>}
+            ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t('preview.compatWarnings', { count: warnings.length })}`}</span>
+            : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
       </div>
       <div className="preview-body">
         <aside>
-          <span>PREVIEW MODE</span>
-          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b>{targetMeta[target].badge}</b><div><strong>{targetMeta[target].label}</strong><small>{targetMeta[target].description}</small></div>{mode === target && <Check size={13} />}</button>)}
-          <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>Developer debug</small></div>{mode === 'ir' && <Check size={13} />}</button>
-          <span className="preview-subheading">TARGET COMPILERS</span>
-          <button disabled><b>↗</b><div><strong>Surge</strong><small>Not implemented</small></div></button>
-          <div className="preview-stats"><span>Blueprint</span><strong>{nodes.length} Nodes</strong><span>{mode === 'ir' ? 'Graph compile' : 'Compatibility'}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? '… Loading' : compileSuccess ? warnings.length > 0 ? `⚠ ${warnings.length} Warnings` : '✓ Compiled' : `× ${Math.max(errors.length, loadError.length)} Errors`}</strong></div>
+          <span>{t('preview.mode')}</span>
+          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b>{targetMeta[target].badge}</b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
+          <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
+          <span className="preview-subheading">{t('preview.targetCompilers')}</span>
+          <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
+          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t('preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
-          <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : `proxyflow-${mode}.${targetMeta[mode].extension}` : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? '已复制' : '复制'}</button></div>
+          <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : `proxyflow-${mode}.${targetMeta[mode].extension}` : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>
           {loading
-            ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>Loading compiler…</h3><p>目标代码正在进入当前会话。</p></div>
+            ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>{t('preview.loadingTitle')}</h3><p>{t('preview.loadingPanel')}</p></div>
             : !compileSuccess
               ? <IssuePanel title={failedTitle} issues={shownIssues} />
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
-      <footer><span>{mode === 'ir' ? '由 Graph Compiler 实时派生 · 不写入项目存储' : `由真实 ${targetLabel} Compiler 生成 · mock=false`}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>关闭</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? '导出 YAML' : '导出 JSON'}</button></div></footer>
+      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
 }
 
 function IssuePanel({ title, issues }: { title: string; issues: DisplayIssue[] }) {
-  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>修复以下问题后才能生成目标配置。</p><div>{issues.map((issue, index) => <article key={`${issue.code}-${index}`}><span>{issue.severity}</span><code>{issue.code}</code><p>{issue.message}</p></article>)}</div></div>
+  const { t } = useI18n()
+  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><div>{issues.map((issue, index) => <article key={`${issue.code}-${index}`}><span>{t(`issue.severity.${issue.severity}`)}</span><code>{issue.code}</code><p>{issue.message}</p></article>)}</div></div>
 }
 
 function issueLog(issues: DisplayIssue[]) {

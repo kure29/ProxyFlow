@@ -64,6 +64,7 @@ V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS 
 - Project Schema V1 → V2 迁移及 Legacy Recovery UI
 - GitHub Actions 测试与生产构建
 - 1280px 以上桌面布局与小屏提示
+- 中文 / English 全局切换与本地偏好保存，系统文案不混排，用户自定义内容保持原文
 
 ## 架构边界
 

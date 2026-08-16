@@ -9,8 +9,10 @@ import { ProxyFlowCanvas } from '../components/canvas/ProxyFlowCanvas'
 import { PreviewModal } from '../components/preview/PreviewModal'
 import { useBuilderStore } from '../store/useBuilderStore'
 import { projectStorage } from '../storage/projectStorage'
+import { localizeKnownSystemText, useI18n } from '../i18n'
 
 export function App() {
+  const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const hydrated = useBuilderStore((state) => state.hydrated)
@@ -63,7 +65,7 @@ export function App() {
       const command = event.metaKey || event.ctrlKey
       if (command && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        projectStorage.save(toProject()).then(() => { setSaveStatus('saved'); setToast('项目已保存到本地') })
+        projectStorage.save(toProject()).then(() => { setSaveStatus('saved'); setToast(t('app.savedToast')) })
       } else if (!isEditing && command && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         event.shiftKey ? redo() : undo()
@@ -77,10 +79,10 @@ export function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [deleteSelected, fitView, redo, setSaveStatus, setToast, toProject, undo])
+  }, [deleteSelected, fitView, redo, setSaveStatus, setToast, t, toProject, undo])
 
   return <div className="app-shell">
-    <a href="#canvas" className="skip-link">跳到画布</a>
+    <a href="#canvas" className="skip-link">{t('app.skipToCanvas')}</a>
     <TopBar />
     <div className="workspace">
       <BlockLibrary />
@@ -89,13 +91,13 @@ export function App() {
     </div>
     <StatusBar />
     <PreviewModal />
-    {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label="项目恢复">
-      <div><strong>{recoveryRequired ? '需要恢复旧项目' : '项目已迁移'}</strong><span>{recoveryNotice}</span></div>
-      <div><button className="secondary-action" onClick={createNewProject}>新建 Project</button><button className="primary-action" onClick={resetToDemo}>重置为 Demo</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label="关闭恢复提示">×</button>}</div>
+    {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>
+      <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>
+      <div><button className="secondary-action" onClick={createNewProject}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}>×</button>}</div>
     </section>}
-    {!hydrated && <div className="loading-screen"><span className="brand-mark"><Route size={22} /></span><strong>ProxyFlow</strong><small>正在加载 Blueprint…</small></div>}
+    {!hydrated && <div className="loading-screen"><span className="brand-mark"><Route size={22} /></span><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
     {toast && <div className="toast" role="status"><span><CheckIcon /></span>{toast}</div>}
-    <div className="small-screen-blocker"><MonitorUp size={28} /><h2>请使用桌面设备编辑</h2><p>ProxyFlow 的可视化画布需要至少 1100px 的可用宽度。</p></div>
+    <div className="small-screen-blocker"><MonitorUp size={28} /><h2>{t('app.desktopTitle')}</h2><p>{t('app.desktopDescription')}</p></div>
   </div>
 }
 

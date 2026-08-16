@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, Search, X, XCircle } from 'lucide-react'
 import { maskServer, proxyProtocolLabel, REGION_OPTIONS, type ResolvedProxyEndpointIR, type SupportedProxyProtocol } from '../../core/proxy'
 import type { SubscriptionSnapshot } from '../../core/subscription'
+import { localizeDiagnosticMessage, localizeKnownSystemText, regionLabel, useI18n } from '../../i18n'
 
 export function NodesPreview({ snapshot, onClose, initialStatus = 'all' }: { snapshot?: SubscriptionSnapshot; onClose: () => void; initialStatus?: 'all' | 'issues' }) {
+  const { locale, t } = useI18n()
   const [search, setSearch] = useState('')
   const [protocol, setProtocol] = useState('all')
   const [region, setRegion] = useState('all')
@@ -22,27 +24,27 @@ export function NodesPreview({ snapshot, onClose, initialStatus = 'all' }: { sna
 
   return createPortal(<div className="nodes-preview-backdrop" role="presentation" onMouseDown={onClose}>
     <section className="nodes-preview" role="dialog" aria-modal="true" aria-labelledby="nodes-preview-title" onMouseDown={(event) => event.stopPropagation()}>
-      <header><div><span>NODE POOL</span><h2 id="nodes-preview-title">Nodes Preview</h2><p>{nodes.length} detected · {snapshot?.result?.readyCount ?? 0} ready · {snapshot?.result?.partialCount ?? 0} warnings · {snapshot?.result?.unsupportedCount ?? 0} unsupported</p></div><button onClick={onClose} aria-label="关闭节点预览"><X size={18} /></button></header>
+      <header><div><span>{t('nodesPreview.pool')}</span><h2 id="nodes-preview-title">{t('nodesPreview.title')}</h2><p>{t('nodesPreview.summary', { detected: nodes.length, ready: snapshot?.result?.readyCount ?? 0, warnings: snapshot?.result?.partialCount ?? 0, unsupported: snapshot?.result?.unsupportedCount ?? 0 })}</p></div><button onClick={onClose} aria-label={t('nodesPreview.closeAria')}><X size={18} /></button></header>
       <div className="nodes-preview-filters">
-        <label><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索名称或服务器…" /></label>
-        <select value={protocol} onChange={(event) => setProtocol(event.target.value)}><option value="all">全部协议</option>{protocols.map((item) => <option key={item} value={item}>{protocolName(item)}</option>)}</select>
-        <select value={region} onChange={(event) => setRegion(event.target.value)}><option value="all">全部地区</option>{REGION_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.label}</option>)}</select>
-        <select value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'issues')}><option value="all">全部状态</option><option value="issues">仅问题节点</option></select>
+        <label><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('nodesPreview.search')} /></label>
+        <select value={protocol} onChange={(event) => setProtocol(event.target.value)}><option value="all">{t('nodesPreview.allProtocols')}</option>{protocols.map((item) => <option key={item} value={item}>{protocolName(item)}</option>)}</select>
+        <select value={region} onChange={(event) => setRegion(event.target.value)}><option value="all">{t('nodesPreview.allRegions')}</option>{REGION_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.code} · {regionLabel(item.code, locale)}</option>)}</select>
+        <select value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'issues')}><option value="all">{t('nodesPreview.allStatuses')}</option><option value="issues">{t('nodesPreview.issuesOnly')}</option></select>
       </div>
       <div className="nodes-preview-table" role="table">
-        <div className="nodes-preview-row is-heading" role="row"><span>Name</span><span>Protocol</span><span>Region</span><span>Server</span><span>Port</span><span>Security / Transport</span><span>Status</span></div>
+        <div className="nodes-preview-row is-heading" role="row"><span>{t('nodesPreview.name')}</span><span>{t('nodesPreview.protocol')}</span><span>{t('nodesPreview.region')}</span><span>{t('nodesPreview.server')}</span><span>{t('nodesPreview.port')}</span><span>{t('nodesPreview.security')}</span><span>{t('nodesPreview.status')}</span></div>
         {filtered.map((node) => <Fragment key={node.id}><div className={`nodes-preview-row${node.issues.length ? ' has-issues' : ''}`} role="row" tabIndex={node.issues.length ? 0 : undefined} aria-expanded={node.issues.length ? expandedNodeId === node.id : undefined} onClick={() => node.issues.length && setExpandedNodeId((current) => current === node.id ? null : node.id)} onKeyDown={(event) => { if (node.issues.length && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setExpandedNodeId((current) => current === node.id ? null : node.id) } }}>
-          <span><strong>{node.name}</strong><small>{node.sourceName}</small></span>
+          <span><strong>{node.name}</strong><small>{localizeKnownSystemText(node.sourceName, locale)}</small></span>
           <span><code>{protocolName(node.protocol)}</code></span>
-          <span>{node.endpoint?.metadata?.region?.code ?? 'UNKNOWN'}<small>{node.endpoint?.metadata?.region?.source ?? '—'} hint</small></span>
+          <span>{node.endpoint?.metadata?.region?.code ?? 'UNKNOWN'}<small>{t('nodesPreview.hint', { source: node.endpoint?.metadata?.region?.source ?? '—' })}</small></span>
           <span><code>{node.server ? maskServer(node.server) : '—'}</code></span>
           <span>{node.port ?? '—'}</span>
-          <span><small className="node-safe-summary">{safeEndpointSummary(node.endpoint)}</small></span>
-          <span className={`node-parse-status is-${node.status}`}>{node.status === 'ready' ? <CheckCircle2 size={14} /> : node.status === 'partial' ? <AlertTriangle size={14} /> : <XCircle size={14} />}{node.status}</span>
-        </div>{expandedNodeId === node.id && node.issues.length > 0 && <div className="node-issue-details">{node.issues.map((issue) => <div key={`${issue.code}-${issue.message}`}><code>{issue.code}</code><span>{issue.message}</span></div>)}</div>}</Fragment>)}
-        {filtered.length === 0 && <div className="nodes-preview-empty">没有匹配当前筛选条件的节点。</div>}
+          <span><small className="node-safe-summary">{safeEndpointSummary(node.endpoint, t)}</small></span>
+          <span className={`node-parse-status is-${node.status}`}>{node.status === 'ready' ? <CheckCircle2 size={14} /> : node.status === 'partial' ? <AlertTriangle size={14} /> : <XCircle size={14} />}{t(`nodesPreview.status.${node.status}`)}</span>
+        </div>{expandedNodeId === node.id && node.issues.length > 0 && <div className="node-issue-details">{node.issues.map((issue) => <div key={`${issue.code}-${issue.message}`}><code>{issue.code}</code><span>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span></div>)}</div>}</Fragment>)}
+        {filtered.length === 0 && <div className="nodes-preview-empty">{t('nodesPreview.empty')}</div>}
       </div>
-      <footer><span>服务器地址已适度隐藏；密码与 UUID 不在此视图显示。</span><button className="secondary-action" onClick={onClose}>关闭</button></footer>
+      <footer><span>{t('nodesPreview.privacy')}</span><button className="secondary-action" onClick={onClose}>{t('nodesPreview.close')}</button></footer>
     </section>
   </div>, document.body)
 }
@@ -53,18 +55,18 @@ function protocolName(value: string) {
     : value.toUpperCase()
 }
 
-function safeEndpointSummary(endpoint?: ResolvedProxyEndpointIR) {
+function safeEndpointSummary(endpoint: ResolvedProxyEndpointIR | undefined, t: ReturnType<typeof useI18n>['t']) {
   if (!endpoint) return '—'
   if (endpoint.protocol === 'hysteria2') return [
-    'TLS', endpoint.obfs?.type, endpoint.serverPorts?.length ? 'port hopping' : undefined,
-    endpoint.upMbps || endpoint.downMbps ? 'bandwidth limits' : undefined,
+    'TLS', endpoint.obfs?.type, endpoint.serverPorts?.length ? t('nodesPreview.portHopping') : undefined,
+    endpoint.upMbps || endpoint.downMbps ? t('nodesPreview.bandwidthLimits') : undefined,
   ].filter(Boolean).join(' · ')
   if (endpoint.protocol === 'tuic') return ['TLS', endpoint.congestionControl?.toUpperCase(), endpoint.udpRelayMode ? `UDP ${endpoint.udpRelayMode}` : undefined].filter(Boolean).join(' · ')
   const tls = 'tls' in endpoint && endpoint.tls?.enabled ? endpoint.tls.reality ? 'Reality' : 'TLS' : undefined
   const flow = endpoint.protocol === 'vless' && endpoint.flow ? 'Vision' : undefined
   const transport = 'transport' in endpoint && endpoint.transport ? endpoint.transport.kind === 'http' && endpoint.transport.variant === 'h2'
-    ? 'HTTP/2' : endpoint.transport.kind === 'ws' ? `WebSocket${endpoint.transport.maxEarlyData ? ' + early data' : ''}`
+    ? 'HTTP/2' : endpoint.transport.kind === 'ws' ? `WebSocket${endpoint.transport.maxEarlyData ? ` + ${t('nodesPreview.earlyData')}` : ''}`
       : endpoint.transport.kind === 'grpc' ? 'gRPC' : endpoint.transport.kind === 'httpupgrade' ? 'HTTPUpgrade'
         : endpoint.transport.kind === 'xhttp' ? 'XHTTP' : endpoint.transport.kind.toUpperCase() : undefined
-  return [tls, flow, transport].filter(Boolean).join(' · ') || 'Standard'
+  return [tls, flow, transport].filter(Boolean).join(' · ') || t('nodesPreview.standard')
 }

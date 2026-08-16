@@ -7,15 +7,15 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[]): Validatio
 
   for (const node of nodes) {
     if (node.data.disabled) continue
-    const add = (message: string, severity: 'warning' | 'error' = 'warning') => {
-      issues.push({ id: `${node.id}-${issues.length}`, nodeId: node.id, severity, message })
+    const add = (code: string, message: string, severity: 'warning' | 'error' = 'warning') => {
+      issues.push({ id: `${node.id}-${issues.length}`, code, nodeId: node.id, severity, message })
     }
-    if (['subscription', 'manual-proxy', 'provider'].includes(node.data.blockType) && !outgoing(node.id)) add('这个数据源还没有连接到处理流程')
-    if (['auto-select', 'manual-select', 'fallback', 'load-balance'].includes(node.data.blockType) && !incoming(node.id)) add('这个策略缺少节点来源')
-    if (node.data.blockType === 'proxy-chain' && (node.data.hopIds?.length ?? 0) === 0) add('代理链至少需要一跳', 'error')
-    if (['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType) && !node.data.targetId) add('这个分流规则还没有目标策略')
-    if (node.data.blockType === 'final' && !outgoing(node.id)) add('Final 必须连接到一个出口', 'error')
-    if (node.data.blockType === 'output' && !node.data.client) add('请选择目标客户端', 'error')
+    if (['subscription', 'manual-proxy', 'provider'].includes(node.data.blockType) && !outgoing(node.id)) add('UI_SOURCE_DISCONNECTED', 'This source is not connected to the processing flow.')
+    if (['auto-select', 'manual-select', 'fallback', 'load-balance'].includes(node.data.blockType) && !incoming(node.id)) add('UI_STRATEGY_SOURCE_MISSING', 'This strategy has no proxy source.')
+    if (node.data.blockType === 'proxy-chain' && (node.data.hopIds?.length ?? 0) === 0) add('UI_CHAIN_EMPTY', 'A proxy chain needs at least one hop.', 'error')
+    if (['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType) && !node.data.targetId) add('UI_ROUTE_TARGET_MISSING', 'This routing rule has no target strategy.')
+    if (node.data.blockType === 'final' && !outgoing(node.id)) add('UI_FINAL_TARGET_MISSING', 'Final must connect to an outbound target.', 'error')
+    if (node.data.blockType === 'output' && !node.data.client) add('UI_OUTPUT_CLIENT_MISSING', 'Select a target client.', 'error')
   }
   return issues
 }

@@ -10,7 +10,7 @@ describe('validateGraph', () => {
   it('reports a strategy without input', () => {
     const edges = demoEdges.filter((edge) => edge.target !== 'hk-auto')
     expect(validateGraph(demoNodes, edges)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ nodeId: 'hk-auto', message: '这个策略缺少节点来源' }),
+      expect.objectContaining({ nodeId: 'hk-auto', code: 'UI_STRATEGY_SOURCE_MISSING' }),
     ]))
   })
 

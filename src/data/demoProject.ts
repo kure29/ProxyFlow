@@ -32,58 +32,58 @@ export const outputDefinitions: OutputDefinition[] = [
 
 export const demoNodes: GraphNode[] = [
   node('hkt-subscription', 80, 80, {
-    blockType: 'subscription', category: 'source', title: 'HKT 订阅源', subtitle: '真实 Demo · 等待解析', icon: 'radio',
+    blockType: 'subscription', category: 'source', title: 'HKT 订阅源', titleKey: 'demo.subscription.hkt', subtitle: '真实 Demo · 等待解析', subtitleKey: 'demo.subscription.subtitle', icon: 'radio',
     subscriptionInputKind: 'paste', subscriptionContent: hktDemoSubscription, enabled: true, nodeCount: 0, updatedAt: '启动时解析',
   }),
   node('hk-filter', 380, 80, {
-    blockType: 'filter', category: 'processing', title: '香港节点筛选', subtitle: 'Region = HK', icon: 'list-filter',
-    include: [], exclude: ['官网', '剩余', '倍率'], includeRegions: ['HK'],
+    blockType: 'filter', category: 'processing', title: '香港节点筛选', titleKey: 'demo.filter.hk', subtitle: 'Region = HK', subtitleKey: 'demo.filter.hkSubtitle', icon: 'list-filter',
+    include: [], exclude: ['official', 'remaining', 'multiplier'], systemFilterKeywords: true, includeRegions: ['HK'],
   }),
   node('hk-auto', 680, 80, {
-    blockType: 'auto-select', category: 'strategy', title: '香港自动选择', subtitle: '真实候选节点', icon: 'gauge',
+    blockType: 'auto-select', category: 'strategy', title: '香港自动选择', titleKey: 'demo.auto.hk', subtitle: '真实候选节点', subtitleKey: 'demo.auto.subtitle', icon: 'gauge',
     strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50,
   }),
   node('us-subscription', 80, 340, {
-    blockType: 'subscription', category: 'source', title: 'US 订阅源', subtitle: '真实 Demo · 等待解析', icon: 'radio',
+    blockType: 'subscription', category: 'source', title: 'US 订阅源', titleKey: 'demo.subscription.us', subtitle: '真实 Demo · 等待解析', subtitleKey: 'demo.subscription.subtitle', icon: 'radio',
     subscriptionInputKind: 'paste', subscriptionContent: usDemoSubscription, enabled: true, nodeCount: 0, updatedAt: '启动时解析',
   }),
   node('us-filter', 380, 340, {
-    blockType: 'filter', category: 'processing', title: '美国节点筛选', subtitle: 'Region = US', icon: 'list-filter',
-    include: [], exclude: ['官网', '剩余', '倍率'], includeRegions: ['US'],
+    blockType: 'filter', category: 'processing', title: '美国节点筛选', titleKey: 'demo.filter.us', subtitle: 'Region = US', subtitleKey: 'demo.filter.usSubtitle', icon: 'list-filter',
+    include: [], exclude: ['official', 'remaining', 'multiplier'], systemFilterKeywords: true, includeRegions: ['US'],
   }),
   node('us-auto', 680, 340, {
-    blockType: 'auto-select', category: 'strategy', title: '美国自动选择', subtitle: '真实候选节点', icon: 'gauge',
+    blockType: 'auto-select', category: 'strategy', title: '美国自动选择', titleKey: 'demo.auto.us', subtitle: '真实候选节点', subtitleKey: 'demo.auto.subtitle', icon: 'gauge',
     strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 80,
   }),
   node('us-via-hk', 1000, 175, {
-    blockType: 'proxy-chain', category: 'chain', title: 'US via HK', subtitle: '代理链 · 2 Hops', icon: 'route',
+    blockType: 'proxy-chain', category: 'chain', title: 'US via HK', titleKey: 'demo.chain.title', subtitle: '代理链 · 2 Hops', subtitleKey: 'demo.chain.subtitle', icon: 'route',
     hopIds: ['hk-auto', 'us-auto'],
   }),
   node('ai-services', 520, 650, {
-    blockType: 'routing-group', category: 'routing', title: 'AI 服务', subtitle: '3 个服务 · US via HK', icon: 'sparkles',
+    blockType: 'routing-group', category: 'routing', title: 'AI 服务', titleKey: 'demo.ai.title', subtitle: '3 个服务 · US via HK', subtitleKey: 'demo.ai.subtitle', icon: 'sparkles',
     services: ['OpenAI', 'Claude', 'Gemini'], targetId: 'us-via-hk', targetLabel: 'US via HK', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('streaming', 800, 650, {
-    blockType: 'routing-group', category: 'routing', title: '流媒体', subtitle: '3 个服务 · US Auto', icon: 'play',
+    blockType: 'routing-group', category: 'routing', title: '流媒体', titleKey: 'demo.streaming.title', subtitle: '3 个服务 · US Auto', subtitleKey: 'demo.streaming.subtitle', icon: 'play',
     services: ['Netflix', 'YouTube', 'Disney+'], targetId: 'us-auto', targetLabel: '美国自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('telegram', 1080, 650, {
-    blockType: 'service-rule', category: 'routing', title: 'Telegram', subtitle: 'Social · HK Auto', icon: 'send',
+    blockType: 'service-rule', category: 'routing', title: 'Telegram', subtitle: 'Social · HK Auto', subtitleKey: 'demo.telegram.subtitle', icon: 'send',
     services: ['Telegram'], targetId: 'hk-auto', targetLabel: '香港自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('china', 1360, 650, {
-    blockType: 'service-rule', category: 'routing', title: '国内网站', subtitle: 'China Mainland · DIRECT', icon: 'landmark',
+    blockType: 'service-rule', category: 'routing', title: '国内网站', titleKey: 'demo.china.title', subtitle: 'China Mainland · DIRECT', subtitleKey: 'demo.china.subtitle', icon: 'landmark',
     services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', subtitle: '基础 DNS · redir-host', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
   }),
   node('final-route', 1360, 870, {
-    blockType: 'final', category: 'routing', title: 'Final', subtitle: '其余流量 · Default Proxy', icon: 'corner-down-right',
+    blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · Default Proxy', subtitleKey: 'demo.final.subtitle', icon: 'corner-down-right',
     targetId: 'us-via-hk', targetLabel: 'US via HK', targetKind: 'strategy', protected: true,
   }),
   node('output', 1360, 250, {
-    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', icon: 'package-check',
+    blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', subtitleKey: 'demo.output.subtitle', icon: 'package-check',
     client: 'mihomo', compatibility: 'Supported', protected: true,
   }),
 ]

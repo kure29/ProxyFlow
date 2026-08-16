@@ -45,6 +45,9 @@ export interface BlockNodeData extends Record<string, unknown> {
   category: BlockCategory
   title: string
   subtitle: string
+  /** Translation keys are present only for built-in copy. User edits clear them. */
+  titleKey?: string
+  subtitleKey?: string
   icon: string
   disabled?: boolean
   protected?: boolean
@@ -76,6 +79,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   updatedAt?: string
   include?: string[]
   exclude?: string[]
+  systemFilterKeywords?: boolean
   includeRegex?: string
   excludeRegex?: string
   includeRegions?: RegionCode[]
@@ -143,6 +147,7 @@ export interface CompatibilityIssue {
 
 export interface ValidationIssue {
   id: string
+  code: string
   nodeId: string
   severity: 'warning' | 'error'
   message: string

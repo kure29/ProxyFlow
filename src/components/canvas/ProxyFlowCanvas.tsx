@@ -11,6 +11,7 @@ import { isConnectionAllowed } from '../../core/graph/graphRules'
 import { validateGraph } from '../../core/validation/validateProject'
 import type { BlockType, GraphEdge, GraphNode } from '../../types/project'
 import { deriveProjectRuntime } from '../../core/proxySet'
+import { localizeDiagnosticMessage, localizeNodeData, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 
 const nodeTypes = { block: BlockNode }
 const categoryColors: Record<string, string> = {
@@ -24,6 +25,7 @@ const semanticColors: Record<string, string> = {
 interface ContextMenuState { x: number; y: number; nodeId?: string }
 
 export function ProxyFlowCanvas() {
+  const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
@@ -43,6 +45,19 @@ export function ProxyFlowCanvas() {
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const { screenToFlowPosition, fitView } = useReactFlow()
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
+  const ariaLabelConfig = useMemo(() => ({
+    'node.a11yDescription.default': t('canvas.a11y.node'),
+    'node.a11yDescription.keyboardDisabled': t('canvas.a11y.nodeKeyboard'),
+    'node.a11yDescription.ariaLiveMessage': ({ x, y }: { direction: string; x: number; y: number }) => t('canvas.a11y.nodeMoved', { x, y }),
+    'edge.a11yDescription.default': t('canvas.a11y.edge'),
+    'controls.ariaLabel': t('canvas.a11y.controls'),
+    'controls.zoomIn.ariaLabel': t('canvas.a11y.zoomIn'),
+    'controls.zoomOut.ariaLabel': t('canvas.a11y.zoomOut'),
+    'controls.fitView.ariaLabel': t('canvas.a11y.fitView'),
+    'controls.interactive.ariaLabel': t('canvas.a11y.toggleInteractivity'),
+    'minimap.ariaLabel': t('canvas.a11y.minimap'),
+    'handle.ariaLabel': t('canvas.a11y.handle'),
+  }), [t])
 
   useEffect(() => {
     if (!hydrated) return
@@ -53,13 +68,17 @@ export function ProxyFlowCanvas() {
   const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges])
   const path = useMemo(() => getHighlightedPath(selectedNodeId, nodes, edges), [selectedNodeId, nodes, edges])
   const hasPath = selectedNodeId !== null && path.nodeIds.size > 0
-  const pipelineRuntime = useMemo(() => deriveProjectRuntime(toProject(), subscriptionSnapshots), [edges, nodes, subscriptionSnapshots, toProject])
+  const pipelineRuntime = useMemo(() => deriveProjectRuntime(toProject(), localizeSubscriptionSnapshots(subscriptionSnapshots, locale)), [edges, locale, nodes, subscriptionSnapshots, toProject])
 
   const displayNodes = useMemo(() => nodes.map((node) => ({
     ...node,
     data: {
       ...node.data,
-      warning: issues.find((issue) => issue.nodeId === node.id)?.message,
+      ...localizeNodeData(node.data, locale),
+      warning: (() => {
+        const issue = issues.find((item) => item.nodeId === node.id)
+        return issue ? localizeDiagnosticMessage(issue.code, issue.message, locale) : undefined
+      })(),
       highlighted: hasPath && path.nodeIds.has(node.id),
       dimmed: hasPath && !path.nodeIds.has(node.id),
       ...(pipelineRuntime.has(node.id) ? {
@@ -71,7 +90,7 @@ export function ProxyFlowCanvas() {
         runtimeIssueCount: pipelineRuntime.get(node.id)!.issues.length,
       } : {}),
     },
-  })), [nodes, issues, hasPath, path.nodeIds, pipelineRuntime])
+  })), [nodes, issues, hasPath, locale, path.nodeIds, pipelineRuntime])
 
   const displayEdges = useMemo(() => edges.map((edge) => {
     const highlighted = hasPath && path.edgeIds.has(edge.id)
@@ -110,7 +129,7 @@ export function ProxyFlowCanvas() {
 
   return (
     <main className="canvas-shell" onContextMenu={(event) => event.preventDefault()}>
-      <div className="canvas-breadcrumb"><span>Blueprint</span><b>/</b><strong>主配置流</strong><i>LIVE</i></div>
+      <div className="canvas-breadcrumb"><span>{t('canvas.blueprint')}</span><b>/</b><strong>{t('canvas.mainFlow')}</strong><i>{t('canvas.live')}</i></div>
       <ReactFlow
         nodes={displayNodes}
         edges={displayEdges}
@@ -143,6 +162,7 @@ export function ProxyFlowCanvas() {
         connectionLineStyle={{ stroke: '#7563b5', strokeWidth: 2 }}
         defaultEdgeOptions={{ type: 'smoothstep' }}
         proOptions={{ hideAttribution: true }}
+        ariaLabelConfig={ariaLabelConfig}
       >
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.15} color="#cbd1dc" />
         <MiniMap
@@ -159,15 +179,15 @@ export function ProxyFlowCanvas() {
 
       {menu && <div className="context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}>
         {selectedMenuNode ? <>
-          <button onClick={() => { duplicateNode(selectedMenuNode.id); setMenu(null) }}><Copy size={14} /> 复制节点 <kbd>⌘D</kbd></button>
-          <button onClick={() => { updateNodeData(selectedMenuNode.id, { disabled: !selectedMenuNode.data.disabled }); setMenu(null) }}><Power size={14} /> {selectedMenuNode.data.disabled ? '启用节点' : '禁用节点'}</button>
+          <button onClick={() => { duplicateNode(selectedMenuNode.id); setMenu(null) }}><Copy size={14} /> {t('canvas.copyNode')} <kbd>⌘D</kbd></button>
+          <button onClick={() => { updateNodeData(selectedMenuNode.id, { disabled: !selectedMenuNode.data.disabled }); setMenu(null) }}><Power size={14} /> {selectedMenuNode.data.disabled ? t('canvas.enableNode') : t('canvas.disableNode')}</button>
           <span />
-          <button className="danger" disabled={selectedMenuNode.data.protected} onClick={() => { removeNode(selectedMenuNode.id); setMenu(null) }}><Trash2 size={14} /> 删除节点</button>
+          <button className="danger" disabled={selectedMenuNode.data.protected} onClick={() => { removeNode(selectedMenuNode.id); setMenu(null) }}><Trash2 size={14} /> {t('canvas.deleteNode')}</button>
         </> : <>
-          <button onClick={() => { addNode('subscription', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> 添加订阅源</button>
-          <button onClick={() => { addNode('routing-group', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> 添加分流规则</button>
+          <button onClick={() => { addNode('subscription', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addSubscription')}</button>
+          <button onClick={() => { addNode('routing-group', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addRouting')}</button>
           <span />
-          <button onClick={() => { fitView({ padding: 0.15, duration: 400 }); setMenu(null) }}><Focus size={14} /> 适应画布 <kbd>F</kbd></button>
+          <button onClick={() => { fitView({ padding: 0.15, duration: 400 }); setMenu(null) }}><Focus size={14} /> {t('canvas.fitCanvas')} <kbd>F</kbd></button>
         </>}
       </div>}
     </main>

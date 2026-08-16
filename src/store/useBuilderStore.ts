@@ -7,6 +7,9 @@ import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphR
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
 import type { SubscriptionInputKind, SubscriptionSnapshot } from '../core/subscription'
+import {
+  blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
+} from '../i18n'
 
 interface GraphSnapshot {
   nodes: GraphNode[]
@@ -71,10 +74,10 @@ const cloneSnapshot = (nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot =>
 const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now()}`
 
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
-  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', enabled: true, nodeCount: 0, updatedAt: '尚未解析' }
+  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
   if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
   if (type === 'filter') return { include: [], exclude: [] }
-  if (type === 'auto-select') return { strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
+  if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'proxy-chain') return { hopIds: [] }
   if (['routing-group', 'service-rule', 'custom-rule'].includes(type)) return { services: [], ruleSource: type === 'custom-rule' ? 'custom' : 'ios_rule_script' }
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
@@ -83,7 +86,7 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
 }
 
 function formatTimestamp(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+  return new Intl.DateTimeFormat(getCurrentLocale(), { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
 }
 
 async function rehydrateEmbeddedSubscriptions(
@@ -136,7 +139,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     connect: (connection) => {
       const state = get()
       if (!isConnectionAllowed(connection, state.nodes)) {
-        set({ toast: '这两个模块的流量类型不能直接连接' })
+        set({ toast: translateCurrent('toast.connectionRejected') })
         return false
       }
       record()
@@ -155,7 +158,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       record()
       const id = makeId(type)
       const data: BlockNodeData = {
-        blockType: type, category: item.category, title: item.title, subtitle: item.description, icon: item.icon,
+        blockType: type, category: item.category, title: translateCurrent(blockTitleKey(type)), subtitle: translateCurrent(blockDescriptionKey(type)),
+        titleKey: blockTitleKey(type), subtitleKey: blockDescriptionKey(type), icon: item.icon,
         ...defaultDataFor(type),
       }
       const node: GraphNode = { id, type: 'block', position, data, selected: true }
@@ -174,7 +178,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const duplicate: GraphNode = {
         ...structuredClone(source), id: duplicateId,
         position: { x: source.position.x + 36, y: source.position.y + 36 },
-        data: { ...structuredClone(source.data), title: `${source.data.title} 副本`, protected: false }, selected: true,
+        data: { ...structuredClone(source.data), title: translateCurrent('toast.duplicateSuffix', { name: localizeDataValue(source.data.title, source.data.titleKey, getCurrentLocale()) }), titleKey: undefined, protected: false }, selected: true,
       }
       set((state) => ({
         nodes: [...state.nodes.map((node) => ({ ...node, selected: false })), duplicate],
@@ -184,7 +188,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     removeNode: (id) => {
       const node = get().nodes.find((item) => item.id === id)
       if (!node || node.data.protected) {
-        set({ toast: 'Final 与主输出节点受保护，不能直接删除' })
+        set({ toast: translateCurrent('toast.protectedNode') })
         return
       }
       record()
@@ -208,7 +212,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         return
       }
       if (protectedSelection) {
-        set({ toast: 'Final 与主输出节点受保护，不能直接删除' })
+        set({ toast: translateCurrent('toast.protectedNode') })
         return
       }
       const selectedEdgeIds = new Set(state.edges.filter((edge) => edge.selected || edge.id === state.selectedEdgeId).map((edge) => edge.id))
@@ -272,8 +276,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           type: 'block',
           position: { x: chain.position.x - 300, y: chain.position.y + 420 },
           data: {
-            blockType: 'fallback', category: 'strategy', title: '备用故障切换',
-            subtitle: 'Mock Fallback · Standby', icon: 'refresh-cw', strategyMode: '故障自动切换',
+            blockType: 'fallback', category: 'strategy', title: translateCurrent('block.fallback.title'), titleKey: 'block.fallback.title',
+            subtitle: translateCurrent('block.fallback.description'), subtitleKey: 'block.fallback.description', icon: 'refresh-cw', strategyMode: translateCurrent('demo.strategy.fallback'),
           },
         }
         const inputSource = state.nodes.find((node) => node.id === 'us-filter')
@@ -283,9 +287,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         ]
         const hopIds = [...(chain.data.hopIds ?? []), fallbackId]
         set({
-          nodes: [...state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds, subtitle: `代理链 · ${hopIds.length} Hops` } } : node), fallback],
+          nodes: [...state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds, subtitle: translateCurrent('demo.chain.dynamicSubtitle', { count: hopIds.length }), subtitleKey: undefined } } : node), fallback],
           edges: [...state.edges, ...newEdges],
-          toast: '已添加备用故障切换（Mock）',
+          toast: translateCurrent('toast.fallbackAdded'),
         })
         return
       }
@@ -294,7 +298,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const hasReference = state.edges.some((edge) => edge.source === available.id && edge.target === chainId)
       const reference: GraphEdge = { id: makeId('strategy'), source: available.id, target: chainId, type: 'smoothstep', data: { semantic: 'strategy' }, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }
       set({
-        nodes: state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds, subtitle: `代理链 · ${hopIds.length} Hops` } } : node),
+        nodes: state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds, subtitle: translateCurrent('demo.chain.dynamicSubtitle', { count: hopIds.length }), subtitleKey: undefined } } : node),
         edges: hasReference ? state.edges : [...state.edges, reference],
       })
     },
@@ -304,7 +308,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const hops = (chain.data.hopIds ?? []).filter((id) => id !== hopId)
       record()
       set((state) => ({
-        nodes: state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds: hops, subtitle: `代理链 · ${hops.length} Hops` } } : node),
+        nodes: state.nodes.map((node) => node.id === chainId ? { ...node, data: { ...node.data, hopIds: hops, subtitle: translateCurrent('demo.chain.dynamicSubtitle', { count: hops.length }), subtitleKey: undefined } } : node),
         edges: state.edges.filter((edge) => !(edge.source === hopId && edge.target === chainId && edge.data?.semantic === 'strategy')),
       }))
     },
@@ -318,7 +322,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     setOutputClient: (id, client) => {
       const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
-      get().updateNodeData(id, { client, title: `${labels[client]} Output`, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
+      get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
     },
     beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.nodes, state.edges) })),
     commitTransaction: () => {
@@ -370,7 +374,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
       if (!node) return
       const { parseSubscription } = await import('../core/subscription')
-      const result = parseSubscription(content, { sourceId: id, sourceName: node.data.title, filename: fileName })
+      const result = parseSubscription(content, { sourceId: id, sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()), filename: fileName })
       const now = new Date().toISOString()
       const firstError = result.issues.find((issue) => issue.severity === 'error')
       const parsed = result.readyCount + result.partialCount
@@ -388,17 +392,17 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
             ...item.data, subscriptionInputKind: inputKind,
             ...(inputKind === 'paste' ? { subscriptionContent: content, subscriptionFileName: undefined } : { subscriptionContent: undefined, subscriptionFileName: fileName }),
             nodeCount: result.detectedCount, updatedAt: parsed > 0 ? formatTimestamp(now) : item.data.updatedAt,
-            subtitle: `${result.detectedCount} detected · ${result.readyCount} usable`,
+            subtitle: translateCurrent('demo.subscription.dynamicSubtitle', { detected: result.detectedCount, ready: result.readyCount }), subtitleKey: undefined,
           },
         } : item),
-        toast: parsed > 0 ? `导入完成：${result.detectedCount} 个节点，${result.readyCount} 个可用` : '订阅内容未能解析',
+        toast: parsed > 0 ? translateCurrent('toast.importComplete', { detected: result.detectedCount, ready: result.readyCount }) : translateCurrent('toast.importFailed'),
       }))
     },
     refreshSubscription: async (id) => {
       const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
       const url = node?.data.subscriptionUrl?.trim()
       if (!node || !url) {
-        set({ toast: '请先填写订阅地址' })
+        set({ toast: translateCurrent('toast.enterSubscriptionUrl') })
         return
       }
       const previous = get().subscriptionSnapshots[id]
@@ -409,15 +413,15 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       try {
         const { BrowserSourceFetcher, parseSubscription } = await import('../core/subscription')
         const content = await new BrowserSourceFetcher().fetchText(url)
-        const result = parseSubscription(content, { sourceId: id, sourceName: node.data.title })
+        const result = parseSubscription(content, { sourceId: id, sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()) })
         const firstError = result.issues.find((issue) => issue.severity === 'error')
         const parsed = result.readyCount + result.partialCount
         if (parsed === 0 && firstError) throw Object.assign(new Error(firstError.message), { code: firstError.code })
         const successfulAt = new Date().toISOString()
         set((state) => ({
           subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: { inputKind: 'url', fetchStatus: 'ready', result, lastSuccessfulAt: successfulAt, latestAttemptAt: successfulAt } },
-          nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, subscriptionInputKind: 'url', subscriptionContent: undefined, subscriptionFileName: undefined, nodeCount: result.detectedCount, updatedAt: formatTimestamp(successfulAt), subtitle: `${result.detectedCount} detected · ${result.readyCount} usable` } } : item),
-          toast: `订阅已解析：${result.detectedCount} 个节点`,
+          nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, subscriptionInputKind: 'url', subscriptionContent: undefined, subscriptionFileName: undefined, nodeCount: result.detectedCount, updatedAt: formatTimestamp(successfulAt), subtitle: translateCurrent('demo.subscription.dynamicSubtitle', { detected: result.detectedCount, ready: result.readyCount }), subtitleKey: undefined } } : item),
+          toast: translateCurrent('toast.subscriptionParsed', { count: result.detectedCount }),
         }))
       } catch (error) {
         const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : 'FETCH_FAILED'
@@ -430,7 +434,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
               latestAttemptAt: attemptedAt, latestErrorCode: code, latestErrorMessage: message, stale: Boolean(previous?.result?.proxies.length),
             },
           },
-          toast: previous?.result?.proxies.length ? '刷新失败，继续使用上次成功结果' : message,
+          toast: previous?.result?.proxies.length ? translateCurrent('toast.refreshCached') : translateCurrent('issue.generic', { code }),
         }))
       }
     },
@@ -441,7 +445,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
           historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
           recoveryRequired: true,
-          recoveryNotice: '本地项目无法解析。原始数据尚未覆盖，请重置为 Demo 或新建 Project。',
+          recoveryNotice: translateCurrent('recovery.unreadable'),
           subscriptionSnapshots: {},
         })
         return
@@ -462,7 +466,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         projectId: demoProject.id, projectName: demoProject.name,
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
-        recoveryRequired: false, recoveryNotice: '已重置为 V0.6 Modern Protocols Demo。',
+        recoveryRequired: false, recoveryNotice: translateCurrent('recovery.resetDemo'),
         subscriptionSnapshots: {},
       })
       void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
@@ -473,18 +477,18 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         projectId: value.id, projectName: value.name,
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
-        recoveryRequired: false, recoveryNotice: '已创建新的空白项目。',
+        recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
         subscriptionSnapshots: {},
       })
     },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
     toProject: () => {
       const state = get()
-      return {
+      return localizeProject({
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
-      }
+      })
     },
   }
 })
