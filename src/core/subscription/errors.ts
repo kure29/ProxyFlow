@@ -10,7 +10,7 @@ export function subscriptionIssue(
 }
 
 export class SubscriptionFetchError extends Error {
-  constructor(public readonly code: 'FETCH_FAILED' | 'CORS_OR_NETWORK_ERROR' | 'SUBSCRIPTION_TOO_LARGE', message: string) {
+  constructor(public readonly code: 'FETCH_FAILED' | 'CORS_OR_NETWORK_ERROR' | 'SUBSCRIPTION_TOO_LARGE' | 'INVALID_SUBSCRIPTION_URL', message: string) {
     super(message)
     this.name = 'SubscriptionFetchError'
   }
