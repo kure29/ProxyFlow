@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProject } from '../data/demoProject'
 import { useBuilderStore } from './useBuilderStore'
 
 describe('builder store', () => {
   beforeEach(() => {
     useBuilderStore.getState().hydrate(structuredClone(demoProject))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('adds and removes a node', () => {
@@ -46,5 +50,57 @@ describe('builder store', () => {
   it('keeps protected nodes when delete is requested', () => {
     useBuilderStore.getState().removeNode('final-route')
     expect(useBuilderStore.getState().nodes.some((node) => node.id === 'final-route')).toBe(true)
+  })
+
+  it('persists embedded paste content but never persists derived subscription snapshots', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    const content = 'http://demo:paste-secret@paste.example.com:8080#Paste%20Node'
+    await useBuilderStore.getState().parseSubscriptionInput(sourceId, content, 'paste')
+
+    const project = useBuilderStore.getState().toProject()
+    const source = project.graph.nodes.find((node) => node.id === sourceId)!
+    expect(source.data.subscriptionContent).toBe(content)
+    expect(project).not.toHaveProperty('subscriptionSnapshots')
+    expect(JSON.stringify(project)).not.toContain('paste.example.com\",\"port')
+  })
+
+  it('stores only the file name for local imports and requires re-import after hydration', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    const content = 'socks5://file-user:file-secret@file-private.example.com:1080#Local%20File'
+    await useBuilderStore.getState().parseSubscriptionInput(sourceId, content, 'file', 'private-subscription.txt')
+
+    const project = useBuilderStore.getState().toProject()
+    const source = project.graph.nodes.find((node) => node.id === sourceId)!
+    expect(source.data.subscriptionContent).toBeUndefined()
+    expect(source.data.subscriptionFileName).toBe('private-subscription.txt')
+    expect(JSON.stringify(project)).not.toContain('file-secret')
+    expect(JSON.stringify(project)).not.toContain('file-private.example.com')
+
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
+  })
+
+  it('keeps the last successful URL result when a later browser fetch fails', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://subscription.example.com/demo?token=private' })
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response('http://demo:secret@cached.example.com:8080#Cached%20Node'))
+      .mockRejectedValueOnce(new TypeError('network blocked'))
+    vi.stubGlobal('fetch', fetch)
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const successful = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+    expect(successful.fetchStatus).toBe('ready')
+    expect(successful.result?.readyCount).toBe(1)
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const stale = useBuilderStore.getState().subscriptionSnapshots[sourceId]
+    expect(stale.fetchStatus).toBe('cors')
+    expect(stale.stale).toBe(true)
+    expect(stale.result?.proxies.map((proxy) => proxy.id)).toEqual(successful.result?.proxies.map((proxy) => proxy.id))
+    expect(stale.latestErrorMessage).not.toContain('token=private')
   })
 })
