@@ -1,0 +1,6 @@
+http://demo:pass@http.example.com:8080#HTTP%20Demo
+socks5://demo:pass@socks.example.com:1080#SOCKS%20Demo
+ss://YWVzLTEyOC1nY206ZGVtby1oay1wYXNz@ss.example.com:8388#SS%20Demo
+trojan://demo-pass@trojan.example.com:443?sni=trojan.example.com&type=tcp#Trojan%20Demo
+vmess://eyJ2IjoiMiIsInBzIjoi8J+HrfCfh7Ag6aaZ5rivIFZNZXNzIDAyIiwiYWRkIjoiaGstdm1lc3MuZXhhbXBsZS5jb20iLCJwb3J0IjoiNDQzIiwiaWQiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJhaWQiOiIwIiwic2N5IjoiYXV0byIsInRscyI6InRscyIsInNuaSI6ImhrLXZtZXNzLmV4YW1wbGUuY29tIiwibmV0Ijoid3MiLCJob3N0IjoiaGstdm1lc3MuZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIn0=
+vless://55555555-5555-4555-8555-555555555555@vless.example.com:443?security=tls&sni=vless.example.com&type=ws&path=%2Fws&host=vless.example.com#VLESS%20Demo

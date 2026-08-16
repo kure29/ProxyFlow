@@ -1,4 +1,5 @@
 import type { ProxySetRef, TransformId } from './references'
+import type { RegionCode, SupportedProxyProtocol } from '../proxy'
 
 interface TransformBase {
   id: TransformId
@@ -10,6 +11,12 @@ export interface FilterTransformIR extends TransformBase {
   input: ProxySetRef
   include: string[]
   exclude: string[]
+  includeRegex?: string
+  excludeRegex?: string
+  includeRegions?: RegionCode[]
+  excludeRegions?: RegionCode[]
+  includeProtocols?: SupportedProxyProtocol[]
+  excludeProtocols?: SupportedProxyProtocol[]
 }
 
 export interface RenameTransformIR extends TransformBase {
@@ -22,14 +29,14 @@ export interface RenameTransformIR extends TransformBase {
 export interface SortTransformIR extends TransformBase {
   kind: 'sort'
   input: ProxySetRef
-  by?: 'name' | 'latency'
+  by?: 'name' | 'region' | 'protocol' | 'latency'
   direction?: 'ascending' | 'descending'
 }
 
 export interface DeduplicateTransformIR extends TransformBase {
   kind: 'deduplicate'
   input: ProxySetRef
-  by?: 'name' | 'server'
+  by?: 'identity'
 }
 
 export interface MergeTransformIR extends TransformBase {

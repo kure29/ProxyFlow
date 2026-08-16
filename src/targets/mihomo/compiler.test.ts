@@ -1,6 +1,7 @@
 import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
+import { hktDemoSubscription, usDemoSubscription } from '../../data/demoSubscriptions'
 import { explicitProxyIR } from '../../core/__fixtures__/crossTargetFixtures'
 import {
   fallbackFixture,
@@ -10,13 +11,19 @@ import {
 } from '../../core/__fixtures__/graphFixtures'
 import { compileGraph } from '../../core/graphCompiler'
 import { PROXYFLOW_IR_VERSION, type ProxyFlowIR, type TrafficMatcherIR } from '../../core/ir'
+import { parseSubscription, type SubscriptionSnapshot } from '../../core/subscription'
 import type { MihomoConfig } from './model'
 import { compileMihomo, MihomoCompiler } from './compiler'
 
 const fixedNow = () => new Date('2026-08-16T00:00:00.000Z')
 
 function demoIR() {
-  const graph = compileGraph(demoProject)
+  const parsedAt = '2026-08-16T00:00:00.000Z'
+  const snapshots: Record<string, SubscriptionSnapshot> = {
+    'hkt-subscription': { inputKind: 'paste', fetchStatus: 'ready', result: parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' }), lastSuccessfulAt: parsedAt },
+    'us-subscription': { inputKind: 'paste', fetchStatus: 'ready', result: parseSubscription(usDemoSubscription, { sourceId: 'us-subscription', sourceName: 'US 订阅源' }), lastSuccessfulAt: parsedAt },
+  }
+  const graph = compileGraph(demoProject, { subscriptionSnapshots: snapshots })
   expect(graph.success).toBe(true)
   return graph.ir!
 }
@@ -50,9 +57,10 @@ describe('MihomoCompiler', () => {
     const { result, config } = parseConfig(demoIR())
     expect(result.generatedAt).toBe('2026-08-16T00:00:00.000Z')
     expect(config.mode).toBe('rule')
-    expect(config['proxy-providers']?.['HKT 订阅源']).toEqual(expect.objectContaining({ type: 'http' }))
+    expect(config['proxy-providers']).toBeUndefined()
+    expect(config.proxies?.map((proxy) => proxy.type)).toEqual(expect.arrayContaining(['ss', 'vmess', 'vless', 'trojan', 'socks5', 'http']))
     expect(config['proxy-groups']).toContainEqual(expect.objectContaining({
-      name: '香港自动选择', type: 'url-test', use: ['HKT 订阅源'], filter: '(?i)香港|HK',
+      name: '香港自动选择', type: 'url-test', proxies: expect.any(Array),
     }))
     expect(config['rule-providers']?.OpenAI).toEqual(expect.objectContaining({
       behavior: 'classical', format: 'yaml',
@@ -63,13 +71,13 @@ describe('MihomoCompiler', () => {
     expect(config.dns?.nameserver).toEqual(['https://1.1.1.1/dns-query'])
   })
 
-  it('lowers a two-hop chain through provider override.dialer-proxy', () => {
+  it('lowers a two-hop materialized chain through proxy dialer-proxy', () => {
     const { config, result } = parseConfig(demoIR())
     const chain = config['proxy-groups']?.find((group) => group.name === 'US via HK')
     expect(chain?.type).toBe('url-test')
-    const derived = chain?.use?.[0]
+    const derived = chain?.proxies?.[0]
     expect(derived).toBeTruthy()
-    expect(config['proxy-providers']?.[derived!].override?.['dialer-proxy']).toBe('香港自动选择')
+    expect(config.proxies?.find((proxy) => proxy.name === derived)?.['dialer-proxy']).toBe('香港自动选择')
     expect(result.issues.map((issue) => issue.code)).toContain('MIHOMO_CHAIN_PROTOCOL_LIMITATION')
   })
 
@@ -92,7 +100,7 @@ describe('MihomoCompiler', () => {
     expect(balance).toEqual(expect.objectContaining({ type: 'load-balance', strategy: 'consistent-hashing' }))
   })
 
-  it('maps Provider source and Merge to stable proxy-provider use references', () => {
+  it('requires materialization when Merge consumes remote providers', () => {
     const ir = baseIR()
     ir.sources = [
       { kind: 'provider', id: 'provider-a', name: 'Provider A', reference: 'https://example.com/a.yaml', enabled: true },
@@ -100,9 +108,9 @@ describe('MihomoCompiler', () => {
     ]
     ir.transforms = [{ kind: 'merge', id: 'merge', name: 'Merge', inputs: [{ kind: 'source', id: 'provider-a' }, { kind: 'source', id: 'provider-b' }] }]
     ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'transform', id: 'merge' } }]
-    const config = parseConfig(ir).config
-    expect(Object.keys(config['proxy-providers'] ?? {})).toEqual(['Provider A', 'Provider B'])
-    expect(config['proxy-groups']?.[0].use).toEqual(['Provider A', 'Provider B'])
+    const result = compileMihomo(ir, { now: fixedNow })
+    expect(result.success).toBe(false)
+    expect(result.issues.map((issue) => issue.code)).toContain('MIHOMO_SOURCE_UNAVAILABLE')
   })
 
   it('materializes shared HTTP/SOCKS endpoints and a Fixed strategy', () => {
@@ -166,7 +174,7 @@ describe('MihomoCompiler', () => {
     unsupported.strategies[0] = { kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'transform', id: 'sort' } }
     const transformResult = compileMihomo(unsupported, { now: fixedNow })
     expect(transformResult.success).toBe(false)
-    expect(transformResult.issues.map((issue) => issue.code)).toContain('MIHOMO_UNSUPPORTED_TRANSFORM')
+    expect(transformResult.issues.map((issue) => issue.code)).toContain('MIHOMO_SOURCE_UNAVAILABLE')
   })
 
   it('fails closed for an unresolved Fixed proxy independently of the selected output', () => {
@@ -182,16 +190,14 @@ describe('MihomoCompiler', () => {
     expect(outputResult.success).toBe(true)
   })
 
-  it('lowers Rename through provider override.proxy-name', () => {
-    const ir = baseIR()
-    ir.transforms.push({ kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' }, pattern: 'US', replacement: 'USA' })
+  it('materializes Rename before target compilation', () => {
+    const ir = explicitProxyIR()
+    ir.transforms.push({ kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'us-source' }, pattern: 'US', replacement: 'USA' })
     ir.strategies[0] = { kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'transform', id: 'rename' } }
     const result = compileMihomo(ir, { now: fixedNow })
     expect(result.success).toBe(true)
-    expect(result.issues.map((issue) => issue.code)).toContain('MIHOMO_RENAME_LOWERED')
     const config = parse(result.content) as MihomoConfig
-    const renamedProvider = config['proxy-groups']?.[0].use?.[0]
-    expect(config['proxy-providers']?.[renamedProvider!].override?.['proxy-name']).toEqual([{ pattern: 'US', target: 'USA' }])
+    expect(config.proxies?.map((proxy) => proxy.name)).toEqual(expect.arrayContaining(['USA HTTP', 'USA SOCKS']))
   })
 
   it('produces identical YAML across 100 compiles', () => {

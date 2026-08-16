@@ -22,9 +22,10 @@ export function PreviewModal() {
   const setOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setToast = useBuilderStore((state) => state.setToast)
   const toProject = useBuilderStore((state) => state.toProject)
+  const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState<PreviewMode>('mihomo')
-  const graphResult = useMemo(() => compileGraph(toProject()), [edges, nodes, projectId, projectName, toProject])
+  const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots }), [edges, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
   const targetState = useTargetCompile(graphResult.ir, activeTarget, open && graphResult.success && mode !== 'ir')
   if (!open) return null
@@ -69,7 +70,7 @@ export function PreviewModal() {
       <header>
         <div className="preview-icon">{mode === 'ir' ? <Braces size={19} /> : <FileCode2 size={19} />}</div>
         <div><span>{mode === 'ir' ? 'DEVELOPER PREVIEW' : 'REAL TARGET COMPILE'}</span><h2 id="preview-title">{targetLabel}</h2></div>
-        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.4'}</span>
+        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.5'}</span>
         <button onClick={() => setOpen(false)} aria-label="关闭预览"><X size={18} /></button>
       </header>
       <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>

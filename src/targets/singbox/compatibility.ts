@@ -1,4 +1,5 @@
 import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR, type TrafficMatcherIR } from '../../core/ir'
+import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
 import { isSafeHttpUrl, isValidServer } from './security'
@@ -10,25 +11,32 @@ export interface SingBoxCompatibilityResult {
 
 export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibilityResult {
   const issues: CompatibilityIssue[] = []
+  const materialization = createMaterializationContext()
 
   for (const source of ir.sources) {
-    if (source.kind === 'subscription' || source.kind === 'provider' || source.kind === 'imported-config') issues.push(singBoxIssue(
+    if ((source.kind === 'subscription' && !source.proxies) || source.kind === 'provider' || source.kind === 'imported-config') issues.push(singBoxIssue(
       'SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES', 'error', 'source',
-      `Source “${source.name}” 必须先解析为显式 HTTP/SOCKS proxy；sing-box 没有可保持该远程 Provider 语义的 outbound。`, source.id,
+      `Source “${source.name}” 必须先解析为显式 proxy；sing-box 没有可保持该远程 Provider 语义的 outbound。`, source.id,
     ))
-    if (source.kind === 'manual-proxy') for (const proxy of source.proxies) {
+    if (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies) for (const proxy of source.proxies ?? []) {
       if (isUnmodeledProxy(proxy) || !isValidServer('server' in proxy ? proxy.server : '')
         || !('port' in proxy) || proxy.port < 1 || proxy.port > 65_535) issues.push(singBoxIssue(
-        'SINGBOX_INVALID_OUTBOUND', 'error', 'source', `Manual proxy “${proxy.name}” 缺少有效的 HTTP/SOCKS 地址。`, source.id,
+        'SINGBOX_INVALID_OUTBOUND', 'error', 'source', `Proxy “${proxy.name}” 缺少有效的地址。`, source.id,
+      ))
+      else if (proxy.metadata?.compatibility?.status === 'partial') issues.push(singBoxIssue(
+        'SINGBOX_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
+        `Proxy “${proxy.name}” 包含 sing-box 映射尚未可靠支持的特性，已从本次节点集合排除：${proxy.metadata.compatibility.unsupportedFeatures?.join(', ') || proxy.metadata.compatibility.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
       ))
     }
   }
 
   for (const transform of ir.transforms) {
-    if (transform.kind === 'sort' && transform.by !== 'name') issues.push(singBoxIssue(
+    if (transform.kind === 'sort' && transform.by === 'latency') issues.push(singBoxIssue(
       'SINGBOX_TRANSFORM_SORT_UNSUPPORTED', 'error', 'transform',
       `Sort “${transform.name}” 需要运行时延迟数据，纯 Compiler 无法保持语义。`, transform.id,
     ))
+    const resolved = materializeProxySet(ir, { kind: 'transform', id: transform.id }, materialization)
+    for (const issue of resolved.issues) issues.push(singBoxIssue(`SINGBOX_${issue.code}`, issue.severity, 'transform', issue.message, transform.id))
   }
 
   for (const strategy of ir.strategies) {
@@ -54,7 +62,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       return !target || !strategyUsesResolvedEndpoints(target, ir, new Set([strategy.id]))
     })) issues.push(singBoxIssue(
       'SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND', 'error', 'chain',
-      `Chain “${strategy.name}” 的每一跳必须最终指向显式 HTTP/SOCKS outbound。`, strategy.id,
+      `Chain “${strategy.name}” 的每一跳必须最终指向显式 proxy outbound。`, strategy.id,
     ))
   }
 
@@ -93,7 +101,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
 
   issues.push(singBoxIssue(
     'SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED', 'info', 'inbound',
-    'V0.4 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
+    'V0.5 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
   ))
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }
@@ -109,8 +117,8 @@ function matcherSupported(matcher: TrafficMatcherIR) {
 function strategyUsesResolvedEndpoints(strategy: StrategyIR, ir: ProxyFlowIR, stack: Set<string>): boolean {
   if (stack.has(strategy.id)) return false
   const next = new Set(stack).add(strategy.id)
-  if (strategy.kind === 'fixed') return ir.sources.some((source) => source.kind === 'manual-proxy'
-    && source.proxies.some((proxy) => proxy.id === strategy.proxyId && !isUnmodeledProxy(proxy)))
+  if (strategy.kind === 'fixed') return ir.sources.some((source) => (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies)
+    && (source.proxies ?? []).some((proxy) => proxy.id === strategy.proxyId && !isUnmodeledProxy(proxy)))
   if (strategy.kind === 'auto-select' || strategy.kind === 'load-balance') return proxySetResolved(strategy.source, ir, new Set())
   if (strategy.kind === 'select' || strategy.kind === 'fallback') return strategy.candidates.length > 0 && strategy.candidates.every((candidate) => candidate.kind === 'strategy'
     ? Boolean(ir.strategies.find((item) => item.id === candidate.id)
@@ -125,8 +133,8 @@ function strategyUsesResolvedEndpoints(strategy: StrategyIR, ir: ProxyFlowIR, st
 function proxySetResolved(ref: ProxySetRef, ir: ProxyFlowIR, stack: Set<string>): boolean {
   if (ref.kind === 'source') {
     const source = ir.sources.find((item) => item.id === ref.id)
-    return source?.kind === 'manual-proxy' && source.proxies.length > 0
-      && source.proxies.every((proxy) => !isUnmodeledProxy(proxy))
+    return Boolean(source && (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies)
+      && (source.proxies ?? []).length > 0 && (source.proxies ?? []).every((proxy) => !isUnmodeledProxy(proxy)))
   }
   if (stack.has(ref.id)) return false
   const transform = ir.transforms.find((item) => item.id === ref.id)

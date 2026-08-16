@@ -1,5 +1,6 @@
 import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCandidateRef } from '../ir'
 import { isUnmodeledProxy, semanticIssue } from '../ir'
+import { isSupportedShadowsocksMethod } from '../proxy'
 import { detectChainCycles } from './detectChainCycles'
 
 const knownTargets = new Set(['mihomo', 'sing-box', 'surge', 'loon', 'quantumult-x', 'shadowrocket', 'stash'])
@@ -21,13 +22,25 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
 
   for (const source of ir.sources) {
     if (!source.name.trim()) add(entityIssue('SOURCE_NAME_MISSING', 'error', 'Source name is required.', 'source', source.id))
-    if (source.kind === 'subscription' && !source.url) add(entityIssue(
+    if (source.kind === 'subscription' && !source.url && !source.proxies?.length) add(entityIssue(
       'SUBSCRIPTION_URL_MISSING', 'warning', `Subscription "${source.name}" has no URL.`, 'source', source.id,
     ))
     if (source.kind === 'manual-proxy') for (const proxy of source.proxies) {
       if (isUnmodeledProxy(proxy)) continue
       if (!proxy.name.trim() || !proxy.server.trim() || !Number.isInteger(proxy.port) || proxy.port < 1 || proxy.port > 65_535) add(entityIssue(
         'PROXY_ENDPOINT_INVALID', 'error', `Proxy endpoint "${proxy.name}" has invalid address or port.`, 'source', source.id,
+      ))
+      if ((proxy.protocol === 'vmess' || proxy.protocol === 'vless') && !isUuid(proxy.uuid)) add(entityIssue(
+        'PROXY_UUID_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a valid UUID.`, 'source', source.id,
+      ))
+      if (proxy.protocol === 'shadowsocks' && (!proxy.method || !proxy.password)) add(entityIssue(
+        'PROXY_SHADOWSOCKS_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires method and password.`, 'source', source.id,
+      ))
+      else if (proxy.protocol === 'shadowsocks' && !isSupportedShadowsocksMethod(proxy.method)) add(entityIssue(
+        'PROXY_CIPHER_UNSUPPORTED', 'error', `Proxy endpoint "${proxy.name}" uses an unsupported Shadowsocks cipher.`, 'source', source.id,
+      ))
+      if (proxy.protocol === 'trojan' && !proxy.password) add(entityIssue(
+        'PROXY_TROJAN_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires a password.`, 'source', source.id,
       ))
     }
   }
@@ -40,7 +53,9 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
       transform.inputs.forEach((ref) => validateProxySetRef(ref, sourceIds, transformIds, transform.id, add))
     } else {
       validateProxySetRef(transform.input, sourceIds, transformIds, transform.id, add)
-      if (transform.kind === 'filter' && transform.include.length === 0 && transform.exclude.length === 0) add(entityIssue(
+      if (transform.kind === 'filter' && transform.include.length === 0 && transform.exclude.length === 0
+        && !transform.includeRegex && !transform.excludeRegex && !transform.includeRegions?.length && !transform.excludeRegions?.length
+        && !transform.includeProtocols?.length && !transform.excludeProtocols?.length) add(entityIssue(
         'FILTER_EMPTY', 'info', `Filter "${transform.name}" has no include or exclude conditions.`, 'transform', transform.id,
       ))
       if (transform.kind === 'limit' && transform.max !== undefined && transform.max < 1) add(entityIssue(
@@ -53,7 +68,8 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     switch (strategy.kind) {
       case 'fixed':
         if (!strategy.proxyId) add(entityIssue('FIXED_PROXY_MISSING', 'error', `Fixed strategy "${strategy.name}" has no proxy.`, 'strategy', strategy.id))
-        else if (!ir.sources.some((source) => source.kind === 'manual-proxy' && source.proxies.some((proxy) => proxy.id === strategy.proxyId))) add(entityIssue(
+        else if (!ir.sources.some((source) => (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies)
+          && (source.proxies ?? []).some((proxy) => proxy.id === strategy.proxyId))) add(entityIssue(
           'FIXED_PROXY_REFERENCE_NOT_FOUND', 'error', `Fixed strategy "${strategy.name}" references missing proxy "${strategy.proxyId}".`, 'strategy', strategy.id,
         ))
         break
@@ -114,6 +130,10 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     'DNS_CUSTOM_RESOLVER_MISSING', 'warning', 'ir', 'Custom DNS mode has no resolvers.', { entity: { type: 'dns', id: 'dns' } },
   ))
   return issues
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
 function validateProxySetRef(

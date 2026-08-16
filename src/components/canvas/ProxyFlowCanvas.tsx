@@ -10,6 +10,7 @@ import { getHighlightedPath } from '../../core/graph/pathHighlight'
 import { isConnectionAllowed } from '../../core/graph/graphRules'
 import { validateGraph } from '../../core/validation/validateProject'
 import type { BlockType, GraphEdge, GraphNode } from '../../types/project'
+import { deriveProjectRuntime } from '../../core/proxySet'
 
 const nodeTypes = { block: BlockNode }
 const categoryColors: Record<string, string> = {
@@ -38,6 +39,8 @@ export function ProxyFlowCanvas() {
   const selectEdge = useBuilderStore((state) => state.selectEdge)
   const beginTransaction = useBuilderStore((state) => state.beginTransaction)
   const commitTransaction = useBuilderStore((state) => state.commitTransaction)
+  const toProject = useBuilderStore((state) => state.toProject)
+  const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const { screenToFlowPosition, fitView } = useReactFlow()
   const [menu, setMenu] = useState<ContextMenuState | null>(null)
 
@@ -50,6 +53,7 @@ export function ProxyFlowCanvas() {
   const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges])
   const path = useMemo(() => getHighlightedPath(selectedNodeId, nodes, edges), [selectedNodeId, nodes, edges])
   const hasPath = selectedNodeId !== null && path.nodeIds.size > 0
+  const pipelineRuntime = useMemo(() => deriveProjectRuntime(toProject(), subscriptionSnapshots), [edges, nodes, subscriptionSnapshots, toProject])
 
   const displayNodes = useMemo(() => nodes.map((node) => ({
     ...node,
@@ -58,8 +62,16 @@ export function ProxyFlowCanvas() {
       warning: issues.find((issue) => issue.nodeId === node.id)?.message,
       highlighted: hasPath && path.nodeIds.has(node.id),
       dimmed: hasPath && !path.nodeIds.has(node.id),
+      ...(pipelineRuntime.has(node.id) ? {
+        runtimeStatus: pipelineRuntime.get(node.id)!.status,
+        runtimeInputCount: pipelineRuntime.get(node.id)!.inputCount,
+        runtimeOutputCount: pipelineRuntime.get(node.id)!.outputCount,
+        runtimeRemovedCount: pipelineRuntime.get(node.id)!.removedCount,
+        runtimeProtocolCount: pipelineRuntime.get(node.id)!.protocolCount,
+        runtimeIssueCount: pipelineRuntime.get(node.id)!.issues.length,
+      } : {}),
     },
-  })), [nodes, issues, hasPath, path.nodeIds])
+  })), [nodes, issues, hasPath, path.nodeIds, pipelineRuntime])
 
   const displayEdges = useMemo(() => edges.map((edge) => {
     const highlighted = hasPath && path.edgeIds.has(edge.id)

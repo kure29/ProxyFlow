@@ -17,16 +17,31 @@ export interface MihomoProxyProvider {
   }
 }
 
-export type MihomoProxy = {
+interface MihomoProxyBase {
   name: string
-  type: 'socks5' | 'http'
   server: string
   port: number
-  username?: string
-  password?: string
   udp?: boolean
   'dialer-proxy'?: string
+  tls?: boolean
+  servername?: string
+  sni?: string
+  alpn?: string[]
+  'skip-cert-verify'?: boolean
+  network?: 'tcp' | 'ws' | 'http' | 'h2' | 'grpc'
+  'ws-opts'?: { path?: string; headers?: Record<string, string> }
+  'http-opts'?: { path?: string[]; headers?: Record<string, string[]> }
+  'grpc-opts'?: { 'grpc-service-name'?: string }
 }
+
+export type MihomoProxy = MihomoProxyBase & (
+  | { type: 'socks5'; username?: string; password?: string }
+  | { type: 'http'; username?: string; password?: string }
+  | { type: 'ss'; cipher: string; password: string; plugin?: string; 'plugin-opts'?: Record<string, string | number | boolean> }
+  | { type: 'trojan'; password: string }
+  | { type: 'vmess'; uuid: string; alterId: number; cipher: string }
+  | { type: 'vless'; uuid: string }
+)
 
 export interface MihomoProxyGroup {
   name: string

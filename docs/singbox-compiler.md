@@ -18,7 +18,7 @@ Target-specific Model
 Deterministic JSON
 ```
 
-Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不访问网络，不下载订阅或规则，也不转换第三方规则格式。它只接收一份已经生成的 Universal IR。
+Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不访问网络，不下载订阅或规则，也不转换第三方规则格式。浏览器 Parser 必须先把 Subscription materialize 为标准 endpoint，它只接收生成后的 Universal IR。
 
 ## Version decisions
 
@@ -33,10 +33,15 @@ Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不�
 
 | Universal feature | Mihomo | sing-box 1.13.14 | Notes |
 | --- | --- | --- | --- |
-| Subscription | HTTP proxy-provider | Error | sing-box 需要 materialized outbound；返回 `SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES` |
+| Unresolved Subscription URL | HTTP proxy-provider | Error | sing-box 需要 materialized outbound；返回 `SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES` |
+| Materialized Subscription | explicit proxies | explicit outbounds | Supported |
 | Provider URL | HTTP proxy-provider | Error | 不伪造不存在的 provider outbound |
 | Manual SOCKS5 | `socks5` proxy | `socks` outbound | Supported |
 | Manual HTTP | `http` proxy | `http` outbound | Supported |
+| Shadowsocks | `ss` proxy | `shadowsocks` outbound | Supported basic subset |
+| Trojan | `trojan` proxy | `trojan` outbound | Supported basic subset |
+| VMess | `vmess` proxy | `vmess` outbound | Supported basic subset |
+| VLESS | `vless` proxy | `vless` outbound | Supported basic subset |
 | Fixed | one-member select group | direct outbound reference | Supported for an explicit endpoint |
 | Select | `select` group | `selector` outbound | Runtime switching requires Clash API |
 | Auto Select | `url-test` group | `urltest` outbound | URL、interval、tolerance supported |
@@ -85,7 +90,7 @@ client → hops[0] → hops[1] → ... → exit → internet
 
 For `HK SOCKS → US HTTP`, the derived US outbound has `detour: "HK strategy tag"`. A three-hop chain first derives the middle outbound through hop 0, then derives the exit outbound through that middle strategy. Detoured HTTP/SOCKS outbounds omit `domain_resolver` because sing-box Dial Fields make other dial fields inapplicable when `detour` is set.
 
-Every hop must ultimately contain explicit HTTP/SOCKS outbounds. An unresolved Subscription or Provider fails with `SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND`; cycles fail closed in IR validation and again at target lowering boundaries.
+Every hop must ultimately contain explicit supported proxy outbounds. An unresolved Subscription or Provider fails with `SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND`; cycles fail closed in IR validation and again at target lowering boundaries.
 
 ## DNS MVP
 
@@ -96,14 +101,14 @@ Supported resolver kinds:
 - UDP
 - system/local
 
-The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. V0.4 does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
+The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. V0.5 does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
 
 ## Inbound policy
 
-V0.4 emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
+V0.5 emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
 
 ## Failure behavior and scope
 
-All compatibility failures are stable, entity-addressable issues and return `success: false`, empty content, and `mock: false`. The compiler never silently omits unsupported semantics or returns a fake JSON fallback.
+All compatibility failures are stable, entity-addressable issues and return `success: false`, empty content, and `mock: false`. Partial proxy variants remain visible in Import Summary and produce compatibility warnings while being excluded from the usable ProxySet; unsupported strategy semantics still fail closed.
 
-Not implemented: subscription parsing, VLESS, VMess, Trojan, Hysteria2, TUIC, Shadowsocks, Reality, WireGuard, inbound profiles, local rule-set paths, online rule conversion, and any third target.
+Not implemented: URL fetching inside the Target Compiler, Reality, Vision, complex XTLS, Hysteria2, TUIC, WireGuard, inbound profiles, local rule-set paths, online rule conversion, and any third target.

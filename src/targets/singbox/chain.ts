@@ -21,7 +21,7 @@ export function lowerSingBoxChain(chain: ChainStrategyIR, context: SingBoxCompil
   if (templates.some((template) => !template || template.memberTags.some((tag) => !isDialCapable(context.outbounds.get(tag))))) {
     context.issues.push(singBoxIssue(
       'SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND', 'error', 'chain',
-      `Chain “${chain.name}” 的 hop 必须直接包含已解析 HTTP/SOCKS outbound。`, chain.id,
+      `Chain “${chain.name}” 的 hop 必须直接包含已解析 proxy outbound。`, chain.id,
     ))
     return
   }
@@ -62,11 +62,12 @@ export function lowerSingBoxChain(chain: ChainStrategyIR, context: SingBoxCompil
 }
 
 function isDialCapable(outbound: SingBoxOutbound | undefined) {
-  return outbound?.type === 'socks' || outbound?.type === 'http'
+  return Boolean(outbound && ['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless'].includes(outbound.type))
 }
 
 function withDetour(outbound: SingBoxOutbound, tag: string, detour: string): SingBoxOutbound {
-  if (outbound.type !== 'socks' && outbound.type !== 'http') return outbound
-  const { domain_resolver: _domainResolver, ...base } = outbound
-  return { ...base, tag, detour }
+  if (!['socks', 'http', 'shadowsocks', 'trojan', 'vmess', 'vless'].includes(outbound.type)) return outbound
+  const dialOutbound = outbound as Extract<SingBoxOutbound, { type: 'socks' | 'http' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' }>
+  const { domain_resolver: _domainResolver, ...base } = dialOutbound
+  return { ...base, tag, detour } as SingBoxOutbound
 }

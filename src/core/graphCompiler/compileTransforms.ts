@@ -24,13 +24,18 @@ function compileSingleInputTransform(
 ): Exclude<TransformIR, { kind: 'merge' }> | undefined {
   switch (node.data.blockType) {
     case 'filter':
-      return { ...base, kind: 'filter', input, include: node.data.include ?? [], exclude: node.data.exclude ?? [] }
+      return {
+        ...base, kind: 'filter', input, include: node.data.include ?? [], exclude: node.data.exclude ?? [],
+        includeRegex: node.data.includeRegex, excludeRegex: node.data.excludeRegex,
+        includeRegions: node.data.includeRegions, excludeRegions: node.data.excludeRegions,
+        includeProtocols: node.data.includeProtocols, excludeProtocols: node.data.excludeProtocols,
+      }
     case 'rename':
       return { ...base, kind: 'rename', input, pattern: node.data.renamePattern, replacement: node.data.renameReplacement }
     case 'sort':
       return { ...base, kind: 'sort', input, by: node.data.sortBy, direction: node.data.sortDirection }
     case 'deduplicate':
-      return { ...base, kind: 'deduplicate', input, by: node.data.deduplicateBy }
+      return { ...base, kind: 'deduplicate', input, by: 'identity' }
     case 'limit':
       return { ...base, kind: 'limit', input, max: node.data.limit }
     default:

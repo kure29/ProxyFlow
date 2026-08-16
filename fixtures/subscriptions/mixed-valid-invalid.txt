@@ -1,0 +1,4 @@
+ss://YWVzLTEyOC1nY206ZGVtby1oYXktcGFzcw==@ss.example.com:8388#Valid%20SS
+not a proxy link
+hysteria2://demo@hy2.example.com:443#Unsupported%20Hysteria2
+vless://not-a-uuid@vless.example.com:443#Malformed%20VLESS

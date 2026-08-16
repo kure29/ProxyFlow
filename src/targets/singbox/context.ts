@@ -1,9 +1,10 @@
-import type { HttpProxyIR, ProxyFlowIR, SocksProxyIR } from '../../core/ir'
+import type { ProxyFlowIR, ResolvedProxyEndpointIR } from '../../core/ir'
+import { createMaterializationContext, type MaterializationContext } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import type { SingBoxOutbound, SingBoxRuleSet } from './model'
 import { SingBoxNameRegistry } from './naming'
 
-export type ResolvedEndpoint = HttpProxyIR | SocksProxyIR
+export type ResolvedEndpoint = ResolvedProxyEndpointIR
 
 export interface ResolvedProxyItem {
   key: string
@@ -28,12 +29,13 @@ export interface SingBoxCompileContext {
   strategyTemplates: Map<string, SingBoxStrategyTemplate>
   proxySetCache: Map<string, ResolvedProxyItem[]>
   dnsTag?: string
+  materialization: MaterializationContext
 }
 
 export function createSingBoxContext(ir: ProxyFlowIR, issues: CompatibilityIssue[]): SingBoxCompileContext {
   const names = new SingBoxNameRegistry()
-  const endpointTags = new Map(ir.sources.flatMap((source) => source.kind === 'manual-proxy'
-    ? source.proxies.map((proxy) => [proxy.id, names.allocate(proxy.name, proxy.id)] as const)
+  const endpointTags = new Map(ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
+    ? (source.proxies ?? []).map((proxy) => [proxy.id, names.allocate(proxy.name, proxy.id)] as const)
     : []))
   const strategyTags = new Map(ir.strategies.map((strategy) => [strategy.id, names.allocate(strategy.name, strategy.id)]))
   return {
@@ -46,5 +48,6 @@ export function createSingBoxContext(ir: ProxyFlowIR, issues: CompatibilityIssue
     ruleSets: new Map(),
     strategyTemplates: new Map(),
     proxySetCache: new Map(),
+    materialization: createMaterializationContext(),
   }
 }

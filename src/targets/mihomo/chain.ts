@@ -17,7 +17,7 @@ export function lowerChainStrategy(chain: ChainStrategyIR, context: MihomoCompil
     || template.proxyNames.some((name) => !context.proxies.has(name)))) {
     context.issues.push(mihomoIssue(
       'MIHOMO_CHAIN_UNSUPPORTED_HOP', 'error', 'chain',
-      `Chain “${chain.name}” 的每一跳必须由 Provider 或已解析 HTTP/SOCKS proxy 直接驱动。`, chain.id,
+      `Chain “${chain.name}” 的每一跳必须由 Provider 或已解析 proxy 直接驱动。`, chain.id,
     ))
     return
   }

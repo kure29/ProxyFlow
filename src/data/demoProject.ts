@@ -2,6 +2,7 @@ import { MarkerType } from '@xyflow/react'
 import type { BlockNodeData, FlowEdgeData, GraphEdge, GraphNode, OutputDefinition, ProxyFlowProject } from '../types/project'
 import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
+import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -31,27 +32,27 @@ export const outputDefinitions: OutputDefinition[] = [
 
 export const demoNodes: GraphNode[] = [
   node('hkt-subscription', 80, 80, {
-    blockType: 'subscription', category: 'source', title: 'HKT 订阅源', subtitle: '24 个可用节点', icon: 'radio',
-    subscriptionUrl: 'https://example.com/hkt/••••••', enabled: true, nodeCount: 24, updatedAt: '2 分钟前',
+    blockType: 'subscription', category: 'source', title: 'HKT 订阅源', subtitle: '真实 Demo · 等待解析', icon: 'radio',
+    subscriptionInputKind: 'paste', subscriptionContent: hktDemoSubscription, enabled: true, nodeCount: 0, updatedAt: '启动时解析',
   }),
   node('hk-filter', 380, 80, {
-    blockType: 'filter', category: 'processing', title: '香港节点筛选', subtitle: '匹配 8 / 24 个节点', icon: 'list-filter',
-    include: ['香港', 'HK'], exclude: ['官网', '剩余', '倍率'],
+    blockType: 'filter', category: 'processing', title: '香港节点筛选', subtitle: 'Region = HK', icon: 'list-filter',
+    include: [], exclude: ['官网', '剩余', '倍率'], includeRegions: ['HK'],
   }),
   node('hk-auto', 680, 80, {
-    blockType: 'auto-select', category: 'strategy', title: '香港自动选择', subtitle: '当前 HK-03 · 42 ms', icon: 'gauge',
+    blockType: 'auto-select', category: 'strategy', title: '香港自动选择', subtitle: '真实候选节点', icon: 'gauge',
     strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50,
   }),
   node('us-subscription', 80, 340, {
-    blockType: 'subscription', category: 'source', title: 'US 订阅源', subtitle: '18 个可用节点', icon: 'radio',
-    subscriptionUrl: 'https://example.com/us/••••••', enabled: true, nodeCount: 18, updatedAt: '5 分钟前',
+    blockType: 'subscription', category: 'source', title: 'US 订阅源', subtitle: '真实 Demo · 等待解析', icon: 'radio',
+    subscriptionInputKind: 'paste', subscriptionContent: usDemoSubscription, enabled: true, nodeCount: 0, updatedAt: '启动时解析',
   }),
   node('us-filter', 380, 340, {
-    blockType: 'filter', category: 'processing', title: '美国节点筛选', subtitle: '匹配 6 / 18 个节点', icon: 'list-filter',
-    include: ['美国', 'US'], exclude: ['官网', '剩余', '倍率'],
+    blockType: 'filter', category: 'processing', title: '美国节点筛选', subtitle: 'Region = US', icon: 'list-filter',
+    include: [], exclude: ['官网', '剩余', '倍率'], includeRegions: ['US'],
   }),
   node('us-auto', 680, 340, {
-    blockType: 'auto-select', category: 'strategy', title: '美国自动选择', subtitle: '当前 LA-02 · 126 ms', icon: 'gauge',
+    blockType: 'auto-select', category: 'strategy', title: '美国自动选择', subtitle: '真实候选节点', icon: 'gauge',
     strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 80,
   }),
   node('us-via-hk', 1000, 175, {

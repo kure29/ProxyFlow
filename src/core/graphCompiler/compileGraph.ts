@@ -7,6 +7,7 @@ import { compileSources } from './compileSources'
 import { compileStrategies } from './compileStrategies'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
+import type { GraphCompileOptions } from './context'
 import { validateGraphStructure } from './validateGraphStructure'
 
 export interface GraphCompileResult {
@@ -15,9 +16,9 @@ export interface GraphCompileResult {
   success: boolean
 }
 
-export function compileGraph(project: ProxyFlowProject): GraphCompileResult {
+export function compileGraph(project: ProxyFlowProject, options: GraphCompileOptions = {}): GraphCompileResult {
   try {
-    const context = createGraphCompileContext(project)
+    const context = createGraphCompileContext(project, options)
     context.issues.push(...validateGraphStructure(project))
     const routing = compileRouting(context)
     const draft: ProxyFlowIR = {

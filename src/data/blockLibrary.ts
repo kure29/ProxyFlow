@@ -27,7 +27,7 @@ export const blockLibrary: BlockLibraryGroup[] = [
     category: 'processing', label: '节点处理', items: [
       { type: 'filter', category: 'processing', title: '节点筛选', description: '按名称、地区或条件过滤', icon: 'list-filter' },
       { type: 'rename', category: 'processing', title: '重命名', description: '批量规范节点名称', icon: 'text-cursor' },
-      { type: 'sort', category: 'processing', title: '排序', description: '按延迟或名称排序', icon: 'arrow-down-up' },
+      { type: 'sort', category: 'processing', title: '排序', description: '按名称、地区或协议排序', icon: 'arrow-down-up' },
       { type: 'deduplicate', category: 'processing', title: '去重', description: '合并重复的节点', icon: 'copy-minus' },
       { type: 'merge', category: 'processing', title: '合并节点', description: '合并多个节点池', icon: 'git-merge' },
       { type: 'limit', category: 'processing', title: '限制数量', description: '保留指定数量节点', icon: 'list-end' },

@@ -1,141 +1,82 @@
-import { isUnmodeledProxy, type HttpProxyIR, type ProxySetRef, type SocksProxyIR } from '../../core/ir'
+import type { ProxySetRef, ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR } from '../../core/ir'
+import { materializeProxySet } from '../../core/proxySet'
 import type { ResolvedProxyItem, SingBoxCompileContext } from './context'
 import { singBoxIssue } from './errors'
-import type { SingBoxOutbound } from './model'
+import type { SingBoxOutbound, SingBoxTls, SingBoxV2RayTransport } from './model'
 
-export function compileSingBoxProxyOutbounds(context: SingBoxCompileContext) {
-  for (const source of context.ir.sources) {
-    if (source.kind !== 'manual-proxy') continue
-    for (const endpoint of source.proxies) {
-      if (isUnmodeledProxy(endpoint)) continue
-      const tag = context.endpointTags.get(endpoint.id)!
-      context.outbounds.set(tag, endpointOutbound(endpoint, tag, context.dnsTag))
-    }
-  }
+export function compileSingBoxProxyOutbounds(_context: SingBoxCompileContext) {
+  // Outbounds are registered on demand from the ProxySet actually consumed by a strategy.
+  // Fixed strategies register their referenced endpoint explicitly.
 }
 
-export function resolveSingBoxProxySet(
-  ref: ProxySetRef,
-  context: SingBoxCompileContext,
-  stack: string[] = [],
-): ResolvedProxyItem[] {
+export function resolveSingBoxProxySet(ref: ProxySetRef, context: SingBoxCompileContext): ResolvedProxyItem[] {
   const cacheKey = `${ref.kind}:${ref.id}`
   const cached = context.proxySetCache.get(cacheKey)
   if (cached) return cached
-
-  if (ref.kind === 'source') {
-    const source = context.ir.sources.find((item) => item.id === ref.id)
-    const resolved = source?.kind === 'manual-proxy' ? source.proxies.flatMap((endpoint): ResolvedProxyItem[] => {
-      if (isUnmodeledProxy(endpoint)) return []
-      return [{ key: endpoint.id, endpoint, tag: context.endpointTags.get(endpoint.id)! }]
-    }) : []
-    context.proxySetCache.set(cacheKey, resolved)
-    return resolved
-  }
-
-  if (stack.includes(ref.id)) {
-    context.issues.push(singBoxIssue(
-      'SINGBOX_TRANSFORM_CYCLE', 'error', 'transform', `Transform cycle detected: ${[...stack, ref.id].join(' → ')}.`, ref.id,
+  const materialized = materializeProxySet(context.ir, ref, context.materialization)
+  if (materialized.status === 'error') {
+    for (const issue of materialized.issues.filter((item) => item.severity === 'error')) context.issues.push(singBoxIssue(
+      `SINGBOX_${issue.code}`, 'error', ref.kind === 'source' ? 'source' : 'transform', issue.message, issue.entityId ?? ref.id,
     ))
     return []
   }
-  const transform = context.ir.transforms.find((item) => item.id === ref.id)
-  if (!transform) return []
-  const nextStack = [...stack, ref.id]
-  let resolved: ResolvedProxyItem[]
-
-  if (transform.kind === 'merge') {
-    resolved = uniqueItems(transform.inputs.flatMap((input) => resolveSingBoxProxySet(input, context, nextStack)))
-  } else {
-    const input = resolveSingBoxProxySet(transform.input, context, nextStack)
-    switch (transform.kind) {
-      case 'filter':
-        resolved = input.filter((item) => matchesFilter(item.endpoint.name, transform.include, transform.exclude))
-        break
-      case 'rename':
-        resolved = renameItems(input, transform.id, transform.pattern, transform.replacement, context)
-        break
-      case 'sort':
-        resolved = [...input].sort((left, right) => left.endpoint.name.localeCompare(right.endpoint.name))
-        if (transform.direction === 'descending') resolved.reverse()
-        break
-      case 'deduplicate': {
-        const seen = new Set<string>()
-        resolved = input.filter((item) => {
-          const value = transform.by === 'server' ? `${item.endpoint.server}:${item.endpoint.port}` : item.endpoint.name.toLocaleLowerCase()
-          if (seen.has(value)) return false
-          seen.add(value)
-          return true
-        })
-        break
-      }
-      case 'limit':
-        resolved = input.slice(0, transform.max)
-        break
-    }
-  }
-
+  const resolved = materialized.proxies.map((endpoint) => ({ key: endpoint.id, endpoint, tag: registerSingBoxEndpoint(endpoint, context) }))
   context.proxySetCache.set(cacheKey, resolved)
   return resolved
 }
 
-function endpointOutbound(
-  endpoint: HttpProxyIR | SocksProxyIR,
-  tag: string,
-  dnsTag?: string,
-): SingBoxOutbound {
+export function registerSingBoxEndpoint(endpoint: ResolvedProxyEndpointIR, context: SingBoxCompileContext) {
+  let tag = context.endpointTags.get(endpoint.id)
+  if (!tag) {
+    tag = context.names.allocate(endpoint.name, endpoint.id)
+    context.endpointTags.set(endpoint.id, tag)
+  }
+  if (!context.outbounds.has(tag)) context.outbounds.set(tag, endpointOutbound(endpoint, tag, context.dnsTag))
+  return tag
+}
+
+function endpointOutbound(endpoint: ResolvedProxyEndpointIR, tag: string, dnsTag?: string): SingBoxOutbound {
   const common = {
-    tag,
-    server: endpoint.server,
-    server_port: endpoint.port,
-    ...(endpoint.username ? { username: endpoint.username } : {}),
-    ...(endpoint.password ? { password: endpoint.password } : {}),
+    tag, server: endpoint.server, server_port: endpoint.port,
     ...(dnsTag && !isIpAddress(endpoint.server) ? { domain_resolver: dnsTag } : {}),
   }
-  return endpoint.kind === 'socks'
-    ? { type: 'socks', version: '5', ...common }
-    : { type: 'http', ...common }
-}
-
-function renameItems(
-  items: ResolvedProxyItem[],
-  transformId: string,
-  pattern: string | undefined,
-  replacement: string | undefined,
-  context: SingBoxCompileContext,
-) {
-  if (!pattern || replacement === undefined) return items
-  let regex: RegExp
-  try {
-    regex = new RegExp(pattern, 'g')
-  } catch {
-    context.issues.push(singBoxIssue(
-      'SINGBOX_TRANSFORM_RENAME_INVALID', 'error', 'transform', `Rename pattern “${pattern}” 不是有效正则表达式。`, transformId,
-    ))
-    return []
+  switch (endpoint.protocol) {
+    case 'socks5': return { type: 'socks', version: '5', ...common, ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}) }
+    case 'http': return {
+      type: 'http', ...common, ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}),
+      ...(singBoxTls(endpoint.tls) ? { tls: singBoxTls(endpoint.tls) } : {}),
+    }
+    case 'shadowsocks': return {
+      type: 'shadowsocks', ...common, method: endpoint.method, password: endpoint.password,
+      ...(endpoint.plugin ? { plugin: endpoint.plugin.name, ...(endpoint.plugin.options ? { plugin_opts: pluginOptionsString(endpoint.plugin.options) } : {}) } : {}),
+    }
+    case 'trojan': return { type: 'trojan', ...common, password: endpoint.password, tls: singBoxTls(endpoint.tls)!, ...(singBoxTransport(endpoint.transport) ? { transport: singBoxTransport(endpoint.transport) } : {}) }
+    case 'vmess': return {
+      type: 'vmess', ...common, uuid: endpoint.uuid, security: endpoint.security, ...(endpoint.alterId !== undefined ? { alter_id: endpoint.alterId } : {}),
+      ...(singBoxTls(endpoint.tls) ? { tls: singBoxTls(endpoint.tls) } : {}), ...(singBoxTransport(endpoint.transport) ? { transport: singBoxTransport(endpoint.transport) } : {}),
+    }
+    case 'vless': return {
+      type: 'vless', ...common, uuid: endpoint.uuid,
+      ...(singBoxTls(endpoint.tls) ? { tls: singBoxTls(endpoint.tls) } : {}), ...(singBoxTransport(endpoint.transport) ? { transport: singBoxTransport(endpoint.transport) } : {}),
+    }
   }
-  return items.map((item) => {
-    const name = item.endpoint.name.replace(regex, replacement)
-    const tag = context.names.allocate(name, `${transformId}-${item.endpoint.id}`)
-    const endpoint = { ...item.endpoint, name }
-    context.outbounds.set(tag, endpointOutbound(endpoint, tag, context.dnsTag))
-    return { key: `${item.key}@${transformId}`, endpoint, tag }
-  })
 }
 
-function matchesFilter(name: string, include: string[], exclude: string[]) {
-  const normalized = name.toLocaleLowerCase()
-  return (include.length === 0 || include.some((item) => normalized.includes(item.toLocaleLowerCase())))
-    && !exclude.some((item) => normalized.includes(item.toLocaleLowerCase()))
+function singBoxTls(tls?: ProxyTlsIR): SingBoxTls | undefined {
+  return tls?.enabled ? {
+    enabled: true, ...(tls.serverName ? { server_name: tls.serverName } : {}), ...(tls.allowInsecure ? { insecure: true } : {}), ...(tls.alpn?.length ? { alpn: tls.alpn } : {}),
+  } : undefined
 }
 
-function uniqueItems(items: ResolvedProxyItem[]) {
-  const seen = new Set<string>()
-  return items.filter((item) => {
-    if (seen.has(item.key)) return false
-    seen.add(item.key)
-    return true
-  })
+function singBoxTransport(transport?: ProxyTransportIR): SingBoxV2RayTransport | undefined {
+  if (!transport || transport.kind === 'tcp') return undefined
+  if (transport.kind === 'ws') return { type: 'ws', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { headers: { Host: transport.host } } : {}) }
+  if (transport.kind === 'http') return { type: 'http', ...(transport.path ? { path: transport.path } : {}), ...(transport.host ? { host: [transport.host] } : {}) }
+  return { type: 'grpc', ...(transport.serviceName ? { service_name: transport.serviceName } : {}) }
+}
+
+function pluginOptionsString(value: string | Record<string, string | number | boolean>) {
+  return typeof value === 'string' ? value : Object.entries(value).map(([key, item]) => item === true ? key : `${key}=${String(item)}`).join(';')
 }
 
 function isIpAddress(value: string) {

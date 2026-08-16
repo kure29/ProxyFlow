@@ -1,0 +1,56 @@
+proxies:
+  - name: HTTP Demo
+    type: http
+    server: http.example.com
+    port: 8080
+    username: demo
+    password: pass
+  - name: SOCKS Demo
+    type: socks5
+    server: socks.example.com
+    port: 1080
+  - name: 🇭🇰 HK Shadowsocks
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: demo-pass
+  - name: 🇺🇸 US Trojan
+    type: trojan
+    server: trojan.example.com
+    port: 443
+    password: demo-pass
+    sni: trojan.example.com
+    network: tcp
+  - name: 🇯🇵 JP VMess
+    type: vmess
+    server: vmess.example.com
+    port: 443
+    uuid: 66666666-6666-4666-8666-666666666666
+    alterId: 0
+    cipher: auto
+    tls: true
+    servername: vmess.example.com
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: vmess.example.com
+  - name: 🇸🇬 SG VLESS
+    type: vless
+    server: vless.example.com
+    port: 443
+    uuid: 77777777-7777-4777-8777-777777777777
+    tls: true
+    servername: vless.example.com
+    network: grpc
+    grpc-opts:
+      grpc-service-name: proxyflow
+proxy-groups:
+  - name: ignored
+    type: select
+    proxies: [HTTP Demo]
+rules:
+  - MATCH,ignored
+dns:
+  enable: true

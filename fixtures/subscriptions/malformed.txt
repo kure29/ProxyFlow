@@ -1,0 +1,3 @@
+this is not a subscription
+%%%%not-base64%%%%
+proxies: [unterminated

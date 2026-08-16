@@ -34,20 +34,19 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       <div className="node-content">
         {data.blockType === 'subscription' && (
           <div className="node-metric-row">
-            <span className="status-dot-label"><i /> 已同步</span>
-            <strong>{data.nodeCount ?? 0}<small> 节点</small></strong>
+            <span className={`status-dot-label status-${data.runtimeStatus ?? 'unavailable'}`}><i /> {runtimeStatusLabel(data.runtimeStatus)}</span>
+            <strong>{data.runtimeOutputCount ?? data.nodeCount ?? 0}<small> 节点</small></strong>
           </div>
         )}
 
         {data.blockType === 'filter' && (
-          <div className="node-chip-row">
-            {(data.include ?? []).slice(0, 2).map((word) => <span key={word}>{word}</span>)}
-            <em>{(data.exclude ?? []).length} 排除</em>
-          </div>
+          <><div className="node-chip-row">{(data.includeRegions ?? []).slice(0, 2).map((region) => <span key={region}>{region}</span>)}{(data.include ?? []).slice(0, 2).map((word) => <span key={word}>{word}</span>)}<em>{(data.exclude ?? []).length + (data.excludeRegions ?? []).length} 排除</em></div><RuntimeCount data={data} /></>
         )}
 
+        {['rename', 'sort', 'deduplicate', 'merge', 'limit'].includes(data.blockType) && <RuntimeCount data={data} />}
+
         {['auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy'].includes(data.blockType) && (
-          <div className="node-strategy-row"><Zap size={13} /><span>{data.subtitle}</span></div>
+          <div className="node-strategy-row"><Zap size={13} /><span>{data.runtimeOutputCount ?? 0} candidates</span></div>
         )}
 
         {data.blockType === 'proxy-chain' && (
@@ -81,7 +80,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
           <div className="node-output-row"><span><Check size={12} /> {data.compatibility}</span><b>{String(data.client ?? '').toUpperCase()}</b></div>
         )}
 
-        {!['subscription', 'filter', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
+        {!['subscription', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
           <p className="node-default-copy">{data.subtitle}</p>
         )}
       </div>
@@ -96,4 +95,16 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       )}
     </article>
   )
+}
+
+function RuntimeCount({ data }: { data: GraphNode['data'] }) {
+  if (data.runtimeStatus === 'error') return <div className="node-runtime-count is-error"><strong>Upstream error</strong><small>处理已阻止</small></div>
+  return <div className="node-runtime-count"><strong>{data.runtimeInputCount ?? 0} → {data.runtimeOutputCount ?? 0}</strong><small>{data.runtimeRemovedCount ?? 0} removed</small></div>
+}
+
+function runtimeStatusLabel(status: GraphNode['data']['runtimeStatus']) {
+  if (status === 'ready') return 'Ready'
+  if (status === 'stale') return 'Cached'
+  if (status === 'error') return 'Failed'
+  return '等待导入'
 }

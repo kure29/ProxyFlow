@@ -6,6 +6,7 @@ import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
+import type { SubscriptionInputKind, SubscriptionSnapshot } from '../core/subscription'
 
 interface GraphSnapshot {
   nodes: GraphNode[]
@@ -29,6 +30,7 @@ interface BuilderState {
   recoveryRequired: boolean
   recoveryNotice: string | null
   toast: string | null
+  subscriptionSnapshots: Record<string, SubscriptionSnapshot>
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
@@ -56,6 +58,8 @@ interface BuilderState {
   resetToDemo: () => void
   createNewProject: () => void
   dismissRecoveryNotice: () => void
+  parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
+  refreshSubscription: (id: string) => Promise<void>
   toProject: () => ProxyFlowProject
 }
 
@@ -67,8 +71,8 @@ const cloneSnapshot = (nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot =>
 const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now()}`
 
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
-  if (type === 'subscription') return { subscriptionUrl: '', enabled: true, nodeCount: 0, updatedAt: '尚未更新' }
-  if (type === 'manual-proxy') return { proxyProtocol: 'socks', proxyServer: '', proxyPort: 1080 }
+  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', enabled: true, nodeCount: 0, updatedAt: '尚未解析' }
+  if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
   if (type === 'filter') return { include: [], exclude: [] }
   if (type === 'auto-select') return { strategyMode: '自动选择最快', testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'proxy-chain') return { hopIds: [] }
@@ -76,6 +80,21 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
   if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
   return {}
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+}
+
+async function rehydrateEmbeddedSubscriptions(
+  nodes: GraphNode[],
+  parseInput: BuilderState['parseSubscriptionInput'],
+) {
+  for (const node of nodes) {
+    if (node.data.blockType === 'subscription' && node.data.subscriptionInputKind === 'paste' && node.data.subscriptionContent) {
+      await parseInput(node.id, node.data.subscriptionContent, 'paste')
+    }
+  }
 }
 
 export const useBuilderStore = create<BuilderState>((set, get) => {
@@ -101,6 +120,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     recoveryRequired: false,
     recoveryNotice: null,
     toast: null,
+    subscriptionSnapshots: {},
 
     onNodesChange: (changes) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
@@ -346,6 +366,74 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     setPreviewOpen: (previewOpen) => set({ previewOpen }),
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
+    parseSubscriptionInput: async (id, content, inputKind, fileName) => {
+      const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
+      if (!node) return
+      const { parseSubscription } = await import('../core/subscription')
+      const result = parseSubscription(content, { sourceId: id, sourceName: node.data.title, filename: fileName })
+      const now = new Date().toISOString()
+      const firstError = result.issues.find((issue) => issue.severity === 'error')
+      const parsed = result.readyCount + result.partialCount
+      const snapshot: SubscriptionSnapshot = {
+        inputKind, fetchStatus: firstError && parsed === 0 ? 'failed' : 'ready', result,
+        lastSuccessfulAt: parsed > 0 ? now : undefined, latestAttemptAt: now,
+        ...(firstError ? { latestErrorCode: firstError.code, latestErrorMessage: firstError.message } : {}),
+        ...(fileName ? { fileName } : {}),
+      }
+      set((state) => ({
+        subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: snapshot },
+        nodes: state.nodes.map((item) => item.id === id ? {
+          ...item,
+          data: {
+            ...item.data, subscriptionInputKind: inputKind,
+            ...(inputKind === 'paste' ? { subscriptionContent: content, subscriptionFileName: undefined } : { subscriptionContent: undefined, subscriptionFileName: fileName }),
+            nodeCount: result.detectedCount, updatedAt: parsed > 0 ? formatTimestamp(now) : item.data.updatedAt,
+            subtitle: `${result.detectedCount} detected · ${result.readyCount} usable`,
+          },
+        } : item),
+        toast: parsed > 0 ? `导入完成：${result.detectedCount} 个节点，${result.readyCount} 个可用` : '订阅内容未能解析',
+      }))
+    },
+    refreshSubscription: async (id) => {
+      const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
+      const url = node?.data.subscriptionUrl?.trim()
+      if (!node || !url) {
+        set({ toast: '请先填写订阅地址' })
+        return
+      }
+      const previous = get().subscriptionSnapshots[id]
+      const attemptedAt = new Date().toISOString()
+      set((state) => ({
+        subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: { ...previous, inputKind: 'url', fetchStatus: 'loading', latestAttemptAt: attemptedAt } },
+      }))
+      try {
+        const { BrowserSourceFetcher, parseSubscription } = await import('../core/subscription')
+        const content = await new BrowserSourceFetcher().fetchText(url)
+        const result = parseSubscription(content, { sourceId: id, sourceName: node.data.title })
+        const firstError = result.issues.find((issue) => issue.severity === 'error')
+        const parsed = result.readyCount + result.partialCount
+        if (parsed === 0 && firstError) throw Object.assign(new Error(firstError.message), { code: firstError.code })
+        const successfulAt = new Date().toISOString()
+        set((state) => ({
+          subscriptionSnapshots: { ...state.subscriptionSnapshots, [id]: { inputKind: 'url', fetchStatus: 'ready', result, lastSuccessfulAt: successfulAt, latestAttemptAt: successfulAt } },
+          nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, subscriptionInputKind: 'url', subscriptionContent: undefined, subscriptionFileName: undefined, nodeCount: result.detectedCount, updatedAt: formatTimestamp(successfulAt), subtitle: `${result.detectedCount} detected · ${result.readyCount} usable` } } : item),
+          toast: `订阅已解析：${result.detectedCount} 个节点`,
+        }))
+      } catch (error) {
+        const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : 'FETCH_FAILED'
+        const message = error instanceof Error ? error.message : '无法读取订阅。'
+        set((state) => ({
+          subscriptionSnapshots: {
+            ...state.subscriptionSnapshots,
+            [id]: {
+              ...previous, inputKind: 'url', fetchStatus: code === 'CORS_OR_NETWORK_ERROR' ? 'cors' : 'failed',
+              latestAttemptAt: attemptedAt, latestErrorCode: code, latestErrorMessage: message, stale: Boolean(previous?.result?.proxies.length),
+            },
+          },
+          toast: previous?.result?.proxies.length ? '刷新失败，继续使用上次成功结果' : message,
+        }))
+      }
+    },
     hydrate: (project) => {
       if (project === undefined) {
         set({
@@ -354,6 +442,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
           recoveryRequired: true,
           recoveryNotice: '本地项目无法解析。原始数据尚未覆盖，请重置为 Demo 或新建 Project。',
+          subscriptionSnapshots: {},
         })
         return
       }
@@ -364,14 +453,20 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: migration?.recoveryRequired ?? false,
         recoveryNotice: migration?.message ?? null,
+        subscriptionSnapshots: {},
       })
+      void rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput)
     },
-    resetToDemo: () => set({
-      projectId: demoProject.id, projectName: demoProject.name,
-      nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
-      historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
-      recoveryRequired: false, recoveryNotice: '已重置为 V0.4 Demo。',
-    }),
+    resetToDemo: () => {
+      set({
+        projectId: demoProject.id, projectName: demoProject.name,
+        nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
+        historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
+        recoveryRequired: false, recoveryNotice: '已重置为 V0.5 Real Subscription Demo。',
+        subscriptionSnapshots: {},
+      })
+      void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
+    },
     createNewProject: () => {
       const value = createBlankProject()
       set({
@@ -379,6 +474,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: '已创建新的空白项目。',
+        subscriptionSnapshots: {},
       })
     },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
