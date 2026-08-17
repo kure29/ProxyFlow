@@ -17,7 +17,7 @@ import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, typ
 import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
-import { createMaterializationContext, deriveProjectRuntime, materializeProxySet, parseLimitDraft } from '../../core/proxySet'
+import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, type ProcessingExplanation } from '../../core/proxySet'
 import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
   localizeSubscriptionSnapshots, regionLabel, useI18n,
@@ -305,6 +305,7 @@ function MergeInspector({ node }: InspectorProps) {
 }
 
 interface NodeMaterializationView {
+  transform?: import('../../core/ir').TransformIR
   input: import('../../core/ir').ResolvedProxyEndpointIR[]
   output: import('../../core/ir').ResolvedProxyEndpointIR[]
   status: 'ready' | 'error'
@@ -343,7 +344,7 @@ function useNodeMaterialization(nodeId: string): NodeMaterializationView {
     }))
     const issues = deduplicateRuntimeIssues([...compileIssues, ...output.issues])
     return {
-      input, output: output.proxies, status: output.status === 'error' || issues.some((issue) => issue.severity === 'error') ? 'error' : 'ready',
+      transform, input, output: output.proxies, status: output.status === 'error' || issues.some((issue) => issue.severity === 'error') ? 'error' : 'ready',
       issues, inputCount: input.length, outputCount: output.outputCount, removedCount: input.length - output.outputCount,
     }
   }, [edges, locale, nodeId, nodes, snapshots, toProject])
@@ -380,11 +381,28 @@ function ProcessingDebug({ materialized }: { materialized: NodeMaterializationVi
   const selectNode = useBuilderStore((state) => state.selectNode)
   const [preview, setPreview] = useState<'input' | 'output' | null>(null)
   const proxies = preview === 'input' ? materialized.input : materialized.output
-  return <><div className={`processing-debug${materialized.status === 'error' ? ' is-error' : ''}`}><div><span>{t('inspector.input')}</span><strong>{materialized.inputCount}</strong></div><div><span>{t('inspector.output')}</span><strong>{materialized.outputCount}</strong></div><div><span>{t('inspector.removed')}</span><strong>{materialized.removedCount}</strong></div></div>{materialized.issues.map((issue) => {
+  const explanation = explainProcessing(materialized.transform, materialized.input, materialized.output)
+  return <><div className={`processing-debug${materialized.status === 'error' ? ' is-error' : ''}`}><div><span>{t('inspector.input')}</span><strong>{materialized.inputCount}</strong></div><div><span>{t('inspector.output')}</span><strong>{materialized.outputCount}</strong></div><div><span>{t('inspector.removed')}</span><strong>{materialized.removedCount}</strong></div></div>{explanation && <ProcessingExplanationView explanation={explanation} />}{materialized.issues.map((issue) => {
     const issueNode = issue.entityId ? nodes.find((node) => node.id === issue.entityId) : undefined
     const upstream = issueNode && issueNode.id !== selectedNodeId
     return <div className={`processing-issue is-${issue.severity}`} key={`${issue.code}-${issue.entityId ?? ''}-${issue.message}`}><code>{issue.code}</code><span>{upstream && <strong>{t('inspector.upstreamIssue', { node: localizeNodeTitle(issueNode, locale) })}</strong>}{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span>{upstream && <button type="button" onClick={() => selectNode(issueNode.id)}>{t('inspector.locateIssue')}</button>}</div>
   })}<div className="processing-preview-actions"><button disabled={!materialized.input.length} onClick={() => setPreview('input')}>{t('inspector.viewInput')}</button><button disabled={!materialized.output.length} onClick={() => setPreview('output')}>{t('inspector.viewOutput')}</button></div>{preview && <NodesPreview snapshot={snapshotFromProxies(proxies)} onClose={() => setPreview(null)} />}</>
+}
+
+function ProcessingExplanationView({ explanation }: { explanation: ProcessingExplanation }) {
+  const { t } = useI18n()
+  const text = explanation.kind === 'filter'
+    ? t(explanation.mode === 'criterion' ? 'inspector.processingExplanation.filterCriterion' : 'inspector.processingExplanation.filterConditions', { input: explanation.inputCount, output: explanation.outputCount, removed: explanation.removedCount })
+    : explanation.kind === 'rename'
+      ? t('inspector.processingExplanation.rename', { mode: explanation.mode === 'simple' ? t('inspector.renameMode.simple') : t('inspector.renameMode.regex'), changed: explanation.changedCount })
+      : explanation.kind === 'sort'
+        ? t('inspector.processingExplanation.sort', { by: explanation.by === 'name' ? t('inspector.sort.name') : explanation.by === 'region' ? t('inspector.sort.region') : explanation.by === 'protocol' ? t('inspector.sort.protocol') : t('inspector.sort.latency'), direction: explanation.direction === 'ascending' ? t('inspector.ascending') : t('inspector.descending'), reordered: explanation.reorderedCount })
+        : explanation.kind === 'deduplicate'
+          ? t('inspector.processingExplanation.deduplicate', { removed: explanation.removedCount })
+          : explanation.kind === 'merge'
+            ? t('inspector.processingExplanation.merge', { sources: explanation.sourceCount, output: explanation.outputCount })
+            : t('inspector.processingExplanation.limit', { max: explanation.max ?? '—', input: explanation.inputCount, output: explanation.outputCount, removed: explanation.removedCount })
+  return <div className="processing-explanation"><span>{t('inspector.processingExplanation.label')}</span><p>{text}</p></div>
 }
 
 function snapshotFromProxies(proxies: import('../../core/ir').ResolvedProxyEndpointIR[]) {
@@ -416,8 +434,25 @@ function StrategyInspector({ node }: InspectorProps) {
     {(node.data.blockType === 'auto-select' || node.data.blockType === 'fallback') && <Advanced><Field label={t('inspector.testInterval')}><div className="input-with-unit"><input type="number" min="5" step="5" value={node.data.interval ?? 300} onChange={(event) => update(node.id, { interval: Math.max(1, Number(event.target.value)) })} /><span>{t('inspector.seconds')}</span></div></Field><Field label={t('inspector.tolerance')}><div className="input-with-unit"><input type="number" min="0" step="10" value={node.data.tolerance ?? 50} onChange={(event) => update(node.id, { tolerance: Math.max(0, Number(event.target.value)) })} /><span>ms</span></div></Field></Advanced>}
     {node.data.blockType === 'load-balance' && <Advanced><div className="strategy-advanced-note">{t('inspector.loadBalanceAdvancedHint')}</div><Field label={t('inspector.loadBalanceMode')}><select value={node.data.loadBalanceMode ?? 'round-robin'} onChange={(event) => update(node.id, { loadBalanceMode: event.target.value as BlockNodeData['loadBalanceMode'] })}><option value="round-robin">{t('inspector.loadBalance.roundRobin')}</option><option value="consistent-hash">{t('inspector.loadBalance.consistentHash')}</option></select></Field></Advanced>}
     {node.data.blockType !== 'fixed-proxy' && <div className="candidate-list"><span>{t('inspector.incomingCandidates')}</span>{materializedCandidates.length ? materializedCandidates.map((item) => <code key={item.id}>{localizeNodeTitle(item, locale)}</code>) : <small>{t('inspector.sourceMissing')}</small>}</div>}
-    {emptyCandidates && <div className="strategy-explanation"><AlertTriangle size={14} /><span><strong>{t('inspector.emptyCandidates')}</strong><small>{incoming.length ? t('inspector.emptyCandidatesHint') : t('inspector.connectStrategySource')}</small></span></div>}
+    {emptyCandidates
+      ? <div className="strategy-explanation is-warning"><AlertTriangle size={14} /><span><strong>{t('inspector.emptyCandidates')}</strong><small>{incoming.length ? t('inspector.emptyCandidatesHint') : t('inspector.connectStrategySource')}</small></span></div>
+      : runtime && <div className="strategy-explanation is-ready"><Check size={14} /><span><strong>{strategyExplanationTitle(node.data.blockType, t)}</strong><small>{strategyExplanation(node, runtime.outputCount, t)}</small></span></div>}
   </>
+}
+
+function strategyExplanationTitle(blockType: BlockNodeData['blockType'], t: ReturnType<typeof useI18n>['t']) {
+  if (blockType === 'manual-select') return t('inspector.strategyExplanation.manualTitle')
+  if (blockType === 'auto-select') return t('inspector.strategyExplanation.autoTitle')
+  if (blockType === 'fallback') return t('inspector.strategyExplanation.fallbackTitle')
+  if (blockType === 'load-balance') return t('inspector.strategyExplanation.loadBalanceTitle')
+  return t('inspector.strategyExplanation.readyTitle')
+}
+
+function strategyExplanation(node: GraphNode, count: number, t: ReturnType<typeof useI18n>['t']) {
+  if (node.data.blockType === 'auto-select') return t('inspector.strategyExplanation.auto', { count, url: node.data.testUrl ?? '—', interval: node.data.interval ?? 300 })
+  if (node.data.blockType === 'fallback') return t('inspector.strategyExplanation.fallback', { count, url: node.data.testUrl ?? '—', interval: node.data.interval ?? 300 })
+  if (node.data.blockType === 'load-balance') return t('inspector.strategyExplanation.loadBalance', { count, mode: node.data.loadBalanceMode === 'consistent-hash' ? t('inspector.loadBalance.consistentHash') : t('inspector.loadBalance.roundRobin') })
+  return t('inspector.strategyExplanation.manual', { count })
 }
 
 function usePipelineNodeRuntime(nodeId: string) {

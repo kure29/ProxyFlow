@@ -45,7 +45,7 @@ export function BlockLibrary() {
                 return next
               })} aria-expanded={!isCollapsed}>
                 <span className={`category-dot category-dot--${group.category}`} />
-                {group.advanced ? t('category.strategyAdvanced') : t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
+                {group.advanced ? (group.category === 'strategy' ? t('category.strategyAdvanced') : `${t('category.advanced')} · ${t(categoryKey(group.category))}`) : t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
               </button>
               {!isCollapsed && <div className="library-items">
                 {group.items.map((item) => (

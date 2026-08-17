@@ -47,7 +47,7 @@ export const blockLibrary: BlockLibraryGroup[] = [
     ],
   },
   {
-    category: 'chain', label: '高级路由', items: [
+    category: 'chain', label: '高级路由', advanced: true, items: [
       { type: 'proxy-chain', category: 'chain', title: '代理链', description: '串联多个策略形成链路', icon: 'route' },
     ],
   },
@@ -58,7 +58,7 @@ export const blockLibrary: BlockLibraryGroup[] = [
     ],
   },
   {
-    category: 'dns', label: 'DNS', items: [
+    category: 'dns', label: 'DNS', advanced: true, items: [
       { type: 'dns', category: 'dns', title: 'DNS 配置', description: '设置域名解析策略', icon: 'globe-2' },
     ],
   },
