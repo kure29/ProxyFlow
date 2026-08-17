@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { compileGraph } from '../../core/graphCompiler'
-import { diagnosticNodeId, groupDiagnostics, type StructuredDiagnostic } from '../../core/compiler'
+import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetClient } from '../../types/project'
 import { useTargetCompile } from '../compiler/useTargetCompile'
@@ -33,7 +33,10 @@ export function PreviewModal() {
   const { fitView } = useReactFlow()
   const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
-  const targetState = useTargetCompile(graphResult.ir, activeTarget, open && graphResult.success && mode !== 'ir')
+  const targetCompileEnabled = open && graphResult.success && mode !== 'ir'
+  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', targetCompileEnabled)
+  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', targetCompileEnabled)
+  const targetState = activeTarget === 'sing-box' ? singBoxState : mihomoState
   if (!open) return null
 
   const graphIssues: DisplayIssue[] = graphResult.issues.map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
@@ -104,6 +107,7 @@ export function PreviewModal() {
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
+          {targetCompileEnabled && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
           <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t('preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
@@ -118,6 +122,43 @@ export function PreviewModal() {
       <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
+}
+
+function CompatibilitySummary({ mihomo, singBox }: { mihomo: ReturnType<typeof useTargetCompile>; singBox: ReturnType<typeof useTargetCompile> }) {
+  return <div className="preview-compatibility-summary">
+    <span><CompatibilitySummaryLabel /></span>
+    <CompatibilityRow label="Mihomo" state={mihomo} />
+    <CompatibilityRow label="sing-box" state={singBox} />
+  </div>
+}
+
+function CompatibilitySummaryLabel() {
+  const { t } = useI18n()
+  return <>{t('preview.compatibilitySummary')}</>
+}
+
+function CompatibilityRow({ label, state }: { label: string; state: ReturnType<typeof useTargetCompile> }) {
+  const { t } = useI18n()
+  const warningCount = state.result?.issues.filter((issue: CompileResult['issues'][number]) => issue.severity === 'warning').length ?? 0
+  const status = state.status === 'success' && warningCount === 0
+    ? 'supported'
+    : state.status === 'success'
+      ? 'warning'
+      : state.status === 'loading'
+        ? 'loading'
+        : state.status === 'unavailable'
+          ? 'unavailable'
+          : 'blocked'
+  const statusText = status === 'supported'
+    ? t('preview.compatibility.supported')
+    : status === 'warning'
+      ? t('preview.compatibility.warning', { count: warningCount })
+      : status === 'loading'
+        ? t('preview.compatibility.loading')
+        : status === 'unavailable'
+          ? t('preview.compatibility.unavailable')
+          : t('preview.compatibility.blocked')
+  return <div className="preview-compatibility-row"><strong>{label}</strong><span className={`compatibility-status is-${status}`}>{statusText}</span></div>
 }
 
 function IssuePanel({ title, issues, availableNodeIds, onLocate }: { title: string; issues: DisplayIssue[]; availableNodeIds: ReadonlySet<string>; onLocate: (issue: DisplayIssue) => void }) {

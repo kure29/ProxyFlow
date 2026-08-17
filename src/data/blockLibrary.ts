@@ -11,6 +11,7 @@ export interface BlockLibraryItem {
 export interface BlockLibraryGroup {
   category: BlockCategory
   label: string
+  advanced?: boolean
   items: BlockLibraryItem[]
 }
 
@@ -38,8 +39,11 @@ export const blockLibrary: BlockLibraryGroup[] = [
       { type: 'manual-select', category: 'strategy', title: '手动选择', description: '由用户指定活动节点', icon: 'mouse-pointer-2' },
       { type: 'auto-select', category: 'strategy', title: '自动选择最快', description: '持续选择延迟最低节点', icon: 'gauge' },
       { type: 'fallback', category: 'strategy', title: '故障切换', description: '不可用时自动切换', icon: 'refresh-cw' },
+    ],
+  },
+  {
+    category: 'strategy', label: '高级策略', advanced: true, items: [
       { type: 'load-balance', category: 'strategy', title: '负载均衡', description: '在节点间分配连接', icon: 'scale' },
-      { type: 'fixed-proxy', category: 'strategy', title: '固定节点', description: '固定使用指定代理', icon: 'pin' },
     ],
   },
   {
@@ -48,10 +52,8 @@ export const blockLibrary: BlockLibraryGroup[] = [
     ],
   },
   {
-    category: 'routing', label: '服务分流', items: [
-      { type: 'routing-group', category: 'routing', title: '分流规则组', description: '一组服务流量的去向', icon: 'waypoints' },
-      { type: 'service-rule', category: 'routing', title: '服务规则', description: '按服务选择流量', icon: 'blocks' },
-      { type: 'custom-rule', category: 'routing', title: '自定义规则', description: '使用高级匹配条件', icon: 'braces' },
+    category: 'routing', label: '分流', items: [
+      { type: 'service-rule', category: 'routing', title: '分流规则', description: '按服务、域名、CIDR 或端口匹配流量', icon: 'waypoints' },
       { type: 'final', category: 'routing', title: 'Final', description: '其余流量的最终去向', icon: 'corner-down-right' },
     ],
   },
@@ -67,4 +69,13 @@ export const blockLibrary: BlockLibraryGroup[] = [
   },
 ]
 
-export const blockByType = new Map(blockLibrary.flatMap((group) => group.items).map((item) => [item.type, item]))
+// Legacy routing entries remain resolvable for old Projects but are not product entry points.
+const legacyRoutingItems: BlockLibraryItem[] = [
+  { type: 'routing-group', category: 'routing', title: 'Legacy routing group', description: 'Compatibility-only routing node', icon: 'waypoints' },
+  { type: 'custom-rule', category: 'routing', title: 'Legacy custom rule', description: 'Compatibility-only matcher node', icon: 'braces' },
+]
+const legacyStrategyItems: BlockLibraryItem[] = [
+  { type: 'fixed-proxy', category: 'strategy', title: 'Legacy fixed proxy', description: 'Compatibility-only fixed strategy', icon: 'pin' },
+]
+
+export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacyRoutingItems, ...legacyStrategyItems].map((item) => [item.type, item]))

@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { demoProject } from '../data/demoProject'
 import { hktDemoSubscription } from '../data/demoSubscriptions'
 import { compileGraph } from '../core/graphCompiler'
+import { v08BasicRoutingFixture } from '../core/__fixtures__/v08Acceptance'
 import { deriveProjectRuntime } from '../core/proxySet'
 import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
@@ -109,6 +110,21 @@ describe('builder store', () => {
     expect(data(cidr)).toEqual(expect.objectContaining({ routeMatcherKind: 'ip-cidr6', routeMatcherValue: '2001:db8::/32', routePriority: 20 }))
     expect(data(port)).toEqual(expect.objectContaining({ routeMatcherKind: 'port', routeMatcherPort: 443, routePriority: 30 }))
     expect(data(ruleSet)).toEqual(expect.objectContaining({ routeMatcherKind: 'rule-set', routeMatcherValue: 'ios-openai', routePriority: 40 }))
+  })
+
+  it('round-trips the V0.8 strategy and routing acceptance project through JSON', () => {
+    useBuilderStore.getState().hydrate(structuredClone(v08BasicRoutingFixture))
+    const before = useBuilderStore.getState().toProject()
+    const exported = JSON.parse(JSON.stringify(before))
+    expect(exported.version).toBe(2)
+
+    useBuilderStore.getState().hydrate(exported)
+    const imported = useBuilderStore.getState().toProject()
+    const nodeData = (id: string) => imported.graph.nodes.find((node) => node.id === id)?.data
+    expect(nodeData('auto')).toEqual(expect.objectContaining({ blockType: 'auto-select', testUrl: 'https://example.com/ping', interval: 180, tolerance: 60 }))
+    expect(nodeData('local')).toEqual(expect.objectContaining({ routeMatcherKind: 'domain-suffix', routeMatcherValue: 'lan', targetKind: 'direct', routePriority: 20 }))
+    expect(nodeData('ads')).toEqual(expect.objectContaining({ routeMatcherKind: 'domain-keyword', routeMatcherValue: 'ads', targetKind: 'reject', routePriority: 30 }))
+    expect(compileGraph(imported).ir).toEqual(compileGraph(before).ir)
   })
 
   it('adds, reorders and removes proxy chain hops', () => {
