@@ -448,6 +448,11 @@ export const enUS = {
   'inspector.selectNode': 'Select a node',
   'inspector.selectNodeHint': 'Click any canvas node to view and edit its properties.',
   'inspector.quickSearch': 'Quick block search',
+  'inspector.starterKicker': 'Start here',
+  'inspector.starterTitle': 'Build your first workflow',
+  'inspector.starterDescription': 'Add a subscription source, or open the fictional example workflow to explore the full path.',
+  'inspector.starterAddSource': 'Add subscription',
+  'inspector.starterLoadDemo': 'Load example workflow',
   'inspector.deleteNode': 'Delete node',
   'inspector.needsConfig': 'Configuration required',
 
@@ -1041,6 +1046,11 @@ export const zhCN: Record<MessageKey, string> = {
   'inspector.selectNode': '选择一个节点',
   'inspector.selectNodeHint': '点击画布上的任意节点，查看并编辑它的详细属性。',
   'inspector.quickSearch': '快速搜索模块',
+  'inspector.starterKicker': '从这里开始',
+  'inspector.starterTitle': '建立第一个工作流',
+  'inspector.starterDescription': '添加订阅源，或打开虚构示例流程了解完整路径。',
+  'inspector.starterAddSource': '添加订阅源',
+  'inspector.starterLoadDemo': '载入示例流程',
   'inspector.deleteNode': '删除节点',
   'inspector.needsConfig': '需要配置',
 

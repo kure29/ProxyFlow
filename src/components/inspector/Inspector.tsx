@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ExternalLink,
-  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
+  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
 } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
@@ -18,6 +18,7 @@ import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntime
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, type ProcessingExplanation } from '../../core/proxySet'
+import { isStarterProject } from './starterState'
 import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
   localizeSubscriptionSnapshots, regionLabel, useI18n,
@@ -719,6 +720,8 @@ export function Inspector() {
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const selectedEdgeId = useBuilderStore((state) => state.selectedEdgeId)
   const deleteSelected = useBuilderStore((state) => state.deleteSelected)
+  const addNode = useBuilderStore((state) => state.addNode)
+  const resetToDemo = useBuilderStore((state) => state.resetToDemo)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const deleteCancelRef = useRef<HTMLButtonElement>(null)
   useEffect(() => { if (deleteConfirmOpen) deleteCancelRef.current?.focus() }, [deleteConfirmOpen])
@@ -729,7 +732,7 @@ export function Inspector() {
 
   if (!selected && edge) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.connection')}</span><h2>{t('inspector.connectionProperties')}</h2></div></div><div className="inspector-scroll"><div className="edge-inspector-visual"><span /><Link2 size={18} /><span /></div><Field label={t('inspector.semantic')}><input value={String(edge.data?.semantic ?? 'data')} readOnly /></Field><div className="edge-endpoints"><div><span>{t('inspector.from')}</span><strong>{localizeNodeTitle(nodes.find((node) => node.id === edge.source)!, locale)}</strong></div><ArrowLeftRight size={15} /><div><span>{t('inspector.to')}</span><strong>{localizeNodeTitle(nodes.find((node) => node.id === edge.target)!, locale)}</strong></div></div><button className="danger-button" onClick={deleteSelected}><Trash2 size={14} /> {t('inspector.deleteConnection')}</button></div></aside>
 
-  if (!selected) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.title')}</span><h2>{t('inspector.properties')}</h2></div></div><div className="inspector-scroll"><RouteInspectorPanel /><div className="inspector-empty"><div className="inspector-empty-graphic"><span /><span /><span /><Link2 size={18} /></div><h3>{t('inspector.selectNode')}</h3><p>{t('inspector.selectNodeHint')}</p><div><kbd>⌘</kbd><span>+</span><kbd>K</kbd><small>{t('inspector.quickSearch')}</small></div></div></div></aside>
+  if (!selected) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.title')}</span><h2>{t('inspector.properties')}</h2></div></div><div className="inspector-scroll">{isStarterProject(nodes) && <StarterActions onAddSubscription={() => addNode('subscription', { x: 120, y: 120 })} onLoadDemo={resetToDemo} />}{!isStarterProject(nodes) && <RouteInspectorPanel />}<div className="inspector-empty"><div className="inspector-empty-graphic"><span /><span /><span /><Link2 size={18} /></div><h3>{t('inspector.selectNode')}</h3><p>{t('inspector.selectNodeHint')}</p><div><kbd>⌘</kbd><span>+</span><kbd>K</kbd><small>{t('inspector.quickSearch')}</small></div></div></div></aside>
 
   const Content = inspectorRegistry[selected.data.blockType] ?? GenericInspector
   const requestDelete = () => selected.data.blockType === 'subscription' ? setDeleteConfirmOpen(true) : deleteSelected()
@@ -743,4 +746,9 @@ export function Inspector() {
     <div className="inspector-scroll"><Content node={selected} /></div>
     {deleteConfirmOpen && <div className="subscription-dialog-backdrop" role="presentation" onMouseDown={() => setDeleteConfirmOpen(false)}><section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-subscription-title" onMouseDown={(event) => event.stopPropagation()}><span className="confirmation-icon is-warning"><Trash2 size={20} /></span><h2 id="delete-subscription-title">{t('subscription.delete.title')}</h2><p>{t('subscription.delete.description')}</p><footer><button ref={deleteCancelRef} className="secondary-action" onClick={() => setDeleteConfirmOpen(false)}>{t('subscription.delete.cancel')}</button><button className="danger-action" onClick={() => { setDeleteConfirmOpen(false); deleteSelected() }}>{t('subscription.delete.confirm')}</button></footer></section></div>}
   </aside>
+}
+
+function StarterActions({ onAddSubscription, onLoadDemo }: { onAddSubscription: () => void; onLoadDemo: () => void }) {
+  const { t } = useI18n()
+  return <section className="starter-actions"><span>{t('inspector.starterKicker')}</span><h3>{t('inspector.starterTitle')}</h3><p>{t('inspector.starterDescription')}</p><div><button className="primary-action" onClick={onAddSubscription}><Plus size={14} /> {t('inspector.starterAddSource')}</button><button className="secondary-action" onClick={onLoadDemo}><LayoutTemplate size={14} /> {t('inspector.starterLoadDemo')}</button></div></section>
 }

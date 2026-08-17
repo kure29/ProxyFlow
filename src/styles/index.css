@@ -310,6 +310,7 @@
 .nodes-preview > footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-top: 1px solid #e1e5eb; background: #fff; color: #858f9e; font-size: 10px; }
 
 .processing-explanation { display: grid; gap: 3px; margin: 8px 0 10px; padding: 8px 9px; border-left: 2px solid #8fa4c8; background: #f4f7fb; }.processing-explanation span { color: #7d8796; font-size: 7px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.processing-explanation p { margin: 0; color: #5f6876; font-size: 8px; line-height: 1.45; }
+.starter-actions { display: grid; gap: 5px; margin: 0 0 14px; padding: 10px; border: 1px solid #dfe6f1; border-radius: 8px; background: #f5f8fc; }.starter-actions > span { color: #7586a2; font-size: 7px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }.starter-actions h3 { margin: 0; color: #4d5d73; font-size: 11px; }.starter-actions p { margin: 0; color: #7e8998; font-size: 8px; line-height: 1.45; }.starter-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 3px; }.starter-actions button { min-height: 31px; justify-content: center; padding: 6px 7px; font-size: 8px; }
 .processing-debug { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin: 12px 0 8px; }
 .processing-debug > div { padding: 9px 5px; border: 1px solid #dfe5e9; border-radius: 8px; background: #f7faf8; text-align: center; }
 .processing-debug span { display: block; color: #8a94a3; font-size: 8px; font-weight: 800; letter-spacing: .08em; }
