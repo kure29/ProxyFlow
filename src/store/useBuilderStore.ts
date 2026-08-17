@@ -6,6 +6,7 @@ import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
+import { moveRoutingRule } from '../core/routing/routeProductModel'
 import {
   commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
   snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
@@ -51,6 +52,7 @@ interface BuilderState {
   selectEdge: (id: string | null) => void
   updateNodeData: (id: string, patch: Partial<BlockNodeData>) => void
   setRoutingTarget: (nodeId: string, targetId: string) => void
+  moveRoutingRule: (nodeId: string, direction: 'up' | 'down') => void
   addHop: (chainId: string) => void
   removeHop: (chainId: string, hopId: string) => void
   moveHop: (chainId: string, from: number, to: number) => void
@@ -95,7 +97,7 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'load-balance') return { loadBalanceMode: 'round-robin' }
   if (type === 'proxy-chain') return { hopIds: [] }
-  if (['routing-group', 'service-rule'].includes(type)) return { services: [], ruleSource: 'ios_rule_script' }
+  if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
   if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
@@ -425,6 +427,13 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nodes: state.nodes.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, targetId, targetLabel: target.data.title, targetKind: 'strategy' } } : node),
         edges: [...oldEdges, newEdge],
       })
+    },
+    moveRoutingRule: (nodeId, direction) => {
+      const state = get()
+      const nodes = moveRoutingRule(state.nodes, nodeId, direction)
+      if (nodes === state.nodes) return
+      record()
+      set({ nodes })
     },
     addHop: (chainId) => {
       const state = get()

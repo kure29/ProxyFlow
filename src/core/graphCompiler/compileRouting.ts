@@ -2,8 +2,7 @@ import type { FinalRouteIR, RouteIR, RouteTargetIR, TrafficMatcherIR } from '../
 import { findRuleSourceMatches, normalizeCustomMatcher, semanticIssue } from '../ir'
 import type { GraphCompileContext } from './context'
 import { isStrategyNode } from './helpers'
-
-const routeTypes = new Set(['routing-group', 'service-rule', 'custom-rule'])
+import { rankRoutingRules, resolveRouteMatcherKind } from '../routing/routeProductModel'
 
 export interface CompiledRouting {
   routes: RouteIR[]
@@ -11,11 +10,13 @@ export interface CompiledRouting {
 }
 
 export function compileRouting(context: GraphCompileContext): CompiledRouting {
-  const routeNodes = context.project.graph.nodes.filter((node) => !node.data.disabled && routeTypes.has(node.data.blockType))
-  const routes = routeNodes.flatMap((node, index): RouteIR[] => {
-    const matcher = node.data.blockType === 'custom-rule'
-      ? compileCustomMatcher(node.id, node.data.title, node.data, context)
-      : compileServiceMatcher(node.id, node.data.title, node.data.services ?? [], context)
+  const routes = rankRoutingRules(context.project.graph.nodes).flatMap(({ node, priority }): RouteIR[] => {
+    const matcherKind = resolveRouteMatcherKind(node.data)
+    const matcher = matcherKind === 'service'
+      ? compileServiceMatcher(node.id, node.data.title, node.data.services ?? [], context)
+      : matcherKind
+        ? compileCustomMatcher(node.id, node.data.title, matcherKind, node.data, context)
+        : undefined
     if (!matcher) {
       context.addIssue(semanticIssue(
         'ROUTE_MATCHER_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid matcher.`,
@@ -36,7 +37,7 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
       name: node.data.title,
       matcher,
       target,
-      priority: Number.isFinite(node.data.routePriority) ? node.data.routePriority! : (index + 1) * 10,
+      priority,
     }]
   })
 
@@ -66,9 +67,7 @@ function compileServiceMatcher(nodeId: string, name: string, services: string[],
   return serviceIds.length > 0 ? { kind: 'service', serviceIds } : undefined
 }
 
-function compileCustomMatcher(nodeId: string, name: string, data: GraphCompileContext['project']['graph']['nodes'][number]['data'], context: GraphCompileContext): TrafficMatcherIR | undefined {
-  const kind = data.routeMatcherKind
-  if (!kind) return undefined
+function compileCustomMatcher(nodeId: string, name: string, kind: Exclude<NonNullable<GraphCompileContext['project']['graph']['nodes'][number]['data']['routeMatcherKind']>, 'service'>, data: GraphCompileContext['project']['graph']['nodes'][number]['data'], context: GraphCompileContext): TrafficMatcherIR | undefined {
   const normalized = normalizeCustomMatcher(kind, data.routeMatcherValue, data.routeMatcherPort)
   if (!normalized.ok) {
     context.addIssue(semanticIssue(

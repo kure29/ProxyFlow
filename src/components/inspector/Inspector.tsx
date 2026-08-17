@@ -15,6 +15,7 @@ import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
 import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
+import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { createMaterializationContext, deriveProjectRuntime, materializeProxySet, parseLimitDraft } from '../../core/proxySet'
 import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
@@ -467,34 +468,81 @@ function RoutingInspector({ node }: InspectorProps) {
   const activeService = useBuilderStore((state) => state.activeService)
   const update = useBuilderStore((state) => state.updateNodeData)
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
+  const moveRoutingRule = useBuilderStore((state) => state.moveRoutingRule)
   const targets = nodes.filter((item) => ['strategy', 'chain'].includes(item.data.category))
   const [rulesOpen, setRulesOpen] = useState(false)
   const [servicePickerOpen, setServicePickerOpen] = useState(false)
   const [serviceQuery, setServiceQuery] = useState('')
   const services = node.data.services ?? []
-  const isCustom = node.data.blockType === 'custom-rule'
-  const isServiceRoute = node.data.blockType === 'routing-group' || node.data.blockType === 'service-rule'
+  const matcherKind = resolveRouteMatcherKind(node.data)
+  const isRouteRule = isRoutingRuleType(node.data.blockType)
+  const isServiceRoute = matcherKind === 'service'
+  const isAdvancedMatcher = Boolean(matcherKind && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
   const selectedServices = services.map((value) => serviceCatalog.find((service) => service.id === value || service.name === value)).filter(Boolean)
   const availableServices = serviceCatalog.filter((service) => !services.includes(service.id) && !services.includes(service.name) && `${service.name} ${service.description ?? ''}`.toLowerCase().includes(serviceQuery.trim().toLowerCase()))
-  const matcherKind = node.data.routeMatcherKind ?? 'domain-suffix'
   const matcherValue = node.data.routeMatcherValue ?? ''
+  const order = routeOrder(node.id, nodes)
+  const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(node.id, {
+    routeMatcherKind: value,
+    ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
+    ...(value !== 'port' ? { routeMatcherPort: undefined } : {}),
+    ...(value === 'service' ? { ruleSource: node.data.ruleSource ?? 'ios_rule_script' } : {}),
+  })
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
-    {isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" onClick={() => setServicePickerOpen((open) => !open)}><Plus size={12} /> {t('inspector.add')}</button></div>
+    {isRouteRule && <Field label={t('inspector.matcherType')}>
+      <select value={isAdvancedMatcher ? '' : matcherKind ?? ''} onChange={(event) => setMatcher(event.target.value as BlockNodeData['routeMatcherKind'])}>
+        <option value="" disabled>{t('inspector.selectBasicMatcher')}</option>
+        {BASIC_ROUTE_MATCHERS.map((value) => <option key={value} value={value}>{matcherLabel(value, t)}</option>)}
+      </select>
+    </Field>}
+    {isRouteRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" onClick={() => setServicePickerOpen((open) => !open)}><Plus size={12} /> {t('inspector.add')}</button></div>
     <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><span className="service-avatar">{label.slice(0, 1)}</span><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={13} /></button></div> })}</div>
     {servicePickerOpen && <div className="service-picker"><div className="service-search"><Search size={14} /><input autoFocus value={serviceQuery} placeholder={t('inspector.searchServices')} onChange={(event) => setServiceQuery(event.target.value)} /></div><div className="service-picker-options">{availableServices.map((service) => <button type="button" key={service.id} onClick={() => { update(node.id, { services: [...services, service.id] }); setServiceQuery('') }}><span className="service-avatar">{service.name.slice(0, 1)}</span><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span><Plus size={13} /></button>)}{availableServices.length === 0 && <small>{t('inspector.noServices')}</small>}</div></div>}</>}
-    {isCustom && <><Field label={t('inspector.matcherType')}><select value={matcherKind} onChange={(event) => update(node.id, { routeMatcherKind: event.target.value as BlockNodeData['routeMatcherKind'], routeMatcherValue: '', routeMatcherPort: undefined })}><option value="domain">{t('inspector.matcher.domain')}</option><option value="domain-suffix">{t('inspector.matcher.domainSuffix')}</option><option value="domain-keyword">{t('inspector.matcher.domainKeyword')}</option><option value="ip-cidr">{t('inspector.matcher.ipCidr')}</option><option value="ip-cidr6">{t('inspector.matcher.ipCidr6')}</option><option value="port">{t('inspector.matcher.port')}</option><option value="asn">{t('inspector.matcher.asn')}</option><option value="geo-ip">{t('inspector.matcher.geoIp')}</option><option value="geo-site">{t('inspector.matcher.geoSite')}</option><option value="rule-set">{t('inspector.matcher.ruleSet')}</option></select></Field>{matcherKind === 'port' ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={node.data.routeMatcherPort ?? ''} placeholder="443" onChange={(event) => update(node.id, { routeMatcherPort: Number(event.target.value) })} /></Field> : <Field label={t('inspector.matcherValue')} hint={matcherKind === 'geo-ip' ? 'ISO 3166-1 alpha-2' : undefined}><input value={matcherValue} placeholder={matcherPlaceholder(matcherKind)} onChange={(event) => update(node.id, { routeMatcherValue: event.target.value })} /></Field>}</>}
+    {isRouteRule && !isServiceRoute && !isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><select value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>{t('inspector.selectTarget')}</option><option value="__direct__">DIRECT</option><option value="__reject__">REJECT</option>{targets.map((target) => <option key={target.id} value={target.id}>{localizeNodeTitle(target, locale)}</option>)}</select></Field>
-    {node.data.blockType !== 'final' && <Field label={t('inspector.routePriority')} hint={t('inspector.routePriorityHint')}><input type="number" min="0" step="1" value={node.data.routePriority ?? ''} placeholder="10" onChange={(event) => update(node.id, { routePriority: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>}
+    {isRouteRule && order && <div className="route-order"><span><strong>{t('inspector.routeOrder', { index: order.index + 1, count: order.count })}</strong><small>{t('inspector.routeOrderHint')}</small></span><div><button type="button" disabled={!order.canMoveUp} aria-label={t('inspector.moveRuleUp')} onClick={() => moveRoutingRule(node.id, 'up')}><ArrowUp size={14} /></button><button type="button" disabled={!order.canMoveDown} aria-label={t('inspector.moveRuleDown')} onClick={() => moveRoutingRule(node.id, 'down')}><ArrowDown size={14} /></button></div></div>}
     <div className="route-preview"><span className="route-source">{localizeNodeTitle(node, locale)}</span><ArrowLeftRight size={14} /><span className="route-target">{node.data.targetLabel ? localizeKnownSystemText(node.data.targetLabel, locale) : t('inspector.notConfigured')}</span></div>
-    {isServiceRoute && <><div className="rule-source-card"><div><span>{t('inspector.ruleSource')}</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? t('inspector.builtinMetadata') : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label={t('inspector.viewRuleSource')}><ExternalLink size={14} /></a></div>
+    {isRouteRule && isServiceRoute && <><div className="rule-source-card"><div><span>{t('inspector.ruleSource')}</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? t('inspector.builtinMetadata') : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label={t('inspector.viewRuleSource')}><ExternalLink size={14} /></a></div>
     <button className="inspector-secondary-button" onClick={() => setRulesOpen((open) => !open)}><Eye size={14} /> {rulesOpen ? t('inspector.hideRules') : t('inspector.showRules')}</button>
     {rulesOpen && <div className="actual-rules"><div><span>{t('inspector.generatedServiceRules')}</span><code>{selectedServices.map((service) => service?.id).join(', ') || '—'}</code></div><small>{t('inspector.rulesDemoNote')}</small></div>}</>}
-    {isCustom && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
+    {isRouteRule && <Advanced>
+      <Field label={t('inspector.advancedMatcher')}>
+        <select value={isAdvancedMatcher ? matcherKind : '__none__'} onChange={(event) => setMatcher(event.target.value === '__none__' ? 'domain-suffix' : event.target.value as BlockNodeData['routeMatcherKind'])}>
+          <option value="__none__">{t('inspector.noAdvancedMatcher')}</option>
+          {ADVANCED_ROUTE_MATCHERS.map((value) => <option key={value} value={value}>{matcherLabel(value, t)}</option>)}
+        </select>
+      </Field>
+      {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
+      <Field label={t('inspector.routePriority')} hint={t('inspector.routePriorityHint')}><input type="number" min="0" step="1" value={node.data.routePriority ?? ''} placeholder="10" onChange={(event) => update(node.id, { routePriority: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
+      {matcherKind && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherKind === 'service' ? services.join(', ') : matcherValue)}</code></div></div>}
+    </Advanced>}
   </>
 }
 
+function MatcherValueField({ node, kind, matcherValue, update, t }: { node: GraphNode; kind: NonNullable<BlockNodeData['routeMatcherKind']>; matcherValue: string; update: ReturnType<typeof useBuilderStore.getState>['updateNodeData']; t: ReturnType<typeof useI18n>['t'] }) {
+  if (kind === 'service') return null
+  return kind === 'port'
+    ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={node.data.routeMatcherPort ?? ''} placeholder="443" onChange={(event) => update(node.id, { routeMatcherPort: Number(event.target.value) })} /></Field>
+    : <Field label={t('inspector.matcherValue')} hint={kind === 'geo-ip' ? 'ISO 3166-1 alpha-2' : undefined}><input value={matcherValue} placeholder={matcherPlaceholder(kind)} onChange={(event) => update(node.id, { routeMatcherValue: event.target.value })} /></Field>
+}
+
+function matcherLabel(kind: NonNullable<BlockNodeData['routeMatcherKind']>, t: ReturnType<typeof useI18n>['t']) {
+  if (kind === 'service') return t('inspector.matcher.service')
+  if (kind === 'domain') return t('inspector.matcher.domain')
+  if (kind === 'domain-suffix') return t('inspector.matcher.domainSuffix')
+  if (kind === 'domain-keyword') return t('inspector.matcher.domainKeyword')
+  if (kind === 'ip-cidr') return t('inspector.matcher.ipCidr')
+  if (kind === 'ip-cidr6') return t('inspector.matcher.ipCidr6')
+  if (kind === 'port') return t('inspector.matcher.port')
+  if (kind === 'asn') return t('inspector.matcher.asn')
+  if (kind === 'geo-ip') return t('inspector.matcher.geoIp')
+  if (kind === 'geo-site') return t('inspector.matcher.geoSite')
+  return t('inspector.matcher.ruleSet')
+}
+
 function matcherPlaceholder(kind: NonNullable<BlockNodeData['routeMatcherKind']>) {
+  if (kind === 'service') return ''
   if (kind === 'domain' || kind === 'domain-suffix' || kind === 'domain-keyword') return 'example.com'
   if (kind === 'ip-cidr' || kind === 'ip-cidr6') return kind === 'ip-cidr6' ? '2001:db8::/32' : '192.0.2.0/24'
   if (kind === 'asn') return 'AS15169'

@@ -40,6 +40,7 @@ export type BlockType =
   | 'output'
 
 export type EdgeSemantic = 'data' | 'route' | 'strategy' | 'chain' | 'output' | 'dns'
+export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
 export interface BlockNodeData extends Record<string, unknown> {
   blockType: BlockType
   category: BlockCategory
@@ -121,7 +122,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   loadBalanceMode?: 'round-robin' | 'consistent-hash'
   proxyId?: string
   routePriority?: number
-  routeMatcherKind?: 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
+  routeMatcherKind?: RouteMatcherKind
   routeMatcherValue?: string
   routeMatcherPort?: number
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'

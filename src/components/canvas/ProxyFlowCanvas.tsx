@@ -188,7 +188,7 @@ export function ProxyFlowCanvas() {
           <button className="danger" disabled={selectedMenuNode.data.protected} onClick={() => { removeNode(selectedMenuNode.id); setMenu(null) }}><Trash2 size={14} /> {t('canvas.deleteNode')}</button>
         </> : <>
           <button onClick={() => { addNode('subscription', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addSubscription')}</button>
-          <button onClick={() => { addNode('routing-group', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addRouting')}</button>
+          <button onClick={() => { addNode('service-rule', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addRouting')}</button>
           <span />
           <button onClick={() => { fitView({ padding: 0.15, duration: 400 }); setMenu(null) }}><Focus size={14} /> {t('canvas.fitCanvas')} <kbd>F</kbd></button>
         </>}

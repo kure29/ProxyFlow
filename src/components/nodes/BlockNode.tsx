@@ -6,6 +6,7 @@ import type { GraphNode } from '../../types/project'
 import { categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, useI18n } from '../../i18n'
 import { detectRegion } from '../../core/proxy'
 import { snapshotFreshness } from '../../core/subscription'
+import { resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
 
 const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final'])
 const noOutput = new Set(['output'])
@@ -69,12 +70,16 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
           </div>
         )}
 
-        {['routing-group', 'service-rule'].includes(data.blockType) && (
+        {resolveRouteMatcherKind(data) === 'service' && (
           <div className="node-services">
             {(data.services ?? []).map((service) => (
               <button key={service} onClick={(event) => { event.stopPropagation(); selectNode(id, service) }}>{localizeKnownSystemText(service, locale)}</button>
             ))}
           </div>
+        )}
+
+        {resolveRouteMatcherKind(data) && resolveRouteMatcherKind(data) !== 'service' && (
+          <div className="node-chip-row"><span>{resolveRouteMatcherKind(data)}</span><em>{data.routeMatcherKind === 'port' ? data.routeMatcherPort ?? '…' : data.routeMatcherValue || '…'}</em></div>
         )}
 
         {data.blockType === 'dns' && (
@@ -89,7 +94,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
           <div className="node-output-row"><span><Check size={12} /> {compatibilityLabel(data.compatibility, t)}</span><b>{String(data.client ?? '').toUpperCase()}</b></div>
         )}
 
-        {!['subscription', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
+        {!['subscription', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule', 'custom-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
           <p className="node-default-copy">{localizeDataValue(data.subtitle, data.subtitleKey, locale)}</p>
         )}
       </div>

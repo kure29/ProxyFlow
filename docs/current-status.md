@@ -13,7 +13,8 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.8 - Strategy & Routing Core
-- Current slice: Slice B - Product Model Unification
+- Current slice: Slice C - Strategy UX
+- Working milestone branch: `autopilot/v0.8`
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
 - Integrated Slice A commit: `0fb00f3` (`feat: harden strategy and routing semantics`)
@@ -24,28 +25,33 @@ Updated: 2026-08-17
 - Accepted Product Direction and V0.8 Scope Freeze
 - Slice A typed matcher, routing validation, deterministic ordering, Rule Set
   references, DIRECT/REJECT/Strategy targets, target lowering, diagnostics, and tests
+- Slice B unified the user-facing Routing Rule entry while preserving legacy
+  `routing-group`, `service-rule`, and `custom-rule` Project nodes. Basic Service,
+  Domain, CIDR, and Port matchers now share one Inspector; ASN, GeoIP, GeoSite,
+  Rule Set, and numeric priority remain Advanced. Visible rule order is deterministic
+  and can be moved without changing Project Schema 2.
 - Slice A integrated onto the Product Direction main baseline without rewriting the
   original branch
 
 ## In Progress
 
-- Establish the unified user-facing Routing Rule model without replacing the
-  existing Project, IR, validation, or target compiler layers.
+- Improve Manual, Auto, and Failover Strategy UX with candidate explanations while
+  keeping Load Balance Advanced and target-specific.
 
 ## Next
 
-1. Create `autopilot/v0.8` from `autopilot/v1`.
-2. Unify `routing-group`, `service-rule`, and `custom-rule` in the library and Inspector.
-3. Add Basic/Advanced routing and strategy presentation.
-4. Complete V0.8 end-to-end routing UX, project round-trip, browser QA, and binaries.
-5. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
+1. Complete Strategy UX: Manual, Auto, Failover, candidate source and empty-candidate explanations.
+2. Complete Strategy/DIRECT/REJECT routing acceptance fixtures and Project round-trip.
+3. Add diagnostics and target compatibility summary, then run browser QA and binaries.
+4. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
 
 ## Latest Validation
 
-- `npm test`: 361/361 passed after Slice A integration
+- `npm test`: 366/366 passed after Slice B
 - `npm run build`: passed
 - `git diff --check`: passed
-- Vite initial chunk: 814.32 kB, known `>500 kB` warning
+- Browser QA: Chinese and English Routing Rule library/Inspector flow passed; browser error and warning logs empty
+- Vite initial chunk: ~817.69 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
