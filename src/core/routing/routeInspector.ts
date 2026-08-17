@@ -1,4 +1,5 @@
 import type { ProxyFlowIR, RouteTargetIR, StrategyCandidateRef, StrategyIR, TrafficMatcherIR } from '../ir'
+import { materializeProxySet } from '../proxySet/materialize'
 
 export interface RouteQuery {
   hostname?: string
@@ -180,16 +181,9 @@ function countFixedProxy(ir: ProxyFlowIR, proxyId: string) {
     && source.proxies?.some((proxy) => proxy.id === proxyId && proxy.kind !== 'unmodeled' && proxy.protocol !== 'unmodeled')) ? 1 : 0
 }
 
-function countProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string, stack: string[] = []): number {
-  if (kind === 'source') {
-    const source = ir.sources.find((item) => item.id === id)
-    if (!source || source.kind === 'provider' || source.kind === 'imported-config') return 0
-    return source.proxies?.filter((proxy) => proxy.kind !== 'unmodeled' && proxy.protocol !== 'unmodeled').length ?? 0
-  }
-  const transform = ir.transforms.find((item) => item.id === id)
-  if (!transform || stack.includes(id)) return 0
-  if (transform.kind === 'merge') return transform.inputs.reduce((count, input) => count + countProxySet(ir, input.kind, input.id, [...stack, id]), 0)
-  return countProxySet(ir, transform.input.kind, transform.input.id, [...stack, id])
+function countProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string): number {
+  const materialized = materializeProxySet(ir, { kind, id })
+  return materialized.status === 'ready' ? materialized.outputCount : 0
 }
 
 function strategySupport(strategy: StrategyIR, candidateCount: number) {
@@ -284,10 +278,16 @@ function expandIpv6(value: string) {
   if (!normalized.includes(':')) return undefined
   const halves = normalized.split('::')
   if (halves.length > 2) return undefined
-  const parse = (part: string) => part ? part.split(':').map((group) => Number.parseInt(group, 16)).filter((group) => Number.isInteger(group) && group >= 0 && group <= 0xffff) : []
+  const parse = (part: string) => {
+    if (!part) return []
+    const groups = part.split(':')
+    if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return undefined
+    return groups.map((group) => Number.parseInt(group, 16))
+  }
   const left = parse(halves[0])
   const right = parse(halves[1] ?? '')
+  if (!left || !right) return undefined
   const missing = 8 - left.length - right.length
-  if (missing < 0 || (halves.length === 1 && missing !== 0)) return undefined
+  if (missing < 0 || (halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return undefined
   return [...left, ...Array.from({ length: missing }, () => 0), ...right]
 }

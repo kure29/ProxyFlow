@@ -48,6 +48,7 @@ describe('route inspector', () => {
     expect(inspectRoute(cidrIr, { ip: '192.0.2.42' }).matchedRule?.routeId).toBe('v4')
     expect(inspectRoute(cidrIr, { ip: '2001:db8:1::42' }).matchedRule?.routeId).toBe('v6')
     expect(inspectRoute(cidrIr, { ip: '203.0.113.42' }).status).toBe('default')
+    expect(inspectRoute(cidrIr, { ip: '2001:db8::not-hex' }).status).toBe('default')
   })
 
   it('reports default route and unresolved input distinctly', () => {
@@ -76,6 +77,23 @@ describe('route inspector', () => {
     }
     const result = inspectRoute(emptySourceIr, { serviceId: 'openai' })
     expect(result.target?.strategy?.candidateCount).toBe(0)
+    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', 'sing-box': 'unsupported' })
+  })
+
+  it('counts materialized transform output instead of the upstream source size', () => {
+    const ir = basicIr()
+    const filteredIr: ProxyFlowIR = {
+      ...ir,
+      transforms: [{
+        kind: 'filter', id: 'empty-filter', name: 'Empty filter', input: { kind: 'source', id: 'hk-source' },
+        criterion: { mode: 'keyword', operation: 'include', keyword: 'does-not-match' }, include: [], exclude: [],
+      }],
+      strategies: ir.strategies.map((strategy) => strategy.id === 'auto' && strategy.kind === 'auto-select'
+        ? { ...strategy, source: { kind: 'transform' as const, id: 'empty-filter' } }
+        : strategy),
+    }
+    const result = inspectRoute(filteredIr, { serviceId: 'openai' })
+    expect(result.target?.strategy).toEqual(expect.objectContaining({ candidatePath: ['Empty filter'], candidateCount: 0 }))
     expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', 'sing-box': 'unsupported' })
   })
 })
