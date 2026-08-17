@@ -7,6 +7,7 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetClient } from '../../types/project'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
+import { APP_VERSION_LABEL } from '../../version'
 
 type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
 type DisplayIssue = StructuredDiagnostic
@@ -89,7 +90,7 @@ export function PreviewModal() {
       <header>
         <div className="preview-icon">{mode === 'ir' ? <Braces size={19} /> : <FileCode2 size={19} />}</div>
         <div><span>{mode === 'ir' ? t('preview.developerPreview') : t('preview.realCompile')}</span><h2 id="preview-title">{targetLabel}</h2></div>
-        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : 'V0.6'}</span>
+        <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : APP_VERSION_LABEL}</span>
         <button onClick={() => setOpen(false)} aria-label={t('preview.closeAria')}><X size={18} /></button>
       </header>
       <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>

@@ -4,6 +4,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
 import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
+import { APP_VERSION_LABEL } from '../../version'
 
 function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</button>
@@ -41,14 +42,14 @@ export function TopBar() {
       <div className="brand">
         <span className="brand-mark"><Route size={19} /></span>
         <strong>ProxyFlow</strong>
-        <span className="version-pill">V0.6</span>
+        <span className="version-pill">{APP_VERSION_LABEL}</span>
       </div>
       <div className="topbar-divider" />
       <div className="project-switcher-wrap">
         <button className="project-switcher" onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}>
           <span><small>{t('top.currentProject')}</small><strong>{visibleProjectName}</strong></span><ChevronDown size={14} />
         </button>
-        {projectMenuOpen && <div className="project-menu"><span>{t('top.recentProjects')}</span><button><Check size={13} /> {visibleProjectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>V0.6</small></button></div>}
+        {projectMenuOpen && <div className="project-menu"><span>{t('top.recentProjects')}</span><button><Check size={13} /> {visibleProjectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button></div>}
       </div>
 
       <div className="save-indicator" aria-live="polite">

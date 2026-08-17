@@ -8,6 +8,8 @@ ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排�
 
 当前稳定版本是 ProxyFlow v0.7.0 Subscription Lifecycle。ProxyFlow 可以在浏览器本地读取 Subscription URL、粘贴内容或文件，处理真实代理节点，并由同一份 Project 生成 Mihomo YAML 或 sing-box JSON。
 
+当前候选版本是 ProxyFlow 1.0.0-rc.1，尚未正式发布；RC 验收范围见 [V1.0 User Acceptance](docs/v1-user-acceptance.md)。
+
 订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
 
 ## 技术栈
@@ -83,6 +85,7 @@ ProxyFlow 的固定用户流程是：
 - [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
 - [V0.8 Product Scope](docs/v0.8-product-scope.md)：Strategy & Routing Core 的冻结范围、验收流程和实施 slices。
 - [Runtime Service MVP](docs/runtime-service.md)：V0.10 可选、自托管、单用户运行时的启动与安全边界。
+- [V1.0 User Acceptance](docs/v1-user-acceptance.md)：普通用户验收完整工作流、迁移、双目标导出和可选 Runtime Service。
 
 ## Roadmap
 
@@ -161,4 +164,4 @@ src/
 
 ## 当前明确边界
 
-稳定 v0.7.0 不提供 Runtime Service、账号、数据库或公共 CORS Proxy。V0.10 milestone branch 增加的 Runtime Service 仍是可选、自托管、单用户能力，不改变 Local Mode 的独立性。第三个正式导出 Target、配置发布 URL、云同步、节点测速平台和完整客户端 Schema 仍未实现。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。
+稳定 v0.7.0 不提供 Runtime Service、账号、数据库或公共 CORS Proxy；V1.0 RC 已将 Runtime Service 作为可选、自托管、单用户增强集成，不改变 Local Mode 的独立性。第三个正式导出 Target、配置发布 URL、云同步、节点测速平台和完整客户端 Schema 仍未实现。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。

@@ -12,11 +12,13 @@ Updated: 2026-08-17
 ## Integration
 
 - Integration branch: `autopilot/v1`
-- Current milestone: V0.10 - Runtime Service MVP
-- Current slice: Runtime Service core checkpoint and hydration determinism
+- Current milestone: V1.0 - Stable Workflow (RC)
+- Current slice: V1.0 RC stabilization
+- RC branch: `autopilot/v1.0-rc`
 - Working milestone branch: `autopilot/v0.10`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - V0.9 milestone merge: `a8fc4452d53b8a6515537b66690b7fa2c109451b` (PR #12)
+- V0.10 milestone merge: `ab50820fd6e0434fbbfeffb5b83503e0da94cfac` (PR #13)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
 - Integrated Slice A commit: `0fb00f3` (`feat: harden strategy and routing semantics`)
@@ -75,18 +77,20 @@ Updated: 2026-08-17
   refreshes wait for embedded snapshot hydration, stale barriers are replaced
   safely on rehydrate, and project changes cannot continue an old refresh.
   The regression test covers the previously observed downstream graph race.
+- V0.10 PR #13 passed CI and scope review and merged into `autopilot/v1`;
+  `main` remains unchanged.
 
 ## In Progress
 
-- V0.10 core and hydration determinism are implemented on `autopilot/v0.10`.
-  The remaining milestone work is checkpoint scope review, explicit staging,
-  and integration through the `autopilot/v1` milestone PR.
+- V1.0 RC stabilization is in progress on `autopilot/v1.0-rc`: version
+  consistency, migration proof, performance measurements, user acceptance
+  documentation, and final Local/Runtime QA.
 
 ## Next
 
-1. Commit the reviewed V0.10 checkpoint and push `autopilot/v0.10`.
-2. Create the milestone PR to `autopilot/v1`, wait for CI, and review scope.
-3. Merge only into `autopilot/v1`, then begin the V1.0 RC stabilization pass.
+1. Complete RC consistency, migration, performance, and acceptance checks.
+2. Create a Draft PR from `autopilot/v1.0-rc` to `main` for user acceptance.
+3. Do not merge the RC PR, tag `v1.0.0`, or create a formal release.
 
 ## Latest Validation
 
@@ -114,6 +118,7 @@ Updated: 2026-08-17
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
 - Vite initial chunk: 859.60 kB, known `>500 kB` warning
+- Package candidate: `1.0.0-rc.1`; Project Schema `2`; Runtime Storage Schema `1`
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -128,14 +133,14 @@ Updated: 2026-08-17
 - A duplicate `strategy` key and transient i18n HMR error appeared only in an
   earlier hot-reload session; neither reproduced in a fresh cold browser tab.
 - The initial Vite bundle warning remains a V1.0 performance task.
-- TopBar and Preview version copy still reflects V0.6 and is deferred to RC consistency work.
+- TopBar, Preview, and starter recovery copy now use the `V1.0 RC` label.
 - Node's experimental `node:sqlite` warning appears in Runtime Service tests;
   it is expected for the Node 22 MVP prerequisite and is not emitted by the browser.
 
 ## Deferred
 
 - Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V1.x
-- Optional self-hosted Runtime Service: V0.10 (current milestone)
+- Optional self-hosted Runtime Service: integrated in V0.10; remains optional
 - Third output target and broad protocol expansion: V1.x
 - Public backend deployment, multi-user SaaS, billing, plugins, AI, cloud sync: out of scope
 
@@ -145,9 +150,20 @@ Updated: 2026-08-17
   Do not merge it during autonomous integration.
 - PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
 - PR #12: V0.9 milestone, merged into `autopilot/v1` as `a8fc445`.
+- PR #13: V0.10 milestone, merged into `autopilot/v1` as `ab50820`.
+
+## Product Reference Backlog
+
+- SubBoost (`https://subboost.org`) is a reference for future product reviews,
+  not a scope commitment. At each relevant milestone, evaluate subscription
+  management, multi-source aggregation, service presets, routing UX, chain/DNS
+  flows, templates, scheduled refresh, runtime concepts, onboarding, and
+  advanced disclosure as `KEEP`, `ADAPT`, `DEFER`, or `REJECT` against
+  ProxyFlow's Local-first Project workflow and dual-target fail-closed model.
+- No SubBoost code or implementation has been copied, and no current RC scope
+  was expanded because of this reference.
 
 ## Last Checkpoint
 
-- `50f948a` on `autopilot/v0.10` (V0.9 integration baseline)
-- The V0.10 working tree contains the uncommitted milestone checkpoint and is
-  ready for explicit staging after final scope review.
+- `ab50820` on `autopilot/v1` (V0.10 milestone merge)
+- `autopilot/v1.0-rc` starts from the clean V0.10 integration baseline.

@@ -128,7 +128,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
 
   issues.push(singBoxIssue(
     'SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED', 'info', 'inbound',
-    'V0.6 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
+    'ProxyFlow 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
   ))
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }
