@@ -41,4 +41,13 @@ describe('routing product model adapter', () => {
     expect(blockByType.has('routing-group')).toBe(true)
     expect(blockByType.has('custom-rule')).toBe(true)
   })
+
+  it('shows URL, pasted-link, and configuration-file source actions while preserving legacy source definitions', () => {
+    const sourceGroup = blockLibrary.find((group) => group.category === 'source')!
+    expect(sourceGroup.items.map((item) => item.type)).toEqual(['subscription', 'manual-proxy', 'import-config'])
+    expect(sourceGroup.items.some((item) => item.type === 'provider')).toBe(false)
+    expect(blockByType.get('manual-proxy')?.icon).toBe('server')
+    expect(blockByType.has('provider')).toBe(true)
+    expect(blockByType.has('import-config')).toBe(true)
+  })
 })

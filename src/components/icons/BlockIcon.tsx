@@ -1,5 +1,5 @@
 import {
-  ArrowDownUp, Blocks, Braces, Cloud, CopyMinus, CornerDownRight, FileInput, Gauge,
+  ArrowDownUp, Blocks, Braces, ClipboardPaste, Cloud, CopyMinus, CornerDownRight, FileInput, Gauge,
   GitMerge, Globe2, Landmark, ListEnd, ListFilter, MousePointer2, PackageCheck, Pin,
   Play, Radio, RefreshCw, Route, Scale, Send, Server, Sparkles, TextCursorInput,
   Waypoints,
@@ -7,7 +7,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 
 const icons: Record<string, LucideIcon> = {
-  radio: Radio, server: Server, cloud: Cloud, 'file-input': FileInput, 'list-filter': ListFilter,
+  radio: Radio, server: Server, cloud: Cloud, 'clipboard-paste': ClipboardPaste, 'file-input': FileInput, 'list-filter': ListFilter,
   'text-cursor': TextCursorInput, 'arrow-down-up': ArrowDownUp, 'copy-minus': CopyMinus,
   'git-merge': GitMerge, 'list-end': ListEnd, 'mouse-pointer-2': MousePointer2, gauge: Gauge,
   'refresh-cw': RefreshCw, scale: Scale, pin: Pin, route: Route, waypoints: Waypoints,

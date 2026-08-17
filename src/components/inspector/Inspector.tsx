@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
-  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ExternalLink,
+  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp, ExternalLink,
   ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
   History,
 } from 'lucide-react'
@@ -11,6 +11,7 @@ import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileGraph } from '../../core/graphCompiler'
 import type { BlockNodeData, GraphEdge, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
+import { AssetIcon } from '../icons/AssetIcon'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
@@ -56,7 +57,6 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const runtimeService = useBuilderStore((state) => state.runtimeService)
   const projectId = useBuilderStore((state) => state.projectId)
   const adoptSnapshot = useBuilderStore((state) => state.adoptSubscriptionSnapshot)
-  const [pasteOpen, setPasteOpen] = useState(false)
   const [paste, setPaste] = useState(node.data.subscriptionInputKind === 'paste' ? node.data.subscriptionContent ?? '' : '')
   const [nodesOpen, setNodesOpen] = useState(false)
   const [changesOpen, setChangesOpen] = useState(false)
@@ -69,16 +69,20 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const [schedule, setSchedule] = useState<RuntimeSchedule | null>(null)
   const [scheduleInterval, setScheduleInterval] = useState(900)
   const [serviceMessage, setServiceMessage] = useState<string | null>(null)
+  const inputKind = node.data.subscriptionInputKind ?? 'url'
   useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
+  useEffect(() => {
+    if (inputKind === 'paste') setPaste(node.data.subscriptionContent ?? '')
+  }, [inputKind, node.data.subscriptionContent, node.id])
   const localizedSnapshot = snapshot ? localizeSubscriptionSnapshots({ [node.id]: snapshot }, locale)[node.id] : undefined
   const result = localizedSnapshot?.result
   const freshness = snapshot ? snapshotFreshness(snapshot.committedAt) : runtime?.freshness ?? 'fresh'
   const protocols = summarize(result?.proxies.map((proxy) => proxy.protocol) ?? [])
   const regions = summarize(result?.proxies.map((proxy) => proxy.metadata?.region?.code ?? 'UNKNOWN') ?? [])
-  const runtimeProvider = useMemo(() => runtimeService ? new ServerRuntimeProvider(runtimeService, {
+  const runtimeProvider = useMemo(() => inputKind === 'url' && runtimeService ? new ServerRuntimeProvider(runtimeService, {
     projectId, sourceId: node.id,
     sourceName: localizeDataValue(node.data.title, node.data.titleKey, locale),
-  }) : null, [locale, node.data.title, node.data.titleKey, node.id, projectId, runtimeService])
+  }) : null, [inputKind, locale, node.data.title, node.data.titleKey, node.id, projectId, runtimeService])
   useEffect(() => {
     if (!runtimeProvider) { setHistory([]); setSchedule(null); return }
     void Promise.all([runtimeProvider.history(), runtimeProvider.getSchedule()]).then(([nextHistory, nextSchedule]) => {
@@ -107,7 +111,9 @@ function SubscriptionInspector({ node }: InspectorProps) {
   }
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
-    <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />
+    {inputKind === 'url' && <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />}
+    {inputKind === 'paste' && <div className="source-input-panel"><Field label={t('inspector.nodeLinks')} hint={t('inspector.nodeLinksHint')}><textarea className="node-links-input" value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /></Field><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => void parseInput(node.id, paste, 'paste')}><ClipboardPaste size={15} /> {t('inspector.parseImport')}</button></div>}
+    {inputKind === 'file' && <button type="button" className="config-file-picker" onClick={() => fileRef.current?.click()}><FileUp size={20} /><span><strong>{node.data.subscriptionFileName ?? t('inspector.noFileSelected')}</strong><small>{node.data.subscriptionFileName ? t('inspector.replaceConfigFile') : t('inspector.chooseConfigFile')}</small></span></button>}
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
     <div className={`source-status-card is-${statusClass(runtime)}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(runtime, freshness, t)}</strong><small>{runtime?.refreshStatus === 'failed' && runtime.latestError ? localizeDiagnosticMessage(runtime.latestError.code, runtime.latestError.message, locale) : runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format, locale) }) : t('inspector.waitingInput')}</small></div>
     {runtime && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(runtime.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(runtime.lastAttemptAt, formatDateTime)}</strong></div><div><span>{t('inspector.snapshotAge')}</span><strong>{formatSnapshotAge(snapshot?.committedAt, t)}</strong></div></div>}
@@ -118,10 +124,9 @@ function SubscriptionInspector({ node }: InspectorProps) {
     {runtime?.latestDiff && <button className="diff-summary-button" onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /><span>{runtime.latestDiff.isInitialBaseline ? t('subscription.diff.initial', { count: result?.detectedCount ?? 0 }) : `+${runtime.latestDiff.added}  -${runtime.latestDiff.removed}  ~${runtime.latestDiff.changed}  =${runtime.latestDiff.unchanged}`}</span></button>}
     {protocols.length > 0 && <SummaryList label={t('inspector.protocols')} items={protocols} />}
     {regions.length > 0 && <SummaryList label={t('inspector.regions')} items={regions.map(([code, count]) => [`${code} · ${regionLabel(code, locale)}`, count])} />}
-    <div className="subscription-actions"><button className="inspector-secondary-button" onClick={() => void refresh(node.id)}><RefreshCw className={runtime?.refreshStatus === 'loading' ? 'spin' : ''} size={14} /> {runtime?.refreshStatus === 'failed' ? t('inspector.retry') : t('inspector.refresh')}</button><button className="inspector-secondary-button" onClick={() => setPasteOpen((open) => !open)}><ClipboardPaste size={14} /> {t('inspector.pasteContent')}</button><button className="inspector-secondary-button" onClick={() => fileRef.current?.click()}><FileUp size={14} /> {t('inspector.importFile')}</button><button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button><button className="inspector-secondary-button" disabled={!runtime?.latestDiff} onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /> {t('inspector.viewChanges')}</button><button className="inspector-secondary-button" disabled={!snapshot || snapshot.inputKind !== 'url'} onClick={() => setClearConfirmOpen(true)}><Database size={14} /> {t('inspector.clearCachedSnapshot')}</button></div>
+    <div className="subscription-actions">{inputKind === 'url' && <button className="inspector-secondary-button" onClick={() => void refresh(node.id)}><RefreshCw className={runtime?.refreshStatus === 'loading' ? 'spin' : ''} size={14} /> {runtime?.refreshStatus === 'failed' ? t('inspector.retry') : t('inspector.refresh')}</button>}<button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button><button className="inspector-secondary-button" disabled={!runtime?.latestDiff} onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /> {t('inspector.viewChanges')}</button>{inputKind === 'url' && <button className="inspector-secondary-button" disabled={!snapshot} onClick={() => setClearConfirmOpen(true)}><Database size={14} /> {t('inspector.clearCachedSnapshot')}</button>}</div>
     {runtimeProvider && <section className="runtime-source-panel"><div className="runtime-source-heading"><div><span>{t('runtime.sourceKicker')}</span><strong>{t('runtime.sourceTitle')}</strong></div><span>{schedule?.enabled ? t('runtime.scheduleOn') : t('runtime.scheduleOff')}</span></div><div className="runtime-source-actions"><button className="inspector-secondary-button" onClick={() => setHistoryOpen((value) => !value)}><History size={14} /> {t('runtime.history')}</button><button className="inspector-secondary-button" onClick={() => void toggleSchedule()}><CalendarClock size={14} /> {schedule?.enabled ? t('runtime.disableSchedule') : t('runtime.enableSchedule')}</button></div><label className="runtime-source-interval">{t('runtime.interval')}<select value={scheduleInterval} onChange={(event) => setScheduleInterval(Number(event.target.value))}><option value={300}>{t('runtime.interval5m')}</option><option value={900}>{t('runtime.interval15m')}</option><option value={3600}>{t('runtime.interval1h')}</option></select></label>{serviceMessage && <small className="runtime-source-error">{serviceMessage}</small>}{historyOpen && <div className="runtime-history-list">{history.length === 0 ? <small>{t('runtime.noHistory')}</small> : history.slice(0, 10).map((entry) => <div key={entry.snapshotId}><span><strong>{entry.readyCount} / {entry.detectedCount}</strong><small>{formatDateShort(entry.committedAt, formatDateTime)}</small></span><button className="icon-button" onClick={() => void restore(entry.snapshotId)} aria-label={t('runtime.restore')} title={t('runtime.restore')}><History size={13} /></button></div>)}</div>}</section>}
-    <input ref={fileRef} className="visually-hidden" type="file" accept=".txt,.yaml,.yml,text/plain,text/yaml,application/yaml" onChange={(event) => { void onFile(event.target.files?.[0]); event.target.value = '' }} />
-    {pasteOpen && <div className="subscription-paste"><textarea value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => { void parseInput(node.id, paste, 'paste'); setPasteOpen(false) }}>{t('inspector.parseImport')}</button></div>}
+    <input ref={fileRef} className="visually-hidden" type="file" accept=".yaml,.yml,.json,.txt,.conf,.config,text/plain,text/yaml,application/yaml,application/json" onChange={(event) => { void onFile(event.target.files?.[0]); event.target.value = '' }} />
     <p className="cache-privacy-note">{t('inspector.cachePrivacy')}</p>
     {node.data.subscriptionInputKind === 'file' && !snapshot && <div className="mock-note">{t('inspector.fileReimport')}</div>}
     {nodesOpen && <NodesPreview snapshot={localizedSnapshot} initialStatus={nodePreviewStatus} onClose={() => setNodesOpen(false)} />}
@@ -250,8 +255,17 @@ function RegionMultiSelect({ values, onChange }: { values: RegionCode[]; onChang
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const canonicalValues = values.map((value) => value === 'UK' ? 'GB' : value)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const canonicalValues = [...new Set(values.map((value) => value === 'UK' ? 'GB' : value))]
   const options = searchRegions(query, locale).filter((entry) => !canonicalValues.includes(entry.code))
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    return () => document.removeEventListener('pointerdown', closeOnOutsidePointer)
+  }, [open])
   const select = (code: RegionCode) => {
     onChange([...canonicalValues, code])
     setQuery('')
@@ -264,13 +278,13 @@ function RegionMultiSelect({ values, onChange }: { values: RegionCode[]; onChang
     if (event.key === 'ArrowUp') { event.preventDefault(); setOpen(true); setActiveIndex((index) => options.length ? (index - 1 + options.length) % options.length : 0); return }
     if (event.key === 'Enter' && open && options[activeIndex]) { event.preventDefault(); select(options[activeIndex].code) }
   }
-  return <Field label={t('inspector.filterRegions')} hint={t('inspector.filterRegionsHint')}><div className="region-combobox">
+  return <Field label={t('inspector.filterRegions')} hint={t('inspector.filterRegionsHint')}><div ref={rootRef} className="region-combobox" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false) }}>
     {canonicalValues.length > 0 && <div className="region-chip-list">{canonicalValues.map((code) => {
       const item = REGION_CATALOG.find((entry) => entry.code === code)
       return <span key={code}>{item?.flag ?? '🌐'} {regionLabel(code, locale)}<button type="button" onClick={() => onChange(canonicalValues.filter((value) => value !== code))} aria-label={t('inspector.removeRegion', { region: regionLabel(code, locale) })}><X size={12} /></button></span>
     })}</div>}
-    <div className="region-combobox-input"><input role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={open && options[activeIndex] ? `${listId}-${options[activeIndex].code}` : undefined} value={query} placeholder={t('inspector.filterRegionSearch')} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0) }} onKeyDown={onKeyDown} /><ChevronDown size={15} /></div>
-    {open && <div className="region-options" id={listId} role="listbox">{options.map((item, index) => <button type="button" id={`${listId}-${item.code}`} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? 'is-active' : ''} key={item.code} onMouseDown={(event) => event.preventDefault()} onClick={() => select(item.code)}><span>{item.flag}</span><strong>{locale === 'zh-CN' ? item.zh : item.en}</strong><code>{item.code}</code></button>)}{options.length === 0 && <span className="region-options-empty">{t('inspector.filterNoRegions')}</span>}</div>}
+    <div className="region-combobox-input"><input role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={open && options[activeIndex] ? `${listId}-${options[activeIndex].code}` : undefined} value={query} placeholder={t('inspector.filterRegionSearch')} onFocus={() => setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0) }} onKeyDown={onKeyDown} /><ChevronDown size={15} /></div>
+    {open && <div className="region-options" id={listId} role="listbox">{options.map((item, index) => <button type="button" id={`${listId}-${item.code}`} role="option" aria-selected={index === activeIndex} className={index === activeIndex ? 'is-active' : ''} key={item.code} onPointerDown={(event) => event.preventDefault()} onClick={() => select(item.code)}><span>{item.flag}</span><strong>{locale === 'zh-CN' ? item.zh : item.en}</strong><code>{item.code}</code></button>)}{options.length === 0 && <span className="region-options-empty">{t('inspector.filterNoRegions')}</span>}</div>}
   </div></Field>
 }
 
@@ -577,9 +591,9 @@ function RoutingInspector({ node }: InspectorProps) {
         {BASIC_ROUTE_MATCHERS.map((value) => <option key={value} value={value}>{matcherLabel(value, t)}</option>)}
       </select>
     </Field>}
-    {isRouteRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" onClick={() => setServicePickerOpen((open) => !open)}><Plus size={12} /> {t('inspector.add')}</button></div>
-    <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><span className="service-avatar">{label.slice(0, 1)}</span><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={13} /></button></div> })}</div>
-    {servicePickerOpen && <div className="service-picker"><div className="service-search"><Search size={14} /><input autoFocus value={serviceQuery} placeholder={t('inspector.searchServices')} onChange={(event) => setServiceQuery(event.target.value)} /></div><div className="service-picker-options">{availableServices.map((service) => <button type="button" key={service.id} onClick={() => { update(node.id, { services: [...services, service.id] }); setServiceQuery('') }}><span className="service-avatar">{service.name.slice(0, 1)}</span><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span><Plus size={13} /></button>)}{availableServices.length === 0 && <small>{t('inspector.noServices')}</small>}</div></div>}</>}
+    {isRouteRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" aria-expanded={servicePickerOpen} onClick={() => setServicePickerOpen((open) => !open)}>{servicePickerOpen ? <ChevronUp size={13} /> : <Plus size={13} />} {servicePickerOpen ? t('inspector.collapse') : t('inspector.add')}</button></div>
+    <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><AssetIcon className="service-avatar" src={definition?.icon} darkSrc={definition?.iconDark} fallback={label.slice(0, 1)} /><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
+    {servicePickerOpen && <div className="service-picker"><div className="service-picker-heading"><div className="service-search"><Search size={15} /><input autoFocus value={serviceQuery} placeholder={t('inspector.searchServices')} onChange={(event) => setServiceQuery(event.target.value)} /></div><button type="button" className="service-picker-collapse" onClick={() => setServicePickerOpen(false)} aria-label={t('inspector.collapse')} title={t('inspector.collapse')}><ChevronUp size={16} /></button></div><div className="service-picker-options">{availableServices.map((service) => <button type="button" key={service.id} onClick={() => { update(node.id, { services: [...services, service.id] }); setServiceQuery('') }}><AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span><Plus size={15} /></button>)}{availableServices.length === 0 && <small>{t('inspector.noServices')}</small>}</div></div>}</>}
     {isRouteRule && !isServiceRoute && !isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><select value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>{t('inspector.selectTarget')}</option><option value="__direct__">DIRECT</option><option value="__reject__">REJECT</option>{targets.map((target) => <option key={target.id} value={target.id}>{localizeNodeTitle(target, locale)}</option>)}</select></Field>
     {isRouteRule && order && <div className="route-order"><span><strong>{t('inspector.routeOrder', { index: order.index + 1, count: order.count })}</strong><small>{t('inspector.routeOrderHint')}</small></span><div><button type="button" disabled={!order.canMoveUp} aria-label={t('inspector.moveRuleUp')} onClick={() => moveRoutingRule(node.id, 'up')}><ArrowUp size={14} /></button><button type="button" disabled={!order.canMoveDown} aria-label={t('inspector.moveRuleDown')} onClick={() => moveRoutingRule(node.id, 'down')}><ArrowDown size={14} /></button></div></div>}
@@ -655,7 +669,7 @@ function OutputInspector({ node }: InspectorProps) {
   const info = target.result?.issues.filter((issue) => issue.severity === 'info').length ?? 0
   const compiled = supported && graph.success && target.status === 'success'
   return <>
-    <Field label={t('inspector.targetClient')}><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><span>{output.label.slice(0, 1)}</span><strong>{output.label}</strong><small>{output.status === 'supported' ? t('node.compatibility.supported') : output.status === 'prototype' ? t('node.compatibility.prototype') : t('preview.notImplemented')}</small>{node.data.client === output.target && <Check size={13} />}</button>)}</div></Field>
+    <Field label={t('inspector.targetClient')}><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{output.status === 'supported' ? t('node.compatibility.supported') : output.status === 'prototype' ? t('node.compatibility.prototype') : t('preview.notImplemented')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
     <div className="mock-note">{t('inspector.realCompilerNote')}</div>

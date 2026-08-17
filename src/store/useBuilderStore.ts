@@ -1,6 +1,6 @@
 import { applyEdgeChanges, applyNodeChanges, MarkerType, type Connection, type EdgeChange, type NodeChange, type XYPosition } from '@xyflow/react'
 import { create } from 'zustand'
-import { blockByType } from '../data/blockLibrary'
+import { blockByType, resolveLibraryNodePreset } from '../data/blockLibrary'
 import { demoProject } from '../data/demoProject'
 import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
@@ -49,7 +49,8 @@ interface BuilderState {
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
-  addNode: (type: BlockType, position: XYPosition) => string | null
+  addNode: (type: BlockType, position: XYPosition, data?: Partial<BlockNodeData>) => string | null
+  addLibraryNode: (entryType: BlockType, position: XYPosition) => string | null
   duplicateNode: (id: string) => void
   removeNode: (id: string) => void
   deleteSelected: () => void
@@ -312,7 +313,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       set((current) => ({ edges: [...current.edges, edge], selectedEdgeId: edge.id }))
       return true
     },
-    addNode: (type, position) => {
+    addNode: (type, position, dataPatch) => {
       const item = blockByType.get(type)
       if (!item) return null
       record()
@@ -321,7 +322,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         blockType: type, category: item.category, title: translateCurrent(blockTitleKey(type)), subtitle: translateCurrent(blockDescriptionKey(type)),
         titleKey: blockTitleKey(type), subtitleKey: blockDescriptionKey(type), icon: item.icon,
         ...defaultDataFor(type),
+        ...dataPatch,
       }
+      if (dataPatch?.titleKey) data.title = translateCurrent(dataPatch.titleKey as Parameters<typeof translateCurrent>[0])
+      if (dataPatch?.subtitleKey) data.subtitle = translateCurrent(dataPatch.subtitleKey as Parameters<typeof translateCurrent>[0])
       const node: GraphNode = { id, type: 'block', position, data, selected: true }
       set((state) => ({
         nodes: [...state.nodes.map((existing) => ({ ...existing, selected: false })), node],
@@ -329,6 +333,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         selectedEdgeId: null,
       }))
       return id
+    },
+    addLibraryNode: (entryType, position) => {
+      const preset = resolveLibraryNodePreset(entryType)
+      return get().addNode(preset.blockType, position, preset.data)
     },
     duplicateNode: (id) => {
       const source = get().nodes.find((node) => node.id === id)

@@ -20,8 +20,8 @@ client-specific configuration syntax.
 ### 1. Input
 
 - Open the app and confirm the canvas and Inspector load without console errors.
-- Add a Subscription source.
-- Import through URL, Paste Content, or a local file.
+- Add a Subscription source, Paste node links source, or Configuration file source.
+- Import through a URL, pasted URI links, or a local Mihomo/sing-box configuration file.
 - Confirm the source shows detected and Ready counts, without showing passwords,
   UUIDs, full proxy URIs, or full URL query tokens in the node preview.
 - Add a second source and confirm each source keeps independent runtime state.

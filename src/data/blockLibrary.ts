@@ -1,4 +1,5 @@
-import type { BlockCategory, BlockType } from '../types/project'
+import type { MessageKey } from '../i18n'
+import type { BlockCategory, BlockNodeData, BlockType } from '../types/project'
 
 export interface BlockLibraryItem {
   type: BlockType
@@ -6,6 +7,8 @@ export interface BlockLibraryItem {
   title: string
   description: string
   icon: string
+  titleKey?: MessageKey
+  descriptionKey?: MessageKey
 }
 
 export interface BlockLibraryGroup {
@@ -19,9 +22,14 @@ export const blockLibrary: BlockLibraryGroup[] = [
   {
     category: 'source', label: '数据源', items: [
       { type: 'subscription', category: 'source', title: '订阅源', description: '导入远程节点订阅', icon: 'radio' },
-      { type: 'manual-proxy', category: 'source', title: '手动节点', description: '添加单个代理节点', icon: 'server' },
-      { type: 'provider', category: 'source', title: 'Proxy Provider', description: '引用节点提供方', icon: 'cloud' },
-      { type: 'import-config', category: 'source', title: '配置导入', description: '从现有配置开始', icon: 'file-input' },
+      {
+        type: 'manual-proxy', category: 'source', title: '粘贴节点链接', description: '粘贴 URI 节点链接并导入', icon: 'clipboard-paste',
+        titleKey: 'library.source.pasteLinksTitle', descriptionKey: 'library.source.pasteLinksDescription',
+      },
+      {
+        type: 'import-config', category: 'source', title: '配置文件', description: '从 Mihomo 或 sing-box 配置导入节点', icon: 'file-input',
+        titleKey: 'library.source.configFileTitle', descriptionKey: 'library.source.configFileDescription',
+      },
     ],
   },
   {
@@ -69,7 +77,36 @@ export const blockLibrary: BlockLibraryGroup[] = [
   },
 ]
 
+export interface LibraryNodePreset {
+  blockType: BlockType
+  data?: Partial<BlockNodeData>
+}
+
+export function resolveLibraryNodePreset(entryType: BlockType): LibraryNodePreset {
+  const item = blockLibrary.flatMap((group) => group.items).find((candidate) => candidate.type === entryType)
+  if (entryType === 'manual-proxy') return {
+    blockType: 'subscription',
+    data: {
+      subscriptionInputKind: 'paste', icon: item?.icon ?? 'clipboard-paste',
+      titleKey: item?.titleKey, subtitleKey: item?.descriptionKey,
+    },
+  }
+  if (entryType === 'import-config') return {
+    blockType: 'subscription',
+    data: {
+      subscriptionInputKind: 'file', icon: item?.icon ?? 'file-input',
+      titleKey: item?.titleKey, subtitleKey: item?.descriptionKey,
+    },
+  }
+  return { blockType: entryType }
+}
+
 // Legacy routing entries remain resolvable for old Projects but are not product entry points.
+const legacySourceItems: BlockLibraryItem[] = [
+  { type: 'manual-proxy', category: 'source', title: 'Legacy manual proxy', description: 'Compatibility-only proxy node', icon: 'server' },
+  { type: 'provider', category: 'source', title: 'Legacy proxy provider', description: 'Compatibility-only provider node', icon: 'cloud' },
+  { type: 'import-config', category: 'source', title: 'Legacy config import', description: 'Compatibility-only import node', icon: 'file-input' },
+]
 const legacyRoutingItems: BlockLibraryItem[] = [
   { type: 'routing-group', category: 'routing', title: 'Legacy routing group', description: 'Compatibility-only routing node', icon: 'waypoints' },
   { type: 'custom-rule', category: 'routing', title: 'Legacy custom rule', description: 'Compatibility-only matcher node', icon: 'braces' },
@@ -78,4 +115,4 @@ const legacyStrategyItems: BlockLibraryItem[] = [
   { type: 'fixed-proxy', category: 'strategy', title: 'Legacy fixed proxy', description: 'Compatibility-only fixed strategy', icon: 'pin' },
 ]
 
-export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacyRoutingItems, ...legacyStrategyItems].map((item) => [item.type, item]))
+export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacySourceItems, ...legacyRoutingItems, ...legacyStrategyItems].map((item) => [item.type, item]))

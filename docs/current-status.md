@@ -79,6 +79,12 @@ Updated: 2026-08-17
   The regression test covers the previously observed downstream graph race.
 - V0.10 PR #13 passed CI and scope review and merged into `autopilot/v1`;
   `main` remains unchanged.
+- V1.0 RC user-feedback stabilization now presents one Source model through
+  Subscription URL, pasted node links, and configuration-file entry points;
+  legacy source node types remain readable. Region filter selections survive
+  outside clicks and reloads. Routing service and Output client cards now use
+  larger text, collapsible service selection, Mini service/client artwork with
+  resilient text fallbacks, and the local dev server binds to `127.0.0.1`.
 
 ## In Progress
 
@@ -94,13 +100,15 @@ Updated: 2026-08-17
 
 ## Latest Validation
 
-- `npm test`: 395/395 passed (38 test files), repeated three consecutive times
+- `npm test`: 397/397 passed (38 test files)
 - `npm run build`: passed
 - `npm run runtime:build`: passed (Node 22 SSR service bundle)
 - `git diff --check`: passed
-- Browser QA: in-app browser cold English and Chinese Local Mode/Runtime
-  Service settings panel flows passed; fresh-tab browser error/warning logs are
-  empty. Connected Provider behavior is covered by client and service tests.
+- Browser QA: pasted fictional URI and Mihomo YAML imports passed; region
+  selection survived outside click and reload; Routing service selection
+  expanded/collapsed; enlarged service and Output client text and icon
+  fallbacks rendered correctly. Cold English and Chinese reloads passed, with
+  fresh-tab browser error/warning logs empty.
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
@@ -117,7 +125,7 @@ Updated: 2026-08-17
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 859.60 kB, known `>500 kB` warning
+- Vite initial chunk: 864.13 kB, known `>500 kB` warning
 - Package candidate: `1.0.0-rc.1`; Project Schema `2`; Runtime Storage Schema `1`
 - Original Slice A PR #10: Draft, CI green, not merged
 

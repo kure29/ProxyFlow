@@ -3,6 +3,7 @@ import type { BlockNodeData, FlowEdgeData, GraphEdge, GraphNode, OutputDefinitio
 import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
 import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
+import { miniIcon } from './miniIcons'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -22,12 +23,12 @@ const edge = (id: string, source: string, target: string, semantic: FlowEdgeData
 
 export const outputDefinitions: OutputDefinition[] = [
   { id: 'mihomo', target: 'mihomo', label: 'Mihomo', status: 'supported' },
-  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported' },
-  { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype' },
-  { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon' },
-  { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon' },
-  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon' },
-  { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon' },
+  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported', icon: '/third-party/sing-box/icon.svg', iconDark: '/third-party/sing-box/icon.svg' },
+  { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype', ...miniIcon('surge') },
+  { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon', ...miniIcon('loon') },
+  { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon', ...miniIcon('quantumultx', 'quanX') },
+  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon', ...miniIcon('shadowrocket') },
+  { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon', ...miniIcon('stash') },
 ]
 
 export const demoNodes: GraphNode[] = [

@@ -27,6 +27,22 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount)
   })
 
+  it('creates pasted-link and configuration-file library actions as subscription sources', () => {
+    const pastedId = useBuilderStore.getState().addLibraryNode('manual-proxy', { x: 120, y: 120 })!
+    const fileId = useBuilderStore.getState().addLibraryNode('import-config', { x: 240, y: 120 })!
+    const pasted = useBuilderStore.getState().nodes.find((node) => node.id === pastedId)!
+    const file = useBuilderStore.getState().nodes.find((node) => node.id === fileId)!
+
+    expect(pasted.data).toEqual(expect.objectContaining({
+      blockType: 'subscription', subscriptionInputKind: 'paste', titleKey: 'library.source.pasteLinksTitle', icon: 'clipboard-paste',
+    }))
+    expect(file.data).toEqual(expect.objectContaining({
+      blockType: 'subscription', subscriptionInputKind: 'file', titleKey: 'library.source.configFileTitle', icon: 'file-input',
+    }))
+    expect(useBuilderStore.getState().addNode('manual-proxy', { x: 360, y: 120 })).toBeTruthy()
+    expect(useBuilderStore.getState().nodes.at(-1)?.data.blockType).toBe('manual-proxy')
+  })
+
   it('creates, duplicates and reloads Limit nodes with numeric default 10', () => {
     const id = useBuilderStore.getState().addNode('limit', { x: 120, y: 120 })!
     expect(useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.limit).toBe(10)
@@ -83,6 +99,8 @@ describe('builder store', () => {
       filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
     })
     const serialized = JSON.stringify(useBuilderStore.getState().toProject())
+    useBuilderStore.getState().selectNode('output')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.filterRegions).toEqual(['HK', 'SG'])
     const project = JSON.parse(serialized)
     expect(project.version).toBe(2)
     useBuilderStore.getState().hydrate(project)

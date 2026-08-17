@@ -12,4 +12,6 @@ export interface OutputDefinition {
   target: TargetClient
   label: string
   status: 'supported' | 'prototype' | 'coming-soon'
+  icon?: string
+  iconDark?: string
 }

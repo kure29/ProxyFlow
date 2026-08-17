@@ -33,7 +33,7 @@ export function ProxyFlowCanvas() {
   const onNodesChange = useBuilderStore((state) => state.onNodesChange)
   const onEdgesChange = useBuilderStore((state) => state.onEdgesChange)
   const connect = useBuilderStore((state) => state.connect)
-  const addNode = useBuilderStore((state) => state.addNode)
+  const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
   const duplicateNode = useBuilderStore((state) => state.duplicateNode)
   const removeNode = useBuilderStore((state) => state.removeNode)
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
@@ -120,7 +120,7 @@ export function ProxyFlowCanvas() {
     event.preventDefault()
     const type = event.dataTransfer.getData('application/proxyflow') as BlockType
     if (!type) return
-    addNode(type, screenToFlowPosition({ x: event.clientX, y: event.clientY }))
+    addLibraryNode(type, screenToFlowPosition({ x: event.clientX, y: event.clientY }))
   }
 
   const onPaneContextMenu = (event: globalThis.MouseEvent | ReactMouseEvent) => {
@@ -187,8 +187,8 @@ export function ProxyFlowCanvas() {
           <span />
           <button className="danger" disabled={selectedMenuNode.data.protected} onClick={() => { removeNode(selectedMenuNode.id); setMenu(null) }}><Trash2 size={14} /> {t('canvas.deleteNode')}</button>
         </> : <>
-          <button onClick={() => { addNode('subscription', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addSubscription')}</button>
-          <button onClick={() => { addNode('service-rule', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addRouting')}</button>
+          <button onClick={() => { addLibraryNode('subscription', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addSubscription')}</button>
+          <button onClick={() => { addLibraryNode('service-rule', screenToFlowPosition({ x: menu.x, y: menu.y })); setMenu(null) }}><Plus size={14} /> {t('canvas.addRouting')}</button>
           <span />
           <button onClick={() => { fitView({ padding: 0.15, duration: 400 }); setMenu(null) }}><Focus size={14} /> {t('canvas.fitCanvas')} <kbd>F</kbd></button>
         </>}

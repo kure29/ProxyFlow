@@ -11,16 +11,16 @@ export function BlockLibrary() {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const addNode = useBuilderStore((state) => state.addNode)
+  const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
   const { screenToFlowPosition } = useReactFlow()
   const groups = useMemo(() => blockLibrary.map((group) => ({
     ...group,
-    items: group.items.filter((item) => `${t(blockTitleKey(item.type))}${t(blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
+    items: group.items.filter((item) => `${t(item.titleKey ?? blockTitleKey(item.type))}${t(item.descriptionKey ?? blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
   })).filter((group) => group.items.length > 0), [query, t])
 
   const addAtCenter = (type: BlockType) => {
     const position = screenToFlowPosition({ x: window.innerWidth * 0.52, y: window.innerHeight * 0.5 })
-    addNode(type, position)
+    addLibraryNode(type, position)
   }
 
   return (
@@ -60,7 +60,7 @@ export function BlockLibrary() {
                     onClick={() => addAtCenter(item.type)}
                   >
                     <span className="library-item-icon"><BlockIcon name={item.icon} /></span>
-                    <span><strong>{t(blockTitleKey(item.type))}</strong><small>{t(blockDescriptionKey(item.type))}</small></span>
+                    <span><strong>{t(item.titleKey ?? blockTitleKey(item.type))}</strong><small>{t(item.descriptionKey ?? blockDescriptionKey(item.type))}</small></span>
                     <GripVertical className="library-grip" size={14} />
                   </button>
                 ))}

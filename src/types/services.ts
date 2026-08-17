@@ -23,6 +23,7 @@ export interface ServiceDefinition {
   name: string
   category: ServiceCategory
   icon?: string
+  iconDark?: string
   description?: string
   ruleSources: RuleSource[]
   defaultMatchers?: string[]
