@@ -12,9 +12,10 @@ Updated: 2026-08-17
 ## Integration
 
 - Integration branch: `autopilot/v1`
-- Current milestone: V0.8 - Strategy & Routing Core
-- Current slice: Slice E - Diagnostics and compatibility summary
-- Working milestone branch: `autopilot/v0.8`
+- Current milestone: V0.9 - Explain & Simplify
+- Current slice: Route Inspector explanation foundation
+- Working milestone branch: `autopilot/v0.9`
+- V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
 - Integrated Slice A commit: `0fb00f3` (`feat: harden strategy and routing semantics`)
@@ -42,23 +43,28 @@ Updated: 2026-08-17
   `origin/autopilot/v0.8`.
 - Slice A integrated onto the Product Direction main baseline without rewriting the
   original branch
+- V0.8 milestone PR #11 merged into `autopilot/v1`; `main` remains unchanged.
+- V0.9 Route Inspector foundation adds a pure query explanation engine for
+  hostname, IP, port, and service inputs. It reports first match, deterministic
+  priority, Default Route, DIRECT/REJECT, strategy candidate paths, and known
+  target-specific support. The empty Inspector state now exposes the same
+  explanation flow in Chinese and English.
 
 ## In Progress
 
-- V0.8 implementation slices A-E are complete on `autopilot/v0.8`. The branch is
-  in final milestone review before opening its PR to `autopilot/v1`.
+- V0.9 Route Inspector foundation is implemented locally on `autopilot/v0.9`.
+  Focused and full validation pass; the next checkpoint is scope review and a
+  push before opening the V0.9 milestone PR.
 
 ## Next
 
-1. Review the complete V0.8 scope and open `autopilot/v0.8 -> autopilot/v1`.
-2. Wait for CI, complete the independent review pass, and merge only after all
-   milestone gates pass.
-3. Continue to V0.9 only after the V0.8 milestone is integrated into
-   `autopilot/v1`.
+1. Commit and push the V0.9 Route Inspector foundation.
+2. Add processing/strategy explanation and Basic/Advanced simplification slices.
+3. Open `autopilot/v0.9 -> autopilot/v1` only after the V0.9 milestone gates pass.
 
 ## Latest Validation
 
-- `npm test`: 369/369 passed after Slice D acceptance fixtures
+- `npm test`: 374/374 passed (33 test files)
 - `npm run build`: passed
 - `git diff --check`: passed
 - Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
@@ -75,7 +81,11 @@ Updated: 2026-08-17
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
-- Vite initial chunk: ~817.69 kB, known `>500 kB` warning
+- V0.9 focused Route Inspector tests: 5/5 passed
+- V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
+  DIRECT rule; English switch showed Route Inspector and Matched rule copy;
+  fresh console had no error or warning entries.
+- Vite initial chunk: ~835.31 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -93,7 +103,7 @@ Updated: 2026-08-17
 
 ## Deferred
 
-- Full Route Inspector: V0.9
+- Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V0.9 follow-up
 - Optional self-hosted Runtime Service: V0.10
 - Third output target and broad protocol expansion: V1.x
 - Public backend deployment, multi-user SaaS, billing, plugins, AI, cloud sync: out of scope
@@ -102,8 +112,9 @@ Updated: 2026-08-17
 
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
+- PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
 
 ## Last Checkpoint
 
-- `444482c` on `autopilot/v0.8` (Slice E)
-- Worktree is clean; no temporary binary, generated config, or fixture is tracked.
+- `b0dba38` on `autopilot/v1` (V0.8 milestone merge)
+- V0.9 Route Inspector foundation is the current uncommitted checkpoint.

@@ -16,6 +16,7 @@ import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
 import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
+import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { createMaterializationContext, deriveProjectRuntime, materializeProxySet, parseLimitDraft } from '../../core/proxySet'
 import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
@@ -618,6 +619,64 @@ const inspectorRegistry: Partial<Record<BlockNodeData['blockType'], ComponentTyp
   output: OutputInspector,
 }
 
+function RouteInspectorPanel() {
+  const { t } = useI18n()
+  const nodes = useBuilderStore((state) => state.nodes)
+  const edges = useBuilderStore((state) => state.edges)
+  const projectName = useBuilderStore((state) => state.projectName)
+  const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
+  const toProject = useBuilderStore((state) => state.toProject)
+  const [query, setQuery] = useState<RouteQuery>({})
+  const project = useMemo(() => toProject(), [edges, nodes, projectName, toProject])
+  const graph = useMemo(() => compileGraph(project, {
+    subscriptionSnapshots,
+    retainDraftOnErrorForDiagnostics: true,
+  }), [project, subscriptionSnapshots])
+  const result = useMemo(() => graph.ir ? inspectRoute(graph.ir, query) : undefined, [graph.ir, query])
+  const services = project.services.filter((service) => service.id && service.name)
+  const setField = (field: keyof RouteQuery, value: string) => setQuery((current) => ({
+    ...current,
+    [field]: field === 'port' ? (value ? Number(value) : undefined) : value,
+  }))
+  const clear = () => setQuery({})
+  const target = result?.target
+  const strategy = target?.strategy
+  return <section className="route-inspector-panel">
+    <div className="route-inspector-heading"><div><span>{t('inspector.routeInspectorKicker')}</span><h3>{t('inspector.routeInspectorTitle')}</h3></div><button type="button" className="icon-button" onClick={clear} aria-label={t('inspector.routeInspectorClear')} title={t('inspector.routeInspectorClear')}><X size={14} /></button></div>
+    <p className="route-inspector-intro">{t('inspector.routeInspectorDescription')}</p>
+    <div className="route-inspector-query">
+      <Field label={t('inspector.routeInspectorHostname')}><input value={query.hostname ?? ''} placeholder={t('inspector.routeInspectorHostnamePlaceholder')} onChange={(event) => setField('hostname', event.target.value)} /></Field>
+      <Field label={t('inspector.routeInspectorIp')}><input value={query.ip ?? ''} placeholder={t('inspector.routeInspectorIpPlaceholder')} onChange={(event) => setField('ip', event.target.value)} /></Field>
+      <Field label={t('inspector.routeInspectorPort')}><input type="number" min="1" max="65535" value={query.port ?? ''} placeholder="443" onChange={(event) => setField('port', event.target.value)} /></Field>
+      <Field label={t('inspector.routeInspectorService')}><select value={query.serviceId ?? ''} onChange={(event) => setField('serviceId', event.target.value)}><option value="">{t('inspector.routeInspectorAnyService')}</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></Field>
+    </div>
+    {!graph.success && <div className="route-inspector-blocked"><AlertTriangle size={14} /><span>{t('inspector.routeInspectorCompileBlocked')}</span></div>}
+    {graph.success && result?.status === 'unresolved' && <div className="route-inspector-empty"><Search size={16} /><span>{t('inspector.routeInspectorEnterQuery')}</span></div>}
+    {graph.success && result && result.status !== 'unresolved' && <div className="route-inspector-result">
+      <div className="route-inspector-result-header"><span>{result.status === 'matched' ? t('inspector.routeInspectorMatched') : t('inspector.routeInspectorDefault')}</span><strong>{result.matchedRule?.name ?? t('inspector.routeInspectorDefaultRoute')}</strong></div>
+      {result.matchedRule && <div className="route-inspector-detail"><span>{t('inspector.routeInspectorPriority')}</span><strong>{result.matchedRule.priority}</strong><small>{formatRouteReason(result.matchedRule.reason, t)}</small></div>}
+      {target && <div className="route-inspector-detail"><span>{t('inspector.routeInspectorTarget')}</span><strong>{target.label}</strong><small>{target.kind === 'direct' ? t('inspector.routeInspectorDirect') : target.kind === 'reject' ? t('inspector.routeInspectorReject') : t('inspector.routeInspectorStrategy')}</small></div>}
+      {strategy && <>
+        <div className="route-inspector-detail"><span>{t('inspector.routeInspectorCandidatePath')}</span><strong>{strategy.candidatePath.join(' → ') || t('inspector.routeInspectorNoCandidates')}</strong><small>{t('inspector.routeInspectorCandidateCount', { count: strategy.candidateCount })}</small></div>
+        <div className="route-inspector-targets"><span>{t('inspector.routeInspectorCompatibility')}</span><div><b>{t('preview.yamlCompiler')}</b><em className={`is-${strategy.targetSupport.mihomo}`}>{strategy.targetSupport.mihomo}</em></div><div><b>{t('preview.jsonCompiler')}</b><em className={`is-${strategy.targetSupport['sing-box']}`}>{strategy.targetSupport['sing-box']}</em></div></div>
+      </>}
+      <details className="route-inspector-rules"><summary>{t('inspector.routeInspectorConsideredRules', { count: result.evaluations.length })}</summary>{result.evaluations.map((evaluation) => <div key={evaluation.routeId} className={evaluation.matched ? 'is-matched' : ''}><strong>{evaluation.name}</strong><span>{t('inspector.routeInspectorPriorityValue', { priority: evaluation.priority })}</span><small>{formatRouteReason(evaluation.reason, t)}</small></div>)}</details>
+    </div>}
+  </section>
+}
+
+function formatRouteReason(reason: RouteInspectionResult['evaluations'][number]['reason'], t: ReturnType<typeof useI18n>['t']) {
+  if (reason.code === 'service-match') return t('inspector.routeInspectorReason.serviceMatch')
+  if (reason.code === 'domain-exact-match') return t('inspector.routeInspectorReason.domainExact')
+  if (reason.code === 'domain-suffix-match') return t('inspector.routeInspectorReason.domainSuffix')
+  if (reason.code === 'domain-keyword-match') return t('inspector.routeInspectorReason.domainKeyword')
+  if (reason.code === 'cidr-match') return t('inspector.routeInspectorReason.cidr')
+  if (reason.code === 'port-match') return t('inspector.routeInspectorReason.port')
+  if (reason.code === 'input-missing') return t('inspector.routeInspectorReason.missingInput', { field: reason.detail ?? '' })
+  if (reason.code === 'unsupported-matcher') return t('inspector.routeInspectorReason.unsupported', { matcher: reason.detail ?? '' })
+  return t('inspector.routeInspectorReason.noMatch')
+}
+
 export function Inspector() {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
@@ -635,7 +694,7 @@ export function Inspector() {
 
   if (!selected && edge) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.connection')}</span><h2>{t('inspector.connectionProperties')}</h2></div></div><div className="inspector-scroll"><div className="edge-inspector-visual"><span /><Link2 size={18} /><span /></div><Field label={t('inspector.semantic')}><input value={String(edge.data?.semantic ?? 'data')} readOnly /></Field><div className="edge-endpoints"><div><span>{t('inspector.from')}</span><strong>{localizeNodeTitle(nodes.find((node) => node.id === edge.source)!, locale)}</strong></div><ArrowLeftRight size={15} /><div><span>{t('inspector.to')}</span><strong>{localizeNodeTitle(nodes.find((node) => node.id === edge.target)!, locale)}</strong></div></div><button className="danger-button" onClick={deleteSelected}><Trash2 size={14} /> {t('inspector.deleteConnection')}</button></div></aside>
 
-  if (!selected) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.title')}</span><h2>{t('inspector.properties')}</h2></div></div><div className="inspector-empty"><div className="inspector-empty-graphic"><span /><span /><span /><Link2 size={18} /></div><h3>{t('inspector.selectNode')}</h3><p>{t('inspector.selectNodeHint')}</p><div><kbd>⌘</kbd><span>+</span><kbd>K</kbd><small>{t('inspector.quickSearch')}</small></div></div></aside>
+  if (!selected) return <aside className="inspector"><div className="panel-heading inspector-heading"><div><span>{t('inspector.title')}</span><h2>{t('inspector.properties')}</h2></div></div><div className="inspector-scroll"><RouteInspectorPanel /><div className="inspector-empty"><div className="inspector-empty-graphic"><span /><span /><span /><Link2 size={18} /></div><h3>{t('inspector.selectNode')}</h3><p>{t('inspector.selectNodeHint')}</p><div><kbd>⌘</kbd><span>+</span><kbd>K</kbd><small>{t('inspector.quickSearch')}</small></div></div></div></aside>
 
   const Content = inspectorRegistry[selected.data.blockType] ?? GenericInspector
   const requestDelete = () => selected.data.blockType === 'subscription' ? setDeleteConfirmOpen(true) : deleteSelected()
