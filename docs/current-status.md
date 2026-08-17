@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.9 - Explain & Simplify
-- Current slice: Route Inspector foundation checkpoint `c8151d3`
+- Current slice: Explain & Simplify checkpoint `6776bb5`
 - Working milestone branch: `autopilot/v0.9`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
@@ -51,22 +51,30 @@ Updated: 2026-08-17
   explanation flow in Chinese and English. Empty subscription sources are not
   treated as available candidates, and fixed Strategy endpoints resolve through
   the same explanation path.
+- V0.9 Explain & Simplify now explains Processing input/output changes for
+  Filter, Rename, Sort, Dedupe, Merge, and Limit through a tested pure helper.
+  Strategy Inspector summaries identify candidate readiness, health-check
+  settings, fallback ordering, and Advanced target-specific Load Balance.
+  Chain and DNS library entries are now explicitly grouped under Advanced;
+  legacy Project nodes remain readable.
 
 ## In Progress
 
-- V0.9 Route Inspector foundation is implemented on `autopilot/v0.9` through
-  checkpoint `c8151d3`. Focused and full validation pass; the next checkpoint
-  is the pushed status update and then the remaining Explain & Simplify slices.
+- V0.9 Route Inspector and the first Explain & Simplify slice are implemented
+  on `autopilot/v0.9` through checkpoint `6776bb5`. Code and pure-function
+  validation pass; browser static inspection confirmed the Advanced grouping,
+  while node-selection automation timed out in the existing browser session.
 
 ## Next
 
-1. Push the V0.9 Route Inspector status checkpoint.
-2. Add processing/strategy explanation and Basic/Advanced simplification slices.
+1. Add first-run/default template and remaining Basic/Advanced simplification
+   only where it reduces the existing workflow without a second graph model.
+2. Complete V0.9 compatibility/processing/strategy explanation review.
 3. Open `autopilot/v0.9 -> autopilot/v1` only after the V0.9 milestone gates pass.
 
 ## Latest Validation
 
-- `npm test`: 375/375 passed (33 test files), repeated three consecutive times
+- `npm test`: 378/378 passed (34 test files), repeated three consecutive times
 - `npm run build`: passed
 - `git diff --check`: passed
 - Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
@@ -83,11 +91,12 @@ Updated: 2026-08-17
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
-- V0.9 focused Route Inspector tests: 6/6 passed
+- V0.9 focused Route Inspector tests: 6/6 passed; Processing Explanation tests:
+  3/3 passed
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 836.24 kB, known `>500 kB` warning
+- Vite initial chunk: 843.03 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -118,6 +127,5 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `c8151d3` on `autopilot/v0.9` (fixed Strategy candidate resolution)
-- `autopilot/v0.9` is clean after the Route Inspector checkpoint; status docs are
-  the next explicit checkpoint before the remaining V0.9 work.
+- `6776bb5` on `autopilot/v0.9` (Explain & Simplify checkpoint)
+- `autopilot/v0.9` is clean after the Explain & Simplify checkpoint.
