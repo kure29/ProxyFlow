@@ -12,10 +12,11 @@ Updated: 2026-08-17
 ## Integration
 
 - Integration branch: `autopilot/v1`
-- Current milestone: V0.9 - Explain & Simplify
-- Current slice: V0.9 milestone review checkpoint `05d1372`
-- Working milestone branch: `autopilot/v0.9`
+- Current milestone: V0.10 - Runtime Service MVP
+- Current slice: Runtime Provider and security architecture audit
+- Working milestone branch: `autopilot/v0.10`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
+- V0.9 milestone merge: `a8fc4452d53b8a6515537b66690b7fa2c109451b` (PR #12)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
 - Integrated Slice A commit: `0fb00f3` (`feat: harden strategy and routing semantics`)
@@ -64,19 +65,21 @@ Updated: 2026-08-17
 - Independent milestone review fixed Route Inspector candidate counts to use
   the existing materialized Filter/Dedupe/Limit result, and made malformed IPv6
   inputs fail closed instead of matching after partial parsing.
+- V0.9 milestone PR #12 passed its final CI and scope review and merged into
+  `autopilot/v1`; `main` remains unchanged.
 
 ## In Progress
 
-- V0.9 Route Inspector, Explain & Simplify, and first-workflow starter actions
-  are implemented on `autopilot/v0.9` through review checkpoint `05d1372`.
-  Milestone PR #12 is open to `autopilot/v1`; CI is green and GitHub reports the
-  PR mergeable with a clean merge state.
+- V0.10 starts from the merged V0.9 integration baseline. The first slice will
+  define the shared Runtime Provider boundary and the self-hosted service's
+  security model before implementation.
 
 ## Next
 
-1. Record the final V0.9 milestone validation on PR #12 and wait for CI.
-2. Merge PR #12 into `autopilot/v1` only after the final check remains green.
-3. Create `autopilot/v0.10` from the updated integration branch.
+1. Create `autopilot/v0.10` from integration merge `a8fc445`.
+2. Audit the existing browser subscription runtime boundaries and write a short
+   Runtime Provider and Runtime Service security ADR.
+3. Implement the optional single-user service in bounded, security-first slices.
 
 ## Latest Validation
 
@@ -121,7 +124,7 @@ Updated: 2026-08-17
 
 ## Deferred
 
-- Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V0.9 follow-up
+- Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V1.x
 - Optional self-hosted Runtime Service: V0.10
 - Third output target and broad protocol expansion: V1.x
 - Public backend deployment, multi-user SaaS, billing, plugins, AI, cloud sync: out of scope
@@ -131,10 +134,9 @@ Updated: 2026-08-17
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
 - PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
-- PR #12: `autopilot/v0.9 -> autopilot/v1`, CI green, mergeable and clean at
-  review checkpoint `05d1372`.
+- PR #12: V0.9 milestone, merged into `autopilot/v1` as `a8fc445`.
 
 ## Last Checkpoint
 
-- `05d1372` on `autopilot/v0.9` (Route Inspector fail-closed review fixes)
-- `autopilot/v0.9` is clean after the V0.9 milestone review checkpoint.
+- `a8fc445` on `autopilot/v1` (V0.9 milestone merge)
+- `autopilot/v1` is clean after the V0.9 milestone merge.
