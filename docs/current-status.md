@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.9 - Explain & Simplify
-- Current slice: Explain & Simplify checkpoint `6776bb5`
+- Current slice: V0.9 milestone review checkpoint `05d1372`
 - Working milestone branch: `autopilot/v0.9`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
@@ -61,30 +61,32 @@ Updated: 2026-08-17
   the existing Add Subscription and fictional Demo Blueprint actions. It is
   hidden as soon as a non-scaffold node exists, so the canvas remains the sole
   source of Project semantics.
+- Independent milestone review fixed Route Inspector candidate counts to use
+  the existing materialized Filter/Dedupe/Limit result, and made malformed IPv6
+  inputs fail closed instead of matching after partial parsing.
 
 ## In Progress
 
 - V0.9 Route Inspector, Explain & Simplify, and first-workflow starter actions
-  are implemented on `autopilot/v0.9` through checkpoint `0fee40d`. Code and
-  pure-function validation pass; browser static inspection confirmed the
-  Advanced grouping, while node-selection automation timed out in the existing
-  browser session.
+  are implemented on `autopilot/v0.9` through review checkpoint `05d1372`.
+  Milestone PR #12 is open to `autopilot/v1`; CI is green and GitHub reports the
+  PR mergeable with a clean merge state.
 
 ## Next
 
-1. Complete V0.9 compatibility/processing/strategy explanation review.
-2. Run the full V0.9 milestone scope and acceptance audit before opening the
-   milestone PR.
-3. Open `autopilot/v0.9 -> autopilot/v1` only after the V0.9 milestone gates pass.
+1. Record the final V0.9 milestone validation on PR #12 and wait for CI.
+2. Merge PR #12 into `autopilot/v1` only after the final check remains green.
+3. Create `autopilot/v0.10` from the updated integration branch.
 
 ## Latest Validation
 
-- `npm test`: 380/380 passed (35 test files), repeated three consecutive times
+- `npm test`: 381/381 passed (35 test files), repeated three consecutive times
 - `npm run build`: passed
 - `git diff --check`: passed
-- Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
-  Advanced strategy groups render correctly, empty candidates are explained,
-  and the fresh-tab browser error/warning logs are empty
+- Browser QA: Chrome cold English and Chinese library/Inspector flows passed;
+  Processing and Strategy explanations, Basic/Advanced groups, blank-project
+  starter actions, and post-add state render correctly; fresh-tab browser
+  error/warning logs are empty
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
@@ -96,12 +98,12 @@ Updated: 2026-08-17
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
-- V0.9 focused Route Inspector tests: 6/6 passed; Processing Explanation tests:
+- V0.9 focused Route Inspector tests: 7/7 passed; Processing Explanation tests:
   3/3 passed; starter-state tests: 2/2 passed
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 844.46 kB, known `>500 kB` warning
+- Vite initial chunk: 844.22 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -129,8 +131,10 @@ Updated: 2026-08-17
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
 - PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
+- PR #12: `autopilot/v0.9 -> autopilot/v1`, CI green, mergeable and clean at
+  review checkpoint `05d1372`.
 
 ## Last Checkpoint
 
-- `0fee40d` on `autopilot/v0.9` (first-workflow starter checkpoint)
-- `autopilot/v0.9` is clean after the first-workflow starter checkpoint.
+- `05d1372` on `autopilot/v0.9` (Route Inspector fail-closed review fixes)
+- `autopilot/v0.9` is clean after the V0.9 milestone review checkpoint.
