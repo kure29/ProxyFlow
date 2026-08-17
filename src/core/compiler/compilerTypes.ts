@@ -9,9 +9,14 @@ export interface CompileResult {
   mock: boolean
 }
 
+export interface TargetCompileOptions {
+  outputNodeId?: string
+  targetProfile?: unknown
+}
+
 export interface ConfigCompiler {
   target: TargetClient
-  compile(ir: ProxyFlowIR): Promise<CompileResult>
+  compile(ir: ProxyFlowIR, options?: TargetCompileOptions): Promise<CompileResult>
 }
 
 export type CompilerLoader = () => Promise<ConfigCompiler>

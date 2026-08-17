@@ -7,6 +7,7 @@ import { v08BasicRoutingFixture } from '../core/__fixtures__/v08Acceptance'
 import { deriveProjectRuntime } from '../core/proxySet'
 import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -108,6 +109,43 @@ describe('builder store', () => {
       filterMode: 'region', filterOperation: 'exclude', filterRegions: ['HK', 'SG'],
       filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
     }))
+  })
+
+  it('round-trips the Mihomo Output Profile in Project Schema 2 with undo and redo', () => {
+    const profile = {
+      ...createMihomoOutputProfile('desktop-tun'),
+      mixedPort: 7893,
+      allowLan: true,
+      strictRoute: true,
+    }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile?.preset).toBe('local-proxy')
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    const exportedProfile = project.graph.nodes.find((node: { id: string }) => node.id === 'output').data.mihomoProfile
+    expect(project.version).toBe(2)
+    expect(exportedProfile).toEqual(profile)
+    expect(Object.keys(exportedProfile)).not.toContain('secret')
+    expect(Object.keys(exportedProfile)).not.toContain('password')
+    expect(Object.keys(exportedProfile)).not.toContain('path')
+    expect(JSON.stringify(exportedProfile)).not.toContain('/Users/')
+
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('keeps older Schema 2 projects without a Mihomo Output Profile readable', () => {
+    const project = structuredClone(demoProject)
+    const output = project.graph.nodes.find((node) => node.id === 'output')!
+    delete output.data.mihomoProfile
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().toProject().version).toBe(2)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toBeUndefined()
   })
 
   it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {

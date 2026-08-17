@@ -1,14 +1,14 @@
 import { validateIR } from '../../core/semanticValidation'
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
+import type { CompileResult, ConfigCompiler, TargetCompileOptions } from '../../core/compiler/compilerTypes'
 import { compileMihomoChains } from './chain'
 import { checkMihomoCompatibility } from './compatibility'
 import { createMihomoContext } from './context'
-import { MIHOMO_DEFAULTS } from './defaults'
 import { compileMihomoDns } from './dns'
 import { mihomoIssue } from './errors'
-import type { MihomoConfig } from './model'
+import type { MihomoConfig, MihomoSnifferConfig, MihomoTunConfig } from './model'
+import { validateMihomoOutputProfile } from './profile'
 import { compileMihomoProviders } from './providers'
 import { compileMihomoRules } from './rules'
 import { serializeMihomoConfig } from './serializer'
@@ -16,6 +16,8 @@ import { compileMihomoStrategies } from './strategies'
 
 export interface MihomoCompileOptions {
   now?: () => Date
+  outputNodeId?: string
+  profile?: unknown
 }
 
 export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {}): CompileResult {
@@ -28,6 +30,8 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     issue.message,
     issue.entity?.id ?? issue.nodeId,
   ))
+  const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
+  issues.push(...outputProfile.issues)
   const compatibility = checkMihomoCompatibility(ir)
   issues.push(...compatibility.issues)
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
@@ -37,20 +41,30 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   compileMihomoStrategies(context)
   compileMihomoChains(context)
   const rules = compileMihomoRules(context)
+  const dns = compileMihomoDns(ir.dns, outputProfile.profile.dnsMode, outputProfile.profile.ipv6)
 
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 
   const config: MihomoConfig = {
-    'mixed-port': MIHOMO_DEFAULTS.mixedPort,
-    'allow-lan': false,
+    'mixed-port': outputProfile.profile.mixedPort,
+    'allow-lan': outputProfile.profile.allowLan,
+    ipv6: outputProfile.profile.ipv6,
     mode: 'rule',
     'log-level': 'info',
+    'unified-delay': outputProfile.profile.unifiedDelay,
+    'tcp-concurrent': outputProfile.profile.tcpConcurrent,
+    profile: {
+      'store-selected': outputProfile.profile.storeSelected,
+      'store-fake-ip': dns?.['enhanced-mode'] === 'fake-ip',
+    },
+    ...(outputProfile.profile.preset === 'desktop-tun' ? { tun: compileTun(outputProfile.profile) } : {}),
+    ...(outputProfile.profile.sniffer ? { sniffer: compileSniffer() } : {}),
     ...(context.proxies.size > 0 ? { proxies: [...context.proxies.values()] } : {}),
     ...(context.providers.size > 0 ? { 'proxy-providers': Object.fromEntries(context.providers) } : {}),
     ...(context.groups.length > 0 ? { 'proxy-groups': context.groups } : {}),
     ...(context.ruleProviders.size > 0 ? { 'rule-providers': Object.fromEntries(context.ruleProviders) } : {}),
     rules,
-    ...(ir.dns ? { dns: compileMihomoDns(ir.dns) } : {}),
+    ...(dns ? { dns } : {}),
   }
   return { success: true, content: serializeMihomoConfig(config), issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 }
@@ -60,7 +74,32 @@ export class MihomoCompiler implements ConfigCompiler {
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
-  async compile(ir: ProxyFlowIR) {
-    return compileMihomo(ir, { now: this.now })
+  async compile(ir: ProxyFlowIR, options?: TargetCompileOptions) {
+    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile })
+  }
+}
+
+function compileTun(profile: ReturnType<typeof validateMihomoOutputProfile>['profile']): MihomoTunConfig {
+  return {
+    enable: true,
+    stack: profile.tunStack,
+    'auto-route': true,
+    'auto-detect-interface': true,
+    'dns-hijack': ['any:53', 'tcp://any:53'],
+    'strict-route': profile.strictRoute,
+  }
+}
+
+function compileSniffer(): MihomoSnifferConfig {
+  return {
+    enable: true,
+    'force-dns-mapping': true,
+    'parse-pure-ip': true,
+    'override-destination': false,
+    sniff: {
+      HTTP: { ports: [80, '8080-8880'], 'override-destination': true },
+      TLS: { ports: [443, 8443] },
+      QUIC: { ports: [443, 8443] },
+    },
   }
 }

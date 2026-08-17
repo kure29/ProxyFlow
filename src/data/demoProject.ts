@@ -4,6 +4,7 @@ import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
 import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
 import { miniIcon } from './miniIcons'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -85,7 +86,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('output', 1360, 250, {
     blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', subtitleKey: 'demo.output.subtitle', icon: 'package-check',
-    client: 'mihomo', compatibility: 'Supported', protected: true,
+    client: 'mihomo', compatibility: 'Supported', protected: true, mihomoProfile: createMihomoOutputProfile(),
   }),
 ]
 

@@ -20,6 +20,7 @@ import {
 import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 
 interface GraphSnapshot {
   nodes: GraphNode[]
@@ -108,7 +109,7 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'proxy-chain') return { hopIds: [] }
   if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
-  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
+  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoOutputProfile() }
   if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
   return {}
 }

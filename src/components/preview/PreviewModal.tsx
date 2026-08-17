@@ -4,7 +4,7 @@ import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, Loa
 import { compileGraph } from '../../core/graphCompiler'
 import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import type { TargetClient } from '../../types/project'
+import type { GraphNode, TargetClient } from '../../types/project'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
@@ -24,6 +24,7 @@ export function PreviewModal() {
   const projectName = useBuilderStore((state) => state.projectName)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
+  const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const setOpen = useBuilderStore((state) => state.setPreviewOpen)
   const selectNode = useBuilderStore((state) => state.selectNode)
   const setToast = useBuilderStore((state) => state.setToast)
@@ -35,7 +36,12 @@ export function PreviewModal() {
   const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
   const targetCompileEnabled = open && graphResult.success && mode !== 'ir'
-  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', targetCompileEnabled)
+  const mihomoOutput = useMemo(() => resolveMihomoOutput(nodes, selectedNodeId), [nodes, selectedNodeId])
+  const mihomoOptions = useMemo(() => ({
+    outputNodeId: mihomoOutput?.id,
+    targetProfile: mihomoOutput?.data.mihomoProfile,
+  }), [mihomoOutput])
+  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', targetCompileEnabled, mihomoOptions)
   const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', targetCompileEnabled)
   const targetState = activeTarget === 'sing-box' ? singBoxState : mihomoState
   if (!open) return null
@@ -123,6 +129,12 @@ export function PreviewModal() {
       <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
+}
+
+function resolveMihomoOutput(nodes: GraphNode[], selectedNodeId: string | null) {
+  const selected = nodes.find((node) => node.id === selectedNodeId)
+  if (selected?.data.blockType === 'output' && selected.data.client === 'mihomo' && !selected.data.disabled) return selected
+  return nodes.find((node) => node.data.blockType === 'output' && node.data.client === 'mihomo' && !node.data.disabled)
 }
 
 function CompatibilitySummary({ mihomo, singBox }: { mihomo: ReturnType<typeof useTargetCompile>; singBox: ReturnType<typeof useTargetCompile> }) {

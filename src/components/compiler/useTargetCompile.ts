@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { compilerRegistry, type CompileResult } from '../../core/compiler'
+import { compilerRegistry, type CompileResult, type TargetCompileOptions } from '../../core/compiler'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetClient } from '../../types/project'
 import { translateCurrent } from '../../i18n'
@@ -16,6 +16,7 @@ export function useTargetCompile(
   ir: ProxyFlowIR | undefined,
   target: TargetClient | undefined,
   enabled = true,
+  options?: TargetCompileOptions,
 ): TargetCompileState {
   const [state, setState] = useState<TargetCompileState>(initialState)
 
@@ -32,7 +33,7 @@ export function useTargetCompile(
         if (!cancelled) setState({ status: 'unavailable', error: translateCurrent('compiler.notImplemented', { target }) })
         return
       }
-      const result = await compiler.compile(ir)
+      const result = await compiler.compile(ir, options)
       if (!cancelled) setState({ status: result.success ? 'success' : 'error', result })
     }).catch((error: unknown) => {
       if (!cancelled) setState({
@@ -42,7 +43,7 @@ export function useTargetCompile(
     })
 
     return () => { cancelled = true }
-  }, [enabled, ir, target])
+  }, [enabled, ir, options, target])
 
   return state
 }

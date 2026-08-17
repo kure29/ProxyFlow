@@ -15,6 +15,7 @@ import { PROXYFLOW_IR_VERSION, type ProxyFlowIR, type ResolvedProxyEndpointIR, t
 import { parseSubscription, type SubscriptionSnapshot } from '../../core/subscription'
 import type { MihomoConfig } from './model'
 import { compileMihomo, MihomoCompiler } from './compiler'
+import { createMihomoOutputProfile } from './profile'
 
 const fixedNow = () => new Date('2026-08-16T00:00:00.000Z')
 
@@ -29,8 +30,8 @@ function demoIR() {
   return graph.ir!
 }
 
-function parseConfig(ir: ProxyFlowIR) {
-  const result = compileMihomo(ir, { now: fixedNow })
+function parseConfig(ir: ProxyFlowIR, profile?: unknown) {
+  const result = compileMihomo(ir, { now: fixedNow, profile })
   expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
   expect(result.mock).toBe(false)
   return { result, config: parse(result.content) as MihomoConfig }
@@ -54,6 +55,136 @@ function baseIR(): ProxyFlowIR {
 }
 
 describe('MihomoCompiler', () => {
+  it('uses the safe Local Proxy profile when an older project has no target profile', () => {
+    const config = parseConfig(baseIR()).config
+    expect(config).toEqual(expect.objectContaining({
+      'mixed-port': 7890,
+      'allow-lan': false,
+      ipv6: true,
+      mode: 'rule',
+      'unified-delay': true,
+      'tcp-concurrent': true,
+      profile: { 'store-selected': true, 'store-fake-ip': false },
+    }))
+    expect(config.tun).toBeUndefined()
+    expect(config.sniffer).toBeUndefined()
+    expect(config.dns).toBeUndefined()
+  })
+
+  it('coordinates Desktop TUN, Fake-IP DNS, sniffer and persistence settings', () => {
+    const ir = baseIR()
+    ir.dns = {
+      enabled: true,
+      mode: 'custom',
+      resolvers: [{ id: 'fictional-doh', kind: 'doh', address: 'https://dns.example.com/dns-query' }],
+    }
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893, strictRoute: true }
+    const config = parseConfig(ir, profile).config
+    expect(config).toEqual(expect.objectContaining({
+      'mixed-port': 7893,
+      'allow-lan': false,
+      ipv6: true,
+      profile: { 'store-selected': true, 'store-fake-ip': true },
+      tun: {
+        enable: true,
+        stack: 'mixed',
+        'auto-route': true,
+        'auto-detect-interface': true,
+        'dns-hijack': ['any:53', 'tcp://any:53'],
+        'strict-route': true,
+      },
+    }))
+    expect(config.dns).toEqual(expect.objectContaining({
+      enable: true,
+      ipv6: true,
+      'enhanced-mode': 'fake-ip',
+      'fake-ip-range': '198.18.0.1/16',
+      nameserver: ['https://dns.example.com/dns-query'],
+    }))
+    expect(config.sniffer).toEqual(expect.objectContaining({
+      enable: true,
+      'force-dns-mapping': true,
+      'parse-pure-ip': true,
+      sniff: {
+        HTTP: { ports: [80, '8080-8880'], 'override-destination': true },
+        TLS: { ports: [443, 8443] },
+        QUIC: { ports: [443, 8443] },
+      },
+    }))
+  })
+
+  it('applies advanced Local Proxy settings without changing sing-box semantics', () => {
+    const ir = baseIR()
+    ir.dns = { enabled: true, mode: 'automatic' }
+    const profile = {
+      ...createMihomoOutputProfile(),
+      mixedPort: 10808,
+      allowLan: true,
+      ipv6: false,
+      dnsMode: 'disabled' as const,
+      sniffer: true,
+      storeSelected: false,
+      unifiedDelay: false,
+      tcpConcurrent: false,
+    }
+    const config = parseConfig(ir, profile).config
+    expect(config).toEqual(expect.objectContaining({
+      'mixed-port': 10808,
+      'allow-lan': true,
+      ipv6: false,
+      'unified-delay': false,
+      'tcp-concurrent': false,
+      profile: { 'store-selected': false, 'store-fake-ip': false },
+    }))
+    expect(config.dns).toBeUndefined()
+    expect(config.tun).toBeUndefined()
+    expect(config.sniffer?.enable).toBe(true)
+  })
+
+  it.each([0, 65536, 7890.5, Number.NaN])('fails closed for invalid mixed port %s', (mixedPort) => {
+    const result = compileMihomo(baseIR(), {
+      now: fixedNow,
+      outputNodeId: 'output',
+      profile: { ...createMihomoOutputProfile(), mixedPort },
+    })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'MIHOMO_MIXED_PORT_INVALID', entityId: 'output' }))
+  })
+
+  it('fails closed for malformed imported profile fields', () => {
+    const result = compileMihomo(baseIR(), {
+      now: fixedNow,
+      outputNodeId: 'output',
+      profile: { ...createMihomoOutputProfile(), preset: 'router', dnsMode: 'magic', sniffer: 'yes', rawYaml: 'tun: { enable: true }' },
+    })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'MIHOMO_PROFILE_INVALID', entityId: 'output' }))
+  })
+
+  it('fails closed when Desktop TUN has no DNS or an incompatible DNS mode', () => {
+    const missingDns = compileMihomo(baseIR(), { now: fixedNow, profile: createMihomoOutputProfile('desktop-tun') })
+    expect(missingDns).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(missingDns.issues.map((issue) => issue.code)).toContain('MIHOMO_TUN_DNS_REQUIRED')
+
+    const incompatible = baseIR()
+    incompatible.dns = { enabled: true, mode: 'automatic' }
+    const invalidProfile = { ...createMihomoOutputProfile('desktop-tun'), dnsMode: 'redir-host' as const }
+    const incompatibleResult = compileMihomo(incompatible, { now: fixedNow, profile: invalidProfile })
+    expect(incompatibleResult).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(incompatibleResult.issues.map((issue) => issue.code)).toContain('MIHOMO_TUN_FAKE_IP_REQUIRED')
+  })
+
+  it('produces deterministic Desktop TUN YAML and forwards compiler target options', async () => {
+    const ir = baseIR()
+    ir.dns = { enabled: true, mode: 'automatic' }
+    const profile = createMihomoOutputProfile('desktop-tun')
+    const baseline = compileMihomo(ir, { now: fixedNow, profile }).content
+    for (let index = 0; index < 25; index += 1) expect(compileMihomo(ir, { now: fixedNow, profile }).content).toBe(baseline)
+    const result = await new MihomoCompiler(fixedNow).compile(ir, { outputNodeId: 'output', targetProfile: profile })
+    expect(result.success).toBe(true)
+    expect(parse(result.content)).toEqual(parse(baseline))
+  })
+
   it('compiles the Demo Graph end-to-end into semantic, parseable YAML', () => {
     const { result, config } = parseConfig(demoIR())
     expect(result.generatedAt).toBe('2026-08-16T00:00:00.000Z')

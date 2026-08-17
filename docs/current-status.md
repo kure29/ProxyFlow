@@ -1,6 +1,6 @@
 # ProxyFlow Autonomous Development Status
 
-Updated: 2026-08-17
+Updated: 2026-08-18
 
 ## Stable Main
 
@@ -85,6 +85,11 @@ Updated: 2026-08-17
   outside clicks and reloads. Routing service and Output client cards now use
   larger text, collapsible service selection, Mini service/client artwork with
   resilient text fallbacks, and the local dev server binds to `127.0.0.1`.
+- V1.0 RC Mihomo output profiles now provide a target-specific Local Proxy or
+  Desktop TUN preset. Mihomo lowering coordinates mixed port, LAN access,
+  IPv6, Fake-IP/redir-host DNS, TUN DNS hijack, domain sniffing, selection
+  persistence, unified delay, and concurrent TCP dialing. Invalid imported
+  profiles fail closed; sing-box remains unchanged and Project Schema stays 2.
 
 ## In Progress
 
@@ -100,7 +105,7 @@ Updated: 2026-08-17
 
 ## Latest Validation
 
-- `npm test`: 397/397 passed (38 test files)
+- `npm test`: 409/409 passed (38 test files)
 - `npm run build`: passed
 - `npm run runtime:build`: passed (Node 22 SSR service bundle)
 - `git diff --check`: passed
@@ -109,6 +114,10 @@ Updated: 2026-08-17
   expanded/collapsed; enlarged service and Output client text and icon
   fallbacks rendered correctly. Cold English and Chinese reloads passed, with
   fresh-tab browser error/warning logs empty.
+- Mihomo Output Profile browser QA passed in Chinese and English. Desktop TUN
+  generated Fake-IP DNS, DNS hijack, and HTTP/TLS/QUIC sniffing; reload
+  preserved the profile; switching back to Local Proxy removed TUN and restored
+  redir-host. Fresh-tab browser error/warning logs remained empty.
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
@@ -125,7 +134,12 @@ Updated: 2026-08-17
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 864.13 kB, known `>500 kB` warning
+- Vite initial chunk: 877.87 kB, known `>500 kB` warning
+- Mihomo Output Profile lowering is target-specific; Desktop TUN requires an
+  enabled DNS node and Fake-IP mode.
+- Current Mihomo Output Profile binary smoke was not run because no local
+  `mihomo` binary was available; previous representative validation remains
+  recorded above.
 - Package candidate: `1.0.0-rc.1`; Project Schema `2`; Runtime Storage Schema `1`
 - Original Slice A PR #10: Draft, CI green, not merged
 

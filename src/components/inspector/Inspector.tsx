@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp, ExternalLink,
-  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
+  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, Laptop, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
   History,
 } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -9,7 +9,7 @@ import { validateGraph } from '../../core/validation/validateProject'
 import { outputDefinitions } from '../../data/demoProject'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileGraph } from '../../core/graphCompiler'
-import type { BlockNodeData, GraphEdge, GraphNode } from '../../types/project'
+import type { BlockNodeData, GraphEdge, GraphNode, MihomoOutputProfile, MihomoRuntimePreset } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 import { AssetIcon } from '../icons/AssetIcon'
 import { useTargetCompile } from '../compiler/useTargetCompile'
@@ -26,6 +26,7 @@ import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
   localizeSubscriptionSnapshots, regionLabel, useI18n,
 } from '../../i18n'
+import { createMihomoOutputProfile, resolveMihomoOutputProfile } from '../../targets/mihomo/profile'
 
 interface InspectorProps { node: GraphNode }
 
@@ -654,6 +655,7 @@ function formatMatcherPreview(kind: NonNullable<BlockNodeData['routeMatcherKind'
 function OutputInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()
   const setOutputClient = useBuilderStore((state) => state.setOutputClient)
+  const update = useBuilderStore((state) => state.updateNodeData)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -663,13 +665,52 @@ function OutputInspector({ node }: InspectorProps) {
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const graph = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const supported = node.data.client === 'mihomo' || node.data.client === 'sing-box'
-  const target = useTargetCompile(graph.ir, supported ? node.data.client : undefined, graph.success)
+  const mihomoProfile = useMemo(() => resolveMihomoOutputProfile(node.data.mihomoProfile), [node.data.mihomoProfile])
+  const targetOptions = useMemo(() => node.data.client === 'mihomo' ? {
+    outputNodeId: node.id,
+    targetProfile: node.data.mihomoProfile,
+  } : undefined, [node.data.client, node.data.mihomoProfile, node.id])
+  const target = useTargetCompile(graph.ir, supported ? node.data.client : undefined, graph.success, targetOptions)
   const errors = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
   const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
   const info = target.result?.issues.filter((issue) => issue.severity === 'info').length ?? 0
   const compiled = supported && graph.success && target.status === 'success'
+  const dnsConnected = Boolean(graph.ir?.dns?.enabled)
+  const setMihomoProfile = (patch: Partial<MihomoOutputProfile>) => update(node.id, { mihomoProfile: { ...mihomoProfile, ...patch } })
+  const setPreset = (preset: MihomoRuntimePreset) => {
+    const defaults = createMihomoOutputProfile(preset)
+    setMihomoProfile({
+      preset,
+      dnsMode: defaults.dnsMode,
+      sniffer: defaults.sniffer,
+      strictRoute: preset === 'desktop-tun' ? mihomoProfile.strictRoute : false,
+    })
+  }
   return <>
     <Field label={t('inspector.targetClient')}><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{output.status === 'supported' ? t('node.compatibility.supported') : output.status === 'prototype' ? t('node.compatibility.prototype') : t('preview.notImplemented')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
+    {node.data.client === 'mihomo' && <section className="mihomo-output-profile">
+      <header><span><Laptop size={16} /><span><strong>{t('inspector.mihomoProfile')}</strong><small>{t('inspector.mihomoProfileHint')}</small></span></span><b>{t('inspector.mihomoOnly')}</b></header>
+      <Field label={t('inspector.mihomoPreset')}><div className="output-preset-control" role="group" aria-label={t('inspector.mihomoPreset')}>
+        {(['local-proxy', 'desktop-tun'] as const).map((preset) => <button type="button" className={mihomoProfile.preset === preset ? 'is-active' : ''} key={preset} onClick={() => setPreset(preset)}><strong>{t(preset === 'local-proxy' ? 'inspector.mihomoPreset.local' : 'inspector.mihomoPreset.tun')}</strong><small>{t(preset === 'local-proxy' ? 'inspector.mihomoPreset.localHint' : 'inspector.mihomoPreset.tunHint')}</small></button>)}
+      </div></Field>
+      <Field label={t('inspector.mihomoMixedPort')} hint="1–65535"><input className={Number.isInteger(mihomoProfile.mixedPort) && mihomoProfile.mixedPort >= 1 && mihomoProfile.mixedPort <= 65535 ? '' : 'is-invalid'} type="number" min="1" max="65535" value={mihomoProfile.mixedPort} onChange={(event) => setMihomoProfile({ mixedPort: Number(event.target.value) })} /></Field>
+      <label className="toggle-row"><span><strong>{t('inspector.mihomoAllowLan')}</strong><small>{t('inspector.mihomoAllowLanHint')}</small></span><input type="checkbox" checked={mihomoProfile.allowLan} onChange={(event) => setMihomoProfile({ allowLan: event.target.checked })} /></label>
+      <label className="toggle-row"><span><strong>{t('inspector.mihomoIpv6')}</strong><small>{t('inspector.mihomoIpv6Hint')}</small></span><input type="checkbox" checked={mihomoProfile.ipv6} onChange={(event) => setMihomoProfile({ ipv6: event.target.checked })} /></label>
+      <div className="mihomo-runtime-summary" aria-label={t('inspector.mihomoRuntimeSummary')}>
+        <div><span>{t('inspector.mihomoDns')}</span><strong>{!dnsConnected ? t('inspector.mihomoNotConnected') : t(mihomoProfile.dnsMode === 'disabled' ? 'inspector.mihomoDnsMode.disabled' : mihomoProfile.dnsMode === 'fake-ip' ? 'inspector.mihomoDnsMode.fake-ip' : 'inspector.mihomoDnsMode.redir-host')}</strong></div>
+        <div><span>TUN</span><strong>{mihomoProfile.preset === 'desktop-tun' ? t('inspector.mihomoOn') : t('inspector.mihomoOff')}</strong></div>
+        <div><span>{t('inspector.mihomoSniffer')}</span><strong>{mihomoProfile.sniffer ? t('inspector.mihomoOn') : t('inspector.mihomoOff')}</strong></div>
+      </div>
+      <Advanced>
+        <div className="mihomo-profile-note">{t('inspector.mihomoAdvancedHint')}</div>
+        <Field label={t('inspector.mihomoDnsMode')} hint={mihomoProfile.preset === 'desktop-tun' ? t('inspector.mihomoTunDnsLocked') : undefined}><select value={mihomoProfile.dnsMode} onChange={(event) => setMihomoProfile({ dnsMode: event.target.value as MihomoOutputProfile['dnsMode'] })}><option value="disabled" disabled={mihomoProfile.preset === 'desktop-tun'}>{t('inspector.mihomoDnsMode.disabled')}</option><option value="redir-host" disabled={mihomoProfile.preset === 'desktop-tun'}>{t('inspector.mihomoDnsMode.redir-host')}</option><option value="fake-ip">{t('inspector.mihomoDnsMode.fake-ip')}</option></select></Field>
+        {mihomoProfile.preset === 'desktop-tun' && <><Field label={t('inspector.mihomoTunStack')}><select value={mihomoProfile.tunStack} onChange={(event) => setMihomoProfile({ tunStack: event.target.value as MihomoOutputProfile['tunStack'] })}><option value="mixed">Mixed</option><option value="system">System</option><option value="gvisor">gVisor</option></select></Field><label className="toggle-row compact"><span><strong>{t('inspector.mihomoStrictRoute')}</strong><small>{t('inspector.mihomoStrictRouteHint')}</small></span><input type="checkbox" checked={mihomoProfile.strictRoute} onChange={(event) => setMihomoProfile({ strictRoute: event.target.checked })} /></label></>}
+        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoSniffer')}</strong><small>{t('inspector.mihomoSnifferHint')}</small></span><input type="checkbox" checked={mihomoProfile.sniffer} onChange={(event) => setMihomoProfile({ sniffer: event.target.checked })} /></label>
+        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoStoreSelected')}</strong><small>{t('inspector.mihomoStoreSelectedHint')}</small></span><input type="checkbox" checked={mihomoProfile.storeSelected} onChange={(event) => setMihomoProfile({ storeSelected: event.target.checked })} /></label>
+        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoUnifiedDelay')}</strong><small>{t('inspector.mihomoUnifiedDelayHint')}</small></span><input type="checkbox" checked={mihomoProfile.unifiedDelay} onChange={(event) => setMihomoProfile({ unifiedDelay: event.target.checked })} /></label>
+        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoTcpConcurrent')}</strong><small>{t('inspector.mihomoTcpConcurrentHint')}</small></span><input type="checkbox" checked={mihomoProfile.tcpConcurrent} onChange={(event) => setMihomoProfile({ tcpConcurrent: event.target.checked })} /></label>
+      </Advanced>
+    </section>}
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
     <div className="mock-note">{t('inspector.realCompilerNote')}</div>

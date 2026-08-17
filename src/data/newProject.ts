@@ -2,6 +2,7 @@ import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { GraphNode, ProxyFlowProject } from '../types/project'
 import { outputDefinitions } from './demoProject'
 import { serviceCatalog } from './serviceCatalog'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 
 const finalNode: GraphNode = {
   id: 'final-route',
@@ -19,7 +20,7 @@ const outputNode: GraphNode = {
   position: { x: 1080, y: 260 },
   data: {
     blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '等待编译', subtitleKey: 'demo.blank.outputSubtitle', icon: 'package-check',
-    client: 'mihomo', compatibility: 'Supported', protected: true,
+    client: 'mihomo', compatibility: 'Supported', protected: true, mihomoProfile: createMihomoOutputProfile(),
   },
 }
 
