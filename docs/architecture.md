@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-ProxyFlow V0.6 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
+本文档最初建立于 V0.6；当前稳定版本 v0.7.0 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
 
 ```text
 Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots

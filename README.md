@@ -1,14 +1,14 @@
 # ProxyFlow
 
-ProxyFlow 是一个通用代理配置可视化编排器。用户通过拖、连、点、改来表达流量路径，再由独立 Compiler 转换为目标配置。
+ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排平台。用户通过可视化流程组织订阅输入、节点处理、策略、分流、检查与导出，再由独立 Compiler 生成目标配置。
 
 > 你决定流量怎么走，ProxyFlow 负责配置怎么写。
 
 ## 当前版本
 
-当前版本是 ProxyFlow V0.6 Modern Protocols。ProxyFlow 可以在浏览器中读取用户粘贴、导入或直接刷新的订阅，识别并处理真实代理节点，再由同一份 Universal IR 生成真实、可解析的 Mihomo YAML 或 sing-box JSON。
+当前稳定版本是 ProxyFlow v0.7.0 Subscription Lifecycle。ProxyFlow 可以在浏览器本地读取 Subscription URL、粘贴内容或文件，处理真实代理节点，并由同一份 Project 生成 Mihomo YAML 或 sing-box JSON。
 
-V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS Reality、XTLS Vision、WS early data、HTTP/H2、gRPC、HTTPUpgrade、Hysteria2 与 TUIC v5。Hysteria2 port hopping 在 Universal IR 中是结构化 single/range，分别 lowering 为 Mihomo 与 sing-box 语法；随机 hop interval 仅在 Mihomo Supported，sing-box 1.13.14 会失败闭合。XHTTP 同样只支持 Mihomo。core 层的 endpoint semantic firewall 同时保护 Share/Clash parser、manual/direct IR、`validateIR()` 与 target compiler；无法可靠保持认证、TLS、SNI 或连接语义的变体明确显示为 Partial 并从所有可用集合路径排除，普通 metadata warning 不自动降低节点兼容状态。sing-box 的 HTTP transport 仅在 HTTP+无 TLS 或 H2+TLS 时能保留当前 IR variant，反向组合返回稳定 compatibility error。
+订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
 
 ## 技术栈
 
@@ -58,11 +58,11 @@ V0.6 在基础 HTTP/SOCKS5/Shadowsocks/Trojan/VMess/VLESS 之外，新增 VLESS 
 - 基于 `override.dialer-proxy` 的 Provider Chain lowering
 - 基于 `detour` 的 sing-box 2/3 Hop Chain lowering
 
-### Post-V0.6 enhancement（未改写 V0.6 发布历史）
+### V0.7 Subscription Lifecycle
 
-当前开发分支在 V0.6 架构上增加 Keyword / Region / Regex 三种 Filter mode、基于稳定 ISO code 的地区目录与名称推断、正确归因的 transform diagnostics，以及 target-neutral AnyTLS endpoint。AnyTLS 分享链接与 Clash/Mihomo `proxies` 条目会进入同一 Endpoint Semantic Firewall；支持的基础字段可分别 lowering 到 Mihomo 与 sing-box 1.13.14。AnyTLS + Reality、未知连接关键参数、sing-box 显式 `udp: false` 与 1.13.14 尚无的 `client_metadata` 均失败闭合，不会降级成其他协议。
+v0.7.0 在 V0.6 架构上加入 Keyword / Region / Regex Filter、稳定地区 ID、AnyTLS，以及完整的 Subscription Lifecycle。AnyTLS 分享链接与 Clash/Mihomo `proxies` 条目进入同一 Endpoint Semantic Firewall；无法可靠保留的连接语义继续失败闭合。
 
-V0.7 Phase 1 的当前开发能力进一步加入手动 Refresh、并发上限为 3 的 Refresh All、Last Known Good、IndexedDB 本地 normalized snapshot cache、secret-safe diff、竞态保护与空结果确认。刷新失败不会清空活动节点，Project JSON 仍不包含远程 snapshot 或凭据。该能力尚未作为 V0.7 正式发布，设计与隐私边界见 [V0.7 Subscription Lifecycle](docs/v0.7-subscription-lifecycle.md)。
+刷新失败不会清空活动节点。Project JSON 仍不包含远程 snapshot 或凭据。设计与隐私边界见 [V0.7 Subscription Lifecycle](docs/v0.7-subscription-lifecycle.md)。
 - discriminated、客户端无关的 `ProxyEndpointIR` 与 Service inline matcher
 - 异步 Compiler Registry 与 target chunk 按需加载
 - 同一 IR → 两个 Compiler 的 cross-target fixtures 与能力缺口测试
@@ -71,6 +71,26 @@ V0.7 Phase 1 的当前开发能力进一步加入手动 Refresh、并发上限�
 - GitHub Actions 测试与生产构建
 - 1280px 以上桌面布局与小屏提示
 - 中文 / English 全局切换与本地偏好保存，系统文案不混排，用户自定义内容保持原文
+
+## 产品方向
+
+ProxyFlow 的固定用户流程是：
+
+```text
+输入 → 处理 → 策略 → 分流 → 检查 → 导出
+```
+
+- [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
+- [V0.8 Product Scope](docs/v0.8-product-scope.md)：Strategy & Routing Core 的冻结范围、验收流程和实施 slices。
+
+## Roadmap
+
+- **V0.8 - Strategy & Routing Core**：完成订阅、处理、基础策略、基础分流和双目标导出的普通用户闭环。
+- **V0.9 - Explain & Simplify**：解释命中、排除、兼容性和最终流向，并简化 Basic / Advanced 体验。
+- **V0.10 - Runtime Service MVP**：增加可选、自托管的订阅抓取、定时刷新和有限快照历史。
+- **V1.0 - Stable Workflow**：形成稳定、可解释、可迁移、可验证的完整工作流。
+
+Roadmap 描述产品方向，不表示这些版本已经发布。V0.8 的完整 Route Inspector、Runtime Service 和第三个正式导出目标均不在当前发布能力中。
 
 ## 架构边界
 
@@ -94,7 +114,7 @@ Graph / Project 是编辑器与本地存储的唯一事实来源，IR 是按需�
 
 Graph Compiler 使用显式 `EdgeSemantic` 和有类型引用生成 IR。规则优先级采用明确的 `routePriority`，缺失时使用稳定的 Graph node insertion order；Canvas 坐标不会影响业务语义。Proxy Chain 顺序只以 `hopIds` 为准，视觉 Edge 不一致时返回 warning。
 
-Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 仍未实现。完整说明见 [V0.6 Modern Protocols](docs/v0.6-modern-protocols.md)、[Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
+Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码只在目标被选中时进入会话。Surge、Loon、Quantumult X、Shadowrocket 与 Stash 作为配置导出目标仍未实现。完整说明见 [V0.6 Modern Protocols](docs/v0.6-modern-protocols.md)、[Core Architecture](docs/architecture.md)、[Mihomo Compiler MVP](docs/mihomo-compiler.md)、[sing-box Compiler](docs/singbox-compiler.md) 与 [IR Cross-target Findings](docs/ir-cross-target-findings.md)。
 
 订阅解析和处理结果仍属于 runtime；URL source 的 normalized active snapshot 可保存在当前浏览器 IndexedDB 中作为 Last Known Good，但不会进入 Project。Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
 
@@ -138,6 +158,6 @@ src/
   targets/singbox/ sing-box 专用 Model、Compatibility 与 Compiler
 ```
 
-## 明确不在 V0.6 中
+## 当前明确边界
 
-后端、账号、数据库、CORS 代理、节点测速、自动刷新调度、远程规则同步/转换、除 Vision 外的复杂 XTLS flow、Hysteria2 pin/ECH、Clash certificate fingerprint、QUIC client fingerprint lowering、AnyTLS + Reality、完整客户端 Schema、Runtime Inbound Profile、第三个 Target、配置发布 URL 与云同步均未实现。sing-box 1.13.14 没有 XHTTP transport、随机 Hysteria2 hop interval 的 `hop_interval_max`，也没有 AnyTLS `client_metadata`；这些能力缺口均失败闭合而不是猜测降级。
+当前不提供 Runtime Service、账号、数据库、公共 CORS Proxy、后台定时刷新、节点测速平台、完整客户端 Schema、Runtime Inbound Profile、第三个正式导出 Target、配置发布 URL 或云同步。Local Mode 中 URL Refresh 仍受浏览器 CORS 限制。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。
