@@ -3,6 +3,7 @@ import { Check, ChevronDown, Download, Eye, Languages, LayoutTemplate, Redo2, Re
 import { useReactFlow } from '@xyflow/react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
+import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
 
 function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</button>
@@ -66,6 +67,7 @@ export function TopBar() {
       </div>
 
       <nav className="top-actions" aria-label={t('top.canvasActions')}>
+        <RuntimeServicePanel />
         <div className="top-action-group">
           <IconButton label={t('top.undo')} disabled={!canUndo} onClick={undo}><Undo2 size={16} /></IconButton>
           <IconButton label={t('top.redo')} disabled={!canRedo} onClick={redo}><Redo2 size={16} /></IconButton>

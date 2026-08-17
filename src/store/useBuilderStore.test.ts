@@ -226,6 +226,38 @@ describe('builder store', () => {
     expect(afterGraph.ir?.strategies).toEqual(beforeGraph.ir?.strategies)
   })
 
+  it('waits for embedded subscription hydration before starting a network refresh', async () => {
+    const originalParse = useBuilderStore.getState().parseSubscriptionInput
+    let releaseHydration!: () => void
+    const hydrationGate = new Promise<void>((resolve) => { releaseHydration = resolve })
+    useBuilderStore.setState({
+      parseSubscriptionInput: async (...args) => {
+        await hydrationGate
+        return originalParse(...args)
+      },
+    })
+
+    try {
+      useBuilderStore.getState().hydrate(structuredClone(demoProject))
+      useBuilderStore.getState().updateNodeData('hkt-subscription', {
+        subscriptionUrl: 'https://hydration-barrier.example.invalid/list', subscriptionInputKind: 'url',
+      })
+      const fetch = vi.fn(async () => new Response(hktDemoSubscription))
+      vi.stubGlobal('fetch', fetch)
+      const refresh = useBuilderStore.getState().refreshSubscription('hkt-subscription')
+
+      await Promise.resolve()
+      expect(fetch).not.toHaveBeenCalled()
+      releaseHydration()
+      await refresh
+
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(useBuilderStore.getState().subscriptionSnapshots['us-subscription']).toBeDefined()
+    } finally {
+      useBuilderStore.setState({ parseSubscriptionInput: originalParse })
+    }
+  })
+
   it('invalidates active runtime immediately when the subscription URL changes', async () => {
     useBuilderStore.getState().createNewProject()
     const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!

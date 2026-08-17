@@ -8,6 +8,10 @@ import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
 import { moveRoutingRule } from '../core/routing/routeProductModel'
 import {
+  clearRuntimeServiceConfig, loadRuntimeServiceConfig, saveRuntimeServiceConfig, ServerRuntimeProvider,
+  type RuntimeServiceConfig,
+} from '../core/runtime'
+import {
   commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
   snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
   type RefreshAllSummary, type RefreshHandlers, type SubscriptionInputKind, type SubscriptionRefreshError,
@@ -41,6 +45,7 @@ interface BuilderState {
   toast: string | null
   subscriptionSnapshots: Record<string, SubscriptionSnapshot>
   subscriptionRuntimes: Record<string, SubscriptionRuntimeRecord>
+  runtimeService: RuntimeServiceConfig | null
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
@@ -65,6 +70,8 @@ interface BuilderState {
   setPreviewOpen: (open: boolean) => void
   setSaveStatus: (status: 'saved' | 'saving') => void
   setToast: (message: string | null) => void
+  setRuntimeServiceConfig: (config: RuntimeServiceConfig | null) => void
+  disconnectRuntimeService: () => void
   hydrate: (project: ProxyFlowProject | null | undefined) => void
   resetToDemo: () => void
   createNewProject: () => void
@@ -73,6 +80,7 @@ interface BuilderState {
   refreshSubscription: (id: string) => Promise<void>
   refreshAllSubscriptions: () => Promise<RefreshAllSummary>
   applyEmptySubscription: (id: string) => Promise<void>
+  adoptSubscriptionSnapshot: (id: string, snapshot: SubscriptionSnapshot) => Promise<void>
   keepCurrentSubscription: (id: string) => void
   clearCachedSubscription: (id: string) => Promise<void>
   hydrateSubscriptionCache: () => Promise<void>
@@ -146,6 +154,18 @@ async function rehydrateEmbeddedSubscriptions(
 
 export const useBuilderStore = create<BuilderState>((set, get) => {
   const inputGenerations = new Map<string, number>()
+  let hydrationProjectId: string | null = null
+  let hydrationBarrier: Promise<void> = Promise.resolve()
+  const trackHydration = (projectId: string, task: Promise<void>) => {
+    hydrationProjectId = projectId
+    hydrationBarrier = task.catch(() => undefined)
+  }
+  const waitForHydration = async (projectId: string) => {
+    if (hydrationProjectId !== projectId) return
+    const barrier = hydrationBarrier
+    await barrier
+    if (hydrationProjectId === projectId && hydrationBarrier !== barrier) await waitForHydration(projectId)
+  }
   const nextInputGeneration = (projectId: string, sourceId: string) => {
     const key = `${projectId}\u0000${sourceId}`
     const generation = (inputGenerations.get(key) ?? 0) + 1
@@ -259,6 +279,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     toast: null,
     subscriptionSnapshots: {},
     subscriptionRuntimes: {},
+    runtimeService: loadRuntimeServiceConfig(),
 
     onNodesChange: (changes) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
@@ -611,18 +632,27 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }))
     },
     refreshSubscription: async (id) => {
+      const projectId = get().projectId
+      await waitForHydration(projectId)
+      if (get().projectId !== projectId) return
       const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
       const url = node?.data.subscriptionUrl?.trim()
       if (!node || !url) {
         set({ toast: translateCurrent('toast.enterSubscriptionUrl') })
         return
       }
-      nextInputGeneration(get().projectId, id)
+      nextInputGeneration(projectId, id)
       const state = get()
+      const runtimeFetcher = state.runtimeService
+        ? new ServerRuntimeProvider(state.runtimeService, {
+          projectId: state.projectId, sourceId: id,
+          sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+        })
+        : undefined
       await subscriptionRefreshCoordinator.refresh({
         projectId: state.projectId, sourceId: id,
         sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
-        url, activeSnapshot: state.subscriptionSnapshots[id],
+        url, activeSnapshot: state.subscriptionSnapshots[id], fetcher: runtimeFetcher,
       }, refreshHandlers(id))
     },
     refreshAllSubscriptions: async () => {
@@ -672,17 +702,50 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot, {
         onCacheError: (error) => refreshHandlers(id).onCacheError(error, runtime.requestGeneration),
       }, runtime.requestGeneration)
-    },
-    keepCurrentSubscription: (id) => set((state) => {
-      const runtime = state.subscriptionRuntimes[id]
-      if (!runtime?.pendingEmptySnapshot) return state
-      return {
-        subscriptionRuntimes: {
-          ...state.subscriptionRuntimes,
-          [id]: { ...runtime, latestOutcome: 'success', pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined },
-        },
+      if (state.runtimeService) {
+        const node = state.nodes.find((item) => item.id === id)
+        if (node) await new ServerRuntimeProvider(state.runtimeService, {
+          projectId: state.projectId, sourceId: id,
+          sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+        }).confirmEmpty().catch(() => undefined)
       }
-    }),
+    },
+    adoptSubscriptionSnapshot: async (id, snapshot) => {
+      const state = get()
+      const node = state.nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
+      if (!node) return
+      const generation = nextInputGeneration(state.projectId, id)
+      subscriptionRefreshCoordinator.cancel(state.projectId, id)
+      const diff = await diffSubscriptionSnapshots(state.subscriptionSnapshots[id], snapshot)
+      if (!isCurrentInput(state.projectId, id, generation) || !get().nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
+      set((current) => ({
+        subscriptionSnapshots: { ...current.subscriptionSnapshots, [id]: snapshot },
+        subscriptionRuntimes: {
+          ...current.subscriptionRuntimes,
+          [id]: {
+            ...emptySubscriptionRuntime(id, 'url', snapshot.sourceConfigFingerprint), refreshStatus: 'succeeded', activeState: snapshot.quality,
+            freshness: snapshotFreshness(snapshot.committedAt), latestOutcome: 'success', activeSnapshot: snapshot,
+            latestDiff: diff, lastSuccessfulAt: snapshot.committedAt,
+          },
+        },
+        nodes: current.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item),
+      }))
+      await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot)
+    },
+    keepCurrentSubscription: (id) => {
+      const state = get()
+      const runtime = state.subscriptionRuntimes[id]
+      if (!runtime?.pendingEmptySnapshot) return
+      const node = state.nodes.find((item) => item.id === id)
+      set({ subscriptionRuntimes: {
+        ...state.subscriptionRuntimes,
+        [id]: { ...runtime, latestOutcome: 'success', pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined },
+      } })
+      if (state.runtimeService && node) void new ServerRuntimeProvider(state.runtimeService, {
+        projectId: state.projectId, sourceId: id,
+        sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+      }).discardEmpty().catch(() => undefined)
+    },
     clearCachedSubscription: async (id) => {
       const state = get()
       const node = state.nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
@@ -760,6 +823,15 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         }
       }))
     },
+    setRuntimeServiceConfig: (config) => {
+      if (config) saveRuntimeServiceConfig(config)
+      else clearRuntimeServiceConfig()
+      set({ runtimeService: config })
+    },
+    disconnectRuntimeService: () => {
+      clearRuntimeServiceConfig()
+      set({ runtimeService: null })
+    },
     hydrate: (project) => {
       const previous = get()
       const nextNodes = project?.graph.nodes ?? (project === undefined ? [] : demoProject.graph.nodes)
@@ -782,7 +854,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           subscriptionSnapshots: {},
           subscriptionRuntimes: {},
         })
-        void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
+        trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
         return
       }
       const migration = project ? migrateProject(project) : undefined
@@ -795,7 +867,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
-      void rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput)
+      trackHydration(value.id, rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput))
       void get().hydrateSubscriptionCache()
     },
     resetToDemo: () => {
@@ -816,7 +888,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
-      void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
+      trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
     },
     createNewProject: () => {
       const previous = get()
@@ -832,6 +904,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
+      hydrationProjectId = value.id
+      hydrationBarrier = Promise.resolve()
     },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
     toProject: () => {

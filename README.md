@@ -82,6 +82,7 @@ ProxyFlow 的固定用户流程是：
 
 - [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
 - [V0.8 Product Scope](docs/v0.8-product-scope.md)：Strategy & Routing Core 的冻结范围、验收流程和实施 slices。
+- [Runtime Service MVP](docs/runtime-service.md)：V0.10 可选、自托管、单用户运行时的启动与安全边界。
 
 ## Roadmap
 
@@ -160,4 +161,4 @@ src/
 
 ## 当前明确边界
 
-当前不提供 Runtime Service、账号、数据库、公共 CORS Proxy、后台定时刷新、节点测速平台、完整客户端 Schema、Runtime Inbound Profile、第三个正式导出 Target、配置发布 URL 或云同步。Local Mode 中 URL Refresh 仍受浏览器 CORS 限制。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。
+稳定 v0.7.0 不提供 Runtime Service、账号、数据库或公共 CORS Proxy。V0.10 milestone branch 增加的 Runtime Service 仍是可选、自托管、单用户能力，不改变 Local Mode 的独立性。第三个正式导出 Target、配置发布 URL、云同步、节点测速平台和完整客户端 Schema 仍未实现。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。
