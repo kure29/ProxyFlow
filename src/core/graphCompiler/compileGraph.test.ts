@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import {
   chinaDirectFixture,
+  customDomainRouteFixture,
+  customPortRouteFixture,
   fallbackFixture,
   fixedStrategyFixture,
   hkJpUsChainFixture,
@@ -64,6 +66,15 @@ describe('compileGraph', () => {
     const china = compileGraph(chinaDirectFixture)
     expect(openAi.ir?.routes[0]).toEqual(expect.objectContaining({ matcher: { kind: 'service', serviceIds: ['openai'] }, target: { kind: 'strategy', id: 'us-auto' } }))
     expect(china.ir?.routes[0].target).toEqual({ kind: 'direct' })
+  })
+
+  it('compiles typed custom route matchers', () => {
+    const domain = compileGraph(customDomainRouteFixture)
+    const port = compileGraph(customPortRouteFixture)
+    expect(domain.success).toBe(true)
+    expect(domain.ir?.routes[0]).toEqual(expect.objectContaining({ matcher: { kind: 'domain-suffix', value: 'example.com' } }))
+    expect(port.success).toBe(true)
+    expect(port.ir?.routes[0]).toEqual(expect.objectContaining({ matcher: { kind: 'port', port: 443 } }))
   })
 
   it('compiles manual select, fallback and load balance strategies', () => {

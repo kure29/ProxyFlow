@@ -1,4 +1,4 @@
-import type { RouteTargetIR, RuleSourceIR, ServiceIR, TrafficMatcherIR } from '../../core/ir'
+import { findRuleSource, type RouteTargetIR, type RuleSourceIR, type ServiceIR, type TrafficMatcherIR } from '../../core/ir'
 import type { SingBoxCompileContext } from './context'
 import { SINGBOX_DEFAULTS } from './defaults'
 import { singBoxIssue } from './errors'
@@ -18,9 +18,12 @@ export function compileSingBoxRouting(context: SingBoxCompileContext) {
       continue
     }
     if (route.matcher.kind === 'rule-set') {
-      const ruleSetId = route.matcher.id
-      const source = context.ir.services.flatMap((service) => service.ruleSources).find((item) => item.id === ruleSetId)
-      const tag = source ? ensureRemoteRuleSet({ id: source.id, name: source.id }, source, context) : undefined
+      const reference = findRuleSource(context.ir.services, route.matcher.id)
+      if (!reference) {
+        context.issues.push(singBoxIssue('SINGBOX_RULE_SET_NOT_FOUND', 'error', 'route', `Rule set “${route.matcher.id}” 不存在。`, route.id))
+        continue
+      }
+      const tag = ensureRemoteRuleSet({ id: reference.source.id, name: reference.source.id }, reference.source, context)
       if (tag) rules.push({ rule_set: [tag], ...action })
       continue
     }

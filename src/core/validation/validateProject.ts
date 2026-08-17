@@ -1,6 +1,8 @@
 import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
+import { serviceCatalog } from '../../data/serviceCatalog'
+import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 
-export function validateGraph(nodes: GraphNode[], edges: GraphEdge[]): ValidationIssue[] {
+export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const incoming = (id: string) => edges.some((edge) => edge.target === id)
   const outgoing = (id: string) => edges.some((edge) => edge.source === id)
@@ -14,6 +16,19 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[]): Validatio
     if (['auto-select', 'manual-select', 'fallback', 'load-balance'].includes(node.data.blockType) && !incoming(node.id)) add('UI_STRATEGY_SOURCE_MISSING', 'This strategy has no proxy source.')
     if (node.data.blockType === 'proxy-chain' && (node.data.hopIds?.length ?? 0) === 0) add('UI_CHAIN_EMPTY', 'A proxy chain needs at least one hop.', 'error')
     if (['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType) && !node.data.targetId) add('UI_ROUTE_TARGET_MISSING', 'This routing rule has no target strategy.')
+    if (node.data.blockType === 'custom-rule') {
+      const kind = node.data.routeMatcherKind
+      if (!kind) add('UI_ROUTE_MATCHER_MISSING', 'This custom rule has no matcher value.', 'error')
+      else {
+        const normalized = normalizeCustomMatcher(kind, node.data.routeMatcherValue, node.data.routeMatcherPort)
+        if (!normalized.ok) add(normalized.code, `This custom rule has an invalid ${kind} matcher.`, 'error')
+        else if (normalized.matcher.kind === 'rule-set') {
+          const matches = findRuleSourceMatches(services, normalized.matcher.id)
+          if (matches.length === 0) add('ROUTE_RULE_SET_NOT_FOUND', 'This custom rule references a missing rule set.', 'error')
+          else if (matches.length > 1) add('ROUTE_RULE_SET_AMBIGUOUS', 'This custom rule references an ambiguous rule set.', 'error')
+        }
+      }
+    }
     if (node.data.blockType === 'final' && !outgoing(node.id)) add('UI_FINAL_TARGET_MISSING', 'Final must connect to an outbound target.', 'error')
     if (node.data.blockType === 'output' && !node.data.client) add('UI_OUTPUT_CLIENT_MISSING', 'Select a target client.', 'error')
     if (node.data.blockType === 'filter' && node.data.filterMode === 'regex' && node.data.filterRegexPattern?.trim()) {
