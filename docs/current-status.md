@@ -57,24 +57,29 @@ Updated: 2026-08-17
   settings, fallback ordering, and Advanced target-specific Load Balance.
   Chain and DNS library entries are now explicitly grouped under Advanced;
   legacy Project nodes remain readable.
+- Empty new projects now expose a small first-workflow starter area that uses
+  the existing Add Subscription and fictional Demo Blueprint actions. It is
+  hidden as soon as a non-scaffold node exists, so the canvas remains the sole
+  source of Project semantics.
 
 ## In Progress
 
-- V0.9 Route Inspector and the first Explain & Simplify slice are implemented
-  on `autopilot/v0.9` through checkpoint `6776bb5`. Code and pure-function
-  validation pass; browser static inspection confirmed the Advanced grouping,
-  while node-selection automation timed out in the existing browser session.
+- V0.9 Route Inspector, Explain & Simplify, and first-workflow starter actions
+  are implemented on `autopilot/v0.9` through checkpoint `0fee40d`. Code and
+  pure-function validation pass; browser static inspection confirmed the
+  Advanced grouping, while node-selection automation timed out in the existing
+  browser session.
 
 ## Next
 
-1. Add first-run/default template and remaining Basic/Advanced simplification
-   only where it reduces the existing workflow without a second graph model.
-2. Complete V0.9 compatibility/processing/strategy explanation review.
+1. Complete V0.9 compatibility/processing/strategy explanation review.
+2. Run the full V0.9 milestone scope and acceptance audit before opening the
+   milestone PR.
 3. Open `autopilot/v0.9 -> autopilot/v1` only after the V0.9 milestone gates pass.
 
 ## Latest Validation
 
-- `npm test`: 378/378 passed (34 test files), repeated three consecutive times
+- `npm test`: 380/380 passed (35 test files), repeated three consecutive times
 - `npm run build`: passed
 - `git diff --check`: passed
 - Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
@@ -92,11 +97,11 @@ Updated: 2026-08-17
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
 - V0.9 focused Route Inspector tests: 6/6 passed; Processing Explanation tests:
-  3/3 passed
+  3/3 passed; starter-state tests: 2/2 passed
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 843.03 kB, known `>500 kB` warning
+- Vite initial chunk: 844.46 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -127,5 +132,5 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `6776bb5` on `autopilot/v0.9` (Explain & Simplify checkpoint)
-- `autopilot/v0.9` is clean after the Explain & Simplify checkpoint.
+- `0fee40d` on `autopilot/v0.9` (first-workflow starter checkpoint)
+- `autopilot/v0.9` is clean after the first-workflow starter checkpoint.
