@@ -125,14 +125,14 @@ function inspectStrategy(ir: ProxyFlowIR, strategyId: string, stack: string[] = 
     : strategy.kind === 'auto-select' || strategy.kind === 'load-balance'
       ? [describeProxySet(ir, strategy.source.kind, strategy.source.id)]
       : strategy.kind === 'fixed'
-        ? strategy.proxyId ? [describeProxySet(ir, 'source', strategy.proxyId)] : []
+        ? strategy.proxyId ? [describeFixedProxy(ir, strategy.proxyId)] : []
         : strategy.kind === 'chain'
           ? strategy.hops.flatMap((hop) => inspectStrategy(ir, hop.id, nextStack).candidatePath.length ? [inspectStrategy(ir, hop.id, nextStack).name] : [hop.id])
           : []
   const candidateCount = candidateRefs
     ? candidateRefs.reduce((count, candidate) => count + countCandidateRef(ir, candidate, nextStack), 0)
     : strategy.kind === 'fixed'
-      ? (strategy.proxyId ? countProxySet(ir, 'source', strategy.proxyId) : 0)
+      ? (strategy.proxyId ? countFixedProxy(ir, strategy.proxyId) : 0)
       : strategy.kind === 'auto-select' || strategy.kind === 'load-balance'
         ? countProxySet(ir, strategy.source.kind, strategy.source.id)
         : candidatePath.length
@@ -164,6 +164,20 @@ function countCandidateRef(ir: ProxyFlowIR, candidate: StrategyCandidateRef, sta
 function describeProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string) {
   const collection = kind === 'source' ? ir.sources : ir.transforms
   return collection.find((item) => item.id === id)?.name ?? id
+}
+
+function describeFixedProxy(ir: ProxyFlowIR, proxyId: string) {
+  for (const source of ir.sources) {
+    if (source.kind !== 'manual-proxy' && source.kind !== 'subscription') continue
+    const endpoint = source.proxies?.find((proxy) => proxy.id === proxyId)
+    if (endpoint) return endpoint.name
+  }
+  return proxyId
+}
+
+function countFixedProxy(ir: ProxyFlowIR, proxyId: string) {
+  return ir.sources.some((source) => (source.kind === 'manual-proxy' || source.kind === 'subscription')
+    && source.proxies?.some((proxy) => proxy.id === proxyId && proxy.kind !== 'unmodeled' && proxy.protocol !== 'unmodeled')) ? 1 : 0
 }
 
 function countProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string, stack: string[] = []): number {
