@@ -93,8 +93,10 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'rename') return { renameMode: 'regex', renamePattern: '', renameReplacement: '', renameIgnoreCase: false, renameGlobal: true }
   if (type === 'limit') return { limit: 10 }
   if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
+  if (type === 'load-balance') return { loadBalanceMode: 'round-robin' }
   if (type === 'proxy-chain') return { hopIds: [] }
-  if (['routing-group', 'service-rule', 'custom-rule'].includes(type)) return { services: [], ruleSource: type === 'custom-rule' ? 'custom' : 'ios_rule_script' }
+  if (['routing-group', 'service-rule'].includes(type)) return { services: [], ruleSource: 'ios_rule_script' }
+  if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
   if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
   return {}

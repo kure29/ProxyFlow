@@ -91,6 +91,26 @@ describe('builder store', () => {
     }))
   })
 
+  it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {
+    const domain = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 120 })!
+    const cidr = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 220 })!
+    const port = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 320 })!
+    const ruleSet = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 420 })!
+    useBuilderStore.getState().updateNodeData(domain, { routeMatcherKind: 'domain', routeMatcherValue: 'api.example.com', routePriority: 10 })
+    useBuilderStore.getState().updateNodeData(cidr, { routeMatcherKind: 'ip-cidr6', routeMatcherValue: '2001:db8::/32', routePriority: 20 })
+    useBuilderStore.getState().updateNodeData(port, { routeMatcherKind: 'port', routeMatcherPort: 443, routePriority: 30 })
+    useBuilderStore.getState().updateNodeData(ruleSet, { routeMatcherKind: 'rule-set', routeMatcherValue: 'ios-openai', routePriority: 40 })
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    expect(project.version).toBe(2)
+    useBuilderStore.getState().hydrate(project)
+    const data = (id: string) => useBuilderStore.getState().nodes.find((node) => node.id === id)?.data
+    expect(data(domain)).toEqual(expect.objectContaining({ routeMatcherKind: 'domain', routeMatcherValue: 'api.example.com', routePriority: 10 }))
+    expect(data(cidr)).toEqual(expect.objectContaining({ routeMatcherKind: 'ip-cidr6', routeMatcherValue: '2001:db8::/32', routePriority: 20 }))
+    expect(data(port)).toEqual(expect.objectContaining({ routeMatcherKind: 'port', routeMatcherPort: 443, routePriority: 30 }))
+    expect(data(ruleSet)).toEqual(expect.objectContaining({ routeMatcherKind: 'rule-set', routeMatcherValue: 'ios-openai', routePriority: 40 }))
+  })
+
   it('adds, reorders and removes proxy chain hops', () => {
     useBuilderStore.getState().addHop('us-via-hk')
     const chainAfterAdd = useBuilderStore.getState().nodes.find((node) => node.id === 'us-via-hk')!

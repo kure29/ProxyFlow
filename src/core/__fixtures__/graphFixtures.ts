@@ -141,6 +141,38 @@ export const chinaDirectFixture = (() => {
   ])
 })()
 
+export const customDomainRouteFixture = (() => {
+  const tail = validTail('auto')
+  return project('custom-domain-route', [
+    subscription('subscription'),
+    node('auto', 'auto-select', 'strategy'),
+    node('custom-route', 'custom-rule', 'routing', {
+      routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com', targetId: 'auto', targetLabel: 'Auto',
+    }),
+    ...tail.nodes,
+  ], [
+    edge('e-sub-auto', 'subscription', 'auto', 'data'),
+    edge('e-custom-auto', 'custom-route', 'auto', 'route'),
+    ...tail.edges,
+  ])
+})()
+
+export const customPortRouteFixture = (() => {
+  const tail = validTail('auto')
+  return project('custom-port-route', [
+    subscription('subscription'),
+    node('auto', 'auto-select', 'strategy'),
+    node('custom-route', 'custom-rule', 'routing', {
+      routeMatcherKind: 'port', routeMatcherPort: 443, targetId: 'auto', targetLabel: 'Auto',
+    }),
+    ...tail.nodes,
+  ], [
+    edge('e-sub-auto', 'subscription', 'auto', 'data'),
+    edge('e-custom-auto', 'custom-route', 'auto', 'route'),
+    ...tail.edges,
+  ])
+})()
+
 export const hkUsChainFixture = chainFixture('hk-us-chain', ['hk-auto', 'us-auto'])
 export const hkJpUsChainFixture = chainFixture('hk-jp-us-chain', ['hk-auto', 'jp-auto', 'us-auto'])
 

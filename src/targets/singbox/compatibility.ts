@@ -1,4 +1,4 @@
-import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR, type TrafficMatcherIR } from '../../core/ir'
+import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR, type TrafficMatcherIR } from '../../core/ir'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
@@ -103,7 +103,8 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       }
     } else if (route.matcher.kind === 'rule-set') {
       const ruleSetId = route.matcher.id
-      const source = ir.services.flatMap((service) => service.ruleSources).find((item) => item.id === ruleSetId)
+      const reference = findRuleSource(ir.services, ruleSetId)
+      const source = reference?.source
       if (!source || !isSingBoxRuleSource(source)) issues.push(singBoxIssue(
         'SINGBOX_INVALID_RULESET', 'error', 'route', `Rule set “${ruleSetId}” 不是 sing-box source/binary 格式。`, route.id,
       ))

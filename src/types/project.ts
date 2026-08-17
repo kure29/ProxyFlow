@@ -121,6 +121,9 @@ export interface BlockNodeData extends Record<string, unknown> {
   loadBalanceMode?: 'round-robin' | 'consistent-hash'
   proxyId?: string
   routePriority?: number
+  routeMatcherKind?: 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
+  routeMatcherValue?: string
+  routeMatcherPort?: number
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number
