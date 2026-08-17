@@ -33,20 +33,28 @@ Updated: 2026-08-17
 - Slice C refined Strategy UX: Manual, Auto, and Failover are Basic entries;
   Load Balance is Advanced and target-specific, with candidate and empty-source
   explanations. Checkpoint `659591f` is pushed to `origin/autopilot/v0.8`.
+- Slice D locked the V0.8 Graph -> IR -> target acceptance fixtures, including
+  DIRECT, REJECT, Default Route, target-specific Failover behavior, and Project
+  export/import round-trip. Checkpoint `5a41d89` is pushed to
+  `origin/autopilot/v0.8`.
+- Slice E added dual-target compatibility summaries to Preview while preserving
+  target-specific fail-closed output. Checkpoint `444482c` is pushed to
+  `origin/autopilot/v0.8`.
 - Slice A integrated onto the Product Direction main baseline without rewriting the
   original branch
 
 ## In Progress
 
-- Slice E is complete locally and ready for its checkpoint commit. Preview now
-  checks both target compilers and shows per-target Supported, warning, blocked,
-  loading, or unavailable status while preserving target-specific fail-closed output.
+- V0.8 implementation slices A-E are complete on `autopilot/v0.8`. The branch is
+  in final milestone review before opening its PR to `autopilot/v1`.
 
 ## Next
 
-1. Commit and push the completed Slice E checkpoint.
-2. Run official Mihomo and sing-box binary validation where binaries are available.
-3. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
+1. Review the complete V0.8 scope and open `autopilot/v0.8 -> autopilot/v1`.
+2. Wait for CI, complete the independent review pass, and merge only after all
+   milestone gates pass.
+3. Continue to V0.9 only after the V0.8 milestone is integrated into
+   `autopilot/v1`.
 
 ## Latest Validation
 
@@ -61,6 +69,12 @@ Updated: 2026-08-17
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
   as Supported in Chinese; sing-box preview generated JSON and fresh-tab logs
   remained free of errors and warnings
+- Official binary validation (fictional fixtures, no network connections):
+  Mihomo Meta `v1.19.30` Darwin arm64 (`sha256:2c7f3a7904fa1cee291e124123e630e7b1ebd13765dd9bf26c0a28432004d9f4`)
+  accepted the basic routing and Failover YAML configs with `-t`; sing-box
+  `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
+  accepted the basic routing JSON with `check`. The sing-box Failover fixture
+  remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
 - Vite initial chunk: ~817.69 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
@@ -91,5 +105,5 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `659591f` on `autopilot/v0.8` (Slice C)
-- Slice D acceptance files are the current uncommitted checkpoint.
+- `444482c` on `autopilot/v0.8` (Slice E)
+- Worktree is clean; no temporary binary, generated config, or fixture is tracked.
