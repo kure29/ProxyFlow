@@ -35,12 +35,13 @@ Updated: 2026-08-17
 
 ## In Progress
 
-- Improve Manual, Auto, and Failover Strategy UX with candidate explanations while
-  keeping Load Balance Advanced and target-specific.
+- Slice C is complete locally and ready for its checkpoint commit. Manual, Auto,
+  and Failover remain the Basic strategy entries; Load Balance is Advanced and
+  target-specific, with candidate source and empty-candidate explanations.
 
 ## Next
 
-1. Complete Strategy UX: Manual, Auto, Failover, candidate source and empty-candidate explanations.
+1. Commit and push the completed Slice C checkpoint.
 2. Complete Strategy/DIRECT/REJECT routing acceptance fixtures and Project round-trip.
 3. Add diagnostics and target compatibility summary, then run browser QA and binaries.
 4. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
@@ -50,7 +51,9 @@ Updated: 2026-08-17
 - `npm test`: 366/366 passed after Slice B
 - `npm run build`: passed
 - `git diff --check`: passed
-- Browser QA: Chinese and English Routing Rule library/Inspector flow passed; browser error and warning logs empty
+- Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
+  Advanced strategy groups render correctly, empty candidates are explained,
+  and the fresh-tab browser error/warning logs are empty
 - Vite initial chunk: ~817.69 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
@@ -62,6 +65,8 @@ Updated: 2026-08-17
 
 - A prior subscription hydration timing fluctuation was not reproduced in three
   consecutive suites or the integration validation. It remains a V1.0 stability audit item.
+- A duplicate `strategy` key and transient i18n HMR error appeared only in an
+  earlier hot-reload session; neither reproduced in a fresh cold browser tab.
 - The initial Vite bundle warning remains a V1.0 performance task.
 - TopBar and Preview version copy still reflects V0.6 and is deferred to RC consistency work.
 

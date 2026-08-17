@@ -404,6 +404,8 @@ function StrategyInspector({ node }: InspectorProps) {
   const edges = useBuilderStore((state) => state.edges)
   const incoming = useMemo(() => edges.filter((edge) => edge.target === node.id && ['data', 'strategy'].includes(String(edge.data?.semantic))).map((edge) => nodes.find((item) => item.id === edge.source)).filter((item): item is GraphNode => Boolean(item)), [edges, node.id, nodes])
   const runtime = usePipelineNodeRuntime(node.id)
+  const materializedCandidates = incoming.filter((item) => item.data.blockType !== 'proxy-chain')
+  const emptyCandidates = runtime !== undefined && runtime.outputCount === 0
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     <Field label={t('inspector.nodeSource')}><div className="source-reference"><Link2 size={14} /><span>{incoming.map((item) => localizeNodeTitle(item, locale)).join(locale === 'zh-CN' ? '、' : ', ') || t('inspector.sourceMissing')}</span></div></Field>
@@ -411,8 +413,9 @@ function StrategyInspector({ node }: InspectorProps) {
     {(node.data.blockType === 'auto-select' || node.data.blockType === 'fallback') && <TextField node={node} field="testUrl" label={t('inspector.testUrl')} />}
     <div className="metric-cards"><div><span>{t('inspector.candidates')}</span><strong className="compact-metric">{runtime?.outputCount ?? 0}</strong></div><div><span>{t('inspector.status')}</span><strong className={runtime?.status === 'error' ? '' : 'good-metric'}>{runtime?.status === 'error' ? t('inspector.blocked') : t('inspector.ready')}</strong></div></div>
     {(node.data.blockType === 'auto-select' || node.data.blockType === 'fallback') && <Advanced><Field label={t('inspector.testInterval')}><div className="input-with-unit"><input type="number" min="5" step="5" value={node.data.interval ?? 300} onChange={(event) => update(node.id, { interval: Math.max(1, Number(event.target.value)) })} /><span>{t('inspector.seconds')}</span></div></Field><Field label={t('inspector.tolerance')}><div className="input-with-unit"><input type="number" min="0" step="10" value={node.data.tolerance ?? 50} onChange={(event) => update(node.id, { tolerance: Math.max(0, Number(event.target.value)) })} /><span>ms</span></div></Field></Advanced>}
-    {node.data.blockType === 'load-balance' && <Field label={t('inspector.loadBalanceMode')}><select value={node.data.loadBalanceMode ?? 'round-robin'} onChange={(event) => update(node.id, { loadBalanceMode: event.target.value as BlockNodeData['loadBalanceMode'] })}><option value="round-robin">{t('inspector.loadBalance.roundRobin')}</option><option value="consistent-hash">{t('inspector.loadBalance.consistentHash')}</option></select></Field>}
-    {(node.data.blockType === 'manual-select' || node.data.blockType === 'fallback') && <div className="candidate-list"><span>{t('inspector.incomingCandidates')}</span>{incoming.length ? incoming.map((item) => <code key={item.id}>{localizeNodeTitle(item, locale)}</code>) : <small>{t('inspector.sourceMissing')}</small>}</div>}
+    {node.data.blockType === 'load-balance' && <Advanced><div className="strategy-advanced-note">{t('inspector.loadBalanceAdvancedHint')}</div><Field label={t('inspector.loadBalanceMode')}><select value={node.data.loadBalanceMode ?? 'round-robin'} onChange={(event) => update(node.id, { loadBalanceMode: event.target.value as BlockNodeData['loadBalanceMode'] })}><option value="round-robin">{t('inspector.loadBalance.roundRobin')}</option><option value="consistent-hash">{t('inspector.loadBalance.consistentHash')}</option></select></Field></Advanced>}
+    {node.data.blockType !== 'fixed-proxy' && <div className="candidate-list"><span>{t('inspector.incomingCandidates')}</span>{materializedCandidates.length ? materializedCandidates.map((item) => <code key={item.id}>{localizeNodeTitle(item, locale)}</code>) : <small>{t('inspector.sourceMissing')}</small>}</div>}
+    {emptyCandidates && <div className="strategy-explanation"><AlertTriangle size={14} /><span><strong>{t('inspector.emptyCandidates')}</strong><small>{incoming.length ? t('inspector.emptyCandidatesHint') : t('inspector.connectStrategySource')}</small></span></div>}
   </>
 }
 

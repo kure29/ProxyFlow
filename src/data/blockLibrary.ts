@@ -11,6 +11,7 @@ export interface BlockLibraryItem {
 export interface BlockLibraryGroup {
   category: BlockCategory
   label: string
+  advanced?: boolean
   items: BlockLibraryItem[]
 }
 
@@ -38,8 +39,11 @@ export const blockLibrary: BlockLibraryGroup[] = [
       { type: 'manual-select', category: 'strategy', title: '手动选择', description: '由用户指定活动节点', icon: 'mouse-pointer-2' },
       { type: 'auto-select', category: 'strategy', title: '自动选择最快', description: '持续选择延迟最低节点', icon: 'gauge' },
       { type: 'fallback', category: 'strategy', title: '故障切换', description: '不可用时自动切换', icon: 'refresh-cw' },
+    ],
+  },
+  {
+    category: 'strategy', label: '高级策略', advanced: true, items: [
       { type: 'load-balance', category: 'strategy', title: '负载均衡', description: '在节点间分配连接', icon: 'scale' },
-      { type: 'fixed-proxy', category: 'strategy', title: '固定节点', description: '固定使用指定代理', icon: 'pin' },
     ],
   },
   {
@@ -70,5 +74,8 @@ const legacyRoutingItems: BlockLibraryItem[] = [
   { type: 'routing-group', category: 'routing', title: 'Legacy routing group', description: 'Compatibility-only routing node', icon: 'waypoints' },
   { type: 'custom-rule', category: 'routing', title: 'Legacy custom rule', description: 'Compatibility-only matcher node', icon: 'braces' },
 ]
+const legacyStrategyItems: BlockLibraryItem[] = [
+  { type: 'fixed-proxy', category: 'strategy', title: 'Legacy fixed proxy', description: 'Compatibility-only fixed strategy', icon: 'pin' },
+]
 
-export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacyRoutingItems].map((item) => [item.type, item]))
+export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacyRoutingItems, ...legacyStrategyItems].map((item) => [item.type, item]))

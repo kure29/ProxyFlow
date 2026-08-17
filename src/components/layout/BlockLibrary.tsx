@@ -35,16 +35,17 @@ export function BlockLibrary() {
       </div>
       <div className="library-scroll">
         {groups.map((group) => {
-          const isCollapsed = collapsed.has(group.category)
+          const groupId = `${group.category}:${group.label}`
+          const isCollapsed = collapsed.has(groupId)
           return (
-            <section className="library-group" key={group.category}>
+            <section className="library-group" key={groupId}>
               <button className="library-group-title" onClick={() => setCollapsed((current) => {
                 const next = new Set(current)
-                next.has(group.category) ? next.delete(group.category) : next.add(group.category)
+                next.has(groupId) ? next.delete(groupId) : next.add(groupId)
                 return next
               })} aria-expanded={!isCollapsed}>
                 <span className={`category-dot category-dot--${group.category}`} />
-                {t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
+                {group.advanced ? t('category.strategyAdvanced') : t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
               </button>
               {!isCollapsed && <div className="library-items">
                 {group.items.map((item) => (
