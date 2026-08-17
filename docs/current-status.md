@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.9 - Explain & Simplify
-- Current slice: Route Inspector explanation foundation
+- Current slice: Route Inspector foundation checkpoint `c8151d3`
 - Working milestone branch: `autopilot/v0.9`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
@@ -48,23 +48,25 @@ Updated: 2026-08-17
   hostname, IP, port, and service inputs. It reports first match, deterministic
   priority, Default Route, DIRECT/REJECT, strategy candidate paths, and known
   target-specific support. The empty Inspector state now exposes the same
-  explanation flow in Chinese and English.
+  explanation flow in Chinese and English. Empty subscription sources are not
+  treated as available candidates, and fixed Strategy endpoints resolve through
+  the same explanation path.
 
 ## In Progress
 
-- V0.9 Route Inspector foundation is implemented locally on `autopilot/v0.9`.
-  Focused and full validation pass; the next checkpoint is scope review and a
-  push before opening the V0.9 milestone PR.
+- V0.9 Route Inspector foundation is implemented on `autopilot/v0.9` through
+  checkpoint `c8151d3`. Focused and full validation pass; the next checkpoint
+  is the pushed status update and then the remaining Explain & Simplify slices.
 
 ## Next
 
-1. Commit and push the V0.9 Route Inspector foundation.
+1. Push the V0.9 Route Inspector status checkpoint.
 2. Add processing/strategy explanation and Basic/Advanced simplification slices.
 3. Open `autopilot/v0.9 -> autopilot/v1` only after the V0.9 milestone gates pass.
 
 ## Latest Validation
 
-- `npm test`: 374/374 passed (33 test files)
+- `npm test`: 375/375 passed (33 test files), repeated three consecutive times
 - `npm run build`: passed
 - `git diff --check`: passed
 - Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
@@ -81,11 +83,11 @@ Updated: 2026-08-17
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
-- V0.9 focused Route Inspector tests: 5/5 passed
+- V0.9 focused Route Inspector tests: 6/6 passed
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: ~835.31 kB, known `>500 kB` warning
+- Vite initial chunk: 836.24 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -116,5 +118,6 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `b0dba38` on `autopilot/v1` (V0.8 milestone merge)
-- V0.9 Route Inspector foundation is the current uncommitted checkpoint.
+- `c8151d3` on `autopilot/v0.9` (fixed Strategy candidate resolution)
+- `autopilot/v0.9` is clean after the Route Inspector checkpoint; status docs are
+  the next explicit checkpoint before the remaining V0.9 work.
