@@ -12,9 +12,10 @@ Updated: 2026-08-17
 ## Integration
 
 - Integration branch: `autopilot/v1`
-- Current milestone: V0.8 - Strategy & Routing Core
-- Current slice: Slice E - Diagnostics and compatibility summary
-- Working milestone branch: `autopilot/v0.8`
+- Current milestone: V0.9 - Explain & Simplify
+- Current slice: V0.9 milestone review checkpoint `05d1372`
+- Working milestone branch: `autopilot/v0.9`
+- V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
 - Integrated Slice A commit: `0fb00f3` (`feat: harden strategy and routing semantics`)
@@ -42,28 +43,50 @@ Updated: 2026-08-17
   `origin/autopilot/v0.8`.
 - Slice A integrated onto the Product Direction main baseline without rewriting the
   original branch
+- V0.8 milestone PR #11 merged into `autopilot/v1`; `main` remains unchanged.
+- V0.9 Route Inspector foundation adds a pure query explanation engine for
+  hostname, IP, port, and service inputs. It reports first match, deterministic
+  priority, Default Route, DIRECT/REJECT, strategy candidate paths, and known
+  target-specific support. The empty Inspector state now exposes the same
+  explanation flow in Chinese and English. Empty subscription sources are not
+  treated as available candidates, and fixed Strategy endpoints resolve through
+  the same explanation path.
+- V0.9 Explain & Simplify now explains Processing input/output changes for
+  Filter, Rename, Sort, Dedupe, Merge, and Limit through a tested pure helper.
+  Strategy Inspector summaries identify candidate readiness, health-check
+  settings, fallback ordering, and Advanced target-specific Load Balance.
+  Chain and DNS library entries are now explicitly grouped under Advanced;
+  legacy Project nodes remain readable.
+- Empty new projects now expose a small first-workflow starter area that uses
+  the existing Add Subscription and fictional Demo Blueprint actions. It is
+  hidden as soon as a non-scaffold node exists, so the canvas remains the sole
+  source of Project semantics.
+- Independent milestone review fixed Route Inspector candidate counts to use
+  the existing materialized Filter/Dedupe/Limit result, and made malformed IPv6
+  inputs fail closed instead of matching after partial parsing.
 
 ## In Progress
 
-- V0.8 implementation slices A-E are complete on `autopilot/v0.8`. The branch is
-  in final milestone review before opening its PR to `autopilot/v1`.
+- V0.9 Route Inspector, Explain & Simplify, and first-workflow starter actions
+  are implemented on `autopilot/v0.9` through review checkpoint `05d1372`.
+  Milestone PR #12 is open to `autopilot/v1`; CI is green and GitHub reports the
+  PR mergeable with a clean merge state.
 
 ## Next
 
-1. Review the complete V0.8 scope and open `autopilot/v0.8 -> autopilot/v1`.
-2. Wait for CI, complete the independent review pass, and merge only after all
-   milestone gates pass.
-3. Continue to V0.9 only after the V0.8 milestone is integrated into
-   `autopilot/v1`.
+1. Record the final V0.9 milestone validation on PR #12 and wait for CI.
+2. Merge PR #12 into `autopilot/v1` only after the final check remains green.
+3. Create `autopilot/v0.10` from the updated integration branch.
 
 ## Latest Validation
 
-- `npm test`: 369/369 passed after Slice D acceptance fixtures
+- `npm test`: 381/381 passed (35 test files), repeated three consecutive times
 - `npm run build`: passed
 - `git diff --check`: passed
-- Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
-  Advanced strategy groups render correctly, empty candidates are explained,
-  and the fresh-tab browser error/warning logs are empty
+- Browser QA: Chrome cold English and Chinese library/Inspector flows passed;
+  Processing and Strategy explanations, Basic/Advanced groups, blank-project
+  starter actions, and post-add state render correctly; fresh-tab browser
+  error/warning logs are empty
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
@@ -75,7 +98,12 @@ Updated: 2026-08-17
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
-- Vite initial chunk: ~817.69 kB, known `>500 kB` warning
+- V0.9 focused Route Inspector tests: 7/7 passed; Processing Explanation tests:
+  3/3 passed; starter-state tests: 2/2 passed
+- V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
+  DIRECT rule; English switch showed Route Inspector and Matched rule copy;
+  fresh console had no error or warning entries.
+- Vite initial chunk: 844.22 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -93,7 +121,7 @@ Updated: 2026-08-17
 
 ## Deferred
 
-- Full Route Inspector: V0.9
+- Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V0.9 follow-up
 - Optional self-hosted Runtime Service: V0.10
 - Third output target and broad protocol expansion: V1.x
 - Public backend deployment, multi-user SaaS, billing, plugins, AI, cloud sync: out of scope
@@ -102,8 +130,11 @@ Updated: 2026-08-17
 
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
+- PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
+- PR #12: `autopilot/v0.9 -> autopilot/v1`, CI green, mergeable and clean at
+  review checkpoint `05d1372`.
 
 ## Last Checkpoint
 
-- `444482c` on `autopilot/v0.8` (Slice E)
-- Worktree is clean; no temporary binary, generated config, or fixture is tracked.
+- `05d1372` on `autopilot/v0.9` (Route Inspector fail-closed review fixes)
+- `autopilot/v0.9` is clean after the V0.9 milestone review checkpoint.
