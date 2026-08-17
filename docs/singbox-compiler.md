@@ -125,11 +125,11 @@ Supported resolver kinds:
 - UDP
 - system/local
 
-The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. V0.6 does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
+The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. The v0.7.0 compiler does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
 
 ## Inbound policy
 
-V0.6 emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
+The v0.7.0 compiler emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
 
 ## Failure behavior and scope
 

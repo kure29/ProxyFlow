@@ -1,6 +1,6 @@
 # Mihomo Compiler MVP
 
-ProxyFlow V0.6 的真实编译链路：
+ProxyFlow v0.7.0 的真实编译链路：
 
 ```text
 ProxyFlowIR

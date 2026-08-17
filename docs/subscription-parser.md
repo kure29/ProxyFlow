@@ -1,6 +1,6 @@
 # Subscription Parser and Proxy Processing
 
-ProxyFlow V0.6 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
+ProxyFlow v0.7.0 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
 
 ## Supported Input Formats
 
@@ -19,7 +19,7 @@ ProxyFlow V0.6 在浏览器中读取订阅内容，将节点规范化为客户�
 
 ## Supported Protocols
 
-下表表示 V0.6 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
+下表表示当前 v0.7.0 沿用的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
 
 | Protocol | Parser | Mihomo | sing-box |
 | --- | --- | --- | --- |
@@ -50,14 +50,14 @@ Hysteria v1、WireGuard、Snell、SSH 等尚未进入协议模型。损坏的 An
 
 ## CORS Limitations
 
-ProxyFlow V0.6 是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
+ProxyFlow v0.7.0 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
 
 - 订阅服务器允许跨域时，可以直接刷新。
 - CORS 或网络失败显示为 `CORS blocked`，不会误报为 Parser Error。
 - 用户可以改用 Paste Content 或 Import File。
 - 刷新失败不会清空上次成功结果；UI 同时显示 Last successful 和 Latest attempt，并将旧结果标记为 stale。
 
-V0.6 不包含后端、Worker、浏览器扩展或公共 CORS proxy。
+当前稳定版本不包含后端、Worker、浏览器扩展或公共 CORS proxy。
 
 ## Security Model
 
@@ -78,7 +78,7 @@ Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Troja
 
 所有处理都在 materialized ProxySet 上真实执行：
 
-| Transform | V0.6 status | Semantics |
+| Transform | v0.7.0 status | Semantics |
 | --- | --- | --- |
 | Filter | Supported | 新 UI 使用 Keyword / Region / Regex + Include / Exclude；旧项目的组合字段继续可读取 |
 | Rename | Supported | regex replacement；无效表达式返回稳定错误 |
@@ -87,7 +87,7 @@ Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Troja
 | Merge | Supported | 按画布输入顺序合并，不隐式去重 |
 | Limit | Supported | 确定性保留前 N 个节点 |
 
-Latency Sort 明确返回 `SPEED_TEST_REQUIRED`，因为 V0.6 没有真实测速，也不会生成假延迟。每个 Processing Inspector 显示真实 input / output / removed 数量、问题和输入输出预览。物化 context 会缓存同一次编译中的 source / transform 结果。
+Latency Sort 明确返回 `SPEED_TEST_REQUIRED`，因为当前稳定版本没有真实测速，也不会生成假延迟。每个 Processing Inspector 显示真实 input / output / removed 数量、问题和输入输出预览。物化 context 会缓存同一次编译中的 source / transform 结果。
 
 Filter 的 persistent model 使用可选字段，不提升 Project Schema V2：Keyword 会 trim 并按不区分大小写的 substring 确定性匹配；空输入为 no-op。Region 使用 ISO 3166-1 alpha-2 code（历史 `UK` 规范化为 `GB`），显示文本随 locale 变化但不修改 project semantics；地区仅从 flag、明确 token 与本地化名称推断，不做 GeoIP。Regex 使用 JavaScript-compatible pattern 与独立 ignore-case flag；非法表达式返回 `FILTER_INVALID_REGEX`、不运行该 transform，也不回退为 keyword。
 
