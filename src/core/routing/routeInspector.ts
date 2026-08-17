@@ -129,8 +129,13 @@ function inspectStrategy(ir: ProxyFlowIR, strategyId: string, stack: string[] = 
         : strategy.kind === 'chain'
           ? strategy.hops.flatMap((hop) => inspectStrategy(ir, hop.id, nextStack).candidatePath.length ? [inspectStrategy(ir, hop.id, nextStack).name] : [hop.id])
           : []
-  const candidateCount = candidateRefs?.length
-    ?? (strategy.kind === 'fixed' ? (strategy.proxyId ? 1 : 0) : candidatePath.length)
+  const candidateCount = candidateRefs
+    ? candidateRefs.reduce((count, candidate) => count + countCandidateRef(ir, candidate, nextStack), 0)
+    : strategy.kind === 'fixed'
+      ? (strategy.proxyId ? countProxySet(ir, 'source', strategy.proxyId) : 0)
+      : strategy.kind === 'auto-select' || strategy.kind === 'load-balance'
+        ? countProxySet(ir, strategy.source.kind, strategy.source.id)
+        : candidatePath.length
   const targetSupport = strategySupport(strategy, candidateCount)
   return {
     id: strategy.id,
@@ -151,9 +156,26 @@ function describeCandidate(ir: ProxyFlowIR, candidate: StrategyCandidateRef, sta
   return [describeProxySet(ir, candidate.kind, candidate.id)]
 }
 
+function countCandidateRef(ir: ProxyFlowIR, candidate: StrategyCandidateRef, stack: string[]) {
+  if (candidate.kind === 'strategy') return inspectStrategy(ir, candidate.id, stack).candidateCount
+  return countProxySet(ir, candidate.kind, candidate.id)
+}
+
 function describeProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string) {
   const collection = kind === 'source' ? ir.sources : ir.transforms
   return collection.find((item) => item.id === id)?.name ?? id
+}
+
+function countProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string, stack: string[] = []): number {
+  if (kind === 'source') {
+    const source = ir.sources.find((item) => item.id === id)
+    if (!source || source.kind === 'provider' || source.kind === 'imported-config') return 0
+    return source.proxies?.filter((proxy) => proxy.kind !== 'unmodeled' && proxy.protocol !== 'unmodeled').length ?? 0
+  }
+  const transform = ir.transforms.find((item) => item.id === id)
+  if (!transform || stack.includes(id)) return 0
+  if (transform.kind === 'merge') return transform.inputs.reduce((count, input) => count + countProxySet(ir, input.kind, input.id, [...stack, id]), 0)
+  return countProxySet(ir, transform.input.kind, transform.input.id, [...stack, id])
 }
 
 function strategySupport(strategy: StrategyIR, candidateCount: number) {

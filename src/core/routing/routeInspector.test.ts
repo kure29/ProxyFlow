@@ -65,4 +65,17 @@ describe('route inspector', () => {
     expect(result.target?.strategy?.kind).toBe('fallback')
     expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'supported', 'sing-box': 'unsupported' })
   })
+
+  it('does not present an unhydrated subscription as a usable strategy candidate', () => {
+    const ir = basicIr()
+    const emptySourceIr: ProxyFlowIR = {
+      ...ir,
+      sources: ir.sources.map((source) => source.id === 'hk-source'
+        ? { id: source.id, name: source.name, kind: 'subscription' as const, enabled: true, url: 'https://example.com/sub', materialization: { status: 'unavailable' as const } }
+        : source),
+    }
+    const result = inspectRoute(emptySourceIr, { serviceId: 'openai' })
+    expect(result.target?.strategy?.candidateCount).toBe(0)
+    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', 'sing-box': 'unsupported' })
+  })
 })
