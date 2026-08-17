@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.8 - Strategy & Routing Core
-- Current slice: Slice D - Acceptance and round-trip
+- Current slice: Slice E - Diagnostics and compatibility summary
 - Working milestone branch: `autopilot/v0.8`
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
@@ -38,14 +38,14 @@ Updated: 2026-08-17
 
 ## In Progress
 
-- Slice D is complete locally and ready for its checkpoint commit. The V0.8
-  acceptance fixture exercises Strategy, DIRECT, REJECT, and Default Route output
-  in both target compilers; Failover remains explicitly target-specific.
+- Slice E is complete locally and ready for its checkpoint commit. Preview now
+  checks both target compilers and shows per-target Supported, warning, blocked,
+  loading, or unavailable status while preserving target-specific fail-closed output.
 
 ## Next
 
-1. Commit and push the completed Slice D checkpoint.
-2. Add diagnostics and target compatibility summary, then run browser QA and binaries.
+1. Commit and push the completed Slice E checkpoint.
+2. Run official Mihomo and sing-box binary validation where binaries are available.
 3. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
 
 ## Latest Validation
@@ -58,6 +58,9 @@ Updated: 2026-08-17
   and the fresh-tab browser error/warning logs are empty
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
+- Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
+  as Supported in Chinese; sing-box preview generated JSON and fresh-tab logs
+  remained free of errors and warnings
 - Vite initial chunk: ~817.69 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
