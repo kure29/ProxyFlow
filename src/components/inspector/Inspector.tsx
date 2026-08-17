@@ -1,7 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
-  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, Check, ChevronDown, ExternalLink,
+  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ExternalLink,
   ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
+  History,
 } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
@@ -17,6 +18,7 @@ import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, typ
 import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
+import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, type ProcessingExplanation } from '../../core/proxySet'
 import { isStarterProject } from './starterState'
 import {
@@ -51,6 +53,9 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const refresh = useBuilderStore((state) => state.refreshSubscription)
   const parseInput = useBuilderStore((state) => state.parseSubscriptionInput)
   const clearCache = useBuilderStore((state) => state.clearCachedSubscription)
+  const runtimeService = useBuilderStore((state) => state.runtimeService)
+  const projectId = useBuilderStore((state) => state.projectId)
+  const adoptSnapshot = useBuilderStore((state) => state.adoptSubscriptionSnapshot)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [paste, setPaste] = useState(node.data.subscriptionInputKind === 'paste' ? node.data.subscriptionContent ?? '' : '')
   const [nodesOpen, setNodesOpen] = useState(false)
@@ -59,12 +64,43 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const [nodePreviewStatus, setNodePreviewStatus] = useState<'all' | 'issues'>('all')
   const fileRef = useRef<HTMLInputElement>(null)
   const clearCancelRef = useRef<HTMLButtonElement>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [history, setHistory] = useState<RuntimeHistoryEntry[]>([])
+  const [schedule, setSchedule] = useState<RuntimeSchedule | null>(null)
+  const [scheduleInterval, setScheduleInterval] = useState(900)
+  const [serviceMessage, setServiceMessage] = useState<string | null>(null)
   useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
   const localizedSnapshot = snapshot ? localizeSubscriptionSnapshots({ [node.id]: snapshot }, locale)[node.id] : undefined
   const result = localizedSnapshot?.result
   const freshness = snapshot ? snapshotFreshness(snapshot.committedAt) : runtime?.freshness ?? 'fresh'
   const protocols = summarize(result?.proxies.map((proxy) => proxy.protocol) ?? [])
   const regions = summarize(result?.proxies.map((proxy) => proxy.metadata?.region?.code ?? 'UNKNOWN') ?? [])
+  const runtimeProvider = useMemo(() => runtimeService ? new ServerRuntimeProvider(runtimeService, {
+    projectId, sourceId: node.id,
+    sourceName: localizeDataValue(node.data.title, node.data.titleKey, locale),
+  }) : null, [locale, node.data.title, node.data.titleKey, node.id, projectId, runtimeService])
+  useEffect(() => {
+    if (!runtimeProvider) { setHistory([]); setSchedule(null); return }
+    void Promise.all([runtimeProvider.history(), runtimeProvider.getSchedule()]).then(([nextHistory, nextSchedule]) => {
+      setHistory(nextHistory); setSchedule(nextSchedule); if (nextSchedule) setScheduleInterval(nextSchedule.intervalSeconds)
+    }).catch(() => setServiceMessage(t('runtime.sourceUnavailable')))
+  }, [runtimeProvider, t])
+  const toggleSchedule = async () => {
+    if (!runtimeProvider) return
+    try {
+      if (schedule?.enabled) { await runtimeProvider.clearSchedule(); setSchedule(null) }
+      else { const next = await runtimeProvider.saveSchedule(node.data.subscriptionUrl ?? '', scheduleInterval, true); setSchedule(next) }
+      setServiceMessage(null)
+    } catch { setServiceMessage(t('runtime.sourceUnavailable')) }
+  }
+  const restore = async (snapshotId: string) => {
+    if (!runtimeProvider) return
+    try {
+      const restored = await runtimeProvider.restoreSnapshot(snapshotId)
+      await adoptSnapshot(node.id, restored)
+      setServiceMessage(null)
+    } catch { setServiceMessage(t('runtime.sourceUnavailable')) }
+  }
   const onFile = async (file?: File) => {
     if (!file) return
     await parseInput(node.id, await file.text(), 'file', file.name)
@@ -83,6 +119,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     {protocols.length > 0 && <SummaryList label={t('inspector.protocols')} items={protocols} />}
     {regions.length > 0 && <SummaryList label={t('inspector.regions')} items={regions.map(([code, count]) => [`${code} · ${regionLabel(code, locale)}`, count])} />}
     <div className="subscription-actions"><button className="inspector-secondary-button" onClick={() => void refresh(node.id)}><RefreshCw className={runtime?.refreshStatus === 'loading' ? 'spin' : ''} size={14} /> {runtime?.refreshStatus === 'failed' ? t('inspector.retry') : t('inspector.refresh')}</button><button className="inspector-secondary-button" onClick={() => setPasteOpen((open) => !open)}><ClipboardPaste size={14} /> {t('inspector.pasteContent')}</button><button className="inspector-secondary-button" onClick={() => fileRef.current?.click()}><FileUp size={14} /> {t('inspector.importFile')}</button><button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button><button className="inspector-secondary-button" disabled={!runtime?.latestDiff} onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /> {t('inspector.viewChanges')}</button><button className="inspector-secondary-button" disabled={!snapshot || snapshot.inputKind !== 'url'} onClick={() => setClearConfirmOpen(true)}><Database size={14} /> {t('inspector.clearCachedSnapshot')}</button></div>
+    {runtimeProvider && <section className="runtime-source-panel"><div className="runtime-source-heading"><div><span>{t('runtime.sourceKicker')}</span><strong>{t('runtime.sourceTitle')}</strong></div><span>{schedule?.enabled ? t('runtime.scheduleOn') : t('runtime.scheduleOff')}</span></div><div className="runtime-source-actions"><button className="inspector-secondary-button" onClick={() => setHistoryOpen((value) => !value)}><History size={14} /> {t('runtime.history')}</button><button className="inspector-secondary-button" onClick={() => void toggleSchedule()}><CalendarClock size={14} /> {schedule?.enabled ? t('runtime.disableSchedule') : t('runtime.enableSchedule')}</button></div><label className="runtime-source-interval">{t('runtime.interval')}<select value={scheduleInterval} onChange={(event) => setScheduleInterval(Number(event.target.value))}><option value={300}>{t('runtime.interval5m')}</option><option value={900}>{t('runtime.interval15m')}</option><option value={3600}>{t('runtime.interval1h')}</option></select></label>{serviceMessage && <small className="runtime-source-error">{serviceMessage}</small>}{historyOpen && <div className="runtime-history-list">{history.length === 0 ? <small>{t('runtime.noHistory')}</small> : history.slice(0, 10).map((entry) => <div key={entry.snapshotId}><span><strong>{entry.readyCount} / {entry.detectedCount}</strong><small>{formatDateShort(entry.committedAt, formatDateTime)}</small></span><button className="icon-button" onClick={() => void restore(entry.snapshotId)} aria-label={t('runtime.restore')} title={t('runtime.restore')}><History size={13} /></button></div>)}</div>}</section>}
     <input ref={fileRef} className="visually-hidden" type="file" accept=".txt,.yaml,.yml,text/plain,text/yaml,application/yaml" onChange={(event) => { void onFile(event.target.files?.[0]); event.target.value = '' }} />
     {pasteOpen && <div className="subscription-paste"><textarea value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => { void parseInput(node.id, paste, 'paste'); setPasteOpen(false) }}>{t('inspector.parseImport')}</button></div>}
     <p className="cache-privacy-note">{t('inspector.cachePrivacy')}</p>
@@ -134,6 +171,10 @@ function formatSourceTimestamp(value: string | undefined, format: ReturnType<typ
   return format(value, {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   })
+}
+
+function formatDateShort(value: string, format: ReturnType<typeof useI18n>['formatDateTime']) {
+  return format(value, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 function formatSnapshotAge(value: string | undefined, t: ReturnType<typeof useI18n>['t']) {

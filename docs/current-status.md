@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.10 - Runtime Service MVP
-- Current slice: Runtime Provider and security architecture audit
+- Current slice: Runtime Service core checkpoint and hydration determinism
 - Working milestone branch: `autopilot/v0.10`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - V0.9 milestone merge: `a8fc4452d53b8a6515537b66690b7fa2c109451b` (PR #12)
@@ -67,29 +67,36 @@ Updated: 2026-08-17
   inputs fail closed instead of matching after partial parsing.
 - V0.9 milestone PR #12 passed its final CI and scope review and merged into
   `autopilot/v1`; `main` remains unchanged.
+- V0.10 Runtime Service core now includes the shared Server Runtime Provider,
+  SQLite active/LKG and bounded history repository, authenticated fetch
+  gateway, scheduled refresh, explicit empty confirmation, restore, schedule
+  endpoints, and browser connection controls. Local Mode remains independent.
+- Subscription hydration now has a project-scoped async barrier: network
+  refreshes wait for embedded snapshot hydration, stale barriers are replaced
+  safely on rehydrate, and project changes cannot continue an old refresh.
+  The regression test covers the previously observed downstream graph race.
 
 ## In Progress
 
-- V0.10 starts from the merged V0.9 integration baseline. The first slice will
-  define the shared Runtime Provider boundary and the self-hosted service's
-  security model before implementation.
+- V0.10 core and hydration determinism are implemented on `autopilot/v0.10`.
+  The remaining milestone work is checkpoint scope review, explicit staging,
+  and integration through the `autopilot/v1` milestone PR.
 
 ## Next
 
-1. Create `autopilot/v0.10` from integration merge `a8fc445`.
-2. Audit the existing browser subscription runtime boundaries and write a short
-   Runtime Provider and Runtime Service security ADR.
-3. Implement the optional single-user service in bounded, security-first slices.
+1. Commit the reviewed V0.10 checkpoint and push `autopilot/v0.10`.
+2. Create the milestone PR to `autopilot/v1`, wait for CI, and review scope.
+3. Merge only into `autopilot/v1`, then begin the V1.0 RC stabilization pass.
 
 ## Latest Validation
 
-- `npm test`: 381/381 passed (35 test files), repeated three consecutive times
+- `npm test`: 395/395 passed (38 test files), repeated three consecutive times
 - `npm run build`: passed
+- `npm run runtime:build`: passed (Node 22 SSR service bundle)
 - `git diff --check`: passed
-- Browser QA: Chrome cold English and Chinese library/Inspector flows passed;
-  Processing and Strategy explanations, Basic/Advanced groups, blank-project
-  starter actions, and post-add state render correctly; fresh-tab browser
-  error/warning logs are empty
+- Browser QA: in-app browser cold English and Chinese Local Mode/Runtime
+  Service settings panel flows passed; fresh-tab browser error/warning logs are
+  empty. Connected Provider behavior is covered by client and service tests.
 - Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
   Default Route, and target-specific Failover cases passed
 - Slice E browser QA: cold blank project preview showed both Mihomo and sing-box
@@ -106,7 +113,7 @@ Updated: 2026-08-17
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 844.22 kB, known `>500 kB` warning
+- Vite initial chunk: 859.60 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -115,17 +122,20 @@ Updated: 2026-08-17
 
 ## Known Non-Blockers
 
-- A prior subscription hydration timing fluctuation was not reproduced in three
-  consecutive suites or the integration validation. It remains a V1.0 stability audit item.
+- Subscription hydration timing fluctuation was fixed with a deterministic
+  project-scoped barrier and regression coverage; the full suite passed three
+  consecutive times after the fix.
 - A duplicate `strategy` key and transient i18n HMR error appeared only in an
   earlier hot-reload session; neither reproduced in a fresh cold browser tab.
 - The initial Vite bundle warning remains a V1.0 performance task.
 - TopBar and Preview version copy still reflects V0.6 and is deferred to RC consistency work.
+- Node's experimental `node:sqlite` warning appears in Runtime Service tests;
+  it is expected for the Node 22 MVP prerequisite and is not emitted by the browser.
 
 ## Deferred
 
 - Advanced Route Inspector semantics for external Rule Set/Geo/ASN sources: V1.x
-- Optional self-hosted Runtime Service: V0.10
+- Optional self-hosted Runtime Service: V0.10 (current milestone)
 - Third output target and broad protocol expansion: V1.x
 - Public backend deployment, multi-user SaaS, billing, plugins, AI, cloud sync: out of scope
 
@@ -138,5 +148,6 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `a8fc445` on `autopilot/v1` (V0.9 milestone merge)
-- `autopilot/v1` is clean after the V0.9 milestone merge.
+- `50f948a` on `autopilot/v0.10` (V0.9 integration baseline)
+- The V0.10 working tree contains the uncommitted milestone checkpoint and is
+  ready for explicit staging after final scope review.

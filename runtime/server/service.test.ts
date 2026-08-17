@@ -1,0 +1,173 @@
+import { describe, expect, it, vi } from 'vitest'
+import { SubscriptionFetchError } from '../../src/core/subscription/errors'
+import { parseSubscription } from '../../src/core/subscription/parseSubscription'
+import { createSnapshotCandidate } from '../../src/core/subscription/snapshot'
+import type { SourceFetchResult, SourceFetcher } from '../../src/core/subscription/sourceFetcher'
+import { SqliteRuntimeRepository } from './repository'
+import { createRuntimeService } from './service'
+import { ServerSourceFetcher } from './sourceFetcher'
+import { isPublicAddress } from './ssrf'
+
+const token = 'fictional-runtime-token-123456789'
+const origin = 'http://localhost:5173'
+
+describe('Runtime Service', () => {
+  it('requires authentication and serves an uncredentialed health check', async () => {
+    const service = createTestService(sequenceFetcher(yamlBody('Ready', '198.51.100.10')))
+    await service.listen(0)
+    const base = address(service)
+    await expect(fetch(`${base}/health`).then((response) => response.json())).resolves.toEqual(expect.objectContaining({ ok: true, runtimeStorageSchema: 1 }))
+    const unauthorized = await fetch(`${base}/api/v1/subscriptions/fetch`, { method: 'POST', body: '{}' })
+    expect(unauthorized.status).toBe(401)
+    await service.close()
+  })
+
+  it('fetches, stores bounded history, preserves LKG, and confirms empty results explicitly', async () => {
+    const fetcher = sequenceFetcher(yamlBody('Ready', '198.51.100.10'), 'proxies: []', new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'fictional network failure'))
+    const service = createTestService(fetcher)
+    await service.listen(0)
+    const base = address(service)
+    const request = () => fetch(`${base}/api/v1/subscriptions/fetch`, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Fictional Source', url: 'https://example.com/sub' }),
+    })
+
+    const first = await request()
+    expect(first.status).toBe(200)
+    const firstBody = await first.json() as { snapshot: { snapshotId: string } }
+    expect(firstBody.snapshot.snapshotId).toContain('snapshot-')
+
+    const empty = await request()
+    expect(empty.status).toBe(200)
+    expect(await empty.json()).toEqual(expect.objectContaining({ outcome: 'empty-confirmation-required' }))
+    const historyBeforeConfirm = await fetch(`${base}/api/v1/projects/project-a/sources/source-a/history`, { headers: authHeaders() })
+    expect((await historyBeforeConfirm.json()).history).toHaveLength(1)
+
+    const confirmed = await fetch(`${base}/api/v1/projects/project-a/sources/source-a/confirm-empty`, { method: 'POST', headers: authHeaders() })
+    expect(confirmed.status).toBe(200)
+    const historyAfterConfirm = await fetch(`${base}/api/v1/projects/project-a/sources/source-a/history`, { headers: authHeaders() })
+    expect((await historyAfterConfirm.json()).history).toHaveLength(2)
+
+    const failed = await request()
+    expect(failed.status).toBe(502)
+    const active = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })
+    expect(active?.quality).toBe('empty')
+    await service.close()
+  })
+
+  it('restores a history entry as a new active snapshot and clears history without deleting active state', async () => {
+    const service = createTestService(sequenceFetcher(yamlBody('First', '198.51.100.10'), yamlBody('Second', '203.0.113.10')))
+    await service.listen(0)
+    const base = address(service)
+    const request = (headers = authHeaders()) => fetch(`${base}/api/v1/subscriptions/fetch`, {
+      method: 'POST', headers, body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Fictional Source', url: 'https://example.com/sub' }),
+    })
+    await request()
+    const second = await request()
+    expect(second.status).toBe(200)
+    const historyResponse = await fetch(`${base}/api/v1/projects/project-a/sources/source-a/history`, { headers: authHeaders() })
+    const history = (await historyResponse.json()).history as Array<{ snapshotId: string }>
+    expect(history.length).toBe(2)
+    const restored = await fetch(`${base}/api/v1/projects/project-a/sources/source-a/history/restore`, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ snapshotId: history[1].snapshotId }) })
+    expect(restored.status).toBe(200)
+    const restoredBody = await restored.json() as { snapshot: { snapshotId: string } }
+    expect(restoredBody.snapshot.snapshotId).toContain('-restore-')
+    await fetch(`${base}/api/v1/projects/project-a/sources/source-a/history`, { method: 'DELETE', headers: authHeaders() })
+    const afterClear = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })
+    expect(afterClear).toBeTruthy()
+    await service.close()
+  })
+
+  it('runs due schedules through the same refresh/LKG pipeline', async () => {
+    let now = new Date('2026-08-17T00:00:00.000Z')
+    const fetcher = sequenceFetcher(yamlBody('Scheduled', '198.51.100.12'), new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'fictional scheduler failure'))
+    const repository = new SqliteRuntimeRepository(':memory:')
+    const service = createRuntimeService({ token, allowedOrigin: origin, fetcher, repository, now: () => now, schedulerIntervalMs: 60_000 })
+    await repository.upsertSchedule({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Scheduled', url: 'https://example.com/sub', intervalSeconds: 60, enabled: true, nextRunAt: '2026-08-16T23:59:00.000Z' })
+    await service.runDueSchedules()
+    expect(fetcher.fetch).toHaveBeenCalledTimes(1)
+    expect((await repository.listHistory('project-a', 'source-a'))).toHaveLength(1)
+    expect((await repository.getSchedule('project-a', 'source-a'))?.lastRunAt).toBe(now.toISOString())
+    const beforeFailure = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })
+    now = new Date('2026-08-17T00:01:00.000Z')
+    await service.runDueSchedules()
+    expect(fetcher.fetch).toHaveBeenCalledTimes(2)
+    expect(await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })).toEqual(beforeFailure)
+    await service.close()
+  })
+
+  it('keeps only the configured bounded history window', async () => {
+    const repository = new SqliteRuntimeRepository(':memory:', 2)
+    const service = createRuntimeService({ token, repository, fetcher: sequenceFetcher(yamlBody('One', '198.51.100.1')), schedulerIntervalMs: 60_000 })
+    const scope = { projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: 'fictional' }
+    for (let index = 0; index < 3; index += 1) {
+      const snapshot = await createSnapshotCandidate({
+        sourceId: 'source-a', inputKind: 'url', sourceConfigFingerprint: 'fictional', content: yamlBody(`Node ${index}`, '198.51.100.1'),
+        result: parseSubscription(yamlBody(`Node ${index}`, '198.51.100.1'), { sourceId: 'source-a' }),
+        fetchedAt: `2026-08-17T00:0${index}:00.000Z`, parsedAt: `2026-08-17T00:0${index}:00.000Z`,
+      })
+      await repository.writeActive(scope, { ...snapshot, committedAt: `2026-08-17T00:0${index}:00.000Z`, quality: 'usable' })
+    }
+    expect(await repository.listHistory('project-a', 'source-a')).toHaveLength(2)
+    await service.close()
+  })
+
+  it('exposes schedule configuration without putting credentials in the response', async () => {
+    const service = createTestService(sequenceFetcher(yamlBody('Ready', '198.51.100.10')))
+    await service.listen(0)
+    const base = address(service)
+    const path = `${base}/api/v1/projects/project-a/sources/source-a/schedule`
+    const saved = await fetch(path, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ sourceName: 'Source', url: 'https://example.com/sub?token=fictional-secret', intervalSeconds: 300, enabled: true }) })
+    expect(saved.status).toBe(200)
+    const savedBody = await saved.json() as { schedule: { url: string; intervalSeconds: number } }
+    expect(savedBody.schedule).toEqual(expect.objectContaining({ intervalSeconds: 300, url: 'https://example.com/sub?token=fictional-secret' }))
+    const read = await fetch(path, { headers: authHeaders() })
+    expect((await read.json()).schedule.enabled).toBe(true)
+    await fetch(path, { method: 'DELETE', headers: authHeaders() })
+    expect((await (await fetch(path, { headers: authHeaders() })).json()).schedule).toBeNull()
+    await service.close()
+  })
+
+  it('rejects disallowed browser origins and private destination addresses', async () => {
+    const service = createTestService(sequenceFetcher(yamlBody('Ready', '198.51.100.10')))
+    await service.listen(0)
+    const base = address(service)
+    const blocked = await fetch(`${base}/api/v1/subscriptions/fetch`, { method: 'POST', headers: { ...authHeaders(), Origin: 'https://evil.example' }, body: '{}' })
+    expect(blocked.status).toBe(403)
+    await expect(new ServerSourceFetcher({ resolveHost: async () => ['127.0.0.1'] }).fetch('https://example.com/sub')).rejects.toMatchObject({ code: 'SUBSCRIPTION_INVALID_URL' })
+    expect(isPublicAddress('127.0.0.1')).toBe(false)
+    expect(isPublicAddress('192.168.1.1')).toBe(false)
+    expect(isPublicAddress('2001:db8::1')).toBe(false)
+    expect(isPublicAddress('8.8.8.8')).toBe(true)
+    await service.close()
+  })
+})
+
+function createTestService(fetcher: SourceFetcher) {
+  return createRuntimeService({ token, allowedOrigin: origin, fetcher, repository: new SqliteRuntimeRepository(':memory:'), schedulerIntervalMs: 60_000 })
+}
+
+function sequenceFetcher(...values: Array<string | Error>): SourceFetcher {
+  let index = 0
+  return { fetch: vi.fn(async (): Promise<SourceFetchResult> => {
+    const value = values[Math.min(index++, values.length - 1)]
+    if (value instanceof Error) throw value
+    return { text: value, status: 200, contentType: 'text/plain', responseBytes: value.length, durationMs: 1 }
+  }) }
+}
+
+function yamlBody(name: string, server: string) {
+  return `proxies:\n  - name: ${name}\n    type: socks5\n    server: ${server}\n    port: 1080`
+}
+
+function authHeaders() { return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: origin } }
+
+function address(service: ReturnType<typeof createRuntimeService>) {
+  const value = service.server.address()
+  if (!value || typeof value === 'string') throw new Error('service is not listening')
+  return `http://127.0.0.1:${value.port}`
+}
+
+async function fingerprint(url: string) {
+  const { sourceConfigFingerprint } = await import('../../src/core/subscription/hash')
+  return sourceConfigFingerprint('url', url)
+}
