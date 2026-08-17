@@ -13,7 +13,7 @@ Updated: 2026-08-17
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V0.8 - Strategy & Routing Core
-- Current slice: Slice C - Strategy UX
+- Current slice: Slice D - Acceptance and round-trip
 - Working milestone branch: `autopilot/v0.8`
 - Original Slice A branch: `feat/v0.8-strategy-routing`
 - Original Slice A commit: `bad3e5ab37a8958026cb47f89ac6720f3edf2cd5`
@@ -30,30 +30,34 @@ Updated: 2026-08-17
   Domain, CIDR, and Port matchers now share one Inspector; ASN, GeoIP, GeoSite,
   Rule Set, and numeric priority remain Advanced. Visible rule order is deterministic
   and can be moved without changing Project Schema 2.
+- Slice C refined Strategy UX: Manual, Auto, and Failover are Basic entries;
+  Load Balance is Advanced and target-specific, with candidate and empty-source
+  explanations. Checkpoint `659591f` is pushed to `origin/autopilot/v0.8`.
 - Slice A integrated onto the Product Direction main baseline without rewriting the
   original branch
 
 ## In Progress
 
-- Slice C is complete locally and ready for its checkpoint commit. Manual, Auto,
-  and Failover remain the Basic strategy entries; Load Balance is Advanced and
-  target-specific, with candidate source and empty-candidate explanations.
+- Slice D is complete locally and ready for its checkpoint commit. The V0.8
+  acceptance fixture exercises Strategy, DIRECT, REJECT, and Default Route output
+  in both target compilers; Failover remains explicitly target-specific.
 
 ## Next
 
-1. Commit and push the completed Slice C checkpoint.
-2. Complete Strategy/DIRECT/REJECT routing acceptance fixtures and Project round-trip.
-3. Add diagnostics and target compatibility summary, then run browser QA and binaries.
-4. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
+1. Commit and push the completed Slice D checkpoint.
+2. Add diagnostics and target compatibility summary, then run browser QA and binaries.
+3. Open `autopilot/v0.8 -> autopilot/v1`, review it, and merge only after all gates pass.
 
 ## Latest Validation
 
-- `npm test`: 366/366 passed after Slice B
+- `npm test`: 369/369 passed after Slice D acceptance fixtures
 - `npm run build`: passed
 - `git diff --check`: passed
 - Browser QA: cold English and Chinese library/Inspector flows passed; Basic and
   Advanced strategy groups render correctly, empty candidates are explained,
   and the fresh-tab browser error/warning logs are empty
+- Slice D acceptance: Graph -> IR -> Mihomo/sing-box Strategy, DIRECT, REJECT,
+  Default Route, and target-specific Failover cases passed
 - Vite initial chunk: ~817.69 kB, known `>500 kB` warning
 - Original Slice A PR #10: Draft, CI green, not merged
 
@@ -84,5 +88,5 @@ Updated: 2026-08-17
 
 ## Last Checkpoint
 
-- `0fb00f3` on `autopilot/v1`
-- Worktree was clean before these status files were added.
+- `659591f` on `autopilot/v0.8` (Slice C)
+- Slice D acceptance files are the current uncommitted checkpoint.
