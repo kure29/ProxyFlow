@@ -13,8 +13,8 @@ type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
 type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
-  mihomo: { label: 'Mihomo', badge: 'M', icon: undefined, descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
-  'sing-box': { label: 'sing-box', badge: undefined, icon: '/third-party/sing-box/icon.svg', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
+  mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
+  'sing-box': { label: 'sing-box', icon: '/third-party/sing-box/icon.svg', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
 } as const
 
 export function PreviewModal() {
@@ -104,7 +104,7 @@ export function PreviewModal() {
       <div className="preview-body">
         <aside>
           <span>{t('preview.mode')}</span>
-          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b>{targetMeta[target].icon ? <img src={targetMeta[target].icon} alt="" /> : targetMeta[target].badge}</b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
+          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
