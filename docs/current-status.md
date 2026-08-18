@@ -13,10 +13,11 @@ Updated: 2026-08-18
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V1.0 - Stable Workflow (RC)
-- Current slice: V1.0 RC2 Client-first final validation
+- Current slice: V1.0 RC2 Client-first user acceptance
 - RC branch: `autopilot/v1.0-rc`
 - Working RC2 branch: `autopilot/rc2-client-first`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
+- RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - V0.9 milestone merge: `a8fc4452d53b8a6515537b66690b7fa2c109451b` (PR #12)
 - V0.10 milestone merge: `ab50820fd6e0434fbbfeffb5b83503e0da94cfac` (PR #13)
@@ -110,13 +111,13 @@ Updated: 2026-08-18
 
 ## In Progress
 
-- V1.0 RC2 final validation is in progress on `autopilot/rc2-client-first`.
+- Draft PR #14 contains the RC2 candidate and awaits user acceptance.
 
 ## Next
 
-1. Run the final three-pass test gate, builds, browser QA, and binary validation.
-2. Integrate RC2 into `autopilot/v1.0-rc` and update Draft PR #14.
-3. Do not merge the RC PR, tag `v1.0.0`, or create a formal release.
+1. Run the documented RC2 user-acceptance workflow.
+2. Keep PR #14 Draft and do not merge it without explicit user approval.
+3. Do not tag `v1.0.0` or create a formal release.
 
 ## Latest Validation
 
@@ -207,5 +208,5 @@ Updated: 2026-08-18
 
 ## Last Checkpoint
 
-- `955e1eb` on `autopilot/rc2-client-first` (RC2 compatibility hardening)
-- `autopilot/v1.0-rc` remains the Draft PR #14 head until final RC2 integration.
+- `a33ae2c` on `autopilot/rc2-client-first` (RC2 implementation and release prep)
+- `autopilot/v1.0-rc` contains the RC2 checkpoint and remains Draft PR #14.
