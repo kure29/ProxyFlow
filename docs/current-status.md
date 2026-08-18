@@ -13,9 +13,10 @@ Updated: 2026-08-18
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V1.0 - Stable Workflow (RC)
-- Current slice: V1.0 RC stabilization
+- Current slice: V1.0 RC2 Client-first final validation
 - RC branch: `autopilot/v1.0-rc`
-- Working milestone branch: `autopilot/v0.10`
+- Working RC2 branch: `autopilot/rc2-client-first`
+- RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
 - V0.9 milestone merge: `a8fc4452d53b8a6515537b66690b7fa2c109451b` (PR #12)
 - V0.10 milestone merge: `ab50820fd6e0434fbbfeffb5b83503e0da94cfac` (PR #13)
@@ -90,25 +91,44 @@ Updated: 2026-08-18
   IPv6, Fake-IP/redir-host DNS, TUN DNS hijack, domain sniffing, selection
   persistence, unified delay, and concurrent TCP dialing. Invalid imported
   profiles fail closed; sing-box remains unchanged and Project Schema stays 2.
+- V1.0 RC2 adds a shared Target Capability Registry and backward-compatible
+  Primary Target metadata. New Projects choose Mihomo or sing-box before Source;
+  legacy Projects infer a sole supported Output or require an explicit choice
+  without deleting zero/multiple Output graphs.
+- Workspace is now the default structured product surface for Sources, Proxies,
+  Processing, Strategies, Routing, DNS / Advanced, Inspect, and Export. Visual
+  Flow remains an on-demand view over the same Project and Graph.
+- Primary Target switching is non-destructive. Source endpoints, Processing,
+  Routing, incompatible Strategies, and Mihomo target-native Output Profile data
+  remain available when sing-box is selected and return when switching back.
+- Export now compiles Mihomo and sing-box independently. A secondary Target
+  blocker is visible with diagnostic codes but does not block a valid Primary
+  Target export.
+- Visual Flow and Preview are lazy-loaded. The previous single `922.00 kB`
+  application chunk is split; the largest current chunk is `425.67 kB`, with
+  Visual Flow `19.99 kB` and Preview `9.17 kB` loaded on demand.
 
 ## In Progress
 
-- V1.0 RC stabilization is in progress on `autopilot/v1.0-rc`: version
-  consistency, migration proof, performance measurements, user acceptance
-  documentation, and final Local/Runtime QA.
+- V1.0 RC2 final validation is in progress on `autopilot/rc2-client-first`.
 
 ## Next
 
-1. Complete RC consistency, migration, performance, and acceptance checks.
-2. Create a Draft PR from `autopilot/v1.0-rc` to `main` for user acceptance.
+1. Run the final three-pass test gate, builds, browser QA, and binary validation.
+2. Integrate RC2 into `autopilot/v1.0-rc` and update Draft PR #14.
 3. Do not merge the RC PR, tag `v1.0.0`, or create a formal release.
 
 ## Latest Validation
 
-- `npm test`: 409/409 passed (38 test files)
+- `npm test`: 440/440 passed (44 test files)
 - `npm run build`: passed
 - `npm run runtime:build`: passed (Node 22 SSR service bundle)
 - `git diff --check`: passed
+- RC2 browser QA: Workspace is the default in Chinese and English; Mihomo and
+  sing-box new-project choices, structured Processing/Strategy/Routing edits,
+  independent Export states, non-destructive Target switching, lazy Preview,
+  desktop Visual Flow, and 390px Workspace/Target/Export layouts passed. Cold
+  reload preserved the Project and produced no new browser error or warning.
 - Browser QA: pasted fictional URI and Mihomo YAML imports passed; region
   selection survived outside click and reload; Routing service selection
   expanded/collapsed; enlarged service and Output client text and icon
@@ -125,7 +145,7 @@ Updated: 2026-08-18
   remained free of errors and warnings
 - Official binary validation (fictional fixtures, no network connections):
   Mihomo Meta `v1.19.30` Darwin arm64 (`sha256:2c7f3a7904fa1cee291e124123e630e7b1ebd13765dd9bf26c0a28432004d9f4`)
-  accepted the basic routing and Failover YAML configs with `-t`; sing-box
+  accepted the current Basic, Desktop TUN, and Failover YAML configs with `-t`; sing-box
   `v1.13.18` Darwin arm64 (`sha256:9fbc05946b584423457a2778035e0cee2d9b239a4af5ae1932d9b79991149107`)
   accepted the basic routing JSON with `check`. The sing-box Failover fixture
   remains intentionally blocked by `SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED`.
@@ -134,13 +154,12 @@ Updated: 2026-08-18
 - V0.9 browser QA: cold Chinese query for `China Mainland` explained a matched
   DIRECT rule; English switch showed Route Inspector and Matched rule copy;
   fresh console had no error or warning entries.
-- Vite initial chunk: 877.87 kB, known `>500 kB` warning
+- RC1 initial chunk baseline: `859.60 kB`. Before RC2 hardening the application
+  chunk reached `922.00 kB`; after safe lazy loading the largest chunk is
+  `425.67 kB` and the Vite `>500 kB` warning is no longer emitted.
 - Mihomo Output Profile lowering is target-specific; Desktop TUN requires an
   enabled DNS node and Fake-IP mode.
-- Current Mihomo Output Profile binary smoke was not run because no local
-  `mihomo` binary was available; previous representative validation remains
-  recorded above.
-- Package candidate: `1.0.0-rc.1`; Project Schema `2`; Runtime Storage Schema `1`
+- Package candidate: `1.0.0-rc.2`; Project Schema `2`; Runtime Storage Schema `1`
 - Original Slice A PR #10: Draft, CI green, not merged
 
 ## Known Blockers
@@ -152,10 +171,9 @@ Updated: 2026-08-18
 - Subscription hydration timing fluctuation was fixed with a deterministic
   project-scoped barrier and regression coverage; the full suite passed three
   consecutive times after the fix.
-- A duplicate `strategy` key and transient i18n HMR error appeared only in an
-  earlier hot-reload session; neither reproduced in a fresh cold browser tab.
-- The initial Vite bundle warning remains a V1.0 performance task.
-- TopBar, Preview, and starter recovery copy now use the `V1.0 RC` label.
+- A transient i18n Provider error can appear only while `messages.ts` is replaced
+  by Vite HMR; it does not reproduce after a cold reload or in production build.
+- TopBar, Preview, and starter recovery copy use the `V1.0 RC2` label.
 - Node's experimental `node:sqlite` warning appears in Runtime Service tests;
   it is expected for the Node 22 MVP prerequisite and is not emitted by the browser.
 
@@ -168,6 +186,8 @@ Updated: 2026-08-18
 
 ## Open Pull Requests
 
+- PR #14: `autopilot/v1.0-rc -> main`, Draft RC user-acceptance candidate. Keep
+  Draft and do not merge it autonomously.
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
 - PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
@@ -187,5 +207,5 @@ Updated: 2026-08-18
 
 ## Last Checkpoint
 
-- `ab50820` on `autopilot/v1` (V0.10 milestone merge)
-- `autopilot/v1.0-rc` starts from the clean V0.10 integration baseline.
+- `955e1eb` on `autopilot/rc2-client-first` (RC2 compatibility hardening)
+- `autopilot/v1.0-rc` remains the Draft PR #14 head until final RC2 integration.

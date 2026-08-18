@@ -1,6 +1,6 @@
 # ProxyFlow
 
-ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排平台。用户通过可视化流程组织订阅输入、节点处理、策略、分流、检查与导出，再由独立 Compiler 生成目标配置。
+ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排平台。用户先选择主要使用的客户端，再通过结构化 Workspace 组织订阅输入、节点处理、策略、分流、检查与导出；可视流程保留为同一 Project 的拓扑与高级编辑视图。
 
 > 你决定流量怎么走，ProxyFlow 负责配置怎么写。
 
@@ -8,7 +8,7 @@ ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排�
 
 当前稳定版本是 ProxyFlow v0.7.0 Subscription Lifecycle。ProxyFlow 可以在浏览器本地读取 Subscription URL、粘贴内容或文件，处理真实代理节点，并由同一份 Project 生成 Mihomo YAML 或 sing-box JSON。
 
-当前候选版本是 ProxyFlow 1.0.0-rc.1，尚未正式发布；RC 验收范围见 [V1.0 User Acceptance](docs/v1-user-acceptance.md)。
+当前候选版本是 ProxyFlow 1.0.0-rc.2，尚未正式发布；RC 验收范围见 [V1.0 User Acceptance](docs/v1-user-acceptance.md)。
 
 订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
 
@@ -82,6 +82,8 @@ ProxyFlow 的固定用户流程是：
 输入 → 处理 → 策略 → 分流 → 检查 → 导出
 ```
 
+RC2 采用 Client-first、Capability-driven、Hybrid Workspace 产品模型。新 Project 先选择 Mihomo 或 sing-box 作为 Primary Target；Primary Target 决定默认可创建能力和默认导出，但不删除其它 Target 暂时无法表达的数据。Workspace 是默认入口，Visual Flow 是同一 Project 的拓扑与高级编辑视图，Secondary Target 的失败不会阻止可用的 Primary Target 导出。
+
 - [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
 - [V0.8 Product Scope](docs/v0.8-product-scope.md)：Strategy & Routing Core 的冻结范围、验收流程和实施 slices。
 - [Runtime Service MVP](docs/runtime-service.md)：V0.10 可选、自托管、单用户运行时的启动与安全边界。
@@ -92,7 +94,7 @@ ProxyFlow 的固定用户流程是：
 - **V0.8 - Strategy & Routing Core**：完成订阅、处理、基础策略、基础分流和双目标导出的普通用户闭环。
 - **V0.9 - Explain & Simplify**：解释命中、排除、兼容性和最终流向，并简化 Basic / Advanced 体验。
 - **V0.10 - Runtime Service MVP**：增加可选、自托管的订阅抓取、定时刷新和有限快照历史。
-- **V1.0 - Stable Workflow**：形成稳定、可解释、可迁移、可验证的完整工作流。
+- **V1.0 - Stable Workflow**：形成稳定、Client-first、可解释、可迁移、可验证的完整工作流。
 
 Roadmap 描述产品方向，不表示这些版本已经发布。V0.8 的完整 Route Inspector、Runtime Service 和第三个正式导出目标均不在当前发布能力中。
 

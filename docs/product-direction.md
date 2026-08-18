@@ -10,7 +10,7 @@ This document defines the product boundary used by maintainers, contributors, an
 
 ProxyFlow is not a proxy client. It does not provide TUN, inbound listeners, system proxy integration, VPN connectivity, or real-time traffic forwarding.
 
-ProxyFlow is also not a one-shot subscription converter. Its core is a persistent Project, a visual workflow, a target-neutral Universal IR, semantic validation, and independent target compilers.
+ProxyFlow is also not a one-shot subscription converter. Its core is a persistent Project, a client-aware structured Workspace, an optional Visual Flow, shared semantic validation, and independent target compilers.
 
 ## Core User Workflow
 
@@ -33,6 +33,38 @@ Every user-facing capability must belong to one of these stages:
 - Output: Compile and export Mihomo or sing-box configuration.
 
 Subscription lifecycle management supports this workflow, but it is not the product's sole purpose. Target compilation is a core capability, but compiler terminology should not become the primary user interface.
+
+## Client-first Product Model
+
+New Projects begin by choosing a **Primary Target**: Mihomo or sing-box. The
+Primary Target drives default authoring choices, compatibility guidance, and
+the default export. It does not delete source endpoints, graph nodes, or
+target-native settings that another Target cannot currently express.
+
+Capability declarations are shared product contracts, not display metadata.
+Workspace creation controls, compatibility summaries, validation, and compiler
+behavior must agree. Unsupported semantics remain visible and fail closed.
+
+ProxyFlow keeps multi-target compilation as Primary Target plus additional
+compatibility. A valid Primary Target export remains available when a secondary
+Target is blocked, and each blocker must identify the unsupported semantic.
+
+## Hybrid Workspace
+
+Workspace is the default product surface. Visual Flow is a secondary view for
+topology, complex Processing, Chain, and advanced graph editing. Both operate
+on the same Project and Graph; neither owns hidden semantic state.
+
+```text
+Persistent Project
+      ├── Workspace
+      └── Visual Flow
+```
+
+Core intent continues to represent shared endpoint, processing, strategy, and
+routing semantics. Target-native extensions remain namespaced and inactive
+when another Primary Target is selected. Adding a future Target must extend the
+capability profile and compiler without replacing the Project or shared core.
 
 ## Local Mode
 
@@ -145,7 +177,7 @@ Introduce an optional, self-hosted Runtime Service for a controlled Subscription
 
 ### V1.0 - Stable Workflow
 
-Deliver a stable, explainable, migratable, and verifiable workflow from a real subscription to Mihomo or sing-box output.
+Deliver a stable, client-first, explainable, migratable, and verifiable workflow from a real subscription to Mihomo or sing-box output.
 
 ### V1.x - Selective Expansion
 

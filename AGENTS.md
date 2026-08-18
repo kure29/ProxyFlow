@@ -15,7 +15,7 @@ a second Project, parser, IR, validator, or compiler implementation.
 
 ## Current Objective
 
-The autonomous integration target is ProxyFlow `1.0.0-rc.1`. Work is integrated
+The autonomous integration target is ProxyFlow `1.0.0-rc.2`. Work is integrated
 through `autopilot/v1`; milestone branches target that branch. The final RC is a
 Draft PR to `main` for user acceptance and must not be merged autonomously.
 

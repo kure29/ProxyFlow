@@ -1,115 +1,155 @@
-# ProxyFlow V1.0 RC User Acceptance
+# ProxyFlow V1.0 RC2 User Acceptance
 
-Candidate: `1.0.0-rc.1`
+Candidate: `1.0.0-rc.2`
+
 Status: Draft for user acceptance; not a formal release.
 
-This checklist is written for a normal ProxyFlow user. It verifies the full
-workflow without requiring knowledge of Universal IR, compiler internals, or
-client-specific configuration syntax.
+This checklist follows the ordinary Client-first workflow. It does not require
+knowledge of the Graph, Universal IR, or target configuration syntax.
 
 ## Before You Start
 
-- Use a current desktop browser at 1280px or wider.
+- Use a current desktop browser and one 390px-class mobile viewport.
 - Start Local Mode with `npm install` and `npm run dev`.
-- Use a fictional fixture or a subscription you are authorized to process.
+- Use fictional fixtures or a subscription you are authorized to process.
 - Treat runtime snapshots as sensitive local data. They may contain normalized
   credentials and are not encrypted by ProxyFlow.
 
-## Local Mode Workflow
+## 1. Create Project
 
-### 1. Input
+- Open the project menu and choose New Project.
+- Confirm Target selection appears before Source selection.
+- Confirm the default landing surface is Workspace, not Visual Flow.
 
-- Open the app and confirm the canvas and Inspector load without console errors.
-- Add a Subscription source, Paste node links source, or Configuration file source.
-- Import through a URL, pasted URI links, or a local Mihomo/sing-box configuration file.
-- Confirm the source shows detected and Ready counts, without showing passwords,
-  UUIDs, full proxy URIs, or full URL query tokens in the node preview.
-- Add a second source and confirm each source keeps independent runtime state.
+## 2. Choose Client
 
-### 2. Processing
+- Create one Mihomo Project and one sing-box Project.
+- Confirm the selected client is shown as the Primary Target.
+- Confirm Strategy and Routing creation choices reflect the selected Target.
+- Confirm unsupported choices are disabled or clearly marked instead of being
+  silently approximated.
 
-- Connect a source to Filter, then use a keyword or region filter.
-- Add Rename, Sort, Dedupe, Merge, or Limit when needed.
-- Confirm the Inspector explains input count, output count, and excluded items.
-- Change a source URL and confirm the old runtime snapshot is invalidated while
-  the Project URL remains editable.
+## 3. Add Subscription
 
-### 3. Strategy
+- Add a Subscription URL, paste fictional node links, or import a local
+  Mihomo/sing-box configuration file.
+- Confirm detected, usable, and unsupported counts are visible without exposing
+  passwords, UUIDs, full proxy URIs, or URL query tokens.
+- Add a second Source and confirm each Source keeps independent runtime state.
 
-- Add a Manual strategy and connect one or more processed candidates.
-- Add Auto or Failover and confirm candidate readiness and health-check details
-  are visible in the Inspector.
-- Treat Load Balance as Advanced and target-specific. Unsupported semantics must
-  show a diagnostic instead of silently changing behavior.
-- Add a Proxy Chain only when a multi-hop path is intentional; verify hop order.
+## 4. Review Compatibility
 
-### 4. Routing
+- Open Proxies and review protocol, region, Source, and Primary Target status.
+- Confirm incompatible endpoints remain in the Project.
+- Confirm changing Primary Target does not delete or rewrite Source endpoints.
 
-- Add a Routing Rule and choose a basic Service, Domain, CIDR, or Port matcher.
+## 5. Process Nodes
+
+- Create a Filter and select its Source input in Workspace.
+- Add Rename, Sort, Dedupe, Merge, or Limit as needed.
+- Confirm input changes update the same connections shown in Visual Flow.
+- Confirm undo and redo restore both data and connections.
+
+## 6. Create Strategy
+
+- Create Manual and Auto Strategies and select real candidate inputs.
+- For Mihomo, verify Failover and Advanced Load Balance capability labels.
+- For sing-box, confirm unsupported Strategy creation is blocked while existing
+  incompatible Strategy data remains visible.
+
+## 7. Create Routing
+
+- Add Service, Domain, CIDR, and Port Routing Rules.
 - Assign a Strategy, `DIRECT`, or `REJECT` target.
-- Move two rules and confirm the displayed priority and generated order are
-  deterministic after export/import.
-- Use the Route Inspector with a fictional hostname, IP, port, or service and
-  confirm it explains the matched rule, priority, target, and candidate path.
+- Move two rules using the accessible Move Up/Move Down controls.
+- Confirm visible order and generated order remain deterministic.
 
-### 5. Inspect
+## 8. Inspect
 
-- Open the Inspector for a source, processing block, strategy, and route.
-- Confirm explanations identify failures and recovery actions in plain language.
-- Switch Chinese and English. Labels and diagnostics change language while user
-  names and subscription content remain unchanged.
-- Reload the browser and confirm the Project returns without runtime credentials
-  entering Project Export.
+- Open Source, Processing, Strategy, and Routing editors from Workspace.
+- Use Route Inspector with a fictional hostname, documentation IP, port, or
+  service and confirm it explains the matched rule, target, and candidate path.
+- Confirm export blockers identify the affected semantic and recovery action.
 
-### 6. Output
+## 9. Export Primary Target
 
-- Open Preview and inspect Universal IR only as an optional developer view.
-- Generate both Mihomo YAML and sing-box JSON from the same Project.
-- Confirm a target-specific unsupported feature blocks or warns explicitly; do
-  not accept a silent fallback.
-- Export both configurations and verify the expected file type and stable rule
-  order.
+- Open Export and confirm the Primary Target appears first.
+- Preview and export the Primary Target.
+- Confirm generated output comes from the real compiler and never from a mock or
+  silent fallback.
 
-## Optional Runtime Service
+## 10. Check Secondary Target
 
-Runtime Service is not required for the Local Mode workflow.
+- Review the secondary Target independently.
+- When the secondary Target has blockers, confirm its export is disabled with
+  exact diagnostic codes.
+- Confirm a blocked secondary Target does not block a valid Primary Target.
+
+## 11. Switch Primary Target
+
+- Open the Primary Target switcher and review both compiler results.
+- Switch Mihomo to sing-box and confirm Source, Processing, Strategy, Routing,
+  and target-native settings remain in the Project.
+- Switch back to Mihomo and confirm the prior Mihomo Output Profile returns.
+- Confirm undo and redo include the Primary Target change.
+
+## 12. Visual Flow
+
+- Open Visual Flow and confirm it shows the Workspace edits immediately.
+- Change one existing node in Visual Flow and confirm Workspace reflects it.
+- Confirm Visual Flow remains an advanced topology view, not a second Project.
+
+## 13. Mobile
+
+- At a 390px-class viewport, complete Source review, Strategy editing, Routing,
+  Inspect, Export, and Primary Target switching from Workspace.
+- Confirm controls remain readable and touchable without precise canvas work.
+- Open Visual Flow and confirm the topology overview is available.
+
+## 14. Optional Runtime Service
+
+Runtime Service is not required for Local Mode.
 
 - Build with `npm run runtime:build` on Node 22.5 or newer.
-- Start a local service with a token of at least 16 characters and an exact
-  browser origin.
-- Connect it from the Runtime Service panel and confirm health status.
-- Refresh a URL source through the service and confirm browser CORS no longer
-  blocks the request.
-- Confirm failed refreshes preserve Last Known Good, and valid empty results
-  require explicit confirmation.
-- Enable a schedule, inspect bounded history, restore one snapshot, and clear
-  history. Restore must create a new active snapshot.
-- Disconnect the service. Local Mode, the Project, and local LKG remain usable.
-- Protect or delete the Runtime SQLite file when it is no longer needed.
+- Connect a self-hosted service with a token of at least 16 characters and an
+  exact browser origin.
+- Refresh a URL Source through the service and confirm Last Known Good behavior.
+- Verify scheduled refresh, bounded history, restore, and explicit empty-result
+  confirmation.
+- Disconnect the service and confirm Local Mode remains independently usable.
 
-## Migration And Privacy
+## 15. Save, Reload, And Import
 
-- Import a V0.7 Project Schema 2 file and confirm it opens without a schema bump.
-- Import a legacy Project Schema 1 fixture and confirm the recovery notice names
-  the migration and does not overwrite the original data.
-- Import an unknown schema version and confirm the app fails closed with a
-  recovery action instead of silently discarding the project.
-- Export a Project after using Local Mode and Runtime Service. Confirm runtime
-  snapshots, API tokens, normalized credentials, response bodies, and history
-  are absent from the exported JSON.
+- Reload the browser and confirm Primary Target, graph edits, ordering, and
+  target-native settings persist.
+- Export and re-import the Project and confirm Workspace and Visual Flow show the
+  same semantics.
+- Import a V0.7 Project Schema 2 Project with zero, one, and multiple Outputs.
+- Confirm one supported Output is inferred; zero or multiple Outputs require a
+  user choice without deleting graph data.
+- Import an unknown schema and confirm ProxyFlow fails closed with recovery.
+
+## Privacy Check
+
+- Confirm Project Export excludes runtime snapshots, Runtime Service tokens,
+  normalized credentials, response bodies, local paths, and history.
+- Confirm browser diagnostics and visible compatibility summaries do not expose
+  subscription secrets.
 
 ## Acceptance Result
 
-Record each item as `PASS`, `PARTIAL`, or `BLOCKED`, with the browser, OS, and
-target client used. A `PARTIAL` result must identify the target-specific
-limitation; a `BLOCKED` result must include the visible diagnostic and recovery
-step. Do not treat the Vite initial bundle warning or Node's experimental
-`node:sqlite` warning as a functional failure.
+Record each section as `PASS`, `PARTIAL`, or `BLOCKED`, with browser, OS, and
+Primary Target. A `PARTIAL` result must name the target-specific limitation. A
+`BLOCKED` result must include the visible diagnostic and recovery step.
+
+Node's experimental `node:sqlite` warning is expected for the current Node 22
+Runtime Service prerequisite and is not a browser warning.
 
 ## Current Boundaries
 
-- Mihomo and sing-box are the formal output targets.
+- Mihomo and sing-box are the only production Targets.
+- Local Mode remains independently usable without Runtime Service.
 - Browser CORS, unsupported protocols, external rule resources, and target
   capability differences remain explicit limitations.
-- There is no scheduled refresh in Local Mode, no snapshot rollback in browser
-  IndexedDB, no public backend, no multi-user account system, and no third target.
+- There is no third Target, cloud sync, multi-user account system, public
+  backend, plugin marketplace, or AI configuration generation in RC2.
