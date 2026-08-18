@@ -97,7 +97,7 @@ export function PreviewModal() {
         {loading
           ? <span><strong>{t('preview.loadingTitle')}</strong> {t('preview.loadingDescription', { target: targetLabel })}</span>
           : compileSuccess
-            ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t('preview.compatWarnings', { count: warnings.length })}`}</span>
+            ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t(warnings.length === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warnings.length })}`}</span>
             : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
       </div>
       <div className="preview-body">
@@ -108,7 +108,7 @@ export function PreviewModal() {
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
           {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
-          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t('preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
+          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t(warnings.length === 1 ? 'preview.warning' : 'preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
           <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : `proxyflow-${mode}.${targetMeta[mode].extension}` : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>
@@ -152,7 +152,7 @@ function CompatibilityRow({ label, state }: { label: string; state: TargetCompil
   const statusText = status === 'supported'
     ? t('preview.compatibility.supported')
     : status === 'warning'
-      ? t('preview.compatibility.warning', { count: warningCount })
+      ? t(warningCount === 1 ? 'preview.compatibility.oneWarning' : 'preview.compatibility.warning', { count: warningCount })
       : status === 'loading'
         ? t('preview.compatibility.loading')
         : status === 'unavailable'
