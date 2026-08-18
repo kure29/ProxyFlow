@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
-import { compileGraph } from '../../core/graphCompiler'
 import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import type { GraphNode, TargetClient } from '../../types/project'
-import { useTargetCompile } from '../compiler/useTargetCompile'
-import { localizeDiagnosticMessage, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
+import type { TargetClient } from '../../types/project'
+import { useProjectCompiles } from '../compiler/useProjectCompiles'
+import type { TargetCompileState } from '../compiler/useTargetCompile'
+import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
 
 type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
@@ -20,30 +20,23 @@ const targetMeta = {
 export function PreviewModal() {
   const { locale, t } = useI18n()
   const open = useBuilderStore((state) => state.previewOpen)
-  const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
   const nodes = useBuilderStore((state) => state.nodes)
-  const edges = useBuilderStore((state) => state.edges)
-  const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
+  const previewTarget = useBuilderStore((state) => state.previewTarget)
   const setOpen = useBuilderStore((state) => state.setPreviewOpen)
   const selectNode = useBuilderStore((state) => state.selectNode)
   const setToast = useBuilderStore((state) => state.setToast)
-  const toProject = useBuilderStore((state) => state.toProject)
-  const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState<PreviewMode>('mihomo')
   const { fitView } = useReactFlow()
-  const graphResult = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
+  const targetCompileEnabled = open && mode !== 'ir'
+  const { graphResult, mihomoState, singBoxState } = useProjectCompiles(targetCompileEnabled)
   const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
-  const targetCompileEnabled = open && graphResult.success && mode !== 'ir'
-  const mihomoOutput = useMemo(() => resolveMihomoOutput(nodes, selectedNodeId), [nodes, selectedNodeId])
-  const mihomoOptions = useMemo(() => ({
-    outputNodeId: mihomoOutput?.id,
-    targetProfile: mihomoOutput?.data.mihomoProfile,
-  }), [mihomoOutput])
-  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', targetCompileEnabled, mihomoOptions)
-  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', targetCompileEnabled)
   const targetState = activeTarget === 'sing-box' ? singBoxState : mihomoState
+  useEffect(() => {
+    if (open) setMode(previewTarget ?? primaryTarget ?? 'mihomo')
+  }, [open, previewTarget, primaryTarget])
   if (!open) return null
 
   const graphIssues: DisplayIssue[] = graphResult.issues.map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
@@ -114,7 +107,7 @@ export function PreviewModal() {
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
-          {targetCompileEnabled && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
+          {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
           <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t('preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
@@ -131,13 +124,7 @@ export function PreviewModal() {
   </div>
 }
 
-function resolveMihomoOutput(nodes: GraphNode[], selectedNodeId: string | null) {
-  const selected = nodes.find((node) => node.id === selectedNodeId)
-  if (selected?.data.blockType === 'output' && selected.data.client === 'mihomo' && !selected.data.disabled) return selected
-  return nodes.find((node) => node.data.blockType === 'output' && node.data.client === 'mihomo' && !node.data.disabled)
-}
-
-function CompatibilitySummary({ mihomo, singBox }: { mihomo: ReturnType<typeof useTargetCompile>; singBox: ReturnType<typeof useTargetCompile> }) {
+function CompatibilitySummary({ mihomo, singBox }: { mihomo: TargetCompileState; singBox: TargetCompileState }) {
   return <div className="preview-compatibility-summary">
     <span><CompatibilitySummaryLabel /></span>
     <CompatibilityRow label="Mihomo" state={mihomo} />
@@ -150,7 +137,7 @@ function CompatibilitySummaryLabel() {
   return <>{t('preview.compatibilitySummary')}</>
 }
 
-function CompatibilityRow({ label, state }: { label: string; state: ReturnType<typeof useTargetCompile> }) {
+function CompatibilityRow({ label, state }: { label: string; state: TargetCompileState }) {
   const { t } = useI18n()
   const warningCount = state.result?.issues.filter((issue: CompileResult['issues'][number]) => issue.severity === 'warning').length ?? 0
   const status = state.status === 'success' && warningCount === 0

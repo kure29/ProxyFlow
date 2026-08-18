@@ -4,7 +4,7 @@ import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetClient } from '../../types/project'
 import { translateCurrent } from '../../i18n'
 
-interface TargetCompileState {
+export interface TargetCompileState {
   status: 'idle' | 'loading' | 'success' | 'error' | 'unavailable'
   result?: CompileResult
   error?: string

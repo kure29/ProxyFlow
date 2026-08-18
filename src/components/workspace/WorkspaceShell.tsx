@@ -13,6 +13,8 @@ import { BlockIcon } from '../icons/BlockIcon'
 import type { BlockNodeData, BlockType } from '../../types/project'
 import type { ProductView, WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
+import { useProjectCompiles } from '../compiler/useProjectCompiles'
+import { TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
   processingCreationOptions, routingCreationOptions, strategyCreationOptions, type WorkspaceCreationOption,
 } from './workspaceCreation'
@@ -62,7 +64,10 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
   const refreshSubscription = useBuilderStore((state) => state.refreshSubscription)
   const moveRule = useBuilderStore((state) => state.moveRoutingRule)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
+  const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+  const targetCompiles = useProjectCompiles(activeSection === 'export' || targetDialogOpen)
 
   const projection = useMemo(
     () => createWorkspaceProjection(toProject(), { subscriptionSnapshots: snapshots }),
@@ -91,10 +96,15 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
   }
   const closeEditor = useCallback(() => { setEditorOpen(false); selectNode(null) }, [selectNode])
   const showEditorInFlow = useCallback(() => { setEditorOpen(false); onViewChange('visual-flow') }, [onViewChange])
+  const closeTargetDialog = useCallback(() => setTargetDialogOpen(false), [])
+  const selectTarget = useCallback((target: NonNullable<typeof primaryTarget>) => {
+    setPrimaryTarget(target)
+    setTargetDialogOpen(false)
+  }, [setPrimaryTarget])
 
   return <div className="structured-workspace">
     <nav className="workspace-navigation" aria-label={t('workspace.navigation')}>
-      <div className="workspace-target-summary"><ShieldCheck size={17} /><span><small>{t('workspace.primaryTarget')}</small><strong>{targetLabel}</strong></span></div>
+      <button type="button" className="workspace-target-summary" onClick={() => setTargetDialogOpen(true)}><ShieldCheck size={17} /><span><small>{t('workspace.primaryTarget')}</small><strong>{targetLabel}</strong></span><ChevronDown size={14} /></button>
       <div className="workspace-navigation-items">
         {navigation.map(({ id, icon: Icon, label }) => <button type="button" className={activeSection === id ? 'is-active' : ''} key={id} onClick={() => onSectionChange(id)} aria-current={activeSection === id ? 'page' : undefined}>
           <Icon size={17} /><span>{t(label)}</span>{counts[id] !== undefined && <small>{counts[id]}</small>}
@@ -105,13 +115,13 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
 
     <main id="workspace-main" className="workspace-content" tabIndex={-1}>
       <header className="workspace-content-header">
-        <div><h1>{t(navigation.find((item) => item.id === activeSection)!.label)}</h1><p>{t('workspace.targetContext', { target: targetLabel })}</p></div>
+        <div><h1>{t(navigation.find((item) => item.id === activeSection)!.label)}</h1><button type="button" className="workspace-target-context" onClick={() => setTargetDialogOpen(true)}>{t('workspace.targetContext', { target: targetLabel })}<ChevronDown size={12} /></button></div>
         {activeSection === 'sources' && <div><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
         {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
         {activeSection === 'routing' && <WorkspaceAddMenu label={t('workspace.addRouting')} options={routingCreationOptions} onCreate={addNode} />}
         {activeSection === 'dns' && projection.dns.length === 0 && <button className="primary-action" onClick={() => addNode('dns')}><Plus size={15} />{t('workspace.addDns')}</button>}
-        {activeSection === 'export' && <button className="primary-action" onClick={() => setPreviewOpen(true)}><Download size={15} />{t('top.exportConfig')}</button>}
+        {activeSection === 'export' && primaryTarget && <button className="primary-action" onClick={() => setPreviewOpen(true, primaryTarget)}><Download size={15} />{t('top.exportConfig')}</button>}
       </header>
 
       <section className="workspace-section-body">
@@ -124,10 +134,11 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
         {activeSection === 'inspect' && <div className="workspace-issue-list">{projection.compileIssues.length === 0
           ? <EmptyState icon={<ShieldCheck size={22} />} title={t('workspace.inspectReady')} />
           : projection.compileIssues.map((issue, index) => <article key={`${issue.code}-${issue.nodeId ?? index}`}><CircleAlert size={17} /><span><strong>{issue.code}</strong><small>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</small></span>{issue.nodeId && <button onClick={() => { selectNode(issue.nodeId!); setEditorOpen(true) }}>{t('workspace.open')}</button>}</article>)}</div>}
-        {activeSection === 'export' && <ExportSummary primaryTarget={primaryTarget} issueCount={projection.compileIssues.filter((issue) => issue.severity === 'error').length} onPreview={() => setPreviewOpen(true)} />}
+        {activeSection === 'export' && <WorkspaceExportPanel primaryTarget={primaryTarget} compiles={targetCompiles} onPreview={(target) => setPreviewOpen(true, target)} />}
       </section>
     </main>
     <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} />
+    <TargetSwitchDialog open={targetDialogOpen} current={primaryTarget} compiles={targetCompiles} onClose={closeTargetDialog} onSelect={selectTarget} />
   </div>
 }
 
@@ -203,11 +214,6 @@ function RoutingList({ items, finals, onMove, onEdit }: {
     <div className="routing-order-actions"><button className="icon-button" disabled={index === 0} aria-label={t('workspace.moveUp')} onClick={() => onMove(item.node.id, 'up')}><ArrowUp size={14} /></button><button className="icon-button" disabled={index === items.length - 1} aria-label={t('workspace.moveDown')} onClick={() => onMove(item.node.id, 'down')}><ArrowDown size={14} /></button></div>
     <OpenButton onClick={() => onEdit(item)} />
   </article>)}{finals.map((item) => <article className="workspace-node-row routing-workspace-row is-final" key={item.node.id}><b>F</b><span><strong>{item.node.data.title}</strong><small>{item.node.data.targetLabel ?? t('workspace.targetMissing')}</small></span><i>{t('workspace.final')}</i><OpenButton onClick={() => onEdit(item)} /></article>)}</div>
-}
-
-function ExportSummary({ primaryTarget, issueCount, onPreview }: { primaryTarget: ReturnType<typeof useBuilderStore.getState>['primaryTarget']; issueCount: number; onPreview: () => void }) {
-  const { t } = useI18n()
-  return <div className="workspace-export-summary"><ShieldCheck size={24} /><div><span>{t('workspace.primaryTarget')}</span><h2>{primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')}</h2><p className={issueCount ? 'is-blocked' : 'is-ready'}>{issueCount ? t('workspace.exportBlocked', { count: issueCount }) : t('workspace.exportReady')}</p></div><button className="secondary-action" onClick={onPreview}>{t('top.preview')}</button></div>
 }
 
 function EmptyState({ icon, title }: { icon: React.ReactNode; title: string }) {

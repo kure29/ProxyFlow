@@ -44,6 +44,7 @@ interface BuilderState {
   historyFuture: GraphSnapshot[]
   transactionStart: GraphSnapshot | null
   previewOpen: boolean
+  previewTarget: PrimaryTarget | null
   saveStatus: 'saved' | 'saving'
   hydrated: boolean
   recoveryRequired: boolean
@@ -76,7 +77,7 @@ interface BuilderState {
   undo: () => void
   redo: () => void
   autoLayout: () => void
-  setPreviewOpen: (open: boolean) => void
+  setPreviewOpen: (open: boolean, target?: PrimaryTarget) => void
   setSaveStatus: (status: 'saved' | 'saving') => void
   setToast: (message: string | null) => void
   setRuntimeServiceConfig: (config: RuntimeServiceConfig | null) => void
@@ -283,6 +284,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     historyFuture: [],
     transactionStart: null,
     previewOpen: false,
+    previewTarget: null,
     saveStatus: 'saved',
     hydrated: false,
     recoveryRequired: false,
@@ -630,7 +632,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         return { ...node, position: { x: isRouting ? layout.x + index * 280 : layout.x, y: isRouting ? layout.startY : layout.startY + index * layout.gap } }
       }) }))
     },
-    setPreviewOpen: (previewOpen) => set({ previewOpen }),
+    setPreviewOpen: (previewOpen, target) => set((state) => ({
+      previewOpen,
+      ...(previewOpen ? { previewTarget: target ?? state.primaryTarget } : {}),
+    })),
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
     parseSubscriptionInput: async (id, content, inputKind, fileName) => {

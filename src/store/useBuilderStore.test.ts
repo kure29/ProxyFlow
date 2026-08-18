@@ -109,6 +109,14 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.title).toBe('香港节点筛选')
   })
 
+  it('opens Preview on the Primary Target unless another production target is requested', () => {
+    useBuilderStore.getState().setPreviewOpen(true)
+    expect(useBuilderStore.getState()).toEqual(expect.objectContaining({ previewOpen: true, previewTarget: 'mihomo' }))
+
+    useBuilderStore.getState().setPreviewOpen(true, 'sing-box')
+    expect(useBuilderStore.getState()).toEqual(expect.objectContaining({ previewOpen: true, previewTarget: 'sing-box' }))
+  })
+
   it('keeps existing selection when a node is selected additively', () => {
     useBuilderStore.getState().selectNode('hk-filter')
     useBuilderStore.getState().selectNode('us-filter', null, true)
