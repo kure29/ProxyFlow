@@ -4,8 +4,9 @@ import { useMemo } from 'react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
 import { localizeDiagnosticMessage, useI18n } from '../../i18n'
+import type { ProductView } from '../workspace/types'
 
-export function StatusBar() {
+export function StatusBar({ view }: { view: ProductView }) {
   const { locale, t } = useI18n()
   const { fitView } = useReactFlow()
   const { zoom: viewportZoom } = useViewport()
@@ -23,10 +24,11 @@ export function StatusBar() {
       <span className="status-separator" />
       <span>{t('status.nodes', { count: nodes.length })}</span><span>{t('status.connections', { count: edges.length })}</span>
       <span className="status-spacer" />
-      <span className="status-hint"><MousePointer2 size={12} /> {t('status.hint')}</span>
-      <span className="status-separator" />
-      <span className="zoom-value">{zoom}%</span>
-      <button className="status-fit" onClick={() => fitView({ padding: 0.15, duration: 400 })}><Focus size={13} /> {t('status.fit')}</button>
+      {view === 'visual-flow' && <><span className="status-hint"><MousePointer2 size={12} /> {t('status.hint')}</span>
+        <span className="status-separator" />
+        <span className="zoom-value">{zoom}%</span>
+        <button className="status-fit" onClick={() => fitView({ padding: 0.15, duration: 400 })}><Focus size={13} /> {t('status.fit')}</button></>}
+      {view === 'workspace' && <span className="status-hint">{t('status.workspaceHint')}</span>}
     </footer>
   )
 }

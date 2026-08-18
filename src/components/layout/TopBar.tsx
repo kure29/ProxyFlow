@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Languages, LayoutTemplate, Redo2, RefreshCw, Route, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, Eye, Languages, LayoutTemplate, Network, PanelsTopLeft, Redo2, RefreshCw, Route, Undo2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
 import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
 import { APP_VERSION_LABEL } from '../../version'
+import type { ProductView } from '../workspace/types'
 
 function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</button>
 }
 
-export function TopBar() {
+export function TopBar({ view, onViewChange, onNewProject }: { view: ProductView; onViewChange: (view: ProductView) => void; onNewProject: () => void }) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
@@ -23,7 +24,6 @@ export function TopBar() {
   const canUndo = useBuilderStore((state) => state.historyPast.length > 0)
   const canRedo = useBuilderStore((state) => state.historyFuture.length > 0)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
-  const createNewProject = useBuilderStore((state) => state.createNewProject)
   const refreshAll = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
   const refreshing = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).some((runtime) => runtime.refreshStatus === 'loading'))
@@ -49,7 +49,12 @@ export function TopBar() {
         <button className="project-switcher" onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}>
           <span><small>{t('top.currentProject')}</small><strong>{visibleProjectName}</strong></span><ChevronDown size={14} />
         </button>
-        {projectMenuOpen && <div className="project-menu"><span>{t('top.recentProjects')}</span><button><Check size={13} /> {visibleProjectName}</button><button onClick={() => { createNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button></div>}
+        {projectMenuOpen && <div className="project-menu"><span>{t('top.recentProjects')}</span><button><Check size={13} /> {visibleProjectName}</button><button onClick={() => { onNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button></div>}
+      </div>
+
+      <div className="product-view-switcher" role="group" aria-label={t('top.productViews')}>
+        <button className={view === 'workspace' ? 'is-active' : ''} aria-pressed={view === 'workspace'} onClick={() => onViewChange('workspace')}><PanelsTopLeft size={15} /><span>{t('top.workspace')}</span></button>
+        <button className={view === 'visual-flow' ? 'is-active' : ''} aria-pressed={view === 'visual-flow'} onClick={() => onViewChange('visual-flow')}><Network size={15} /><span>{t('top.visualFlow')}</span></button>
       </div>
 
       <div className="save-indicator" aria-live="polite">
@@ -67,12 +72,12 @@ export function TopBar() {
         </div>}
       </div>
 
-      <nav className="top-actions" aria-label={t('top.canvasActions')}>
+      <nav className="top-actions" aria-label={view === 'visual-flow' ? t('top.canvasActions') : t('top.workspaceActions')}>
         <RuntimeServicePanel />
         <div className="top-action-group">
           <IconButton label={t('top.undo')} disabled={!canUndo} onClick={undo}><Undo2 size={16} /></IconButton>
           <IconButton label={t('top.redo')} disabled={!canRedo} onClick={redo}><Redo2 size={16} /></IconButton>
-          <IconButton label={t('top.autoLayout')} onClick={() => { autoLayout(); window.setTimeout(() => fitView({ padding: 0.15, duration: 450 }), 40) }}><LayoutTemplate size={16} /></IconButton>
+          {view === 'visual-flow' && <IconButton label={t('top.autoLayout')} onClick={() => { autoLayout(); window.setTimeout(() => fitView({ padding: 0.15, duration: 450 }), 40) }}><LayoutTemplate size={16} /></IconButton>}
         </div>
         <button className="secondary-action refresh-all-action" aria-label={t('top.refreshAll')} title={t('top.refreshAll')} disabled={refreshableCount === 0} onClick={() => void refreshAll()}><RefreshCw className={refreshing ? 'spin' : ''} size={16} /><span>{t('top.refreshAll')}</span></button>
         <button className="secondary-action" onClick={() => setPreviewOpen(true)}><Eye size={16} /> {t('top.preview')}</button>
