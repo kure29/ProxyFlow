@@ -12,6 +12,69 @@ ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排�
 
 订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
 
+## 使用 ProxyFlow
+
+### Local Mode
+
+只需要编辑、检查和导出配置时，直接使用 ProxyFlow Web UI 即可。Local
+Mode 不需要后台、账号、Docker 或数据库；Project、浏览器快照、编译和导出
+都留在当前浏览器。源码开发方式见下方“开发”。
+
+### Self-hosted
+
+需要服务器抓取订阅、定时刷新和有限快照历史时，推荐使用官方管理脚本。
+RC2 脚本可以独立下载和检查，不需要在服务器上构建前端或后台：
+
+```bash
+curl -fL --output proxyflow.sh \
+  https://raw.githubusercontent.com/kure29/ProxyFlow/autopilot/v1.0-rc/scripts/proxyflow.sh
+less proxyflow.sh
+chmod +x proxyflow.sh
+./proxyflow.sh install
+```
+
+安装完成后打开 `http://127.0.0.1:17870`。Self-hosted 使用一个容器、一个
+端口和一个持久数据目录；Web UI 会自动连接同实例后台，不需要填写 Runtime
+URL 或 API Token。默认只监听本机回环地址，不会直接暴露到局域网或公网。
+
+常用管理命令：
+
+```bash
+./proxyflow.sh status
+./proxyflow.sh logs
+./proxyflow.sh backup
+./proxyflow.sh update
+./proxyflow.sh stop
+./proxyflow.sh start
+./proxyflow.sh uninstall
+```
+
+默认安装目录是 `~/.proxyflow`，Runtime 数据位于 `~/.proxyflow/data`，备份
+位于 `~/.proxyflow/backups`。普通 `uninstall` 删除容器但保留数据；只有交互式
+`uninstall --purge` 才删除数据与备份。浏览器本地 Project 不在服务器数据目录
+中，仍需从 ProxyFlow 单独导出。
+
+高级用户可以在首次安装时覆盖少量部署参数：
+
+```bash
+PROXYFLOW_PORT=28431 \
+PROXYFLOW_HOME=/srv/proxyflow \
+PROXYFLOW_DATA_DIR=/srv/proxyflow-data \
+./proxyflow.sh install
+```
+
+底层 [Compose 配置](compose.yaml) 与脚本使用相同部署契约。默认镜像固定为
+`ghcr.io/kure29/proxyflow:1.0.0-rc.2`，不会隐式使用 `latest`。默认镜像由
+下载的脚本版本管理；显式设置 `PROXYFLOW_IMAGE` 时则保留用户指定的固定镜像。
+
+### 1Panel 反向代理
+
+保持 ProxyFlow 默认监听 `127.0.0.1:17870`，在 1Panel 网站中创建反向代理，
+上游填写 `http://127.0.0.1:17870`，并让代理保留 `Host` 与
+`X-Forwarded-Proto`。域名对公网开放时必须启用 HTTPS，并在 1Panel 或其它
+反向代理层配置登录或访问控制；ProxyFlow 的同源 Cookie 用于保护 Runtime API，
+不替代公网用户身份认证。无需开放服务器的 `17870` 防火墙端口。
+
 ## 技术栈
 
 - React + TypeScript + Vite
@@ -126,11 +189,21 @@ Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码�
 
 规则体验以 Service 为第一层。Demo 只引用 `ios_rule_script` 的公开 Remote Rule Provider URL，不复制第三方规则内容。来源项目位于 [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，其许可证为 GPL-2.0。
 
-## 本地运行
+## 开发
 
 ```bash
 npm install
 npm run dev
+```
+
+手工开发 Runtime Service 时仍使用独立的 `127.0.0.1:8787`，这不是生产
+Self-hosted 的默认端口：
+
+```bash
+npm run runtime:build
+PROXYFLOW_RUNTIME_TOKEN='replace-with-a-long-local-token' \
+PROXYFLOW_RUNTIME_ORIGIN='http://127.0.0.1:5173' \
+npm run runtime:start
 ```
 
 质量检查：
@@ -166,4 +239,4 @@ src/
 
 ## 当前明确边界
 
-稳定 v0.7.0 不提供 Runtime Service、账号、数据库或公共 CORS Proxy；V1.0 RC 已将 Runtime Service 作为可选、自托管、单用户增强集成，不改变 Local Mode 的独立性。第三个正式导出 Target、配置发布 URL、云同步、节点测速平台和完整客户端 Schema 仍未实现。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。
+稳定 v0.7.0 不提供 Runtime Service、账号、数据库或公共 CORS Proxy；V1.0 RC 已将 Runtime Service 作为可选、自托管、单用户增强集成，不改变 Local Mode 的独立性。Self-hosted 不是多用户服务，也不内置公网登录、TLS 证书管理或反向代理。第三个正式导出 Target、配置发布 URL、云同步、节点测速平台和完整客户端 Schema 仍未实现。目标客户端无法可靠表达的协议或路由语义必须失败闭合，不会猜测降级。

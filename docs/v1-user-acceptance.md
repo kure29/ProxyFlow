@@ -110,13 +110,18 @@ knowledge of the Graph, Universal IR, or target configuration syntax.
 
 Runtime Service is not required for Local Mode.
 
-- Build with `npm run runtime:build` on Node 22.5 or newer.
-- Connect a self-hosted service with a token of at least 16 characters and an
-  exact browser origin.
+- Run `./scripts/proxyflow.sh install` with Docker available, or use the
+  repository Compose file with fictional environment values.
+- Confirm the service opens on `http://127.0.0.1:17870` by default and that a
+  Self-hosted instance discovers its backend without Runtime URL/token entry.
+- Run `status`, `restart`, `backup`, and `uninstall`; confirm health is checked,
+  a timestamped backup is created, and normal uninstall preserves Runtime data.
 - Refresh a URL Source through the service and confirm Last Known Good behavior.
 - Verify scheduled refresh, bounded history, restore, and explicit empty-result
   confirmation.
 - Disconnect the service and confirm Local Mode remains independently usable.
+- For a public domain, verify the reverse proxy uses HTTPS plus separate access
+  control and forwards `Host` and `X-Forwarded-Proto`.
 
 ## 15. Save, Reload, And Import
 

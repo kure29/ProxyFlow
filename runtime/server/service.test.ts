@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { SubscriptionFetchError } from '../../src/core/subscription/errors'
 import { parseSubscription } from '../../src/core/subscription/parseSubscription'
 import { createSnapshotCandidate } from '../../src/core/subscription/snapshot'
@@ -139,6 +142,62 @@ describe('Runtime Service', () => {
     expect(isPublicAddress('2001:db8::1')).toBe(false)
     expect(isPublicAddress('8.8.8.8')).toBe(true)
     await service.close()
+  })
+
+  it('serves the Web app and authenticates same-origin API requests with an HttpOnly cookie', async () => {
+    const webRoot = await mkdtemp(join(tmpdir(), 'proxyflow-web-'))
+    await mkdir(join(webRoot, 'assets'))
+    await writeFile(join(webRoot, 'index.html'), '<!doctype html><title>ProxyFlow</title>')
+    await writeFile(join(webRoot, 'assets', 'app.js'), 'export {}')
+    const service = createRuntimeService({
+      token, sameOrigin: true, staticDirectory: webRoot, version: '1.0.0-rc.2',
+      fetcher: sequenceFetcher(yamlBody('Ready', '198.51.100.10')),
+      repository: new SqliteRuntimeRepository(':memory:'), schedulerIntervalMs: 60_000,
+    })
+    try {
+      await service.listen(0)
+      const base = address(service)
+      const page = await fetch(`${base}/workspace`)
+      expect(page.status).toBe(200)
+      expect(await page.text()).toContain('<title>ProxyFlow</title>')
+      expect(page.headers.get('x-frame-options')).toBe('DENY')
+      const asset = await fetch(`${base}/assets/app.js`)
+      expect(asset.headers.get('cache-control')).toContain('immutable')
+      expect(asset.headers.get('content-type')).toContain('text/javascript')
+      expect((await fetch(`${base}/assets/missing.js`)).status).toBe(404)
+      expect((await fetch(`${base}/%2e%2e/package.json`)).status).toBe(404)
+
+      const health = await fetch(`${base}/health`).then((response) => response.json())
+      expect(health).toEqual(expect.objectContaining({ version: '1.0.0-rc.2', web: 'ready', backend: 'ready', scheduler: 'ready' }))
+
+      const discovered = await fetch(`${base}/api/v1/self-hosted`, { headers: { Origin: base } })
+      expect(discovered.status).toBe(200)
+      const discoveredBody = await discovered.json()
+      expect(discoveredBody).toEqual(expect.objectContaining({ ok: true, service: 'proxyflow-runtime' }))
+      expect(JSON.stringify(discoveredBody)).not.toContain(token)
+      const cookie = discovered.headers.get('set-cookie')
+      expect(cookie).toContain('HttpOnly')
+      expect(cookie).toContain('SameSite=Strict')
+      expect(cookie).toContain('Path=/api/v1')
+      expect(cookie).not.toContain(`Secure`)
+
+      const secureDiscovery = await fetch(`${base}/api/v1/self-hosted`, {
+        headers: { Origin: base, 'X-Forwarded-Proto': 'https' },
+      })
+      expect(secureDiscovery.headers.get('set-cookie')).toContain('Secure')
+
+      const authenticated = await fetch(`${base}/api/v1/subscriptions/fetch`, {
+        method: 'POST',
+        headers: { Cookie: cookie!.split(';')[0], 'Content-Type': 'application/json', Origin: base },
+        body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Source', url: 'https://example.com/sub' }),
+      })
+      expect(authenticated.status).toBe(200)
+      const blocked = await fetch(`${base}/api/v1/self-hosted`, { headers: { Origin: 'https://evil.example' } })
+      expect(blocked.status).toBe(403)
+    } finally {
+      await service.close()
+      await rm(webRoot, { recursive: true, force: true })
+    }
   })
 })
 

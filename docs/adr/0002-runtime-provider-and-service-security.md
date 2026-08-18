@@ -25,9 +25,13 @@ ServerRuntimeProvider   -> Runtime Service API + server repository
                                       +-> shared parser/snapshot/diff/compiler modules
 ```
 
-The Runtime Service is self-hosted, single-user, optional, and requires an API
-token. Local Mode remains usable when the service is disconnected or
-unavailable. A service failure never clears the browser's active LKG.
+The Runtime Service is self-hosted, single-user, optional, and always has a
+server-side API token. External Runtime connections provide that token as a
+Bearer credential and use one exact browser origin. A single-container
+same-origin deployment keeps the token out of JavaScript and bootstraps an
+HttpOnly, `SameSite=Strict` cookie scoped to `/api/v1`. Local Mode remains
+usable when the service is disconnected or unavailable. A service failure
+never clears the browser's active LKG.
 
 The first service surface is deliberately small:
 
@@ -54,6 +58,12 @@ response body.
 The service does not expose a switch that disables SSRF protection. DNS
 resolution is checked for each connection attempt; redirects are revalidated
 before following. Only fictional security fixtures are used in tests.
+
+Same-origin discovery is a deployment convenience, not a public identity
+system. The default container port binds to host loopback. Any deployment made
+reachable from the public Internet must add HTTPS and user access control at a
+trusted reverse proxy. The proxy must preserve the original Host and forwarded
+scheme so origin checks and secure-cookie behavior remain correct.
 
 ## Snapshot Ownership
 

@@ -1,0 +1,32 @@
+name: proxyflow
+
+services:
+  proxyflow:
+    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.2}
+    restart: unless-stopped
+    init: true
+    user: "${PROXYFLOW_UID:-1000}:${PROXYFLOW_GID:-1000}"
+    ports:
+      - "${PROXYFLOW_BIND_ADDRESS:-127.0.0.1}:${PROXYFLOW_PORT:-17870}:17870"
+    environment:
+      PORT: "17870"
+      PROXYFLOW_RUNTIME_HOST: "0.0.0.0"
+      PROXYFLOW_RUNTIME_DB: "/data/proxyflow-runtime.sqlite"
+      PROXYFLOW_RUNTIME_TOKEN: "${PROXYFLOW_RUNTIME_TOKEN:?Set PROXYFLOW_RUNTIME_TOKEN}"
+      PROXYFLOW_WEB_ROOT: "/app/dist"
+      PROXYFLOW_SELF_HOSTED: "true"
+    volumes:
+      - "${PROXYFLOW_DATA_DIR:?Set PROXYFLOW_DATA_DIR}:/data"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:17870/health').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 4

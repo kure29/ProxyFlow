@@ -1,5 +1,7 @@
 import { createServer } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
+import { readFile, stat } from 'node:fs/promises'
+import { extname, resolve, sep } from 'node:path'
 import { RefreshCoordinator, commitCandidate } from '../../src/core/subscription/refreshCoordinator'
 import { sourceConfigFingerprint } from '../../src/core/subscription/hash'
 import type { SourceFetcher } from '../../src/core/subscription/sourceFetcher'
@@ -18,6 +20,9 @@ export interface RuntimeServiceOptions {
   repository?: SqliteRuntimeRepository
   now?: () => Date
   schedulerIntervalMs?: number
+  staticDirectory?: string
+  sameOrigin?: boolean
+  version?: string
 }
 
 export interface RuntimeServiceHandle {
@@ -30,6 +35,7 @@ export interface RuntimeServiceHandle {
 
 const MAX_JSON_BYTES = 128 * 1024
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+const SELF_HOSTED_COOKIE = 'proxyflow_runtime'
 
 export function createRuntimeService(options: RuntimeServiceOptions): RuntimeServiceHandle {
   if (!options.token || options.token.length < 16) throw new Error('Runtime Service API token must contain at least 16 characters.')
@@ -39,6 +45,7 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
   const now = options.now ?? (() => new Date())
   const rateLimit = new RateLimiter(options.maxRequestsPerMinute ?? 60)
   const maxConcurrent = options.maxConcurrentRequests ?? 3
+  const staticDirectory = options.staticDirectory ? resolve(options.staticDirectory) : undefined
   let concurrent = 0
   let scheduler: ReturnType<typeof setInterval> | undefined
 
@@ -48,27 +55,51 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
 
   async function handleRequest(request: any, response: any) {
     const origin = request.headers.origin as string | undefined
-    if (!applyCors(response, origin, options.allowedOrigin)) {
+    if (!applyCors(response, origin, options.allowedOrigin, request.headers.host, options.sameOrigin)) {
       respond(response, 403, { error: 'RUNTIME_ORIGIN_BLOCKED', message: 'This browser origin is not allowed.' })
       return
     }
     if (request.method === 'OPTIONS') { response.statusCode = 204; response.end(); return }
     const url = new URL(request.url ?? '/', 'http://runtime.invalid')
     if (request.method === 'GET' && url.pathname === '/health') {
-      respond(response, 200, { ok: true, service: 'proxyflow-runtime', runtimeStorageSchema: 1 }, options.allowedOrigin)
+      respond(response, 200, {
+        ok: true,
+        service: 'proxyflow-runtime',
+        version: options.version,
+        runtimeStorageSchema: 1,
+        web: staticDirectory ? 'ready' : 'disabled',
+        backend: 'ready',
+        scheduler: 'ready',
+      }, options.allowedOrigin)
       return
     }
-    if (!authorized(request.headers.authorization, options.token)) {
+    if (request.method === 'GET' && url.pathname === '/api/v1/self-hosted' && options.sameOrigin) {
+      setSessionCookie(response, options.token, isSecureRequest(request, origin))
+      respond(response, 200, {
+        ok: true,
+        service: 'proxyflow-runtime',
+        version: options.version,
+        runtimeStorageSchema: 1,
+        capabilities: { scheduledRefresh: true, history: true },
+      }, options.allowedOrigin)
+      return
+    }
+    const segments = url.pathname.split('/').filter(Boolean)
+    if (segments[0] !== 'api') {
+      if ((request.method === 'GET' || request.method === 'HEAD') && staticDirectory && await serveStatic(response, request.method, url.pathname, staticDirectory)) return
+      respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' }, options.allowedOrigin)
+      return
+    }
+    if (segments[1] !== 'v1') {
+      respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' }, options.allowedOrigin)
+      return
+    }
+    if (!authorized(request.headers.authorization, request.headers.cookie, options.token)) {
       respond(response, 401, { error: 'RUNTIME_UNAUTHORIZED', message: 'A valid Runtime Service API token is required.' }, options.allowedOrigin)
       return
     }
     if (!rateLimit.allow(options.token)) {
       respond(response, 429, { error: 'RUNTIME_RATE_LIMITED', message: 'Runtime Service request rate limit exceeded.' }, options.allowedOrigin)
-      return
-    }
-    const segments = url.pathname.split('/').filter(Boolean)
-    if (segments[0] !== 'api' || segments[1] !== 'v1') {
-      respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' }, options.allowedOrigin)
       return
     }
     if (request.method === 'POST' && segments.length === 4 && segments[2] === 'subscriptions' && segments[3] === 'fetch') {
@@ -239,22 +270,98 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
   }
 }
 
-function authorized(value: string | undefined, expected: string) {
-  if (!value?.startsWith('Bearer ')) return false
-  const provided = Buffer.from(value.slice(7))
+function authorized(authorization: string | undefined, cookie: string | undefined, expected: string) {
+  const providedValue = authorization?.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : readCookie(cookie, SELF_HOSTED_COOKIE)
+  if (!providedValue) return false
+  const provided = Buffer.from(providedValue)
   const target = Buffer.from(expected)
   return provided.length === target.length && timingSafeEqual(provided, target)
 }
 
 function validId(value: string) { return ID_PATTERN.test(value) }
 
-function applyCors(response: any, origin: string | undefined, allowedOrigin: string | undefined) {
-  if (origin && (!allowedOrigin || origin !== allowedOrigin)) return false
-  if (origin && allowedOrigin) response.setHeader('Access-Control-Allow-Origin', allowedOrigin)
+function applyCors(response: any, origin: string | undefined, allowedOrigin: string | undefined, host: string | undefined, sameOrigin = false) {
+  const requestHost = origin ? safeOriginHost(origin) : undefined
+  const acceptedOrigin = Boolean(origin && (origin === allowedOrigin || sameOrigin && requestHost && requestHost === host))
+  if (origin && !acceptedOrigin) return false
+  if (origin && acceptedOrigin) response.setHeader('Access-Control-Allow-Origin', origin)
   response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.setHeader('Vary', 'Origin')
   return true
+}
+
+function safeOriginHost(origin: string) {
+  try { return new URL(origin).host } catch { return undefined }
+}
+
+function readCookie(value: string | undefined, name: string) {
+  if (!value) return undefined
+  const entry = value.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))
+  if (!entry) return undefined
+  try { return decodeURIComponent(entry.slice(name.length + 1)) } catch { return undefined }
+}
+
+function setSessionCookie(response: any, token: string, secure: boolean) {
+  response.setHeader('Set-Cookie', `${SELF_HOSTED_COOKIE}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/api/v1; Max-Age=86400${secure ? '; Secure' : ''}`)
+}
+
+function isSecureRequest(request: any, origin: string | undefined) {
+  const forwarded = String(request.headers['x-forwarded-proto'] ?? '').split(',')[0].trim()
+  return forwarded === 'https' || origin?.startsWith('https://') === true
+}
+
+async function serveStatic(response: any, method: string, pathname: string, root: string) {
+  let decoded: string
+  try { decoded = decodeURIComponent(pathname) } catch { respond(response, 400, { error: 'RUNTIME_INVALID_PATH', message: 'The requested path is invalid.' }); return true }
+  const requested = resolve(root, `.${decoded}`)
+  if (requested !== root && !requested.startsWith(`${root}${sep}`)) {
+    respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' })
+    return true
+  }
+  let file = requested
+  try {
+    if ((await stat(file)).isDirectory()) file = resolve(file, 'index.html')
+  } catch {
+    if (extname(decoded) || decoded.startsWith('/assets/')) {
+      respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' })
+      return true
+    }
+    file = resolve(root, 'index.html')
+  }
+  if (file !== root && !file.startsWith(`${root}${sep}`)) {
+    respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' })
+    return true
+  }
+  try {
+    const body = await readFile(file)
+    response.statusCode = 200
+    response.setHeader('Content-Type', contentType(file))
+    response.setHeader('Content-Length', body.byteLength)
+    response.setHeader('Cache-Control', file.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable')
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    response.setHeader('Referrer-Policy', 'no-referrer')
+    response.setHeader('X-Frame-Options', 'DENY')
+    method === 'HEAD' ? response.end() : response.end(body)
+  } catch {
+    respond(response, 404, { error: 'RUNTIME_NOT_FOUND', message: 'Runtime Service endpoint not found.' })
+  }
+  return true
+}
+
+function contentType(file: string) {
+  const extension = extname(file).toLowerCase()
+  if (extension === '.html') return 'text/html; charset=utf-8'
+  if (extension === '.js') return 'text/javascript; charset=utf-8'
+  if (extension === '.css') return 'text/css; charset=utf-8'
+  if (extension === '.json') return 'application/json; charset=utf-8'
+  if (extension === '.png') return 'image/png'
+  if (extension === '.svg') return 'image/svg+xml'
+  if (extension === '.ico') return 'image/x-icon'
+  if (extension === '.webp') return 'image/webp'
+  return 'application/octet-stream'
 }
 
 function respond(response: any, status: number, body?: unknown, origin?: string) {

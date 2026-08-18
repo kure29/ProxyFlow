@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ServerRuntimeProvider } from './serverRuntimeProvider'
+import { detectSameOriginRuntime, ServerRuntimeProvider } from './serverRuntimeProvider'
 
 describe('ServerRuntimeProvider', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -27,5 +27,23 @@ describe('ServerRuntimeProvider', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
     expect(fetch).toHaveBeenNthCalledWith(1, 'http://runtime.example/api/v1/projects/project/sources/source/confirm-empty', expect.anything())
     expect(fetch).toHaveBeenNthCalledWith(2, 'http://runtime.example/api/v1/projects/project/sources/source/discard-empty', expect.anything())
+  })
+
+  it('discovers a same-origin service without exposing a token to JavaScript', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ ok: true, service: 'proxyflow-runtime' }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }))
+    await expect(detectSameOriginRuntime(fetch as typeof globalThis.fetch)).resolves.toEqual({ baseUrl: '', token: '', sameOrigin: true })
+    expect(fetch).toHaveBeenCalledWith('/api/v1/self-hosted', expect.objectContaining({ credentials: 'same-origin' }))
+  })
+
+  it('uses the HttpOnly same-origin session instead of an Authorization header', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ outcome: 'success', text: 'proxies: []' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetch)
+    const provider = new ServerRuntimeProvider({ baseUrl: '', token: '', sameOrigin: true }, { projectId: 'project', sourceId: 'source', sourceName: 'Source' })
+    await provider.fetch('https://example.com/sub')
+    expect(fetch).toHaveBeenCalledWith('/api/v1/subscriptions/fetch', expect.objectContaining({
+      credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    }))
   })
 })

@@ -15,7 +15,7 @@ Updated: 2026-08-18
 - Current milestone: V1.0 - Stable Workflow (RC)
 - Current slice: V1.0 RC2 Client-first user acceptance
 - RC branch: `autopilot/v1.0-rc`
-- Working RC2 branch: `autopilot/rc2-client-first`
+- Working RC2 branch: `autopilot/rc2-deployment`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
@@ -106,22 +106,34 @@ Updated: 2026-08-18
   blocker is visible with diagnostic codes but does not block a valid Primary
   Target export.
 - Visual Flow and Preview are lazy-loaded. The previous single `922.00 kB`
-  application chunk is split; the largest current chunk is `425.67 kB`, with
+  application chunk is split; the largest current chunk is `426.82 kB`, with
   Visual Flow `19.99 kB` and Preview `9.17 kB` loaded on demand.
+- V1.0 RC2 deployment hardening provides one versioned container with the Web
+  UI, Runtime API, Subscription Fetcher, scheduler, and SQLite storage behind
+  one host port and one persistent data directory. The official Bash manager
+  supports install, update, start, stop, restart, status, logs, backup, and
+  uninstall. It defaults to `127.0.0.1:17870`, preserves data on ordinary
+  uninstall, and advances script-managed image tags without overriding explicit
+  user image pins.
+- Self-hosted Web and Runtime now share one origin. The browser discovers the
+  same-instance backend automatically through an HttpOnly, SameSite cookie;
+  external Runtime connections retain Bearer-token and exact-origin behavior.
+  Local Mode and browser-local Project ownership remain unchanged.
 
 ## In Progress
 
-- Draft PR #14 contains the RC2 candidate and awaits user acceptance.
+- RC2 Deployment / Release Hardening is being integrated into Draft PR #14.
 
 ## Next
 
-1. Run the documented RC2 user-acceptance workflow.
-2. Keep PR #14 Draft and do not merge it without explicit user approval.
-3. Do not tag `v1.0.0` or create a formal release.
+1. Complete deployment validation and CI for the RC2 candidate.
+2. Run the documented RC2 user-acceptance workflow.
+3. Keep PR #14 Draft and do not merge it without explicit user approval.
+4. Do not tag `v1.0.0` or create a formal release.
 
 ## Latest Validation
 
-- `npm test`: 440/440 passed (44 test files)
+- `npm test`: 443/443 passed three consecutive times (44 test files)
 - `npm run build`: passed
 - `npm run runtime:build`: passed (Node 22 SSR service bundle)
 - `git diff --check`: passed
@@ -135,6 +147,12 @@ Updated: 2026-08-18
   expanded/collapsed; enlarged service and Output client text and icon
   fallbacks rendered correctly. Cold English and Chinese reloads passed, with
   fresh-tab browser error/warning logs empty.
+- RC2 Self-hosted browser QA: one Node process served the production Web build
+  and Runtime API; Chinese and English automatic backend connection, cold
+  reload, HttpOnly cookie auth, and the 390px Runtime status panel passed. The
+  panel stayed inside the viewport and fresh error/warning logs were empty.
+- Deployment manager focused tests: 16/16 passed. Compose config validation,
+  Web build, Runtime build, and the non-Docker same-origin service smoke passed.
 - Mihomo Output Profile browser QA passed in Chinese and English. Desktop TUN
   generated Fake-IP DNS, DNS hijack, and HTTP/TLS/QUIC sniffing; reload
   preserved the profile; switching back to Local Proxy removed TUN and restored
@@ -157,7 +175,7 @@ Updated: 2026-08-18
   fresh console had no error or warning entries.
 - RC1 initial chunk baseline: `859.60 kB`. Before RC2 hardening the application
   chunk reached `922.00 kB`; after safe lazy loading the largest chunk is
-  `425.67 kB` and the Vite `>500 kB` warning is no longer emitted.
+  `426.82 kB` and the Vite `>500 kB` warning is no longer emitted.
 - Mihomo Output Profile lowering is target-specific; Desktop TUN requires an
   enabled DNS node and Fake-IP mode.
 - Package candidate: `1.0.0-rc.2`; Project Schema `2`; Runtime Storage Schema `1`
@@ -177,6 +195,11 @@ Updated: 2026-08-18
 - TopBar, Preview, and starter recovery copy use the `V1.0 RC2` label.
 - Node's experimental `node:sqlite` warning appears in Runtime Service tests;
   it is expected for the Node 22 MVP prerequisite and is not emitted by the browser.
+- Docker client, Compose, and Buildx are installed locally, but the Docker daemon
+  was unavailable during RC2 deployment validation. Real container lifecycle QA
+  is therefore `NOT RUN — Docker daemon unavailable`; mocked manager tests cover
+  the non-destructive CLI paths, and the GitHub container workflow remains the
+  image-build gate.
 
 ## Deferred
 

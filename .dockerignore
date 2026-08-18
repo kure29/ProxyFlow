@@ -1,0 +1,11 @@
+.git
+.github
+dist
+runtime-dist
+node_modules
+coverage
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
