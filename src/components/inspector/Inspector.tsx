@@ -16,7 +16,9 @@ import { useTargetCompile } from '../compiler/useTargetCompile'
 import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
-import { snapshotFreshness, type SubscriptionFreshness, type SubscriptionRuntimeRecord } from '../../core/subscription'
+import {
+  snapshotFreshness, type SubscriptionFreshness, type SubscriptionRefreshError, type SubscriptionRuntimeRecord,
+} from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
@@ -78,6 +80,10 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const localizedSnapshot = snapshot ? localizeSubscriptionSnapshots({ [node.id]: snapshot }, locale)[node.id] : undefined
   const result = localizedSnapshot?.result
   const freshness = snapshot ? snapshotFreshness(snapshot.committedAt) : runtime?.freshness ?? 'fresh'
+  const fetchPath = inputKind === 'url' ? runtime?.latestFetchPath ?? (runtimeService ? 'runtime' : 'browser') : 'local'
+  const fetchPathLabel = fetchPath === 'runtime'
+    ? t('inspector.sourcePath.runtime')
+    : fetchPath === 'browser' ? t('inspector.sourcePath.browser') : t('inspector.sourcePath.local')
   const protocols = summarize(result?.proxies.map((proxy) => proxy.protocol) ?? [])
   const regions = summarize(result?.proxies.map((proxy) => proxy.metadata?.region?.code ?? 'UNKNOWN') ?? [])
   const runtimeProvider = useMemo(() => inputKind === 'url' && runtimeService ? new ServerRuntimeProvider(runtimeService, {
@@ -116,7 +122,13 @@ function SubscriptionInspector({ node }: InspectorProps) {
     {inputKind === 'paste' && <div className="source-input-panel"><Field label={t('inspector.nodeLinks')} hint={t('inspector.nodeLinksHint')}><textarea className="node-links-input" value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /></Field><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => void parseInput(node.id, paste, 'paste')}><ClipboardPaste size={15} /> {t('inspector.parseImport')}</button></div>}
     {inputKind === 'file' && <button type="button" className="config-file-picker" onClick={() => fileRef.current?.click()}><FileUp size={20} /><span><strong>{node.data.subscriptionFileName ?? t('inspector.noFileSelected')}</strong><small>{node.data.subscriptionFileName ? t('inspector.replaceConfigFile') : t('inspector.chooseConfigFile')}</small></span></button>}
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
-    <div className={`source-status-card is-${statusClass(runtime)}`}><span>{t('inspector.fetchStatus')}</span><strong>{sourceStatus(runtime, freshness, t)}</strong><small>{runtime?.refreshStatus === 'failed' && runtime.latestError ? localizeDiagnosticMessage(runtime.latestError.code, runtime.latestError.message, locale) : runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format, locale) }) : t('inspector.waitingInput')}</small></div>
+    <div className={`source-status-card is-${statusClass(runtime)}`}>
+      <span>{t('inspector.fetchStatus')} · {fetchPathLabel}</span>
+      <strong>{sourceStatus(runtime, freshness, t)}</strong>
+      {runtime?.refreshStatus === 'failed' && runtime.latestError
+        ? <div className="source-error-detail"><code>{runtime.latestError.code}</code><span>{sourceErrorMessage(runtime.latestError, fetchPath === 'runtime', locale, t)}</span></div>
+        : <small>{runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format, locale) }) : t('inspector.waitingInput')}</small>}
+    </div>
     {runtime && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(runtime.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(runtime.lastAttemptAt, formatDateTime)}</strong></div><div><span>{t('inspector.snapshotAge')}</span><strong>{formatSnapshotAge(snapshot?.committedAt, t)}</strong></div></div>}
     <div className="metric-cards"><div><span>{t('inspector.detected')}</span><strong>{result?.detectedCount ?? 0}</strong></div><div><span>{t('inspector.usable')}</span><strong>{result?.readyCount ?? 0}</strong></div></div>
     {result && <div className="import-summary"><div><span>{t('inspector.ready')}</span><strong>{result.readyCount}</strong></div><div><span>{t('inspector.warnings')}</span><strong>{result.partialCount}</strong></div><div><span>{t('inspector.unsupported')}</span><strong>{result.unsupportedCount}</strong></div></div>}
@@ -148,14 +160,42 @@ function summarize(values: string[]): Array<[string, number]> {
 
 function sourceStatus(runtime: SubscriptionRuntimeRecord | undefined, freshness: SubscriptionFreshness, t: ReturnType<typeof useI18n>['t']) {
   if (runtime?.refreshStatus === 'loading') return t('inspector.sourceStatus.loading')
-  if (runtime?.refreshStatus === 'failed' && runtime.latestError?.code === 'SUBSCRIPTION_CORS_BLOCKED') return t('inspector.sourceStatus.cors')
-  if (runtime?.refreshStatus === 'failed' && runtime.latestError && ['SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED', 'SUBSCRIPTION_NO_USABLE_NODES'].includes(runtime.latestError.code)) return t('inspector.sourceStatus.parseFailed')
-  if (runtime?.refreshStatus === 'failed' && runtime.activeSnapshot) return t('inspector.sourceStatus.usingLkg')
-  if (runtime?.refreshStatus === 'failed') return t('inspector.sourceStatus.failed')
+  if (runtime?.refreshStatus === 'failed') {
+    const code = runtime.latestError?.code
+    if (code === 'SUBSCRIPTION_CORS_BLOCKED') return t('inspector.sourceStatus.cors')
+    if (code === 'SUBSCRIPTION_NETWORK_ERROR') return t('inspector.sourceStatus.network')
+    if (code === 'SUBSCRIPTION_TIMEOUT') return t('inspector.sourceStatus.timeout')
+    if (code === 'SUBSCRIPTION_HTTP_ERROR') return t('inspector.sourceStatus.http')
+    if (code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return t('inspector.sourceStatus.runtimeUnavailable')
+    if (code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return t('inspector.sourceStatus.runtimePolicyBlocked')
+    if (code === 'SUBSCRIPTION_TLS_ERROR') return t('inspector.sourceStatus.tls')
+    if (code && ['SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED', 'SUBSCRIPTION_NO_USABLE_NODES'].includes(code)) return t('inspector.sourceStatus.parseFailed')
+    return t('inspector.sourceStatus.failed')
+  }
   if (runtime?.activeState === 'empty') return t('inspector.sourceStatus.empty')
   if (runtime?.activeSnapshot && freshness === 'stale') return t('inspector.sourceStatus.stale')
   if (runtime?.activeSnapshot) return t('inspector.sourceStatus.ready')
   return t('inspector.sourceStatus.idle')
+}
+
+function sourceErrorMessage(
+  error: SubscriptionRefreshError,
+  usesRuntimeService: boolean,
+  locale: 'en-US' | 'zh-CN',
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  if (error.code === 'SUBSCRIPTION_NETWORK_ERROR') return usesRuntimeService
+    ? t('inspector.sourceError.runtimeNetwork')
+    : t('inspector.sourceError.browserNetwork')
+  if (error.code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return t('inspector.sourceError.runtimeUnavailable')
+  if (error.code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return t('inspector.sourceError.runtimePolicyBlocked')
+  if (error.code === 'SUBSCRIPTION_TLS_ERROR') return t('inspector.sourceError.tls')
+  if (error.code === 'SUBSCRIPTION_TIMEOUT') return t('inspector.sourceError.timeout')
+  if (error.code === 'SUBSCRIPTION_HTTP_ERROR') {
+    const status = localizeDiagnosticMessage(error.code, error.message, locale)
+    return `${status} ${t('inspector.sourceError.http')}`
+  }
+  return localizeDiagnosticMessage(error.code, error.message, locale)
 }
 
 function statusClass(runtime: SubscriptionRuntimeRecord | undefined) {

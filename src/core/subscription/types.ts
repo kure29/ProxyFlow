@@ -17,6 +17,9 @@ export type SubscriptionRefreshErrorCode =
   | 'SUBSCRIPTION_CORS_BLOCKED'
   | 'SUBSCRIPTION_NETWORK_ERROR'
   | 'SUBSCRIPTION_TIMEOUT'
+  | 'SUBSCRIPTION_RUNTIME_UNAVAILABLE'
+  | 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED'
+  | 'SUBSCRIPTION_TLS_ERROR'
   | 'SUBSCRIPTION_TOO_LARGE'
   | 'SUBSCRIPTION_UNSUPPORTED_FORMAT'
   | 'SUBSCRIPTION_PARSE_FAILED'
@@ -135,6 +138,8 @@ export interface SubscriptionRefreshError {
   httpStatus?: number
 }
 
+export type SubscriptionFetchPath = 'browser' | 'runtime'
+
 export interface SubscriptionRuntimeRecord {
   sourceId: string
   inputKind: SubscriptionInputKind
@@ -150,6 +155,7 @@ export interface SubscriptionRuntimeRecord {
   lastAttemptAt?: string
   lastSuccessfulAt?: string
   lastFailureAt?: string
+  latestFetchPath?: SubscriptionFetchPath
   latestError?: SubscriptionRefreshError
   cacheError?: SubscriptionRefreshError
   requestGeneration: number

@@ -183,7 +183,7 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
       onCacheError: (error) => { cacheError = error },
     })
     if (result.outcome === 'success') {
-      if (cacheError) { respond(response, 503, { error: cacheError.code, message: cacheError.message }, options.allowedOrigin); return }
+      if (cacheError) { respond(response, 503, safeRuntimeGatewayError(cacheError), options.allowedOrigin); return }
       respond(response, 200, { outcome: result.outcome, text: fetchedText, snapshot: result.snapshot, diff: result.diff }, options.allowedOrigin)
       return
     }
@@ -193,7 +193,7 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
       return
     }
     if (result.outcome === 'superseded') { respond(response, 409, { error: 'SUBSCRIPTION_REFRESH_SUPERSEDED', message: 'Refresh was superseded by a newer request.' }, options.allowedOrigin); return }
-    respond(response, 502, { error: result.error.code, message: result.error.message }, options.allowedOrigin)
+    respond(response, 502, safeRuntimeGatewayError(result.error), options.allowedOrigin)
   }
 
   async function confirmEmpty(projectId: string, sourceId: string, response: any) {
@@ -268,6 +268,50 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
     }),
     runDueSchedules,
   }
+}
+
+const runtimeGatewayErrorCodes = new Set<SubscriptionRefreshError['code']>([
+  'SUBSCRIPTION_INVALID_URL', 'SUBSCRIPTION_HTTP_ERROR', 'SUBSCRIPTION_NETWORK_ERROR', 'SUBSCRIPTION_TIMEOUT',
+  'SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'SUBSCRIPTION_TLS_ERROR',
+  'SUBSCRIPTION_TOO_LARGE', 'SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED',
+  'SUBSCRIPTION_NO_USABLE_NODES', 'SUBSCRIPTION_EMPTY_CONFIRMATION_REQUIRED', 'SUBSCRIPTION_REFRESH_SUPERSEDED',
+  'SUBSCRIPTION_CACHE_READ_FAILED', 'SUBSCRIPTION_CACHE_WRITE_FAILED', 'SUBSCRIPTION_SNAPSHOT_COMMIT_FAILED',
+  'SUBSCRIPTION_IDENTITY_AMBIGUOUS', 'SUBSCRIPTION_RUNTIME_INTERNAL_ERROR',
+])
+
+function safeRuntimeGatewayError(error: SubscriptionRefreshError) {
+  const code = runtimeGatewayErrorCodes.has(error.code) ? error.code : 'SUBSCRIPTION_RUNTIME_INTERNAL_ERROR'
+  const httpStatus = code === 'SUBSCRIPTION_HTTP_ERROR' ? safeHttpStatus(error.httpStatus) : undefined
+  return {
+    error: code,
+    message: safeRuntimeGatewayMessage(code, httpStatus),
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+  }
+}
+
+function safeRuntimeGatewayMessage(code: SubscriptionRefreshError['code'], httpStatus?: number) {
+  if (code === 'SUBSCRIPTION_INVALID_URL') return 'The Runtime Service accepts only valid HTTP and HTTPS subscription URLs without embedded credentials.'
+  if (code === 'SUBSCRIPTION_HTTP_ERROR') return httpStatus ? `HTTP ${httpStatus}` : 'The subscription server returned an HTTP error.'
+  if (code === 'SUBSCRIPTION_NETWORK_ERROR') return 'The Runtime Service could not reach the subscription server.'
+  if (code === 'SUBSCRIPTION_TIMEOUT') return 'The subscription request timed out in the Runtime Service.'
+  if (code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return 'The Runtime Service is unavailable.'
+  if (code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'
+  if (code === 'SUBSCRIPTION_TLS_ERROR') return 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'
+  if (code === 'SUBSCRIPTION_TOO_LARGE') return 'The subscription exceeds the Runtime Service size limit.'
+  if (code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT') return 'The subscription format is not supported.'
+  if (code === 'SUBSCRIPTION_PARSE_FAILED') return 'The subscription could not be parsed.'
+  if (code === 'SUBSCRIPTION_NO_USABLE_NODES') return 'The subscription contains no usable nodes; the previous snapshot was retained.'
+  if (code === 'SUBSCRIPTION_EMPTY_CONFIRMATION_REQUIRED') return 'The empty subscription requires confirmation.'
+  if (code === 'SUBSCRIPTION_REFRESH_SUPERSEDED') return 'The subscription refresh was superseded.'
+  if (code === 'SUBSCRIPTION_CACHE_READ_FAILED') return 'The Runtime Service could not read the cached subscription snapshot.'
+  if (code === 'SUBSCRIPTION_CACHE_WRITE_FAILED') return 'The Runtime Service could not save the subscription snapshot.'
+  if (code === 'SUBSCRIPTION_SNAPSHOT_COMMIT_FAILED') return 'The Runtime Service could not commit the subscription snapshot.'
+  if (code === 'SUBSCRIPTION_IDENTITY_AMBIGUOUS') return 'The subscription contains ambiguous node identities.'
+  return 'The Runtime Service could not complete the subscription refresh.'
+}
+
+function safeHttpStatus(value: number | undefined) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599 ? value : undefined
 }
 
 function authorized(authorization: string | undefined, cookie: string | undefined, expected: string) {

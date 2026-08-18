@@ -1,22 +1,35 @@
-import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Languages, LayoutTemplate, Network, PanelsTopLeft, Redo2, RefreshCw, Route, Undo2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Download, Eye, Languages, LayoutTemplate, Network, PanelsTopLeft, Redo2, RefreshCw, Undo2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
+import proxyFlowMark from '../../assets/proxyflow-mark.svg'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
 import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
-import { APP_VERSION_LABEL } from '../../version'
+import { APP_VERSION_BADGE, APP_VERSION_LABEL } from '../../version'
 import type { ProductView } from '../workspace/types'
+import type { ProjectListItem } from '../../storage/projectStorage'
 
 function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button className="icon-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>{children}</button>
 }
 
-export function TopBar({ view, onViewChange, onNewProject }: { view: ProductView; onViewChange: (view: ProductView) => void; onNewProject: () => void }) {
+interface TopBarProps {
+  view: ProductView
+  projects: ProjectListItem[]
+  onViewChange: (view: ProductView) => void
+  onProjectChange: (projectId: string) => Promise<void>
+  onProjectNameCommit: () => Promise<void>
+  onNewProject: () => void
+}
+
+export function TopBar({ view, projects, onViewChange, onProjectChange, onProjectNameCommit, onNewProject }: TopBarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
   const { fitView } = useReactFlow()
+  const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
+  const renameProject = useBuilderStore((state) => state.renameProject)
   const saveStatus = useBuilderStore((state) => state.saveStatus)
   const undo = useBuilderStore((state) => state.undo)
   const redo = useBuilderStore((state) => state.redo)
@@ -27,6 +40,12 @@ export function TopBar({ view, onViewChange, onNewProject }: { view: ProductView
   const refreshAll = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
   const refreshing = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).some((runtime) => runtime.refreshStatus === 'loading'))
+  const visibleProjectName = localizeProjectName(projectName, locale)
+  const [projectNameDraft, setProjectNameDraft] = useState(visibleProjectName)
+  const editStartName = useRef(projectName)
+  const cancelRename = useRef(false)
+
+  useEffect(() => setProjectNameDraft(visibleProjectName), [projectId, visibleProjectName])
 
   useEffect(() => {
     if (!projectMenuOpen && !languageMenuOpen) return
@@ -35,21 +54,71 @@ export function TopBar({ view, onViewChange, onNewProject }: { view: ProductView
     return () => window.removeEventListener('click', close)
   }, [languageMenuOpen, projectMenuOpen])
 
-  const visibleProjectName = localizeProjectName(projectName, locale)
+  const commitProjectName = (value: string) => {
+    if (!renameProject(value)) {
+      setProjectNameDraft(visibleProjectName)
+      return
+    }
+    void onProjectNameCommit()
+  }
 
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark"><Route size={19} /></span>
+        <img className="brand-mark" src={proxyFlowMark} alt="" aria-hidden="true" />
         <strong>ProxyFlow</strong>
-        <span className="version-pill">{APP_VERSION_LABEL}</span>
+        <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>
       </div>
-      <div className="topbar-divider" />
       <div className="project-switcher-wrap">
-        <button className="project-switcher" onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}>
-          <span><small>{t('top.currentProject')}</small><strong>{visibleProjectName}</strong></span><ChevronDown size={14} />
-        </button>
-        {projectMenuOpen && <div className="project-menu"><span>{t('top.recentProjects')}</span><button><Check size={13} /> {visibleProjectName}</button><button onClick={() => { onNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button></div>}
+        <div className="project-switcher">
+          <span>
+            <small>{t('top.currentProject')}</small>
+            <input
+              className="project-name-input"
+              aria-label={t('top.currentProject')}
+              value={projectNameDraft}
+              onFocus={() => { editStartName.current = projectName; cancelRename.current = false }}
+              onChange={(event) => {
+                setProjectNameDraft(event.target.value)
+                renameProject(event.target.value)
+              }}
+              onBlur={(event) => {
+                if (cancelRename.current) { cancelRename.current = false; return }
+                commitProjectName(event.currentTarget.value)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur()
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  cancelRename.current = true
+                  renameProject(editStartName.current)
+                  setProjectNameDraft(localizeProjectName(editStartName.current, locale))
+                  event.currentTarget.blur()
+                }
+              }}
+            />
+          </span>
+          <button
+            className="project-switcher-toggle"
+            aria-label={t('top.recentProjects')}
+            aria-expanded={projectMenuOpen}
+            onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}
+          ><ChevronDown size={14} /></button>
+        </div>
+        {projectMenuOpen && <div className="project-menu">
+          <span>{t('top.recentProjects')}</span>
+          {projects.map((project) => {
+            const name = project.id === projectId ? visibleProjectName : localizeProjectName(project.name, locale)
+            return <button className={project.id === projectId ? 'is-active' : ''} key={project.id} onClick={() => {
+              setProjectMenuOpen(false)
+              void onProjectChange(project.id)
+            }}>
+              {project.id === projectId ? <Check size={13} /> : <span className="project-menu-placeholder" />}
+              <span>{name}</span>
+            </button>
+          })}
+          <button onClick={() => { onNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button>
+        </div>}
       </div>
 
       <div className="product-view-switcher" role="group" aria-label={t('top.productViews')}>

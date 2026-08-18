@@ -79,7 +79,9 @@ export class BrowserSourceFetcher implements SourceFetcher {
       if (error instanceof SubscriptionFetchError) throw error
       if (timedOut) throw new SubscriptionFetchError('SUBSCRIPTION_TIMEOUT', 'Subscription request timed out.')
       if (options.signal?.aborted) throw new SubscriptionFetchError('SUBSCRIPTION_REFRESH_SUPERSEDED', 'Subscription refresh was superseded.')
-      if (error instanceof TypeError) throw new SubscriptionFetchError('SUBSCRIPTION_CORS_BLOCKED', 'The browser blocked this cross-origin request. Use Paste Content, Local File, or a URL that supports CORS.')
+      if (error instanceof TypeError && isLikelyCrossOriginFailure(url)) {
+        throw new SubscriptionFetchError('SUBSCRIPTION_CORS_BLOCKED', 'The browser could not complete this cross-origin request. Browser security does not reveal whether CORS or another transport policy blocked it.')
+      }
       throw new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'Subscription request failed because of a network error.')
     } finally {
       globalThis.clearTimeout(timeout)
@@ -99,4 +101,10 @@ function isSafeSubscriptionUrl(value: string) {
   } catch {
     return false
   }
+}
+
+function isLikelyCrossOriginFailure(value: string) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false
+  if (typeof window === 'undefined') return true
+  try { return new URL(value).origin !== window.location.origin } catch { return false }
 }

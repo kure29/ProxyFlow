@@ -45,6 +45,13 @@ describe('i18n runtime', () => {
     expect(localized).not.toMatch(/[\u3400-\u9fff]/u)
   })
 
+  it('localizes Runtime policy blocks with stable redacted copy', () => {
+    expect(localizeDiagnosticMessage('SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'untrusted token=fictional-secret', 'en-US'))
+      .toBe('The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.')
+    expect(localizeDiagnosticMessage('SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'untrusted token=fictional-secret', 'zh-CN'))
+      .toBe('Runtime Service 将订阅目标或重定向解析为私有或非公网地址，因此已阻止请求。')
+  })
+
   it('localizes built-in subscription metadata without changing user subscriptions', () => {
     const demoResult = parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' })
     demoResult.proxies[0].name = '🇭🇰 香港 SS 01'

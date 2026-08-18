@@ -33,6 +33,12 @@ describe('BrowserSourceFetcher', () => {
     await expect(new BrowserSourceFetcher().fetchText('https://example.com/sub')).rejects.toMatchObject({ code: 'SUBSCRIPTION_NETWORK_ERROR' })
   })
 
+  it('classifies an explicitly offline browser as a network failure', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    await expect(new BrowserSourceFetcher().fetchText('https://example.com/sub')).rejects.toMatchObject({ code: 'SUBSCRIPTION_NETWORK_ERROR' })
+  })
+
   it('returns safe response metadata without retaining the request URL', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('proxies: []', { status: 200, headers: {
       'content-type': 'text/yaml', etag: '"fictional-etag"', 'last-modified': 'Sat, 15 Aug 2026 00:00:00 GMT',

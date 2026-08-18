@@ -26,10 +26,17 @@ const outputNode = (primaryTarget: PrimaryTarget): GraphNode => ({
   },
 })
 
+function createProjectId() {
+  const suffix = typeof globalThis.crypto !== 'undefined' && globalThis.crypto.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  return `proxyflow-${suffix}`
+}
+
 export function createBlankProject(primaryTarget: PrimaryTarget = 'mihomo'): ProxyFlowProject {
   return {
     version: PROJECT_SCHEMA_VERSION,
-    id: 'proxyflow-new',
+    id: createProjectId(),
     name: '未命名项目',
     primaryTarget,
     graph: { nodes: [structuredClone(finalNode), outputNode(primaryTarget)], edges: [] },

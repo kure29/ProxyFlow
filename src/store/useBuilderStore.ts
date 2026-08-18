@@ -14,7 +14,7 @@ import {
 import {
   commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
   snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
-  type RefreshAllSummary, type RefreshHandlers, type SubscriptionInputKind, type SubscriptionRefreshError,
+  type RefreshAllSummary, type RefreshHandlers, type SubscriptionFetchPath, type SubscriptionInputKind, type SubscriptionRefreshError,
   type SubscriptionRuntimeRecord, type SubscriptionSnapshot,
 } from '../core/subscription'
 import {
@@ -85,6 +85,7 @@ interface BuilderState {
   hydrate: (project: ProxyFlowProject | null | undefined) => void
   resetToDemo: () => void
   createNewProject: (primaryTarget?: PrimaryTarget) => void
+  renameProject: (name: string) => boolean
   dismissRecoveryNotice: () => void
   parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
   refreshSubscription: (id: string) => Promise<void>
@@ -184,6 +185,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     return generation
   }
   const isCurrentInput = (projectId: string, sourceId: string, generation: number) => (inputGenerations.get(`${projectId}\u0000${sourceId}`) ?? 0) === generation
+  const cancelSubscriptionSource = (projectId: string, sourceId: string) => {
+    nextInputGeneration(projectId, sourceId)
+    subscriptionRefreshCoordinator.cancel(projectId, sourceId)
+  }
   const deleteSubscriptionSource = (projectId: string, sourceId: string) => {
     nextInputGeneration(projectId, sourceId)
     void subscriptionRefreshCoordinator.deleteSource(projectId, sourceId).catch(() => undefined)
@@ -193,7 +198,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     historyFuture: [],
   }))
 
-  const refreshHandlers = (id: string): RefreshHandlers => ({
+  const refreshHandlers = (id: string, fetchPath: SubscriptionFetchPath = 'browser'): RefreshHandlers => ({
     onStart: (generation, attemptedAt, fingerprint) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
       const configChanged = Boolean(previous?.sourceConfigFingerprint && previous.sourceConfigFingerprint !== fingerprint)
@@ -204,7 +209,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           [id]: {
             ...base,
             inputKind: 'url', sourceConfigFingerprint: fingerprint, refreshStatus: 'loading',
-            lastAttemptAt: attemptedAt, requestGeneration: generation,
+            lastAttemptAt: attemptedAt, latestFetchPath: fetchPath, requestGeneration: generation,
             pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined, cacheError: undefined,
           },
         },
@@ -718,6 +723,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       nextInputGeneration(projectId, id)
       const state = get()
+      const fetchPath: SubscriptionFetchPath = state.runtimeService ? 'runtime' : 'browser'
       const runtimeFetcher = state.runtimeService
         ? new ServerRuntimeProvider(state.runtimeService, {
           projectId: state.projectId, sourceId: id,
@@ -728,7 +734,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         projectId: state.projectId, sourceId: id,
         sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
         url, activeSnapshot: state.subscriptionSnapshots[id], fetcher: runtimeFetcher,
-      }, refreshHandlers(id))
+      }, refreshHandlers(id, fetchPath))
     },
     refreshAllSubscriptions: async () => {
       const state = get()
@@ -775,7 +781,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nodes: current.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item),
       }))
       await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot, {
-        onCacheError: (error) => refreshHandlers(id).onCacheError(error, runtime.requestGeneration),
+        onCacheError: (error) => refreshHandlers(id, runtime.latestFetchPath).onCacheError(error, runtime.requestGeneration),
       }, runtime.requestGeneration)
       if (state.runtimeService) {
         const node = state.nodes.find((item) => item.id === id)
@@ -909,9 +915,16 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     hydrate: (project) => {
       const previous = get()
-      const nextNodes = project?.graph.nodes ?? (project === undefined ? [] : demoProject.graph.nodes)
+      const migration = project ? migrateProject(project) : undefined
+      const value = migration?.success && migration.project ? migration.project : demoProject
+      const nextNodes = project === undefined ? [] : value.graph.nodes
+      const switchedProject = previous.projectId !== value.id
       const nextSources = new Map(nextNodes.filter((node) => node.data.blockType === 'subscription').map((node) => [node.id, node.data.subscriptionUrl ?? '']))
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
+        if (switchedProject) {
+          cancelSubscriptionSource(previous.projectId, source.id)
+          continue
+        }
         const nextUrl = nextSources.get(source.id)
         if (nextUrl === undefined || nextUrl !== (source.data.subscriptionUrl ?? '')) deleteSubscriptionSource(previous.projectId, source.id)
         else {
@@ -933,8 +946,6 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
         return
       }
-      const migration = project ? migrateProject(project) : undefined
-      const value = migration?.success && migration.project ? migration.project : demoProject
       const primaryTarget = resolveProjectPrimaryTarget(value).target
       set({
         projectId: value.id, projectName: value.name, primaryTarget, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
@@ -971,7 +982,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     createNewProject: (primaryTarget = 'mihomo') => {
       const previous = get()
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
-        deleteSubscriptionSource(previous.projectId, source.id)
+        cancelSubscriptionSource(previous.projectId, source.id)
       }
       const value = createBlankProject(primaryTarget)
       set({
@@ -985,15 +996,22 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       hydrationProjectId = value.id
       hydrationBarrier = Promise.resolve()
     },
+    renameProject: (name) => {
+      const normalized = name.trim()
+      if (!normalized) return false
+      if (normalized !== get().projectName) set({ projectName: normalized, saveStatus: 'saving' })
+      return true
+    },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
     toProject: () => {
       const state = get()
-      return localizeProject({
+      const project: ProxyFlowProject = {
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
         ...(state.primaryTarget ? { primaryTarget: state.primaryTarget } : {}),
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
-      })
+      }
+      return { ...localizeProject(project), name: project.name }
     },
   }
 })

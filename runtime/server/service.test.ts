@@ -26,7 +26,7 @@ describe('Runtime Service', () => {
   })
 
   it('fetches, stores bounded history, preserves LKG, and confirms empty results explicitly', async () => {
-    const fetcher = sequenceFetcher(yamlBody('Ready', '198.51.100.10'), 'proxies: []', new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'fictional network failure'))
+    const fetcher = sequenceFetcher(yamlBody('Ready', '198.51.100.10'), 'proxies: []', new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'untrusted token=fictional-secret'))
     const service = createTestService(fetcher)
     await service.listen(0)
     const base = address(service)
@@ -52,9 +52,35 @@ describe('Runtime Service', () => {
 
     const failed = await request()
     expect(failed.status).toBe(502)
+    const failedBody = await failed.json()
+    expect(failedBody).toEqual(expect.objectContaining({
+      error: 'SUBSCRIPTION_NETWORK_ERROR', message: 'The Runtime Service could not reach the subscription server.',
+    }))
+    expect(JSON.stringify(failedBody)).not.toContain('fictional-secret')
     const active = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })
     expect(active?.quality).toBe('empty')
     await service.close()
+  })
+
+  it.each([
+    [new SubscriptionFetchError('SUBSCRIPTION_TLS_ERROR', 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'), 'SUBSCRIPTION_TLS_ERROR', undefined],
+    [new SubscriptionFetchError('SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'), 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', undefined],
+    [new SubscriptionFetchError('SUBSCRIPTION_HTTP_ERROR', 'HTTP 403', 403), 'SUBSCRIPTION_HTTP_ERROR', 403],
+  ])('returns the redacted gateway classification %s across the Runtime API', async (failure, code, httpStatus) => {
+    const service = createTestService(sequenceFetcher(failure))
+    await service.listen(0)
+    try {
+      const response = await fetch(`${address(service)}/api/v1/subscriptions/fetch`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Fictional Source', url: 'https://example.com/sub?token=fictional-secret' }),
+      })
+      expect(response.status).toBe(502)
+      const body = await response.json()
+      expect(body).toEqual(expect.objectContaining({ error: code, ...(httpStatus ? { httpStatus } : {}) }))
+      expect(JSON.stringify(body)).not.toContain('fictional-secret')
+    } finally {
+      await service.close()
+    }
   })
 
   it('restores a history entry as a new active snapshot and clears history without deleting active state', async () => {
@@ -136,7 +162,7 @@ describe('Runtime Service', () => {
     const base = address(service)
     const blocked = await fetch(`${base}/api/v1/subscriptions/fetch`, { method: 'POST', headers: { ...authHeaders(), Origin: 'https://evil.example' }, body: '{}' })
     expect(blocked.status).toBe(403)
-    await expect(new ServerSourceFetcher({ resolveHost: async () => ['127.0.0.1'] }).fetch('https://example.com/sub')).rejects.toMatchObject({ code: 'SUBSCRIPTION_INVALID_URL' })
+    await expect(new ServerSourceFetcher({ resolveHost: async () => ['127.0.0.1'] }).fetch('https://example.com/sub')).rejects.toMatchObject({ code: 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED' })
     expect(isPublicAddress('127.0.0.1')).toBe(false)
     expect(isPublicAddress('192.168.1.1')).toBe(false)
     expect(isPublicAddress('2001:db8::1')).toBe(false)

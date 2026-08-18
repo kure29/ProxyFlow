@@ -184,14 +184,40 @@ describe('builder store', () => {
 
   it('creates Mihomo and sing-box projects with matching primary targets', () => {
     useBuilderStore.getState().createNewProject('mihomo')
+    const mihomoProjectId = useBuilderStore.getState().projectId
     expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('mihomo')
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('mihomo')
 
     useBuilderStore.getState().createNewProject('sing-box')
+    expect(useBuilderStore.getState().projectId).not.toBe(mihomoProjectId)
     expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('sing-box')
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+  })
+
+  it('renames a new project and preserves the trimmed name through target switches and hydration', () => {
+    useBuilderStore.getState().createNewProject('mihomo')
+    expect(useBuilderStore.getState().renameProject('  Production routing  ')).toBe(true)
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+    expect(useBuilderStore.getState().toProject().name).toBe('Production routing')
+
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    useBuilderStore.getState().setPrimaryTarget('mihomo')
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+
+    const saved = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(saved)
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+    expect(useBuilderStore.getState().toProject().name).toBe('Production routing')
+  })
+
+  it('rejects an empty project rename without restoring the default name', () => {
+    useBuilderStore.getState().createNewProject()
+    useBuilderStore.getState().renameProject('Keep this name')
+
+    expect(useBuilderStore.getState().renameProject('   ')).toBe(false)
+    expect(useBuilderStore.getState().projectName).toBe('Keep this name')
   })
 
   it('infers legacy primary targets and preserves ambiguous projects verbatim', () => {
@@ -419,7 +445,23 @@ describe('builder store', () => {
     expect(failedRuntime.activeSnapshot).toBe(successful)
     expect(failedRuntime.lastSuccessfulAt).toBe(successfulRuntime.lastSuccessfulAt)
     expect(failedRuntime.lastFailureAt).toBeTruthy()
+    expect(failedRuntime.latestFetchPath).toBe('browser')
     expect(failedRuntime.latestError?.message).not.toContain('token=private')
+  })
+
+  it('keeps the recorded Runtime fetch path after the service is disconnected', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://runtime-path.example.invalid/list' })
+    useBuilderStore.getState().setRuntimeServiceConfig({ baseUrl: 'https://runtime.example.invalid', token: 'fictional-runtime-token' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      text: 'socks5://runtime:fictional@runtime-node.example.invalid:1080#Runtime',
+    }), { headers: { 'content-type': 'application/json' } })))
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
+    useBuilderStore.getState().disconnectRuntimeService()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
   })
 
   it('keeps downstream Filter output and graph compilation stable after a failed refresh', async () => {
@@ -571,6 +613,25 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
     expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].activeState).toBe('none')
     expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionUrl).toBe(url)
+  })
+
+  it('preserves the previous Project LKG when creating and switching between projects', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://project-switch.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://switch:fictional@switch-node.example.invalid:1080#Switch')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const firstProject = structuredClone(useBuilderStore.getState().toProject())
+    const deleteSource = vi.spyOn(subscriptionRuntimeRepository, 'deleteSource')
+
+    useBuilderStore.getState().createNewProject('sing-box')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(deleteSource).not.toHaveBeenCalledWith(firstProject.id, sourceId)
+
+    useBuilderStore.getState().hydrate(firstProject)
+    await useBuilderStore.getState().hydrateSubscriptionCache()
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.readyCount).toBe(1)
   })
 
   it('does not let late cache hydration overwrite a newer network refresh', async () => {

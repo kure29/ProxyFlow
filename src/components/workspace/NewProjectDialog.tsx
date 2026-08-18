@@ -11,10 +11,11 @@ interface NewProjectDialogProps {
   open: boolean
   required?: boolean
   onClose: () => void
+  beforeCreate: () => Promise<void>
   onComplete: () => void
 }
 
-export function NewProjectDialog({ open, required = false, onClose, onComplete }: NewProjectDialogProps) {
+export function NewProjectDialog({ open, required = false, onClose, beforeCreate, onComplete }: NewProjectDialogProps) {
   const { t } = useI18n()
   const createNewProject = useBuilderStore((state) => state.createNewProject)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
@@ -22,6 +23,7 @@ export function NewProjectDialog({ open, required = false, onClose, onComplete }
   const [step, setStep] = useState<1 | 2>(1)
   const [target, setTarget] = useState<PrimaryTarget>('mihomo')
   const [source, setSource] = useState<NewProjectSourceChoice>('url')
+  const [creating, setCreating] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
 
@@ -57,11 +59,18 @@ export function NewProjectDialog({ open, required = false, onClose, onComplete }
     setPrimaryTarget(target)
     onComplete()
   }
-  const create = () => {
-    createNewProject(target)
-    const blockType = sourceBlockForNewProject(source)
-    if (blockType) addLibraryNode(blockType, { x: 80, y: 90 })
-    onComplete()
+  const create = async () => {
+    if (creating) return
+    setCreating(true)
+    try {
+      await beforeCreate()
+      createNewProject(target)
+      const blockType = sourceBlockForNewProject(source)
+      if (blockType) addLibraryNode(blockType, { x: 80, y: 90 })
+      onComplete()
+    } finally {
+      setCreating(false)
+    }
   }
 
   return <div className="new-project-backdrop">
@@ -98,7 +107,7 @@ export function NewProjectDialog({ open, required = false, onClose, onComplete }
           ? <button type="button" className="primary-action" onClick={finishExistingProject}>{t('newProject.useTarget')}<ArrowRight size={15} /></button>
           : step === 1
             ? <button type="button" className="primary-action" onClick={() => setStep(2)}>{t('newProject.continue')}<ArrowRight size={15} /></button>
-            : <button type="button" className="primary-action" onClick={create}>{t('newProject.create')}<ArrowRight size={15} /></button>}
+            : <button type="button" className="primary-action" disabled={creating} onClick={() => void create()}>{t('newProject.create')}<ArrowRight size={15} /></button>}
       </footer>
     </section>
   </div>

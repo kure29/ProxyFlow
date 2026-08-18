@@ -48,19 +48,17 @@ export class ServerRuntimeProvider implements SourceFetcher {
     const abort = () => controller.abort(options.signal?.reason)
     options.signal?.addEventListener('abort', abort, { once: true })
     try {
-      const response = await fetch(`${normalizeBaseUrl(this.config.baseUrl)}/api/v1/subscriptions/fetch`, {
-        method: 'POST',
-        headers: runtimeHeaders(this.config, true),
-        body: JSON.stringify({ projectId: this.source.projectId, sourceId: this.source.sourceId, sourceName: this.source.sourceName, url }),
-        signal: controller.signal,
-        credentials: runtimeCredentials(this.config),
-      })
+      let response = await this.fetchGateway(url, controller.signal)
+      if (response.status === 401 && this.config.sameOrigin) {
+        const refreshed = await detectSameOriginRuntime(globalThis.fetch, controller.signal)
+        if (refreshed) response = await this.fetchGateway(url, controller.signal)
+      }
       const payload = await response.json().catch(() => ({})) as Record<string, unknown>
       if (!response.ok) {
-        const code = typeof payload.error === 'string' ? payload.error : 'SUBSCRIPTION_NETWORK_ERROR'
-        throw new SubscriptionFetchError(normalizeErrorCode(code), typeof payload.message === 'string' ? payload.message : 'Runtime Service request failed.', response.status)
+        const failure = normalizeRuntimeFailure(payload)
+        throw new SubscriptionFetchError(failure.code, failure.message, failure.httpStatus)
       }
-      if (typeof payload.text !== 'string') throw new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'Runtime Service returned no subscription content.')
+      if (typeof payload.text !== 'string') throw new SubscriptionFetchError('SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'The Runtime Service returned an invalid response.')
       return {
         text: payload.text,
         status: 200,
@@ -71,13 +69,22 @@ export class ServerRuntimeProvider implements SourceFetcher {
     } catch (error) {
       if (error instanceof SubscriptionFetchError) throw error
       if (controller.signal.aborted && options.signal?.aborted) throw new SubscriptionFetchError('SUBSCRIPTION_REFRESH_SUPERSEDED', 'Subscription refresh was superseded.')
-      if (controller.signal.aborted) throw new SubscriptionFetchError('SUBSCRIPTION_TIMEOUT', 'Runtime Service request timed out.')
-      if (error instanceof TypeError) throw new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'Runtime Service is unavailable.')
-      throw new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'Runtime Service request failed.')
+      if (controller.signal.aborted) throw new SubscriptionFetchError('SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'The Runtime Service did not respond before the request deadline.')
+      throw new SubscriptionFetchError('SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'The Runtime Service is unavailable.')
     } finally {
       globalThis.clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abort)
     }
+  }
+
+  private fetchGateway(url: string, signal: AbortSignal) {
+    return fetch(`${normalizeBaseUrl(this.config.baseUrl)}/api/v1/subscriptions/fetch`, {
+      method: 'POST',
+      headers: runtimeHeaders(this.config, true),
+      body: JSON.stringify({ projectId: this.source.projectId, sourceId: this.source.sourceId, sourceName: this.source.sourceName, url }),
+      signal,
+      credentials: runtimeCredentials(this.config),
+    })
   }
 
   async health(): Promise<RuntimeHealth> {
@@ -179,10 +186,10 @@ export function clearRuntimeServiceConfig() {
   if (typeof window !== 'undefined') window.localStorage.removeItem('proxyflow.runtime.provider.v1')
 }
 
-export async function detectSameOriginRuntime(fetcher: typeof fetch = globalThis.fetch): Promise<RuntimeServiceConfig | null> {
+export async function detectSameOriginRuntime(fetcher: typeof fetch = globalThis.fetch, signal?: AbortSignal): Promise<RuntimeServiceConfig | null> {
   try {
     const response = await fetcher('/api/v1/self-hosted', {
-      headers: { Accept: 'application/json' }, credentials: 'same-origin',
+      headers: { Accept: 'application/json' }, credentials: 'same-origin', signal,
     })
     if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
     const payload = await response.json() as { ok?: boolean; service?: string }
@@ -203,9 +210,51 @@ function runtimeCredentials(config: RuntimeServiceConfig): RequestCredentials {
   return config.sameOrigin ? 'same-origin' : 'omit'
 }
 
-function normalizeErrorCode(value: string): ConstructorParameters<typeof SubscriptionFetchError>[0] {
-  const allowed = new Set<ConstructorParameters<typeof SubscriptionFetchError>[0]>([
-    'SUBSCRIPTION_HTTP_ERROR', 'SUBSCRIPTION_NETWORK_ERROR', 'SUBSCRIPTION_TIMEOUT', 'SUBSCRIPTION_TOO_LARGE', 'SUBSCRIPTION_REFRESH_SUPERSEDED',
-  ])
-  return allowed.has(value as ConstructorParameters<typeof SubscriptionFetchError>[0]) ? value as ConstructorParameters<typeof SubscriptionFetchError>[0] : 'SUBSCRIPTION_NETWORK_ERROR'
+type FetchErrorCode = ConstructorParameters<typeof SubscriptionFetchError>[0]
+
+const gatewayErrorCodes = new Set<FetchErrorCode>([
+  'SUBSCRIPTION_INVALID_URL', 'SUBSCRIPTION_HTTP_ERROR', 'SUBSCRIPTION_NETWORK_ERROR', 'SUBSCRIPTION_TIMEOUT',
+  'SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'SUBSCRIPTION_TLS_ERROR',
+  'SUBSCRIPTION_TOO_LARGE', 'SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED',
+  'SUBSCRIPTION_NO_USABLE_NODES', 'SUBSCRIPTION_REFRESH_SUPERSEDED',
+])
+
+function normalizeRuntimeFailure(payload: Record<string, unknown>): { code: FetchErrorCode; message: string; httpStatus?: number } {
+  const value = typeof payload.error === 'string' ? payload.error : ''
+  if (!gatewayErrorCodes.has(value as FetchErrorCode)) {
+    return { code: 'SUBSCRIPTION_RUNTIME_UNAVAILABLE', message: 'The Runtime Service is unavailable or rejected the request.' }
+  }
+  const code = value as FetchErrorCode
+  const upstreamStatus = safeHttpStatus(payload.httpStatus)
+    ?? (code === 'SUBSCRIPTION_HTTP_ERROR' ? httpStatusFromMessage(payload.message) : undefined)
+  return {
+    code,
+    message: safeGatewayMessage(code, upstreamStatus),
+    ...(upstreamStatus !== undefined ? { httpStatus: upstreamStatus } : {}),
+  }
+}
+
+function safeGatewayMessage(code: FetchErrorCode, httpStatus?: number) {
+  if (code === 'SUBSCRIPTION_INVALID_URL') return 'The Runtime Service rejected the subscription destination.'
+  if (code === 'SUBSCRIPTION_HTTP_ERROR') return httpStatus ? `HTTP ${httpStatus}` : 'The subscription server returned an HTTP error.'
+  if (code === 'SUBSCRIPTION_NETWORK_ERROR') return 'The Runtime Service could not reach the subscription server.'
+  if (code === 'SUBSCRIPTION_TIMEOUT') return 'The subscription request timed out in the Runtime Service.'
+  if (code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return 'The Runtime Service is unavailable or rejected the request.'
+  if (code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'
+  if (code === 'SUBSCRIPTION_TLS_ERROR') return 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'
+  if (code === 'SUBSCRIPTION_TOO_LARGE') return 'The subscription exceeds the Runtime Service size limit.'
+  if (code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT') return 'The subscription format is not supported.'
+  if (code === 'SUBSCRIPTION_PARSE_FAILED') return 'The subscription could not be parsed.'
+  if (code === 'SUBSCRIPTION_NO_USABLE_NODES') return 'The subscription contains no usable nodes; the previous snapshot was retained.'
+  return 'The subscription refresh was superseded.'
+}
+
+function safeHttpStatus(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599 ? value : undefined
+}
+
+function httpStatusFromMessage(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const match = /^HTTP (\d{3})$/.exec(value)
+  return match ? safeHttpStatus(Number(match[1])) : undefined
 }
