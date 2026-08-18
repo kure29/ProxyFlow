@@ -23,6 +23,7 @@ import {
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
+import { updateWorkspaceNodeData } from '../core/workspace'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -435,7 +436,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         ? (isPrimaryTarget(patch.client) ? patch.client : null)
         : undefined
       set((state) => ({
-        nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) } } : item),
+        nodes: updateWorkspaceNodeData(state.nodes, id, { ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) }),
         ...(soleOutputTarget !== undefined ? { primaryTarget: soleOutputTarget } : {}),
         ...(urlChanged ? {
           subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
