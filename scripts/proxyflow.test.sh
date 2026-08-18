@@ -36,6 +36,14 @@ assert_file_contains() {
   grep -Fqx -- "$2" "$1" || fail "$3 (missing line: $2)"
 }
 
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
 run_script() {
   set +e
   OUTPUT="$("$@" 2>&1)"
@@ -151,7 +159,7 @@ run_script env \
 assert_status 0 'Install succeeds with mocked Docker'
 assert_output 'http://127.0.0.1:28431' 'Install prints the overridden access address'
 [[ -d "${DATA_DIR}" && -d "${INSTALL_HOME}/backups" ]] || fail 'Install creates persistent directories'
-[[ "$(stat -f '%Lp' "${INSTALL_HOME}/.env" 2>/dev/null || stat -c '%a' "${INSTALL_HOME}/.env")" == '600' ]] || fail 'Install protects the environment file'
+[[ "$(file_mode "${INSTALL_HOME}/.env")" == '600' ]] || fail 'Install protects the environment file'
 assert_file_contains "${INSTALL_HOME}/.env" 'PROXYFLOW_PORT=28431' 'Install persists the port override'
 assert_file_contains "${INSTALL_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/example/proxyflow:fictional' 'Install persists the image override'
 assert_file_contains "${INSTALL_HOME}/.env" 'PROXYFLOW_IMAGE_MANAGED=false' 'Install preserves an explicit image pin'
