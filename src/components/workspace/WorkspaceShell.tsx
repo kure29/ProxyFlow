@@ -1,15 +1,21 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDown, ArrowUp, Boxes, CircleAlert, Download, FileOutput, GitBranch, Globe2,
+  ArrowDown, ArrowUp, Boxes, ChevronDown, CircleAlert, Download, FileOutput, GitBranch, Globe2,
   ListFilter, Network, Plus, Radio, RefreshCw, Route, SearchCheck, Settings2, ShieldCheck,
 } from 'lucide-react'
 import { createWorkspaceProjection, type WorkspaceNodeItem, type WorkspaceSectionId } from '../../core/workspace'
 import { getTargetCapabilities } from '../../core/capabilities'
-import { localizeDiagnosticMessage, useI18n } from '../../i18n'
+import { blockDescriptionKey, blockTitleKey, localizeDiagnosticMessage, useI18n } from '../../i18n'
 import type { MessageKey } from '../../i18n'
+import { blockByType } from '../../data/blockLibrary'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { BlockIcon } from '../icons/BlockIcon'
+import type { BlockNodeData, BlockType } from '../../types/project'
 import type { ProductView, WorkspaceNavigationState } from './types'
+import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
+import {
+  processingCreationOptions, routingCreationOptions, strategyCreationOptions, type WorkspaceCreationOption,
+} from './workspaceCreation'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
@@ -56,6 +62,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
   const refreshSubscription = useBuilderStore((state) => state.refreshSubscription)
   const moveRule = useBuilderStore((state) => state.moveRoutingRule)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
+  const [editorOpen, setEditorOpen] = useState(false)
 
   const projection = useMemo(
     () => createWorkspaceProjection(toProject(), { subscriptionSnapshots: snapshots }),
@@ -73,14 +80,17 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
   }
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
 
-  const editInFlow = (item: WorkspaceNodeItem) => {
+  const editInWorkspace = (item: WorkspaceNodeItem) => {
     selectNode(item.node.id)
-    onViewChange('visual-flow')
+    setEditorOpen(true)
   }
-  const addNode = (type: Parameters<typeof addLibraryNode>[0]) => {
+  const addNode = (type: BlockType, data?: Partial<BlockNodeData>) => {
     const index = nodes.filter((node) => node.data.blockType === type).length
-    addLibraryNode(type, { x: 80 + index * 36, y: 90 + index * 42 })
+    const id = addLibraryNode(type, { x: 80 + index * 36, y: 90 + index * 42 }, data)
+    if (id) setEditorOpen(true)
   }
+  const closeEditor = useCallback(() => { setEditorOpen(false); selectNode(null) }, [selectNode])
+  const showEditorInFlow = useCallback(() => { setEditorOpen(false); onViewChange('visual-flow') }, [onViewChange])
 
   return <div className="structured-workspace">
     <nav className="workspace-navigation" aria-label={t('workspace.navigation')}>
@@ -97,25 +107,50 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
       <header className="workspace-content-header">
         <div><h1>{t(navigation.find((item) => item.id === activeSection)!.label)}</h1><p>{t('workspace.targetContext', { target: targetLabel })}</p></div>
         {activeSection === 'sources' && <div><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
-        {activeSection === 'processing' && <button className="primary-action" onClick={() => addNode('filter')}><Plus size={15} />{t('workspace.addProcessing')}</button>}
-        {activeSection === 'strategies' && <button className="primary-action" onClick={() => addNode('manual-select')}><Plus size={15} />{t('workspace.addStrategy')}</button>}
-        {activeSection === 'routing' && <button className="primary-action" onClick={() => addNode('service-rule')}><Plus size={15} />{t('workspace.addRouting')}</button>}
+        {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
+        {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
+        {activeSection === 'routing' && <WorkspaceAddMenu label={t('workspace.addRouting')} options={routingCreationOptions} onCreate={addNode} />}
+        {activeSection === 'dns' && projection.dns.length === 0 && <button className="primary-action" onClick={() => addNode('dns')}><Plus size={15} />{t('workspace.addDns')}</button>}
         {activeSection === 'export' && <button className="primary-action" onClick={() => setPreviewOpen(true)}><Download size={15} />{t('top.exportConfig')}</button>}
       </header>
 
       <section className="workspace-section-body">
-        {activeSection === 'sources' && <SourceList items={projection.sources} runtimes={runtimes} onRefresh={refreshSubscription} onEdit={editInFlow} />}
+        {activeSection === 'sources' && <SourceList items={projection.sources} runtimes={runtimes} onRefresh={refreshSubscription} onEdit={editInWorkspace} />}
         {activeSection === 'proxies' && <ProxyList proxies={projection.proxies} />}
-        {activeSection === 'processing' && <NodeList items={projection.processing} empty={t('workspace.empty.processing')} onEdit={editInFlow} />}
-        {activeSection === 'strategies' && <NodeList items={[...projection.strategies, ...projection.chains]} empty={t('workspace.empty.strategies')} onEdit={editInFlow} />}
-        {activeSection === 'routing' && <RoutingList items={projection.routing} finals={projection.finalRoutes} onMove={moveRule} onEdit={editInFlow} />}
-        {activeSection === 'dns' && <NodeList items={projection.dns} empty={t('workspace.empty.dns')} onEdit={editInFlow} />}
+        {activeSection === 'processing' && <NodeList items={projection.processing} empty={t('workspace.empty.processing')} onEdit={editInWorkspace} />}
+        {activeSection === 'strategies' && <NodeList items={[...projection.strategies, ...projection.chains]} empty={t('workspace.empty.strategies')} onEdit={editInWorkspace} />}
+        {activeSection === 'routing' && <RoutingList items={projection.routing} finals={projection.finalRoutes} onMove={moveRule} onEdit={editInWorkspace} />}
+        {activeSection === 'dns' && <NodeList items={projection.dns} empty={t('workspace.empty.dns')} onEdit={editInWorkspace} />}
         {activeSection === 'inspect' && <div className="workspace-issue-list">{projection.compileIssues.length === 0
           ? <EmptyState icon={<ShieldCheck size={22} />} title={t('workspace.inspectReady')} />
-          : projection.compileIssues.map((issue, index) => <article key={`${issue.code}-${issue.nodeId ?? index}`}><CircleAlert size={17} /><span><strong>{issue.code}</strong><small>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</small></span>{issue.nodeId && <button onClick={() => { selectNode(issue.nodeId!); onViewChange('visual-flow') }}>{t('workspace.open')}</button>}</article>)}</div>}
+          : projection.compileIssues.map((issue, index) => <article key={`${issue.code}-${issue.nodeId ?? index}`}><CircleAlert size={17} /><span><strong>{issue.code}</strong><small>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</small></span>{issue.nodeId && <button onClick={() => { selectNode(issue.nodeId!); setEditorOpen(true) }}>{t('workspace.open')}</button>}</article>)}</div>}
         {activeSection === 'export' && <ExportSummary primaryTarget={primaryTarget} issueCount={projection.compileIssues.filter((issue) => issue.severity === 'error').length} onPreview={() => setPreviewOpen(true)} />}
       </section>
     </main>
+    <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} />
+  </div>
+}
+
+function WorkspaceAddMenu({ label, options, onCreate }: { label: string; options: WorkspaceCreationOption[]; onCreate: (type: BlockType, data?: Partial<BlockNodeData>) => void }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [open])
+  return <div className="workspace-add-menu" ref={rootRef}>
+    <button type="button" className="primary-action" aria-expanded={open} onClick={() => setOpen((current) => !current)}><Plus size={15} />{label}<ChevronDown size={14} /></button>
+    {open && <div className="workspace-add-options" role="menu">{options.map((option) => {
+      const item = blockByType.get(option.blockType)
+      const optionLabel = option.id === 'service' ? t('inspector.matcher.service') : option.id === 'domain' ? t('inspector.matcher.domainSuffix') : option.id === 'cidr' ? t('inspector.matcher.ipCidr') : option.id === 'port' ? t('inspector.matcher.port') : t(blockTitleKey(option.blockType))
+      const status = option.status ? t(compatibilityMessages[option.status]) : option.advanced ? t('workspace.advanced') : t(blockDescriptionKey(option.blockType))
+      return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => { onCreate(option.blockType, option.data); setOpen(false) }}>
+        <BlockIcon name={item?.icon ?? 'plus'} size={17} /><span><strong>{optionLabel}</strong><small>{status}</small></span>{option.advanced && <i>{t('workspace.advanced')}</i>}
+      </button>
+    })}</div>}
   </div>
 }
 

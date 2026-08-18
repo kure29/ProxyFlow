@@ -1,5 +1,6 @@
 import { getTargetCapabilities, type CapabilityStatus, type TransportCapability } from '../capabilities'
 import { compileGraph } from '../graphCompiler'
+import { isConnectionAllowed } from '../graph/graphRules'
 import { isUnmodeledProxy } from '../ir'
 import type { ResolvedProxyEndpointIR, SupportedProxyProtocol } from '../proxy'
 import { resolveProjectPrimaryTarget, type PrimaryTargetResolution } from '../project/primaryTarget'
@@ -108,6 +109,25 @@ export function updateWorkspaceNodeData(
   return nodes.map((node) => node.id === nodeId
     ? { ...node, data: { ...node.data, ...patch } }
     : node)
+}
+
+export function canUseWorkspaceInput(
+  nodes: GraphNode[],
+  edges: ProxyFlowProject['graph']['edges'],
+  targetId: string,
+  sourceId: string,
+): boolean {
+  if (!isConnectionAllowed({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null }, nodes)) return false
+  const pending = [targetId]
+  const visited = new Set<string>()
+  while (pending.length) {
+    const current = pending.shift()!
+    if (current === sourceId) return false
+    if (visited.has(current)) continue
+    visited.add(current)
+    for (const edge of edges) if (edge.source === current) pending.push(edge.target)
+  }
+  return true
 }
 
 function summarizeProxies(

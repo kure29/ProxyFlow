@@ -23,7 +23,7 @@ import {
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
-import { updateWorkspaceNodeData } from '../core/workspace'
+import { canUseWorkspaceInput, updateWorkspaceNodeData } from '../core/workspace'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -56,13 +56,14 @@ interface BuilderState {
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
   addNode: (type: BlockType, position: XYPosition, data?: Partial<BlockNodeData>) => string | null
-  addLibraryNode: (entryType: BlockType, position: XYPosition) => string | null
+  addLibraryNode: (entryType: BlockType, position: XYPosition, data?: Partial<BlockNodeData>) => string | null
   duplicateNode: (id: string) => void
   removeNode: (id: string) => void
   deleteSelected: () => void
   selectNode: (id: string | null, service?: string | null, additive?: boolean) => void
   selectEdge: (id: string | null) => void
   updateNodeData: (id: string, patch: Partial<BlockNodeData>) => void
+  setWorkspaceInputs: (nodeId: string, sourceIds: string[]) => boolean
   setRoutingTarget: (nodeId: string, targetId: string) => void
   moveRoutingRule: (nodeId: string, direction: 'up' | 'down') => void
   addHop: (chainId: string) => void
@@ -343,9 +344,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }))
       return id
     },
-    addLibraryNode: (entryType, position) => {
+    addLibraryNode: (entryType, position, data) => {
       const preset = resolveLibraryNodePreset(entryType)
-      return get().addNode(preset.blockType, position, preset.data)
+      return get().addNode(preset.blockType, position, { ...preset.data, ...data })
     },
     duplicateNode: (id) => {
       const source = get().nodes.find((node) => node.id === id)
@@ -443,6 +444,32 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
         } : {}),
       }))
+    },
+    setWorkspaceInputs: (nodeId, sourceIds) => {
+      const state = get()
+      const target = state.nodes.find((node) => node.id === nodeId)
+      if (!target || !['processing', 'strategy'].includes(target.data.category)) return false
+      const uniqueSourceIds = [...new Set(sourceIds)]
+      const connections = uniqueSourceIds.map((source) => ({ source, target: nodeId, sourceHandle: null, targetHandle: null }))
+      if (connections.some((connection) => !canUseWorkspaceInput(state.nodes, state.edges, nodeId, connection.source))) return false
+
+      const managedSemantics = new Set(['data', 'strategy'])
+      const existingInputs = state.edges
+        .filter((edge) => edge.target === nodeId && managedSemantics.has(String(edge.data?.semantic)))
+        .map((edge) => edge.source)
+      if (existingInputs.length === uniqueSourceIds.length && existingInputs.every((id) => uniqueSourceIds.includes(id))) return true
+
+      const retainedEdges = state.edges.filter((edge) => edge.target !== nodeId || !managedSemantics.has(String(edge.data?.semantic)))
+      const nextEdges: GraphEdge[] = connections.map((connection) => {
+        const semantic = semanticForConnection(connection, state.nodes)
+        return {
+          id: makeId(semantic), source: connection.source, target: connection.target, type: 'smoothstep',
+          data: { semantic }, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+        }
+      })
+      record()
+      set({ edges: [...retainedEdges, ...nextEdges] })
+      return true
     },
     setRoutingTarget: (nodeId, targetId) => {
       const state = get()

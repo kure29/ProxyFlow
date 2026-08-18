@@ -45,6 +45,31 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.at(-1)?.data.blockType).toBe('manual-proxy')
   })
 
+  it('applies Workspace creation data in the same add transaction', () => {
+    const id = useBuilderStore.getState().addLibraryNode('service-rule', { x: 120, y: 120 }, {
+      routeMatcherKind: 'port',
+      routeMatcherPort: 443,
+    })!
+
+    expect(useBuilderStore.getState().nodes.find((item) => item.id === id)?.data).toEqual(expect.objectContaining({
+      blockType: 'service-rule', routeMatcherKind: 'port', routeMatcherPort: 443,
+    }))
+  })
+
+  it('replaces Workspace inputs atomically and preserves undo', () => {
+    expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['hkt-subscription'])).toBe(true)
+    expect(useBuilderStore.getState().edges.filter((edge) => edge.target === 'us-filter').map((edge) => edge.source)).toEqual(['hkt-subscription'])
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().edges.filter((edge) => edge.target === 'us-filter').map((edge) => edge.source)).toEqual(['us-subscription'])
+  })
+
+  it('rejects invalid Workspace input connections without changing the graph', () => {
+    const before = structuredClone(useBuilderStore.getState().edges)
+    expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['china-route'])).toBe(false)
+    expect(useBuilderStore.getState().edges).toEqual(before)
+  })
+
   it('creates, duplicates and reloads Limit nodes with numeric default 10', () => {
     const id = useBuilderStore.getState().addNode('limit', { x: 120, y: 120 })!
     expect(useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.limit).toBe(10)

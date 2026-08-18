@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import { v08BasicRoutingFixture } from '../__fixtures__/v08Acceptance'
 import { compileGraph } from '../graphCompiler'
-import { createWorkspaceProjection, updateWorkspaceNodeData } from './projectWorkspace'
+import { canUseWorkspaceInput, createWorkspaceProjection, updateWorkspaceNodeData } from './projectWorkspace'
 
 describe('Workspace graph adapter', () => {
   it('projects the existing graph into structured sections without changing node identity', () => {
@@ -48,6 +48,18 @@ describe('Workspace graph adapter', () => {
     expect(compileGraph(project).ir?.strategies.find((strategy) => strategy.id === 'auto')).toEqual(expect.objectContaining({
       kind: 'auto-select', healthCheck: expect.objectContaining({ intervalSeconds: 240, toleranceMs: 75 }),
     }))
+  })
+
+  it('allows valid Workspace inputs and rejects graph cycles', () => {
+    const project = structuredClone(demoProject)
+    expect(canUseWorkspaceInput(project.graph.nodes, project.graph.edges, 'us-filter', 'hkt-subscription')).toBe(true)
+
+    project.graph.nodes.push({
+      id: 'later-processing', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'rename', category: 'processing', title: 'Later', subtitle: '', icon: 'text-cursor' },
+    })
+    project.graph.edges.push({ id: 'filter-later', source: 'us-filter', target: 'later-processing', type: 'smoothstep', data: { semantic: 'data' } })
+    expect(canUseWorkspaceInput(project.graph.nodes, project.graph.edges, 'us-filter', 'later-processing')).toBe(false)
   })
 
   it('round-trips legacy graph nodes through JSON without creating Workspace state', () => {
