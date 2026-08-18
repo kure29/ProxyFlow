@@ -112,6 +112,7 @@ export const demoProject: ProxyFlowProject = {
   version: PROJECT_SCHEMA_VERSION,
   id: 'proxyflow-demo',
   name: '我的代理配置',
+  primaryTarget: 'mihomo',
   graph: { nodes: demoNodes, edges: demoEdges },
   services: serviceCatalog,
   outputs: outputDefinitions,

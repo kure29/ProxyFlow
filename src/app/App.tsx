@@ -96,7 +96,7 @@ export function App() {
     <SubscriptionEmptyConfirmation />
     {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>
       <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>
-      <div><button className="secondary-action" onClick={createNewProject}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}>×</button>}</div>
+      <div><button className="secondary-action" onClick={() => createNewProject()}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}>×</button>}</div>
     </section>}
     {!hydrated && <div className="loading-screen"><span className="brand-mark"><Route size={22} /></span><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
     {toast && <div className="toast" role="status"><span><CheckIcon /></span>{toast}</div>}

@@ -8,6 +8,7 @@ import { deriveProjectRuntime } from '../core/proxySet'
 import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createBlankProject } from '../data/newProject'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -146,6 +147,85 @@ describe('builder store', () => {
     useBuilderStore.getState().hydrate(project)
     expect(useBuilderStore.getState().toProject().version).toBe(2)
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toBeUndefined()
+  })
+
+  it('creates Mihomo and sing-box projects with matching primary targets', () => {
+    useBuilderStore.getState().createNewProject('mihomo')
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('mihomo')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('mihomo')
+
+    useBuilderStore.getState().createNewProject('sing-box')
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('sing-box')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+  })
+
+  it('infers legacy primary targets and preserves ambiguous projects verbatim', () => {
+    const legacy = createBlankProject('sing-box')
+    delete legacy.primaryTarget
+    useBuilderStore.getState().hydrate(legacy)
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+
+    const ambiguous = createBlankProject('mihomo')
+    delete ambiguous.primaryTarget
+    ambiguous.graph.nodes.push({
+      ...structuredClone(ambiguous.graph.nodes.find((node) => node.data.blockType === 'output')!),
+      id: 'secondary-output',
+      data: { ...structuredClone(ambiguous.graph.nodes.find((node) => node.data.blockType === 'output')!.data), client: 'sing-box' },
+    })
+    const graphBefore = structuredClone(ambiguous.graph)
+    useBuilderStore.getState().hydrate(ambiguous)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBeUndefined()
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+  })
+
+  it('fails closed for corrupted primary-target metadata without changing the graph', () => {
+    const project = createBlankProject('mihomo') as unknown as Record<string, unknown>
+    project.primaryTarget = 'surge'
+    const graphBefore = structuredClone(project.graph)
+    useBuilderStore.getState().hydrate(project as unknown as ReturnType<typeof createBlankProject>)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+  })
+
+  it('switches a sole Output non-destructively and includes primary target in undo and redo', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    const graphBeforeSwitch = {
+      nodes: structuredClone(useBuilderStore.getState().nodes),
+      edges: structuredClone(useBuilderStore.getState().edges),
+    }
+
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    const switchedOutput = useBuilderStore.getState().nodes.find((node) => node.id === 'output')!
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(switchedOutput.data.client).toBe('sing-box')
+    expect(switchedOutput.data.mihomoProfile).toEqual(profile)
+    expect(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output')).toEqual(
+      graphBeforeSwitch.nodes.filter((node) => node.id !== 'output'),
+    )
+    expect(useBuilderStore.getState().edges).toEqual(graphBeforeSwitch.edges)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('synchronizes a sole supported Output edit without deleting target-native data', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    useBuilderStore.getState().setOutputClient('output', 'sing-box')
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
   })
 
   it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {

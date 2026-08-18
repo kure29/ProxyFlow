@@ -2,8 +2,10 @@ import type { Edge, Node } from '@xyflow/react'
 import type { TargetClient, OutputDefinition, MihomoOutputProfile } from './output'
 import type { ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
+import type { PrimaryTarget } from '../core/capabilities'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
+export type { PrimaryTarget } from '../core/capabilities'
 export type { ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
 
 export type BlockCategory =
@@ -145,6 +147,7 @@ export interface ProxyFlowProject {
   version: number
   id: string
   name: string
+  primaryTarget?: PrimaryTarget
   graph: {
     nodes: GraphNode[]
     edges: GraphEdge[]

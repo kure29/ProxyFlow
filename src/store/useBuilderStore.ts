@@ -21,8 +21,11 @@ import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
+import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 
 interface GraphSnapshot {
+  primaryTarget: PrimaryTarget | null
   nodes: GraphNode[]
   edges: GraphEdge[]
 }
@@ -30,6 +33,7 @@ interface GraphSnapshot {
 interface BuilderState {
   projectId: string
   projectName: string
+  primaryTarget: PrimaryTarget | null
   nodes: GraphNode[]
   edges: GraphEdge[]
   selectedNodeId: string | null
@@ -64,6 +68,7 @@ interface BuilderState {
   removeHop: (chainId: string, hopId: string) => void
   moveHop: (chainId: string, from: number, to: number) => void
   setOutputClient: (id: string, client: TargetClient) => void
+  setPrimaryTarget: (target: PrimaryTarget) => void
   beginTransaction: () => void
   commitTransaction: () => void
   undo: () => void
@@ -76,7 +81,7 @@ interface BuilderState {
   disconnectRuntimeService: () => void
   hydrate: (project: ProxyFlowProject | null | undefined) => void
   resetToDemo: () => void
-  createNewProject: () => void
+  createNewProject: (primaryTarget?: PrimaryTarget) => void
   dismissRecoveryNotice: () => void
   parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
   refreshSubscription: (id: string) => Promise<void>
@@ -89,7 +94,8 @@ interface BuilderState {
   toProject: () => ProxyFlowProject
 }
 
-const cloneSnapshot = (nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot => ({
+const cloneSnapshot = (primaryTarget: PrimaryTarget | null, nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot => ({
+  primaryTarget,
   nodes: structuredClone(nodes),
   edges: structuredClone(edges),
 })
@@ -180,7 +186,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     void subscriptionRefreshCoordinator.deleteSource(projectId, sourceId).catch(() => undefined)
   }
   const record = () => set((state) => ({
-    historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.nodes, state.edges)],
+    historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.primaryTarget, state.nodes, state.edges)],
     historyFuture: [],
   }))
 
@@ -265,6 +271,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
   return {
     projectId: demoProject.id,
     projectName: demoProject.name,
+    primaryTarget: demoProject.primaryTarget ?? null,
     nodes: structuredClone(demoProject.graph.nodes),
     edges: structuredClone(demoProject.graph.edges),
     selectedNodeId: null,
@@ -422,8 +429,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nextInputGeneration(current.projectId, id)
         void subscriptionRefreshCoordinator.deleteSource(current.projectId, id).catch(() => undefined)
       }
+      const soleOutputTarget = node?.data.blockType === 'output'
+        && current.nodes.filter((item) => item.data.blockType === 'output').length === 1
+        && patch.client !== undefined
+        ? (isPrimaryTarget(patch.client) ? patch.client : null)
+        : undefined
       set((state) => ({
         nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) } } : item),
+        ...(soleOutputTarget !== undefined ? { primaryTarget: soleOutputTarget } : {}),
         ...(urlChanged ? {
           subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
           subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
@@ -526,7 +539,27 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
       get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
     },
-    beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.nodes, state.edges) })),
+    setPrimaryTarget: (target) => {
+      const state = get()
+      const outputNodes = state.nodes.filter((node) => node.data.blockType === 'output')
+      if (state.primaryTarget === target && (outputNodes.length !== 1 || outputNodes[0].data.client === target)) return
+      record()
+      const labels: Record<PrimaryTarget, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box' }
+      set({
+        primaryTarget: target,
+        nodes: outputNodes.length === 1 ? state.nodes.map((node) => node.id === outputNodes[0].id ? {
+          ...node,
+          data: {
+            ...node.data,
+            client: target,
+            title: translateCurrent('node.outputTitle', { target: labels[target] }),
+            titleKey: undefined,
+            compatibility: 'Supported',
+          },
+        } : node) : state.nodes,
+      })
+    },
+    beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.primaryTarget, state.nodes, state.edges) })),
     commitTransaction: () => {
       const start = get().transactionStart
       if (!start) return
@@ -537,9 +570,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const previous = state.historyPast.at(-1)
       if (!previous) return
       set({
-        nodes: structuredClone(previous.nodes), edges: structuredClone(previous.edges),
+        primaryTarget: previous.primaryTarget, nodes: structuredClone(previous.nodes), edges: structuredClone(previous.edges),
         historyPast: state.historyPast.slice(0, -1),
-        historyFuture: [cloneSnapshot(state.nodes, state.edges), ...state.historyFuture].slice(0, 50),
+        historyFuture: [cloneSnapshot(state.primaryTarget, state.nodes, state.edges), ...state.historyFuture].slice(0, 50),
         selectedNodeId: null, selectedEdgeId: null,
       })
     },
@@ -548,8 +581,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const next = state.historyFuture[0]
       if (!next) return
       set({
-        nodes: structuredClone(next.nodes), edges: structuredClone(next.edges),
-        historyPast: [...state.historyPast, cloneSnapshot(state.nodes, state.edges)].slice(-50),
+        primaryTarget: next.primaryTarget, nodes: structuredClone(next.nodes), edges: structuredClone(next.edges),
+        historyPast: [...state.historyPast, cloneSnapshot(state.primaryTarget, state.nodes, state.edges)].slice(-50),
         historyFuture: state.historyFuture.slice(1), selectedNodeId: null, selectedEdgeId: null,
       })
     },
@@ -856,6 +889,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       if (project === undefined) {
         set({
           projectId: demoProject.id, projectName: demoProject.name,
+          primaryTarget: demoProject.primaryTarget ?? null,
           nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
           historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
           recoveryRequired: true,
@@ -868,8 +902,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       const migration = project ? migrateProject(project) : undefined
       const value = migration?.success && migration.project ? migration.project : demoProject
+      const primaryTarget = resolveProjectPrimaryTarget(value).target
       set({
-        projectId: value.id, projectName: value.name, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
+        projectId: value.id, projectName: value.name, primaryTarget, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: migration?.recoveryRequired ?? false,
         recoveryNotice: migration?.message ?? null,
@@ -891,6 +926,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       set({
         projectId: demoProject.id, projectName: demoProject.name,
+        primaryTarget: demoProject.primaryTarget ?? null,
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.resetDemo'),
@@ -899,14 +935,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       })
       trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
     },
-    createNewProject: () => {
+    createNewProject: (primaryTarget = 'mihomo') => {
       const previous = get()
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
         deleteSubscriptionSource(previous.projectId, source.id)
       }
-      const value = createBlankProject()
+      const value = createBlankProject(primaryTarget)
       set({
-        projectId: value.id, projectName: value.name,
+        projectId: value.id, projectName: value.name, primaryTarget,
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
@@ -921,6 +957,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const state = get()
       return localizeProject({
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
+        ...(state.primaryTarget ? { primaryTarget: state.primaryTarget } : {}),
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
       })
