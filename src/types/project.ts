@@ -43,6 +43,21 @@ export type BlockType =
 
 export type EdgeSemantic = 'data' | 'route' | 'strategy' | 'chain' | 'output' | 'dns'
 export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
+export type DnsResolverKind = 'doh' | 'dot' | 'udp' | 'system'
+export type DnsResolverRole = 'default' | 'direct' | 'fallback'
+export type DnsResolverRegion = 'system' | 'global' | 'mainland-china'
+
+export interface DnsResolverConfig {
+  id: string
+  name: string
+  kind: DnsResolverKind
+  role: DnsResolverRole
+  address?: string
+  enabled: boolean
+  presetId?: string
+  region?: DnsResolverRegion
+}
+
 export interface BlockNodeData extends Record<string, unknown> {
   blockType: BlockType
   category: BlockCategory
@@ -112,6 +127,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   client?: TargetClient
   mihomoProfile?: MihomoOutputProfile
   compatibility?: string
+  dnsResolvers?: DnsResolverConfig[]
   resolver?: string
   renamePattern?: string
   renameReplacement?: string

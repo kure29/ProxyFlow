@@ -1,15 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp, ExternalLink,
-  ClipboardPaste, Database, Eye, FileUp, GitCompareArrows, GripVertical, Laptop, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
+  ClipboardPaste, Database, Eye, FileOutput, FileUp, GitCompareArrows, Globe2, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
   History,
 } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
-import { outputDefinitions } from '../../data/demoProject'
+import { productionOutputDefinitions } from '../../data/demoProject'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileGraph } from '../../core/graphCompiler'
-import type { BlockNodeData, GraphEdge, GraphNode, MihomoOutputProfile, MihomoRuntimePreset } from '../../types/project'
+import type { BlockNodeData, GraphEdge, GraphNode } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 import { AssetIcon } from '../icons/AssetIcon'
 import { useTargetCompile } from '../compiler/useTargetCompile'
@@ -28,9 +28,14 @@ import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
   localizeSubscriptionSnapshots, regionLabel, useI18n,
 } from '../../i18n'
-import { createMihomoOutputProfile, resolveMihomoOutputProfile } from '../../targets/mihomo/profile'
+import { normalizeDnsResolvers } from '../../core/dns/resolverProfiles'
+import type { WorkspaceSectionId } from '../../core/workspace'
+import { getTargetCapabilities } from '../../core/capabilities'
 
-interface InspectorProps { node: GraphNode }
+interface InspectorProps {
+  node: GraphNode
+  onOpenWorkspaceSection?: (section: WorkspaceSectionId) => void
+}
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return <label className="inspector-field"><span>{label}{hint && <small>{hint}</small>}</span>{children}</label>
@@ -601,6 +606,7 @@ function ChainInspector({ node }: InspectorProps) {
 function RoutingInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const activeService = useBuilderStore((state) => state.activeService)
   const update = useBuilderStore((state) => state.updateNodeData)
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
@@ -611,6 +617,9 @@ function RoutingInspector({ node }: InspectorProps) {
   const [serviceQuery, setServiceQuery] = useState('')
   const services = node.data.services ?? []
   const matcherKind = resolveRouteMatcherKind(node.data)
+  const routingCapabilities = primaryTarget ? getTargetCapabilities(primaryTarget).routingMatchers : undefined
+  const matcherCapability = matcherKind ? routingCapabilities?.[matcherKind] : undefined
+  const unsupportedMatcher = matcherCapability?.status === 'unsupported'
   const isRouteRule = isRoutingRuleType(node.data.blockType)
   const isServiceRoute = matcherKind === 'service'
   const isAdvancedMatcher = Boolean(matcherKind && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
@@ -626,10 +635,11 @@ function RoutingInspector({ node }: InspectorProps) {
   })
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
+    {unsupportedMatcher && primaryTarget && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('workspace.routing.unsupportedByTarget', { target: getTargetCapabilities(primaryTarget).label })}</strong>{matcherCapability.reason && <code>{matcherCapability.reason}</code>}</span></div>}
     {isRouteRule && <Field label={t('inspector.matcherType')}>
       <select value={isAdvancedMatcher ? '' : matcherKind ?? ''} onChange={(event) => setMatcher(event.target.value as BlockNodeData['routeMatcherKind'])}>
         <option value="" disabled>{t('inspector.selectBasicMatcher')}</option>
-        {BASIC_ROUTE_MATCHERS.map((value) => <option key={value} value={value}>{matcherLabel(value, t)}</option>)}
+        {BASIC_ROUTE_MATCHERS.map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
       </select>
     </Field>}
     {isRouteRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" aria-expanded={servicePickerOpen} onClick={() => setServicePickerOpen((open) => !open)}>{servicePickerOpen ? <ChevronUp size={13} /> : <Plus size={13} />} {servicePickerOpen ? t('inspector.collapse') : t('inspector.add')}</button></div>
@@ -639,19 +649,21 @@ function RoutingInspector({ node }: InspectorProps) {
     <Field label={t('inspector.targetStrategy')}><select value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>{t('inspector.selectTarget')}</option><option value="__direct__">DIRECT</option><option value="__reject__">REJECT</option>{targets.map((target) => <option key={target.id} value={target.id}>{localizeNodeTitle(target, locale)}</option>)}</select></Field>
     {isRouteRule && order && <div className="route-order"><span><strong>{t('inspector.routeOrder', { index: order.index + 1, count: order.count })}</strong><small>{t('inspector.routeOrderHint')}</small></span><div><button type="button" disabled={!order.canMoveUp} aria-label={t('inspector.moveRuleUp')} onClick={() => moveRoutingRule(node.id, 'up')}><ArrowUp size={14} /></button><button type="button" disabled={!order.canMoveDown} aria-label={t('inspector.moveRuleDown')} onClick={() => moveRoutingRule(node.id, 'down')}><ArrowDown size={14} /></button></div></div>}
     <div className="route-preview"><span className="route-source">{localizeNodeTitle(node, locale)}</span><ArrowLeftRight size={14} /><span className="route-target">{node.data.targetLabel ? localizeKnownSystemText(node.data.targetLabel, locale) : t('inspector.notConfigured')}</span></div>
-    {isRouteRule && isServiceRoute && <><div className="rule-source-card"><div><span>{t('inspector.ruleSource')}</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? t('inspector.builtinMetadata') : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label={t('inspector.viewRuleSource')}><ExternalLink size={14} /></a></div>
-    <button className="inspector-secondary-button" onClick={() => setRulesOpen((open) => !open)}><Eye size={14} /> {rulesOpen ? t('inspector.hideRules') : t('inspector.showRules')}</button>
-    {rulesOpen && <div className="actual-rules"><div><span>{t('inspector.generatedServiceRules')}</span><code>{selectedServices.map((service) => service?.id).join(', ') || '—'}</code></div><small>{t('inspector.rulesDemoNote')}</small></div>}</>}
     {isRouteRule && <Advanced>
       <Field label={t('inspector.advancedMatcher')}>
         <select value={isAdvancedMatcher ? matcherKind : '__none__'} onChange={(event) => setMatcher(event.target.value === '__none__' ? 'domain-suffix' : event.target.value as BlockNodeData['routeMatcherKind'])}>
           <option value="__none__">{t('inspector.noAdvancedMatcher')}</option>
-          {ADVANCED_ROUTE_MATCHERS.map((value) => <option key={value} value={value}>{matcherLabel(value, t)}</option>)}
+          {ADVANCED_ROUTE_MATCHERS.map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
         </select>
       </Field>
       {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
       <Field label={t('inspector.routePriority')} hint={t('inspector.routePriorityHint')}><input type="number" min="0" step="1" value={node.data.routePriority ?? ''} placeholder="10" onChange={(event) => update(node.id, { routePriority: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
       {matcherKind && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherKind === 'service' ? services.join(', ') : matcherValue)}</code></div></div>}
+      {isServiceRoute && <>
+        <div className="rule-source-card"><div><span>{t('inspector.ruleSource')}</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? t('inspector.builtinMetadata') : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label={t('inspector.viewRuleSource')}><ExternalLink size={14} /></a></div>
+        <button className="inspector-secondary-button" onClick={() => setRulesOpen((open) => !open)}><Eye size={14} /> {rulesOpen ? t('inspector.hideRules') : t('inspector.showRules')}</button>
+        {rulesOpen && <div className="actual-rules"><div><span>{t('inspector.generatedServiceRules')}</span><code>{selectedServices.map((service) => service?.id).join(', ') || '—'}</code></div><small>{t('inspector.rulesDemoNote')}</small></div>}
+      </>}
     </Advanced>}
   </>
 }
@@ -692,10 +704,9 @@ function formatMatcherPreview(kind: NonNullable<BlockNodeData['routeMatcherKind'
   return `${kind.toUpperCase()} ${normalized}`
 }
 
-function OutputInspector({ node }: InspectorProps) {
+function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
   const { locale, t } = useI18n()
   const setOutputClient = useBuilderStore((state) => state.setOutputClient)
-  const update = useBuilderStore((state) => state.updateNodeData)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -705,7 +716,6 @@ function OutputInspector({ node }: InspectorProps) {
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const graph = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale) }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const supported = node.data.client === 'mihomo' || node.data.client === 'sing-box'
-  const mihomoProfile = useMemo(() => resolveMihomoOutputProfile(node.data.mihomoProfile), [node.data.mihomoProfile])
   const targetOptions = useMemo(() => node.data.client === 'mihomo' ? {
     outputNodeId: node.id,
     targetProfile: node.data.mihomoProfile,
@@ -715,51 +725,24 @@ function OutputInspector({ node }: InspectorProps) {
   const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
   const info = target.result?.issues.filter((issue) => issue.severity === 'info').length ?? 0
   const compiled = supported && graph.success && target.status === 'success'
-  const dnsConnected = Boolean(graph.ir?.dns?.enabled)
-  const setMihomoProfile = (patch: Partial<MihomoOutputProfile>) => update(node.id, { mihomoProfile: { ...mihomoProfile, ...patch } })
-  const setPreset = (preset: MihomoRuntimePreset) => {
-    const defaults = createMihomoOutputProfile(preset)
-    setMihomoProfile({
-      preset,
-      dnsMode: defaults.dnsMode,
-      sniffer: defaults.sniffer,
-      strictRoute: preset === 'desktop-tun' ? mihomoProfile.strictRoute : false,
-    })
-  }
   return <>
-    <Field label={t('inspector.targetClient')}><div className="client-grid">{outputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{output.status === 'supported' ? t('node.compatibility.supported') : output.status === 'prototype' ? t('node.compatibility.prototype') : t('preview.notImplemented')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
-    {node.data.client === 'mihomo' && <section className="mihomo-output-profile">
-      <header><span><Laptop size={16} /><span><strong>{t('inspector.mihomoProfile')}</strong><small>{t('inspector.mihomoProfileHint')}</small></span></span><b>{t('inspector.mihomoOnly')}</b></header>
-      <Field label={t('inspector.mihomoPreset')}><div className="output-preset-control" role="group" aria-label={t('inspector.mihomoPreset')}>
-        {(['local-proxy', 'desktop-tun'] as const).map((preset) => <button type="button" className={mihomoProfile.preset === preset ? 'is-active' : ''} key={preset} onClick={() => setPreset(preset)}><strong>{t(preset === 'local-proxy' ? 'inspector.mihomoPreset.local' : 'inspector.mihomoPreset.tun')}</strong><small>{t(preset === 'local-proxy' ? 'inspector.mihomoPreset.localHint' : 'inspector.mihomoPreset.tunHint')}</small></button>)}
-      </div></Field>
-      <Field label={t('inspector.mihomoMixedPort')} hint="1–65535"><input className={Number.isInteger(mihomoProfile.mixedPort) && mihomoProfile.mixedPort >= 1 && mihomoProfile.mixedPort <= 65535 ? '' : 'is-invalid'} type="number" min="1" max="65535" value={mihomoProfile.mixedPort} onChange={(event) => setMihomoProfile({ mixedPort: Number(event.target.value) })} /></Field>
-      <label className="toggle-row"><span><strong>{t('inspector.mihomoAllowLan')}</strong><small>{t('inspector.mihomoAllowLanHint')}</small></span><input type="checkbox" checked={mihomoProfile.allowLan} onChange={(event) => setMihomoProfile({ allowLan: event.target.checked })} /></label>
-      <label className="toggle-row"><span><strong>{t('inspector.mihomoIpv6')}</strong><small>{t('inspector.mihomoIpv6Hint')}</small></span><input type="checkbox" checked={mihomoProfile.ipv6} onChange={(event) => setMihomoProfile({ ipv6: event.target.checked })} /></label>
-      <div className="mihomo-runtime-summary" aria-label={t('inspector.mihomoRuntimeSummary')}>
-        <div><span>{t('inspector.mihomoDns')}</span><strong>{!dnsConnected ? t('inspector.mihomoNotConnected') : t(mihomoProfile.dnsMode === 'disabled' ? 'inspector.mihomoDnsMode.disabled' : mihomoProfile.dnsMode === 'fake-ip' ? 'inspector.mihomoDnsMode.fake-ip' : 'inspector.mihomoDnsMode.redir-host')}</strong></div>
-        <div><span>TUN</span><strong>{mihomoProfile.preset === 'desktop-tun' ? t('inspector.mihomoOn') : t('inspector.mihomoOff')}</strong></div>
-        <div><span>{t('inspector.mihomoSniffer')}</span><strong>{mihomoProfile.sniffer ? t('inspector.mihomoOn') : t('inspector.mihomoOff')}</strong></div>
-      </div>
-      <Advanced>
-        <div className="mihomo-profile-note">{t('inspector.mihomoAdvancedHint')}</div>
-        <Field label={t('inspector.mihomoDnsMode')} hint={mihomoProfile.preset === 'desktop-tun' ? t('inspector.mihomoTunDnsLocked') : undefined}><select value={mihomoProfile.dnsMode} onChange={(event) => setMihomoProfile({ dnsMode: event.target.value as MihomoOutputProfile['dnsMode'] })}><option value="disabled" disabled={mihomoProfile.preset === 'desktop-tun'}>{t('inspector.mihomoDnsMode.disabled')}</option><option value="redir-host" disabled={mihomoProfile.preset === 'desktop-tun'}>{t('inspector.mihomoDnsMode.redir-host')}</option><option value="fake-ip">{t('inspector.mihomoDnsMode.fake-ip')}</option></select></Field>
-        {mihomoProfile.preset === 'desktop-tun' && <><Field label={t('inspector.mihomoTunStack')}><select value={mihomoProfile.tunStack} onChange={(event) => setMihomoProfile({ tunStack: event.target.value as MihomoOutputProfile['tunStack'] })}><option value="mixed">Mixed</option><option value="system">System</option><option value="gvisor">gVisor</option></select></Field><label className="toggle-row compact"><span><strong>{t('inspector.mihomoStrictRoute')}</strong><small>{t('inspector.mihomoStrictRouteHint')}</small></span><input type="checkbox" checked={mihomoProfile.strictRoute} onChange={(event) => setMihomoProfile({ strictRoute: event.target.checked })} /></label></>}
-        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoSniffer')}</strong><small>{t('inspector.mihomoSnifferHint')}</small></span><input type="checkbox" checked={mihomoProfile.sniffer} onChange={(event) => setMihomoProfile({ sniffer: event.target.checked })} /></label>
-        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoStoreSelected')}</strong><small>{t('inspector.mihomoStoreSelectedHint')}</small></span><input type="checkbox" checked={mihomoProfile.storeSelected} onChange={(event) => setMihomoProfile({ storeSelected: event.target.checked })} /></label>
-        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoUnifiedDelay')}</strong><small>{t('inspector.mihomoUnifiedDelayHint')}</small></span><input type="checkbox" checked={mihomoProfile.unifiedDelay} onChange={(event) => setMihomoProfile({ unifiedDelay: event.target.checked })} /></label>
-        <label className="toggle-row compact"><span><strong>{t('inspector.mihomoTcpConcurrent')}</strong><small>{t('inspector.mihomoTcpConcurrentHint')}</small></span><input type="checkbox" checked={mihomoProfile.tcpConcurrent} onChange={(event) => setMihomoProfile({ tcpConcurrent: event.target.checked })} /></label>
-      </Advanced>
-    </section>}
+    <Field label={t('inspector.targetClient')}><div className="client-grid">{productionOutputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{t('node.compatibility.supported')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
+    {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('export')}><FileOutput size={15} /> {t('workspace.open')} {t('workspace.export')}</button>}
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
     <div className="mock-note">{t('inspector.realCompilerNote')}</div>
   </>
 }
 
-function DnsInspector({ node }: InspectorProps) {
+function DnsInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
   const { t } = useI18n()
-  return <><TextField node={node} field="title" label={t('inspector.name')} /><TextField node={node} field="resolver" label={t('inspector.remoteDns')} /><Field label={t('inspector.resolutionMode')}><select value="basic" disabled><option value="basic">{t('inspector.basicDns')}</option></select></Field><Advanced><Field label="Bootstrap DNS"><input value="223.5.5.5" readOnly /></Field></Advanced><div className="mock-note">{t('inspector.dnsNote')}</div></>
+  const resolvers = normalizeDnsResolvers(node.data.dnsResolvers, node.data.resolver)
+  const enabledCount = resolvers.filter((resolver) => resolver.enabled).length
+  return <>
+    <TextField node={node} field="title" label={t('inspector.name')} />
+    <div className="compat-card"><Globe2 size={18} /><div><strong>{t('workspace.dnsAdvanced')}</strong><span>{t('workspace.export.resolvers', { count: enabledCount })}</span></div><b>{enabledCount}</b></div>
+    {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('dns')}><Globe2 size={15} /> {t('workspace.open')} {t('workspace.dnsAdvanced')}</button>}
+  </>
 }
 
 function GenericInspector({ node }: InspectorProps) {
@@ -791,7 +774,7 @@ const inspectorRegistry: Partial<Record<BlockNodeData['blockType'], ComponentTyp
   output: OutputInspector,
 }
 
-function RouteInspectorPanel() {
+export function RouteInspectorPanel() {
   const { t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -849,7 +832,7 @@ function formatRouteReason(reason: RouteInspectionResult['evaluations'][number][
   return t('inspector.routeInspectorReason.noMatch')
 }
 
-export function Inspector() {
+export function Inspector({ onOpenWorkspaceSection }: { onOpenWorkspaceSection?: (section: WorkspaceSectionId) => void } = {}) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -879,7 +862,7 @@ export function Inspector() {
       {!selected.data.protected && <button onClick={requestDelete} aria-label={t('inspector.deleteNode')}><Trash2 size={15} /></button>}
     </div>
     {issue && <div className={`validation-banner validation-banner--${issue.severity}`}><AlertTriangle size={15} /><span><strong>{t('inspector.needsConfig')}</strong>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span></div>}
-    <div className="inspector-scroll"><Content node={selected} /></div>
+    <div className="inspector-scroll"><Content node={selected} onOpenWorkspaceSection={onOpenWorkspaceSection} /></div>
     {deleteConfirmOpen && <div className="subscription-dialog-backdrop" role="presentation" onMouseDown={() => setDeleteConfirmOpen(false)}><section className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-subscription-title" onMouseDown={(event) => event.stopPropagation()}><span className="confirmation-icon is-warning"><Trash2 size={20} /></span><h2 id="delete-subscription-title">{t('subscription.delete.title')}</h2><p>{t('subscription.delete.description')}</p><footer><button ref={deleteCancelRef} className="secondary-action" onClick={() => setDeleteConfirmOpen(false)}>{t('subscription.delete.cancel')}</button><button className="danger-action" onClick={() => { setDeleteConfirmOpen(false); deleteSelected() }}>{t('subscription.delete.confirm')}</button></footer></section></div>}
   </aside>
 }

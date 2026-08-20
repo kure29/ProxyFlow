@@ -1,0 +1,96 @@
+:root {
+  color-scheme: light;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --color-primary: #2f6fed;
+  --color-primary-hover: #255fd1;
+  --color-primary-soft: #eef4ff;
+  --color-app-background: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f2f5f9;
+  --color-text: #172033;
+  --color-text-secondary: #475467;
+  --color-text-muted: #667085;
+  --color-border: #e4e9f0;
+  --color-border-strong: #d3dae6;
+  --color-success: #18a66a;
+  --color-success-soft: #eaf8f1;
+  --color-warning: #b86f12;
+  --color-warning-soft: #fff6e8;
+  --color-danger: #d94a4a;
+  --color-danger-soft: #fff0f0;
+  --color-info: #4d7ff0;
+  --color-focus-ring: rgba(47, 111, 237, 0.24);
+  --color-backdrop: rgba(23, 32, 51, 0.28);
+  --color-canvas-mask: rgba(247, 249, 252, 0.78);
+
+  --text-page-size: 24px;
+  --text-page-line: 32px;
+  --text-section-size: 16px;
+  --text-section-line: 24px;
+  --text-body-size: 14px;
+  --text-body-line: 20px;
+  --text-label-size: 14px;
+  --text-label-line: 20px;
+  --text-meta-size: 12px;
+  --text-meta-line: 18px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-card: 10px;
+  --radius-small: 6px;
+
+  --shadow-panel: 0 8px 24px rgba(23, 32, 51, 0.08);
+  --shadow-floating: 0 16px 40px rgba(23, 32, 51, 0.14);
+  --shadow-node: 0 8px 22px rgba(23, 32, 51, 0.08);
+
+  --control-height: 40px;
+  --control-height-compact: 36px;
+  --touch-target: 44px;
+  --topbar-height: 64px;
+  --statusbar-height: 32px;
+  --sidebar-width: 224px;
+  --palette-width: 300px;
+  --palette-rail-width: 56px;
+  --inspector-width: 440px;
+
+  --z-topbar: 40;
+  --z-panel: 20;
+  --z-popover: 80;
+  --z-dialog: 500;
+
+  --motion-fast: 140ms;
+  --motion-standard: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Compatibility aliases while legacy surfaces migrate to semantic names. */
+  --bg: var(--color-app-background);
+  --panel: var(--color-surface-subtle);
+  --surface: var(--color-surface);
+  --surface-soft: var(--color-surface-subtle);
+  --line: var(--color-border);
+  --line-strong: var(--color-border-strong);
+  --ink: var(--color-text);
+  --muted: var(--color-text-secondary);
+  --faint: var(--color-text-muted);
+  --brand: var(--color-primary);
+  --brand-dark: var(--color-primary);
+  --brand-hover: var(--color-primary-hover);
+  --brand-foreground: #ffffff;
+  --brand-soft: var(--color-primary-soft);
+  --brand-border: var(--color-primary);
+  --brand-focus: var(--color-focus-ring);
+  --green: var(--color-success);
+  --red: var(--color-danger);
+  --orange: var(--color-warning);
+  --ease: var(--ease-standard);
+}

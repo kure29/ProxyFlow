@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
-  ArrowDown, ArrowUp, Boxes, ChevronDown, CircleAlert, Download, FileOutput, GitBranch, Globe2,
-  ListFilter, Network, Plus, Radio, RefreshCw, Route, SearchCheck, Settings2, ShieldCheck,
+  Boxes, ChevronDown, FileOutput, GitBranch, Globe2, ListFilter, Network, Plus,
+  Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
 } from 'lucide-react'
-import { createWorkspaceProjection, type WorkspaceNodeItem, type WorkspaceSectionId } from '../../core/workspace'
-import { getTargetCapabilities } from '../../core/capabilities'
-import { blockDescriptionKey, blockTitleKey, localizeDiagnosticMessage, useI18n } from '../../i18n'
+import {
+  createWorkspaceProjection, orderWorkspaceProcessingNodes, processingMoveAvailability,
+  summarizeWorkspaceSource,
+  type WorkspaceNodeItem, type WorkspaceSectionId,
+} from '../../core/workspace'
+import { deriveProjectRuntime } from '../../core/proxySet'
+import { getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
+import { blockDescriptionKey, blockTitleKey, localizeNodeTitle, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import type { MessageKey } from '../../i18n'
 import { blockByType } from '../../data/blockLibrary'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -14,32 +19,33 @@ import type { BlockNodeData, BlockType } from '../../types/project'
 import type { ProductView, WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
+import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
 import { TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
-  processingCreationOptions, routingCreationOptions, strategyCreationOptions, type WorkspaceCreationOption,
+  processingCreationOptions, strategyCreationOptions, type WorkspaceCreationOption,
 } from './workspaceCreation'
+import { RoutingWorkspace, type RoutingWorkspaceCopy } from './RoutingWorkspace'
+import { DnsWorkspace, type DnsWorkspaceCopy } from './DnsWorkspace'
+import {
+  ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, SourcesWorkspace,
+  StrategiesWorkspace,
+} from './WorkspacePages'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
+  primaryHealth: PrimaryTargetHealth
 }
 
 const navigation = [
-  { id: 'sources', icon: Radio, label: 'workspace.sources' },
-  { id: 'proxies', icon: Boxes, label: 'workspace.proxies' },
-  { id: 'processing', icon: ListFilter, label: 'workspace.processing' },
-  { id: 'strategies', icon: GitBranch, label: 'workspace.strategies' },
-  { id: 'routing', icon: Route, label: 'workspace.routing' },
-  { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced' },
-  { id: 'inspect', icon: SearchCheck, label: 'workspace.inspect' },
-  { id: 'export', icon: FileOutput, label: 'workspace.export' },
+  { id: 'sources', icon: Radio, label: 'workspace.sources', description: 'workspace.description.sources' },
+  { id: 'proxies', icon: Boxes, label: 'workspace.proxies', description: 'workspace.description.proxies' },
+  { id: 'processing', icon: ListFilter, label: 'workspace.processing', description: 'workspace.description.processing' },
+  { id: 'strategies', icon: GitBranch, label: 'workspace.strategies', description: 'workspace.description.strategies' },
+  { id: 'routing', icon: Route, label: 'workspace.routing', description: 'workspace.description.routing' },
+  { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced', description: 'workspace.description.dns' },
+  { id: 'inspect', icon: SearchCheck, label: 'workspace.inspect', description: 'workspace.description.inspect' },
+  { id: 'export', icon: FileOutput, label: 'workspace.export', description: 'workspace.description.export' },
 ] as const
-
-const sourceStatusMessages = {
-  idle: 'workspace.sourceStatus.idle',
-  loading: 'workspace.sourceStatus.loading',
-  succeeded: 'workspace.sourceStatus.succeeded',
-  failed: 'workspace.sourceStatus.failed',
-} as const satisfies Record<string, MessageKey>
 
 const compatibilityMessages = {
   supported: 'workspace.compatibility.supported',
@@ -49,7 +55,7 @@ const compatibilityMessages = {
   unknown: 'workspace.compatibility.unknown',
 } as const satisfies Record<string, MessageKey>
 
-export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }: WorkspaceShellProps) {
+export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, primaryHealth }: WorkspaceShellProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -60,19 +66,42 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
   const runtimes = useBuilderStore((state) => state.subscriptionRuntimes)
   const toProject = useBuilderStore((state) => state.toProject)
   const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
+  const removeNode = useBuilderStore((state) => state.removeNode)
   const selectNode = useBuilderStore((state) => state.selectNode)
   const refreshSubscription = useBuilderStore((state) => state.refreshSubscription)
+  const moveProcessingStep = useBuilderStore((state) => state.moveProcessingStep)
   const moveRule = useBuilderStore((state) => state.moveRoutingRule)
+  const moveRuleToIndex = useBuilderStore((state) => state.moveRoutingRuleToIndex)
+  const updateNodeData = useBuilderStore((state) => state.updateNodeData)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
+  const refreshAllSubscriptions = useBuilderStore((state) => state.refreshAllSubscriptions)
+  const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
+  const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
   const [editorOpen, setEditorOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const targetCompiles = useProjectCompiles(activeSection === 'export' || targetDialogOpen)
+  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
 
+  const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
+  const sourceAvailability = useMemo(() => Object.fromEntries(nodes
+    .filter((node) => node.data.category === 'source')
+    .map((node) => [node.id, summarizeWorkspaceSource(node, runtimes[node.id]).status])), [nodes, runtimes])
   const projection = useMemo(
-    () => createWorkspaceProjection(toProject(), { subscriptionSnapshots: snapshots }),
-    [edges, nodes, primaryTarget, projectId, projectName, snapshots, toProject],
+    () => createWorkspaceProjection(project, { subscriptionSnapshots: snapshots, sourceAvailability }),
+    [project, snapshots, sourceAvailability],
   )
+  const pipelineRuntime = useMemo(
+    () => deriveProjectRuntime(project, localizeSubscriptionSnapshots(snapshots, locale)),
+    [locale, project, snapshots],
+  )
+  const orderedProcessing = useMemo(() => {
+    const itemById = new Map(projection.processing.map((item) => [item.node.id, item]))
+    return orderWorkspaceProcessingNodes(nodes, edges).map((node) => itemById.get(node.id)!).filter(Boolean)
+  }, [edges, nodes, projection.processing])
+  const compatibilityDiagnostics = useMemo(() => [
+    ...(targetCompiles.mihomoState.result?.issues ?? []),
+    ...(targetCompiles.singBoxState.result?.issues ?? []),
+  ], [targetCompiles.mihomoState.result, targetCompiles.singBoxState.result])
   const counts: Record<WorkspaceSectionId, number | undefined> = {
     sources: projection.sources.length,
     proxies: projection.proxies.length,
@@ -80,22 +109,31 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
     strategies: projection.strategies.length + projection.chains.length,
     routing: projection.routing.length + projection.finalRoutes.length,
     dns: projection.dns.length,
-    inspect: projection.compileIssues.length,
+    inspect: primaryHealth.diagnostics.length,
     export: projection.outputs.length,
   }
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
+  const activeNavigation = navigation.find((item) => item.id === activeSection)!
 
   const editInWorkspace = (item: WorkspaceNodeItem) => {
     selectNode(item.node.id)
     setEditorOpen(true)
   }
-  const addNode = (type: BlockType, data?: Partial<BlockNodeData>) => {
+  const openNodeInWorkspace = (nodeId: string) => {
+    selectNode(nodeId)
+    setEditorOpen(true)
+  }
+  const addNode = (type: BlockType, data?: Partial<BlockNodeData>, openEditor = true) => {
     const index = nodes.filter((node) => node.data.blockType === type).length
     const id = addLibraryNode(type, { x: 80 + index * 36, y: 90 + index * 42 }, data)
-    if (id) setEditorOpen(true)
+    if (id && openEditor) setEditorOpen(true)
   }
   const closeEditor = useCallback(() => { setEditorOpen(false); selectNode(null) }, [selectNode])
   const showEditorInFlow = useCallback(() => { setEditorOpen(false); onViewChange('visual-flow') }, [onViewChange])
+  const openSectionFromEditor = useCallback((section: WorkspaceSectionId) => {
+    closeEditor()
+    onSectionChange(section)
+  }, [closeEditor, onSectionChange])
   const closeTargetDialog = useCallback(() => setTargetDialogOpen(false), [])
   const selectTarget = useCallback((target: NonNullable<typeof primaryTarget>) => {
     setPrimaryTarget(target)
@@ -110,34 +148,82 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange }:
           <Icon size={17} /><span>{t(label)}</span>{counts[id] !== undefined && <small>{counts[id]}</small>}
         </button>)}
       </div>
+      <label className="workspace-mobile-section"><span>{t('workspace.sectionSelector')}</span><select aria-label={t('workspace.sectionSelector')} value={activeSection} onChange={(event) => onSectionChange(event.target.value as WorkspaceSectionId)}>{navigation.map(({ id, label }) => <option key={id} value={id}>{t(label)}{counts[id] !== undefined ? ` · ${counts[id]}` : ''}</option>)}</select></label>
       <button type="button" className="visual-flow-link" onClick={() => onViewChange('visual-flow')}><Network size={16} /><span>{t('top.visualFlow')}</span></button>
     </nav>
 
     <main id="workspace-main" className="workspace-content" tabIndex={-1}>
       <header className="workspace-content-header">
-        <div><h1>{t(navigation.find((item) => item.id === activeSection)!.label)}</h1><button type="button" className="workspace-target-context" onClick={() => setTargetDialogOpen(true)}>{t('workspace.targetContext', { target: targetLabel })}<ChevronDown size={12} /></button></div>
-        {activeSection === 'sources' && <div><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
+        <div><h1>{t(activeNavigation.label)}</h1><p>{t(activeNavigation.description)}</p><button type="button" className="workspace-target-context" onClick={() => setTargetDialogOpen(true)}>{t('workspace.targetContext', { target: targetLabel })}<ChevronDown size={12} /></button></div>
+        {activeSection === 'sources' && <div><button className="secondary-action" disabled={refreshableCount === 0 || refreshingCount > 0} onClick={() => void refreshAllSubscriptions()}><RefreshCw className={refreshingCount > 0 ? 'spin' : ''} size={15} />{t('workspace.refreshAll')}</button><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
         {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
-        {activeSection === 'routing' && <WorkspaceAddMenu label={t('workspace.addRouting')} options={routingCreationOptions} onCreate={addNode} />}
-        {activeSection === 'dns' && projection.dns.length === 0 && <button className="primary-action" onClick={() => addNode('dns')}><Plus size={15} />{t('workspace.addDns')}</button>}
-        {activeSection === 'export' && primaryTarget && <button className="primary-action" onClick={() => setPreviewOpen(true, primaryTarget)}><Download size={15} />{t('top.exportConfig')}</button>}
       </header>
 
       <section className="workspace-section-body">
-        {activeSection === 'sources' && <SourceList items={projection.sources} runtimes={runtimes} onRefresh={refreshSubscription} onEdit={editInWorkspace} />}
-        {activeSection === 'proxies' && <ProxyList proxies={projection.proxies} />}
-        {activeSection === 'processing' && <NodeList items={projection.processing} empty={t('workspace.empty.processing')} onEdit={editInWorkspace} />}
-        {activeSection === 'strategies' && <NodeList items={[...projection.strategies, ...projection.chains]} empty={t('workspace.empty.strategies')} onEdit={editInWorkspace} />}
-        {activeSection === 'routing' && <RoutingList items={projection.routing} finals={projection.finalRoutes} onMove={moveRule} onEdit={editInWorkspace} />}
-        {activeSection === 'dns' && <NodeList items={projection.dns} empty={t('workspace.empty.dns')} onEdit={editInWorkspace} />}
-        {activeSection === 'inspect' && <div className="workspace-issue-list">{projection.compileIssues.length === 0
-          ? <EmptyState icon={<ShieldCheck size={22} />} title={t('workspace.inspectReady')} />
-          : projection.compileIssues.map((issue, index) => <article key={`${issue.code}-${issue.nodeId ?? index}`}><CircleAlert size={17} /><span><strong>{issue.code}</strong><small>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</small></span>{issue.nodeId && <button onClick={() => { selectNode(issue.nodeId!); setEditorOpen(true) }}>{t('workspace.open')}</button>}</article>)}</div>}
-        {activeSection === 'export' && <WorkspaceExportPanel primaryTarget={primaryTarget} compiles={targetCompiles} onPreview={(target) => setPreviewOpen(true, target)} />}
+        {activeSection === 'sources' && <SourcesWorkspace
+          items={projection.sources}
+          runtimes={runtimes}
+          onRefresh={refreshSubscription}
+          onEdit={editInWorkspace}
+          onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled, enabled: !disabled })}
+          onDelete={(item) => removeNode(item.node.id)}
+        />}
+        {activeSection === 'proxies' && <ProxiesWorkspace proxies={projection.proxies} />}
+        {activeSection === 'processing' && <ProcessingWorkspace
+          items={orderedProcessing}
+          runtime={pipelineRuntime}
+          issues={projection.compileIssues}
+          availability={(nodeId) => processingMoveAvailability(nodes, edges, nodeId)}
+          onMove={(nodeId, direction) => { moveProcessingStep(nodeId, direction) }}
+          onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled })}
+          onEdit={editInWorkspace}
+        />}
+        {activeSection === 'strategies' && <StrategiesWorkspace
+          items={[...projection.strategies, ...projection.chains]}
+          target={primaryTarget}
+          runtime={pipelineRuntime}
+          issues={projection.compileIssues}
+          onEdit={editInWorkspace}
+        />}
+        {activeSection === 'routing' && <RoutingWorkspace
+          items={projection.routing}
+          finals={projection.finalRoutes}
+          services={project.services}
+          issues={projection.compileIssues}
+          capabilities={primaryTarget ? getTargetCapabilities(primaryTarget).routingMatchers : {}}
+          copy={routingWorkspaceCopy(t, primaryTarget)}
+          onCreate={addNode}
+          onMove={moveRule}
+          onMoveToIndex={moveRuleToIndex}
+          onEdit={editInWorkspace}
+          getNodeTitle={(node) => localizeNodeTitle(node, locale)}
+          getTargetSummary={(node, fallback) => node.data.targetKind === 'strategy' && node.data.targetId
+            ? localizeNodeTitle(nodes.find((candidate) => candidate.id === node.data.targetId) ?? node, locale)
+            : fallback}
+        />}
+        {activeSection === 'dns' && <DnsWorkspace
+          node={projection.dns[0] ? { id: projection.dns[0].node.id, resolver: projection.dns[0].node.data.resolver, dnsResolvers: projection.dns[0].node.data.dnsResolvers } : undefined}
+          target={primaryTarget}
+          copy={dnsWorkspaceCopy(t)}
+          onCreateDns={() => addNode('dns', undefined, false)}
+          onChange={(resolvers) => projection.dns[0] && updateNodeData(projection.dns[0].node.id, { dnsResolvers: resolvers, resolver: undefined })}
+        />}
+        {activeSection === 'inspect' && <ProjectHealthWorkspace
+          nodes={nodes}
+          diagnostics={projection.compileIssues}
+          compatibilityDiagnostics={compatibilityDiagnostics}
+          onOpenNode={openNodeInWorkspace}
+        />}
+        {activeSection === 'export' && <WorkspaceExportPanel
+          primaryTarget={primaryTarget}
+          compiles={targetCompiles}
+          onSelectTarget={setPrimaryTarget}
+          onPreview={(target) => setPreviewOpen(true, target)}
+        />}
       </section>
     </main>
-    <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} />
+    <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} onOpenWorkspaceSection={openSectionFromEditor} />
     <TargetSwitchDialog open={targetDialogOpen} current={primaryTarget} compiles={targetCompiles} onClose={closeTargetDialog} onSelect={selectTarget} />
   </div>
 }
@@ -146,86 +232,88 @@ function WorkspaceAddMenu({ label, options, onCreate }: { label: string; options
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
+    const focusFrame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus())
     const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
     window.addEventListener('pointerdown', close)
-    return () => window.removeEventListener('pointerdown', close)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
   }, [open])
-  return <div className="workspace-add-menu" ref={rootRef}>
-    <button type="button" className="primary-action" aria-expanded={open} onClick={() => setOpen((current) => !current)}><Plus size={15} />{label}<ChevronDown size={14} /></button>
-    {open && <div className="workspace-add-options" role="menu">{options.map((option) => {
+  const navigateMenu = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'))
+    if (!items.length) return
+    event.preventDefault()
+    const current = items.indexOf(document.activeElement as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0
+      : event.key === 'End' ? items.length - 1
+        : event.key === 'ArrowUp' ? (current <= 0 ? items.length - 1 : current - 1)
+          : (current + 1) % items.length
+    items[next]?.focus()
+  }
+  const closeMenu = () => {
+    setOpen(false)
+    window.requestAnimationFrame(() => triggerRef.current?.focus())
+  }
+  return <div className="workspace-add-menu" ref={rootRef} onBlur={(event) => {
+    if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
+  }}>
+    <button ref={triggerRef} type="button" className="primary-action" aria-haspopup="menu" aria-controls={open ? 'workspace-add-options' : undefined} aria-expanded={open} onKeyDown={(event) => {
+      if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true) }
+    }} onClick={() => open ? closeMenu() : setOpen(true)}><Plus size={15} />{label}<ChevronDown size={14} /></button>
+    {open && <div ref={menuRef} id="workspace-add-options" className="workspace-add-options" role="menu" onKeyDown={navigateMenu}>{options.map((option) => {
       const item = blockByType.get(option.blockType)
       const optionLabel = option.id === 'service' ? t('inspector.matcher.service') : option.id === 'domain' ? t('inspector.matcher.domainSuffix') : option.id === 'cidr' ? t('inspector.matcher.ipCidr') : option.id === 'port' ? t('inspector.matcher.port') : t(blockTitleKey(option.blockType))
       const status = option.status ? t(compatibilityMessages[option.status]) : option.advanced ? t('workspace.advanced') : t(blockDescriptionKey(option.blockType))
-      return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => { onCreate(option.blockType, option.data); setOpen(false) }}>
+      return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => { onCreate(option.blockType, option.data); closeMenu() }}>
         <BlockIcon name={item?.icon ?? 'plus'} size={17} /><span><strong>{optionLabel}</strong><small>{status}</small></span>{option.advanced && <i>{t('workspace.advanced')}</i>}
       </button>
     })}</div>}
   </div>
 }
 
-function SourceList({ items, runtimes, onRefresh, onEdit }: {
-  items: WorkspaceNodeItem[]
-  runtimes: ReturnType<typeof useBuilderStore.getState>['subscriptionRuntimes']
-  onRefresh: (id: string) => Promise<void>
-  onEdit: (item: WorkspaceNodeItem) => void
-}) {
-  const { t } = useI18n()
-  if (!items.length) return <EmptyState icon={<Radio size={22} />} title={t('workspace.empty.sources')} />
-  return <div className="workspace-row-list">{items.map((item) => {
-    const runtime = runtimes[item.node.id]
-    return <article className="workspace-node-row" key={item.node.id}>
-      <BlockIcon name={item.node.data.icon} size={18} />
-      <span><strong>{item.node.data.title}</strong><small>{runtime?.refreshStatus ? t(sourceStatusMessages[runtime.refreshStatus]) : item.node.data.subtitle}</small></span>
-      <b>{item.node.data.nodeCount ?? runtime?.activeSnapshot?.result.detectedCount ?? 0}</b>
-      {item.node.data.subscriptionInputKind === 'url' && <button className="icon-button" aria-label={t('inspector.refresh')} onClick={() => void onRefresh(item.node.id)}><RefreshCw size={15} /></button>}
-      <button className="row-action" onClick={() => onEdit(item)}>{t('workspace.open')}</button>
-    </article>
-  })}</div>
+function routingWorkspaceCopy(t: ReturnType<typeof useI18n>['t'], target: PrimaryTarget | null): RoutingWorkspaceCopy {
+  return {
+    rulesLabel: t('workspace.routing.rulesLabel'), addRule: t('workspace.addRouting'),
+    chooseRuleKind: t('workspace.routing.chooseRuleKind'), serviceRule: t('workspace.routing.serviceRule'), serviceRuleDescription: t('workspace.routing.serviceRuleDescription'),
+    customRule: t('workspace.routing.customRule'), customRuleDescription: t('workspace.routing.customRuleDescription'), chooseService: t('workspace.routing.chooseService'),
+    searchServices: t('workspace.routing.searchServices'), noServices: t('workspace.routing.noServices'), chooseMatcher: t('workspace.routing.chooseMatcher'),
+    back: t('workspace.routing.back'), close: t('workspace.routing.close'), serviceMatcher: t('workspace.routing.serviceMatcher'), customMatcher: t('workspace.routing.customMatcher'),
+    finalRoute: t('workspace.routing.finalRoute'), target: t('workspace.routing.target'), moveUp: t('workspace.moveUp'), moveDown: t('workspace.moveDown'),
+    dragRule: t('workspace.routing.drag'), more: t('workspace.routing.more'),
+    unsupportedByTarget: t('workspace.routing.unsupportedByTarget', { target: target ? getTargetCapabilities(target).label : t('workspace.targetRequired') }),
+    statusLabels: { ready: t('workspace.routing.status.ready'), warning: t('workspace.routing.status.warning'), error: t('workspace.routing.status.error'), disabled: t('workspace.routing.status.disabled') },
+    capabilityLabels: { supported: t('workspace.compatibility.supported'), partial: t('workspace.compatibility.partial'), unsupported: t('workspace.compatibility.unsupported'), 'target-native': t('workspace.compatibility.targetNative') },
+    presentation: {
+      matcherLabels: {
+        service: t('inspector.matcher.service'), domain: t('inspector.matcher.domain'), 'domain-suffix': t('inspector.matcher.domainSuffix'),
+        'domain-keyword': t('inspector.matcher.domainKeyword'), 'ip-cidr': t('inspector.matcher.ipCidr'), 'ip-cidr6': t('inspector.matcher.ipCidr6'),
+        port: t('inspector.matcher.port'), asn: t('inspector.matcher.asn'), 'geo-ip': t('inspector.matcher.geoIp'), 'geo-site': t('inspector.matcher.geoSite'), 'rule-set': t('inspector.matcher.ruleSet'),
+      },
+      emptyMatcher: t('workspace.routing.emptyMatcher'), targetMissing: t('workspace.targetMissing'), ruleCount: (count) => t('workspace.routing.ruleCount', { count }),
+    },
+  }
 }
 
-function ProxyList({ proxies }: { proxies: ReturnType<typeof createWorkspaceProjection>['proxies'] }) {
-  const { t } = useI18n()
-  if (!proxies.length) return <EmptyState icon={<Boxes size={22} />} title={t('workspace.empty.proxies')} />
-  return <div className="workspace-proxy-table" role="table">
-    <div role="row" className="is-heading"><span>{t('workspace.name')}</span><span>{t('workspace.protocol')}</span><span>{t('workspace.region')}</span><span>{t('workspace.source')}</span><span>{t('workspace.compatibility')}</span></div>
-    {proxies.map((proxy) => <div role="row" key={`${proxy.sourceId}:${proxy.id}`}><strong>{proxy.name}</strong><code>{proxy.protocol}</code><span>{proxy.region}</span><span>{proxy.sourceName}</span><b className={`is-${proxy.compatibility}`}>{t(compatibilityMessages[proxy.compatibility])}</b></div>)}
-  </div>
-}
-
-function NodeList({ items, empty, onEdit }: { items: WorkspaceNodeItem[]; empty: string; onEdit: (item: WorkspaceNodeItem) => void }) {
-  if (!items.length) return <EmptyState icon={<Settings2 size={22} />} title={empty} />
-  return <div className="workspace-row-list">{items.map((item) => <article className="workspace-node-row" key={item.node.id}>
-    <BlockIcon name={item.node.data.icon} size={18} /><span><strong>{item.node.data.title}</strong><small>{item.node.data.subtitle}</small></span><ConnectionCount item={item} /><OpenButton onClick={() => onEdit(item)} />
-  </article>)}</div>
-}
-
-function RoutingList({ items, finals, onMove, onEdit }: {
-  items: ReturnType<typeof createWorkspaceProjection>['routing']
-  finals: WorkspaceNodeItem[]
-  onMove: (id: string, direction: 'up' | 'down') => void
-  onEdit: (item: WorkspaceNodeItem) => void
-}) {
-  const { t } = useI18n()
-  if (!items.length && !finals.length) return <EmptyState icon={<Route size={22} />} title={t('workspace.empty.routing')} />
-  return <div className="workspace-row-list">{items.map((item, index) => <article className="workspace-node-row routing-workspace-row" key={item.node.id}>
-    <b>{index + 1}</b><span><strong>{item.node.data.title}</strong><small>{item.node.data.targetLabel ?? t('workspace.targetMissing')}</small></span>
-    <div className="routing-order-actions"><button className="icon-button" disabled={index === 0} aria-label={t('workspace.moveUp')} onClick={() => onMove(item.node.id, 'up')}><ArrowUp size={14} /></button><button className="icon-button" disabled={index === items.length - 1} aria-label={t('workspace.moveDown')} onClick={() => onMove(item.node.id, 'down')}><ArrowDown size={14} /></button></div>
-    <OpenButton onClick={() => onEdit(item)} />
-  </article>)}{finals.map((item) => <article className="workspace-node-row routing-workspace-row is-final" key={item.node.id}><b>F</b><span><strong>{item.node.data.title}</strong><small>{item.node.data.targetLabel ?? t('workspace.targetMissing')}</small></span><i>{t('workspace.final')}</i><OpenButton onClick={() => onEdit(item)} /></article>)}</div>
-}
-
-function EmptyState({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return <div className="workspace-empty-state">{icon}<strong>{title}</strong></div>
-}
-
-function ConnectionCount({ item }: { item: WorkspaceNodeItem }) {
-  const { t } = useI18n()
-  return <b>{t('workspace.connections', { count: item.incoming.length + item.outgoing.length })}</b>
-}
-
-function OpenButton({ onClick }: { onClick: () => void }) {
-  const { t } = useI18n()
-  return <button className="row-action" onClick={onClick}>{t('workspace.open')}</button>
+function dnsWorkspaceCopy(t: ReturnType<typeof useI18n>['t']): DnsWorkspaceCopy {
+  return {
+    emptyTitle: t('workspace.dns.emptyTitle'), emptyDescription: t('workspace.dns.emptyDescription'), addDns: t('workspace.addDns'), resolverDescription: t('workspace.dns.resolverDescription'),
+    addResolver: t('workspace.dns.addResolver'), customResolver: t('workspace.dns.customResolver'), name: t('workspace.name'), protocol: t('workspace.protocol'),
+    endpoint: t('workspace.dns.endpoint'), role: t('workspace.dns.role'), enabled: t('workspace.dns.enabled'), remove: t('workspace.dns.remove'), unsupported: t('workspace.dns.unsupported'),
+    roles: { default: t('workspace.dns.role.default'), direct: t('workspace.dns.role.direct'), fallback: t('workspace.dns.role.fallback') },
+    regions: { system: t('workspace.dns.region.system'), global: t('workspace.dns.region.global'), 'mainland-china': t('workspace.dns.region.mainlandChina') },
+  }
 }

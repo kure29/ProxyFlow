@@ -8,7 +8,9 @@ ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排�
 
 当前稳定版本是 ProxyFlow v0.7.0 Subscription Lifecycle。ProxyFlow 可以在浏览器本地读取 Subscription URL、粘贴内容或文件，处理真实代理节点，并由同一份 Project 生成 Mihomo YAML 或 sing-box JSON。
 
-当前候选版本是 ProxyFlow 1.0.0-rc.2，尚未正式发布；RC 验收范围见 [V1.0 User Acceptance](docs/v1-user-acceptance.md)。
+当前候选版本是 ProxyFlow 1.0.0-rc.2，尚未正式发布。UI 2.0 正在
+`autopilot/ui2` 上整理候选产品界面；完整交互仍以
+[V1.0 User Acceptance](docs/v1-user-acceptance.md) 的实机结果为准。
 
 订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
 
@@ -85,6 +87,21 @@ PROXYFLOW_DATA_DIR=/srv/proxyflow-data \
 - `yaml` 稳定序列化与 parse roundtrip
 - 原生 CSS Design Tokens 与响应式布局
 
+### UI 2.0 候选界面
+
+UI 2.0 不改变 Project / Graph / Compiler 架构，而是把同一份 Project 整理为
+默认的结构化 Workspace 与始终可用的 Visual Flow：
+
+- TopBar 只保留品牌、可编辑 Project、视图切换和当前上下文操作；
+- Workspace 以来源、节点、处理、策略、分流、DNS、检查、导出组织主流程；
+- 分流以“服务规则 / 自定义规则”作为入口，并提供拖动与键盘可用的上下移动；
+- 一个 DNS 节点可保存多个 Resolver Profile，预设、角色与可用性由目标能力决定；
+- 导出是完整 Workspace 页面，只把 Mihomo 和 sing-box 作为可执行目标，并保持双目标独立编译；
+- Desktop、Tablet 与 Mobile 使用同一语义 Token、响应式 Inspector 和状态系统。
+
+设计与实现边界见 [Product Surface Design](DESIGN.md) 和
+[UI 2.0](docs/ui-2.0.md)。这些文档不替代最终的测试、构建与浏览器验收记录。
+
 ## 已实现
 
 - 模块库单击添加与拖入画布
@@ -148,6 +165,8 @@ ProxyFlow 的固定用户流程是：
 RC2 采用 Client-first、Capability-driven、Hybrid Workspace 产品模型。新 Project 先选择 Mihomo 或 sing-box 作为 Primary Target；Primary Target 决定默认可创建能力和默认导出，但不删除其它 Target 暂时无法表达的数据。Workspace 是默认入口，Visual Flow 是同一 Project 的拓扑与高级编辑视图，Secondary Target 的失败不会阻止可用的 Primary Target 导出。
 
 - [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
+- [Product Surface Design](DESIGN.md)：UI 2.0 Token、组件、响应式与无障碍约束。
+- [UI 2.0](docs/ui-2.0.md)：Workspace / Visual Flow、分流、DNS、导出与数据模型说明。
 - [V0.8 Product Scope](docs/v0.8-product-scope.md)：Strategy & Routing Core 的冻结范围、验收流程和实施 slices。
 - [Runtime Service MVP](docs/runtime-service.md)：V0.10 可选、自托管、单用户运行时的启动与安全边界。
 - [V1.0 User Acceptance](docs/v1-user-acceptance.md)：普通用户验收完整工作流、迁移、双目标导出和可选 Runtime Service。
@@ -187,7 +206,11 @@ Target Compiler Registry 注册轻量异步 loader；Mihomo 与 sing-box 代码�
 
 订阅解析和处理结果仍属于 runtime；URL source 的 normalized active snapshot 可保存在当前浏览器 IndexedDB 中作为 Last Known Good，但不会进入 Project。Project 只保存用户输入。详细格式、协议、CORS、安全和处理矩阵见 [Subscription Parser and Proxy Processing](docs/subscription-parser.md)。
 
-规则体验以 Service 为第一层。Demo 只引用 `ios_rule_script` 的公开 Remote Rule Provider URL，不复制第三方规则内容。来源项目位于 [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，其许可证为 GPL-2.0。
+规则体验以 Service 为第一层，普通分流列表不会把规则仓库当作产品概念。Demo
+仍只引用 `ios_rule_script` 的公开 Remote Rule Provider URL，不复制第三方规则
+内容；来源与 attribution 只进入高级详情或文档。来源项目位于
+[blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script)，
+其许可证为 GPL-2.0。
 
 ## 开发
 
@@ -211,6 +234,8 @@ npm run runtime:start
 ```bash
 npm test
 npm run build
+npm run runtime:build
+git diff --check
 ```
 
 ## 目录

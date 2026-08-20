@@ -7,6 +7,10 @@ export interface CompileResult {
   issues: CompatibilityIssue[]
   generatedAt: string
   mock: boolean
+  stats?: {
+    proxyCount: number
+    endpointCount?: number
+  }
 }
 
 export interface TargetCompileOptions {

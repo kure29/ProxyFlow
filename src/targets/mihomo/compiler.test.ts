@@ -34,7 +34,10 @@ function parseConfig(ir: ProxyFlowIR, profile?: unknown) {
   const result = compileMihomo(ir, { now: fixedNow, profile })
   expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
   expect(result.mock).toBe(false)
-  return { result, config: parse(result.content) as MihomoConfig }
+  const config = parse(result.content) as MihomoConfig
+  expect(result.stats?.proxyCount).toBe(config.proxies?.length ?? 0)
+  expect(result.stats?.endpointCount).toBeLessThanOrEqual(result.stats?.proxyCount ?? 0)
+  return { result, config }
 }
 
 function baseIR(): ProxyFlowIR {
@@ -110,6 +113,25 @@ describe('MihomoCompiler', () => {
         TLS: { ports: [443, 8443] },
         QUIC: { ports: [443, 8443] },
       },
+    }))
+  })
+
+  it('maps DNS resolver roles without flattening direct and fallback intent', () => {
+    const ir = baseIR()
+    ir.dns = {
+      enabled: true,
+      mode: 'custom',
+      resolvers: [
+        { id: 'default', kind: 'doh', role: 'default', address: 'https://dns.example.com/dns-query' },
+        { id: 'direct', kind: 'udp', role: 'direct', address: '192.0.2.53:53' },
+        { id: 'fallback', kind: 'dot', role: 'fallback', address: 'tls://dns.example.net:853' },
+      ],
+    }
+    const config = parseConfig(ir, createMihomoOutputProfile()).config
+    expect(config.dns).toEqual(expect.objectContaining({
+      nameserver: ['https://dns.example.com/dns-query'],
+      'direct-nameserver': ['192.0.2.53:53'],
+      fallback: ['tls://dns.example.net:853'],
     }))
   })
 
@@ -210,6 +232,7 @@ describe('MihomoCompiler', () => {
     const derived = chain?.proxies?.[0]
     expect(derived).toBeTruthy()
     expect(config.proxies?.find((proxy) => proxy.name === derived)?.['dialer-proxy']).toBe('香港自动选择')
+    expect(result.stats?.endpointCount).toBeLessThan(result.stats?.proxyCount ?? 0)
     expect(result.issues.map((issue) => issue.code)).toContain('MIHOMO_CHAIN_PROTOCOL_LIMITATION')
   })
 

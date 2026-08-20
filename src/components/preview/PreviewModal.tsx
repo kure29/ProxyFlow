@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
+import { AlertTriangle, Braces, Check, Clipboard, Clock3, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetClient } from '../../types/project'
@@ -8,6 +8,7 @@ import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
+import { safeFilename } from '../compiler/exportFile'
 
 type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
 type DisplayIssue = StructuredDiagnostic
@@ -106,7 +107,7 @@ export function PreviewModal() {
           {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
-          <button disabled><b>↗</b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
+          <button disabled><b><Clock3 size={17} /></b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
           {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
           <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t(warnings.length === 1 ? 'preview.warning' : 'preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
@@ -172,8 +173,4 @@ function IssuePanel({ title, issues, availableNodeIds, onLocate }: { title: stri
 
 function issueLog(issues: DisplayIssue[]) {
   return issues.map((issue) => `${issue.severity.toUpperCase()} ${issue.code}\n${issue.message}`).join('\n\n')
-}
-
-function safeFilename(value: string) {
-  return value.trim().replaceAll(/[\\/:*?"<>|\u0000-\u001f]/g, '-').replaceAll(/\s+/g, '-').slice(0, 72) || 'proxyflow'
 }

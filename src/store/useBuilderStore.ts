@@ -6,7 +6,7 @@ import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
-import { moveRoutingRule } from '../core/routing/routeProductModel'
+import { moveRoutingRule, moveRoutingRuleToIndex } from '../core/routing/routeProductModel'
 import {
   clearRuntimeServiceConfig, loadRuntimeServiceConfig, saveRuntimeServiceConfig, ServerRuntimeProvider,
   type RuntimeServiceConfig,
@@ -21,9 +21,10 @@ import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createDnsResolver } from '../core/dns/resolverProfiles'
 import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
-import { canUseWorkspaceInput, updateWorkspaceNodeData } from '../core/workspace'
+import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -65,8 +66,10 @@ interface BuilderState {
   selectEdge: (id: string | null) => void
   updateNodeData: (id: string, patch: Partial<BlockNodeData>) => void
   setWorkspaceInputs: (nodeId: string, sourceIds: string[]) => boolean
+  moveProcessingStep: (nodeId: string, direction: 'up' | 'down') => boolean
   setRoutingTarget: (nodeId: string, targetId: string) => void
   moveRoutingRule: (nodeId: string, direction: 'up' | 'down') => void
+  moveRoutingRuleToIndex: (nodeId: string, targetIndex: number) => void
   addHop: (chainId: string) => void
   removeHop: (chainId: string, hopId: string) => void
   moveHop: (chainId: string, from: number, to: number) => void
@@ -120,7 +123,7 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoOutputProfile() }
-  if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
+  if (type === 'dns') return { dnsResolvers: [createDnsResolver('cloudflare')!] }
   return {}
 }
 
@@ -478,6 +481,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       set({ edges: [...retainedEdges, ...nextEdges] })
       return true
     },
+    moveProcessingStep: (nodeId, direction) => {
+      const state = get()
+      const edges = moveWorkspaceProcessingStep(state.nodes, state.edges, nodeId, direction)
+      if (edges === state.edges) return false
+      record()
+      set({ edges })
+      return true
+    },
     setRoutingTarget: (nodeId, targetId) => {
       const state = get()
       if (targetId === '__direct__' || targetId === '__reject__') {
@@ -509,6 +520,13 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     moveRoutingRule: (nodeId, direction) => {
       const state = get()
       const nodes = moveRoutingRule(state.nodes, nodeId, direction)
+      if (nodes === state.nodes) return
+      record()
+      set({ nodes })
+    },
+    moveRoutingRuleToIndex: (nodeId, targetIndex) => {
+      const state = get()
+      const nodes = moveRoutingRuleToIndex(state.nodes, nodeId, targetIndex)
       if (nodes === state.nodes) return
       record()
       set({ nodes })

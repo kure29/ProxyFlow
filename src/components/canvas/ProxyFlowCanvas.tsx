@@ -14,12 +14,14 @@ import { deriveProjectRuntime } from '../../core/proxySet'
 import { localizeDiagnosticMessage, localizeNodeData, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 
 const nodeTypes = { block: BlockNode }
-const categoryColors: Record<string, string> = {
-  source: '#8b7cc8', processing: '#57a47b', strategy: '#4e87c8', chain: '#c86e94',
-  routing: '#d48654', dns: '#3aa0a2', output: '#7257b7',
-}
+const neutralFlowColor = 'var(--color-text-muted)'
 const semanticColors: Record<string, string> = {
-  data: '#9aa5b4', route: '#d48654', strategy: '#7b78bd', chain: '#c86e94', output: '#7563b5', dns: '#3aa0a2',
+  data: neutralFlowColor,
+  route: neutralFlowColor,
+  strategy: neutralFlowColor,
+  chain: neutralFlowColor,
+  output: neutralFlowColor,
+  dns: neutralFlowColor,
 }
 
 interface ContextMenuState { x: number; y: number; nodeId?: string }
@@ -99,7 +101,7 @@ export function ProxyFlowCanvas() {
     return {
       ...edge,
       animated: highlighted,
-      style: { stroke: color, strokeWidth: highlighted ? 2.4 : 1.45, opacity: dimmed ? 0.12 : highlighted ? 1 : 0.64 },
+      style: { stroke: color, strokeWidth: highlighted ? 2.4 : 1.45, opacity: dimmed ? 0.38 : highlighted ? 1 : 0.68 },
       markerEnd: edge.markerEnd ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color } : undefined,
       zIndex: highlighted ? 4 : 0,
     }
@@ -162,18 +164,18 @@ export function ProxyFlowCanvas() {
         multiSelectionKeyCode={['Meta', 'Control']}
         deleteKeyCode={null}
         elevateEdgesOnSelect
-        connectionLineStyle={{ stroke: '#7563b5', strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 2 }}
         defaultEdgeOptions={{ type: 'smoothstep' }}
         proOptions={{ hideAttribution: true }}
         ariaLabelConfig={ariaLabelConfig}
       >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1.15} color="#cbd1dc" />
+        <Background variant={BackgroundVariant.Dots} gap={18} size={1.15} color="var(--color-border-strong)" />
         <MiniMap
           className="proxy-minimap"
           position="bottom-left"
-          nodeColor={(node) => categoryColors[String(node.data?.category ?? 'source')]}
+          nodeColor={() => neutralFlowColor}
           nodeStrokeWidth={2}
-          maskColor="rgba(245, 247, 250, 0.72)"
+          maskColor="var(--color-canvas-mask)"
           pannable
           zoomable
         />

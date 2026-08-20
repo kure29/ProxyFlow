@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { useI18n } from '../../i18n'
+import { useBuilderStore } from '../../store/useBuilderStore'
+import { IconButton } from '../ui/Primitives'
 import {
   clampPanelWidth, fitPanelWidths, INSPECTOR_PANEL, LIBRARY_PANEL, type PanelSizeConfig,
 } from './panelSizing'
+import { resolveShellMode, type ShellMode } from './shellState'
 
 const LIBRARY_WIDTH_KEY = 'proxyflow.ui.libraryWidth'
 const INSPECTOR_WIDTH_KEY = 'proxyflow.ui.inspectorWidth'
+const LIBRARY_COLLAPSED_KEY = 'proxyflow.ui.libraryCollapsed'
+const LIBRARY_RAIL_WIDTH = 56
 
 interface ResizableWorkspaceProps {
   library: ReactNode
@@ -18,41 +24,108 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
   const [libraryWidth, setLibraryWidth] = useStoredWidth(LIBRARY_WIDTH_KEY, LIBRARY_PANEL)
   const [inspectorWidth, setInspectorWidth] = useStoredWidth(INSPECTOR_WIDTH_KEY, INSPECTOR_PANEL)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [shellMode, setShellMode] = useState<ShellMode>(() => resolveShellMode(window.innerWidth))
+  const [libraryCollapsed, setLibraryCollapsed] = useState(() => (
+    resolveShellMode(window.innerWidth) !== 'desktop' || window.localStorage.getItem(LIBRARY_COLLAPSED_KEY) === 'true'
+  ))
+  const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
+  const selectedEdgeId = useBuilderStore((state) => state.selectedEdgeId)
+  const selectNode = useBuilderStore((state) => state.selectNode)
+  const selectEdge = useBuilderStore((state) => state.selectEdge)
+  const inspectorOpen = Boolean(selectedNodeId || selectedEdgeId)
 
   useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth)
+    const onResize = () => {
+      setViewportWidth(window.innerWidth)
+      const nextMode = resolveShellMode(window.innerWidth)
+      setShellMode(nextMode)
+      if (nextMode !== 'desktop') setLibraryCollapsed(true)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const fitted = useMemo(
-    () => fitPanelWidths(viewportWidth - 20, libraryWidth, inspectorWidth),
-    [inspectorWidth, libraryWidth, viewportWidth],
-  )
+  const fitted = useMemo(() => {
+    if (shellMode !== 'desktop') return { libraryWidth: LIBRARY_RAIL_WIDTH, inspectorWidth }
+    if (libraryCollapsed) return { libraryWidth: LIBRARY_RAIL_WIDTH, inspectorWidth }
+    if (!inspectorOpen) return { libraryWidth, inspectorWidth: 0 }
+    return fitPanelWidths(viewportWidth - 20, libraryWidth, inspectorWidth)
+  }, [inspectorOpen, inspectorWidth, libraryCollapsed, libraryWidth, shellMode, viewportWidth])
   const style = {
     '--library-width': `${fitted.libraryWidth}px`,
-    '--inspector-width': `${fitted.inspectorWidth}px`,
+    '--inspector-width': `${inspectorOpen ? fitted.inspectorWidth : 0}px`,
   } as CSSProperties
+  const toggleLibrary = () => {
+    setLibraryCollapsed((current) => {
+      const next = !current
+      window.localStorage.setItem(LIBRARY_COLLAPSED_KEY, String(next))
+      return next
+    })
+  }
+  const dismissInspector = () => dismissInspectorSelection(
+    { selectedNodeId, selectedEdgeId },
+    { selectNode, selectEdge },
+  )
 
-  return <div className="workspace" style={style}>
-    {library}
-    <ResizeHandle
+  useEffect(() => {
+    if (!inspectorOpen || shellMode === 'desktop') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      dismissInspector()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [inspectorOpen, selectedEdgeId, selectedNodeId, selectEdge, selectNode, shellMode])
+
+  return <div
+    className={`workspace${libraryCollapsed ? ' is-library-collapsed' : ''}${inspectorOpen ? ' has-inspector' : ''}`}
+    data-shell-mode={shellMode}
+    style={style}
+  >
+    <div className={`visual-library-panel${libraryCollapsed ? ' is-collapsed' : ''}`}>
+      <IconButton
+        className="palette-toggle"
+        label={t('library.title')}
+        aria-expanded={!libraryCollapsed}
+        onClick={toggleLibrary}
+      >{libraryCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</IconButton>
+      <div className="visual-library-content" aria-hidden={libraryCollapsed}>{library}</div>
+    </div>
+    {!libraryCollapsed && shellMode === 'desktop' && <ResizeHandle
       side="left"
       label={t('layout.resizeLibrary')}
       width={libraryWidth}
       config={LIBRARY_PANEL}
       onChange={setLibraryWidth}
-    />
+    />}
     {canvas}
-    <ResizeHandle
+    {inspectorOpen && shellMode === 'desktop' && <ResizeHandle
       side="right"
       label={t('layout.resizeInspector')}
       width={inspectorWidth}
       config={INSPECTOR_PANEL}
       onChange={setInspectorWidth}
-    />
-    {inspector}
+    />}
+    {inspectorOpen && <div className="visual-inspector-panel">
+      {shellMode !== 'desktop' && <div className="visual-inspector-toolbar">
+        <strong>{t('inspector.title')}</strong>
+        <IconButton className="visual-inspector-dismiss" label={t('layout.closeInspector')} autoFocus onClick={dismissInspector}><X size={18} /></IconButton>
+      </div>}
+      {inspector}
+    </div>}
   </div>
+}
+
+export function dismissInspectorSelection(
+  selection: { selectedNodeId: string | null; selectedEdgeId: string | null },
+  actions: {
+    selectNode: (id: string | null) => void
+    selectEdge: (id: string | null) => void
+  },
+) {
+  if (selection.selectedNodeId) actions.selectNode(null)
+  else if (selection.selectedEdgeId) actions.selectEdge(null)
 }
 
 function useStoredWidth(key: string, config: PanelSizeConfig) {

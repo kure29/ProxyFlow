@@ -53,6 +53,7 @@ export function registerMihomoEndpoint(endpoint: ResolvedProxyEndpointIR, contex
     name = context.outboundNames.allocate(endpoint.name, endpoint.id)
     context.proxyNamesById.set(endpoint.id, name)
   }
+  context.compiledEndpointIds.add(endpoint.id)
   if (!context.proxies.has(name)) context.proxies.set(name, endpointProxy(endpoint, name))
   return name
 }

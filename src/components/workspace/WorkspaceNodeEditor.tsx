@@ -1,27 +1,38 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Network, X } from 'lucide-react'
-import { canUseWorkspaceInput } from '../../core/workspace'
+import { canUseWorkspaceInput, type WorkspaceSectionId } from '../../core/workspace'
 import { localizeNodeTitle, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { GraphNode } from '../../types/project'
 import { Inspector } from '../inspector/Inspector'
+import { resolveShellMode, type ShellMode } from '../layout/shellState'
 
 interface WorkspaceNodeEditorProps {
   open: boolean
   onClose: () => void
   onShowFlow: () => void
+  onOpenWorkspaceSection: (section: WorkspaceSectionId) => void
 }
 
-export function WorkspaceNodeEditor({ open, onClose, onShowFlow }: WorkspaceNodeEditorProps) {
+export function WorkspaceNodeEditor({ open, onClose, onShowFlow, onOpenWorkspaceSection }: WorkspaceNodeEditorProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const selected = nodes.find((node) => node.id === selectedNodeId)
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [shellMode, setShellMode] = useState<ShellMode>(() => resolveShellMode(window.innerWidth))
+  const modal = shellMode !== 'desktop'
+
+  useEffect(() => {
+    const updateMode = () => setShellMode(resolveShellMode(window.innerWidth))
+    window.addEventListener('resize', updateMode)
+    return () => window.removeEventListener('resize', updateMode)
+  }, [])
 
   useEffect(() => {
     if (!open || !selected) return
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
     closeRef.current?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -29,7 +40,7 @@ export function WorkspaceNodeEditor({ open, onClose, onShowFlow }: WorkspaceNode
         onClose()
         return
       }
-      if (event.key !== 'Tab') return
+      if (!modal || event.key !== 'Tab') return
       const focusable = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
         'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])',
       ) ?? [])
@@ -45,20 +56,30 @@ export function WorkspaceNodeEditor({ open, onClose, onShowFlow }: WorkspaceNode
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open, selected?.id])
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [modal, onClose, open, selected?.id])
 
   if (!open || !selected) return null
   const title = localizeNodeTitle(selected, locale)
 
-  return <div className="workspace-editor-backdrop" role="presentation" onMouseDown={onClose}>
-    <section ref={panelRef} className="workspace-editor-panel" role="dialog" aria-modal="true" aria-labelledby="workspace-editor-title" onMouseDown={(event) => event.stopPropagation()}>
+  return <div className="workspace-editor-backdrop" data-shell-mode={shellMode} role="presentation" onMouseDown={modal ? onClose : undefined}>
+    <section
+      ref={panelRef}
+      className="workspace-editor-panel"
+      role={modal ? 'dialog' : 'complementary'}
+      aria-modal={modal ? true : undefined}
+      aria-labelledby="workspace-editor-title"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
       <header className="workspace-editor-toolbar">
         <div><span>{t('workspace.editor')}</span><strong id="workspace-editor-title">{title}</strong></div>
         <div><button type="button" onClick={onShowFlow}><Network size={15} /><span>{t('workspace.showInFlow')}</span></button><button ref={closeRef} type="button" aria-label={t('workspace.closeEditor')} onClick={onClose}><X size={18} /></button></div>
       </header>
       <WorkspaceInputEditor node={selected} />
-      <Inspector />
+      <Inspector onOpenWorkspaceSection={onOpenWorkspaceSection} />
     </section>
   </div>
 }

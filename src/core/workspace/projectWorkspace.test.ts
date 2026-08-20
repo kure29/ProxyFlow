@@ -29,9 +29,12 @@ describe('Workspace graph adapter', () => {
   })
 
   it('summarizes proxies without exposing endpoints or credentials', () => {
-    const projection = createWorkspaceProjection(v08BasicRoutingFixture)
+    const projection = createWorkspaceProjection(v08BasicRoutingFixture, {
+      sourceAvailability: { 'hk-source': 'stale', 'us-source': 'healthy' },
+    })
     expect(projection.proxies.map((proxy) => proxy.protocol)).toEqual(['socks5', 'socks5'])
     expect(projection.proxies.map((proxy) => proxy.sourceId)).toEqual(['hk-source', 'us-source'])
+    expect(projection.proxies.map((proxy) => proxy.sourceAvailability)).toEqual(['stale', 'healthy'])
     expect(JSON.stringify(projection.proxies)).not.toContain('hk.example.com')
     expect(JSON.stringify(projection.proxies)).not.toContain('password')
   })
@@ -60,6 +63,7 @@ describe('Workspace graph adapter', () => {
     })
     project.graph.edges.push({ id: 'filter-later', source: 'us-filter', target: 'later-processing', type: 'smoothstep', data: { semantic: 'data' } })
     expect(canUseWorkspaceInput(project.graph.nodes, project.graph.edges, 'us-filter', 'later-processing')).toBe(false)
+    expect(canUseWorkspaceInput(project.graph.nodes, project.graph.edges, 'hk-auto', 'final-route')).toBe(false)
   })
 
   it('round-trips legacy graph nodes through JSON without creating Workspace state', () => {

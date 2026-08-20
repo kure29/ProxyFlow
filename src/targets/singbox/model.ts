@@ -50,9 +50,9 @@ export type SingBoxRuleSet =
   | { type: 'remote'; tag: string; format: 'source' | 'binary'; url: string; update_interval: string }
 
 export type SingBoxDnsServer =
-  | { type: 'https'; tag: string; server: string; server_port?: number; path?: string }
-  | { type: 'tls'; tag: string; server: string; server_port?: number }
-  | { type: 'udp'; tag: string; server: string; server_port?: number }
+  | ({ type: 'https'; tag: string; server: string; server_port?: number; path?: string } & SingBoxDialFields)
+  | ({ type: 'tls'; tag: string; server: string; server_port?: number } & SingBoxDialFields)
+  | ({ type: 'udp'; tag: string; server: string; server_port?: number } & SingBoxDialFields)
   | { type: 'local'; tag: string }
 
 export interface SingBoxConfig {
