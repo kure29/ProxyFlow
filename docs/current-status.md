@@ -25,6 +25,12 @@ Updated: 2026-08-20
   `200px` Sidebar, centered content, two-column Source and Proxy cards,
   counted Region/Protocol facets, a vertical Processing pipeline, compact
   Routing rows, and two-column DNS resolver cards.
+- Phase 4 — Visual Flow is complete at `9678d59` and pushed to the same
+  branch. Desktop uses a resizable `220px` Block Library with a `48px`
+  collapsed rail, an inactive-zero / selected-`360px` Inspector with an
+  explicit close control, and centered floating Canvas controls. Mobile enters
+  Visual Flow explicitly from the Project menu and uses focus-managed Add Node
+  and `60dvh` Inspector bottom sheets.
 - The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
   `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
   compact and icon controls; `44px` mobile touch targets; card padding; and the
@@ -47,8 +53,15 @@ Updated: 2026-08-20
   and English with a clean cold reload, no horizontal page overflow, and no
   console warnings or errors. A `390px` mobile Proxy regression pass confirmed
   one-column cards and `44px` facet controls.
-- Next checkpoint: Phase 4 — Visual Flow (desktop palette/inspector sizing,
-  floating controls, and mobile Add/Inspector sheets).
+- Phase 4 verification: focused panel sizing, shell state, and Inspector
+  dismissal tests `8/8`, full Vitest `539/539`, production build, diff check,
+  and secret review passed. Browser QA passed at `390`, `768`, `1024`, and
+  `1440px`, including Chinese/English sheet copy, exact desktop panel sizing,
+  zero inactive Inspector width, `48px` collapse, mobile sheet scroll lock,
+  Escape/close behavior, focus return, no horizontal overflow, and no console
+  warnings or errors.
+- Next checkpoint: Phase 5 — Modal / Export (desktop split layout, full-screen
+  mobile preview, bottom/action sheets, and mobile dialog behavior).
 
 ## Integration
 
