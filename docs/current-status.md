@@ -15,6 +15,11 @@ Updated: 2026-08-20
   `origin/main`).
 - Phase 1 — Foundations is complete at `6b66cf9` and pushed to
   `origin/ui/responsive-layout-refactor`.
+- Phase 2 — Mobile Layout is complete at `533d514` and pushed to the same
+  branch. Mobile now uses a `52px` safe-area-aware TopBar and `56px` bottom
+  navigation; Sources / Proxies and More use focus-managed drawers. Routing
+  uses two-line cards with editable targets and non-drag reorder controls, while
+  DNS is a single-column, touch-sized card surface.
 - The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
   `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
   compact and icon controls; `44px` mobile touch targets; card padding; and the
@@ -26,8 +31,14 @@ Updated: 2026-08-20
   credential material. Browser smoke passed at `390px` and `1440px`: no
   horizontal overflow, no console errors or warnings, and sampled mobile
   primary/icon actions resolve to `44px` targets.
-- Next checkpoint: Phase 2 — Mobile Layout (TopBar, bottom navigation, Routing
-  cards, DNS single-column layout, and touch targets at `375/390/430`).
+- Phase 2 verification: focused mobile/Routing/DNS tests `12/12`, full Vitest
+  `539/539`, production build and diff/secret checks passed. Browser QA passed
+  at `375`, `390`, and `430px` with no horizontal overflow or console issues.
+  The tested `375px` shell/Routing path has no interaction below `44px`; drawer
+  focus enters the first contextual item and returns to its trigger on close.
+- Next checkpoint: Phase 3 — Desktop Workspace (compact TopBar, `200px`
+  Sidebar, content sizing, Routing, DNS, Sources, Proxies, and Processing at
+  `1024/1440`).
 
 ## Integration
 
