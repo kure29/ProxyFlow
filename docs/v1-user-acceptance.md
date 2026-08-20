@@ -1,9 +1,9 @@
 # ProxyFlow V1.0 RC2 / UI 2.0 User Acceptance
 
-Candidate: `1.0.0-rc.2` on `autopilot/ui2`
+Candidate: `1.0.0-rc.2` on `autopilot/v1.0-rc`
 
-Status: implementation candidate; acceptance results pending; not a formal
-release.
+Status: UI 2.0 user acceptance passed; integrated RC verification passed; not
+a formal release.
 
 This checklist validates the ordinary Client-first workflow and the UI 2.0
 product surface. It does not require knowledge of the Graph, Universal IR, or
@@ -298,6 +298,13 @@ binary validation with fictional fixtures where the affected output can be
 accepted by that target.
 
 ## Acceptance Result
+
+User acceptance passed on 2026-08-20. The accepted UI 2.0 source HEAD
+`53c2879e6c8715a7c721b1b7ba79dfca258219a7` was integrated into
+`autopilot/v1.0-rc` by merge commit
+`9ecab7455c9f8b3cde2fa4f62240dfa8cbff3233`. The integrated merge repeated the
+534/534 test gate three times, both builds, diff/scope/secret checks, and the
+desktop/390px browser smoke flows before PR review handoff.
 
 ### UI 2.0 checkpoint — 2026-08-20
 

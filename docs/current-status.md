@@ -13,12 +13,16 @@ Updated: 2026-08-20
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V1.0 - Stable Workflow (RC)
-- Current slice: UI 2.0 verified checkpoint and user-acceptance handoff
+- Current slice: V1.0 pre-release integration and PR review handoff
 - RC branch: `autopilot/v1.0-rc`
 - UI 2.0 branch: `autopilot/ui2`
 - UI 2.0 base: `78936fee55c3fc219dd83b259c8a9821e62ecf69`
 - Latest verified UI 2.0 implementation commit:
   `c5e1a920d6f995411860d5fa9f165846b63dc149`
+- Accepted UI 2.0 source HEAD:
+  `53c2879e6c8715a7c721b1b7ba79dfca258219a7`
+- RC integration merge:
+  `9ecab7455c9f8b3cde2fa4f62240dfa8cbff3233`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
@@ -158,10 +162,13 @@ Updated: 2026-08-20
 
 ## Current Slice
 
-- The UI 2.0 implementation unit is complete and verified on `autopilot/ui2`.
-- The remaining action is review and acceptance of the pushed checkpoint; no
-  additional UI 2.0 implementation slice is open.
-- Draft PR #14 remains unchanged and must not be merged by this branch work.
+- UI 2.0 user acceptance passed for source HEAD
+  `53c2879e6c8715a7c721b1b7ba79dfca258219a7`.
+- `autopilot/ui2` was integrated into `autopilot/v1.0-rc` with an ordinary
+  two-parent merge at `9ecab7455c9f8b3cde2fa4f62240dfa8cbff3233`.
+- The integrated RC passed its local automated, build, browser, scope, and
+  secret gates. The remaining work is PR #14 metadata, CI, and review handoff;
+  no additional UI 2.0 implementation slice is open.
 
 ## Remaining UI 2.0 Slices
 
@@ -172,12 +179,39 @@ Updated: 2026-08-20
 
 ## Next
 
-1. Review the pushed UI 2.0 checkpoint and collect bounded acceptance feedback.
-2. If accepted, prepare the UI 2.0 milestone integration path into
-   `autopilot/v1`; do not merge to `main` and do not merge Draft PR #14.
-3. Do not tag `v1.0.0` or create a GitHub Release without explicit approval.
+1. Push the verified RC integration to `origin/autopilot/v1.0-rc`.
+2. Update PR #14 with the final UI 2.0 verification evidence, move it to Ready
+   for Review, and confirm its checks, base/head, and mergeability.
+3. Keep the repository boundary that prohibits an autonomous merge to `main`;
+   do not tag `v1.0.0` or create a GitHub Release.
 
 ## Latest Validation
+
+### V1.0 pre-release integration
+
+- UI 2.0 source HEAD `53c2879e6c8715a7c721b1b7ba79dfca258219a7`
+  was merged without conflicts into `autopilot/v1.0-rc` at
+  `9ecab7455c9f8b3cde2fa4f62240dfa8cbff3233`; both parents and the complete UI2
+  checkpoint history are retained.
+- The integrated merge passed `npm test` three consecutive times at 534/534
+  tests across 57 files. The expected Node 22 experimental SQLite notice was
+  the only test warning.
+- `npm run build` and `npm run runtime:build` passed. The largest Web chunk is
+  `459.66 kB`; `runtime-dist/server.js` is `214.41 kB`.
+- Browser smoke QA passed at 1440px and 390px for Project create, rename,
+  persistence, Runtime connection and subscription gateway handling,
+  Workspace, Routing, DNS, Export, Visual Flow, Mihomo preview, and sing-box
+  preview. Both viewports had no horizontal page overflow, mobile Routing used
+  a full-width editor with 44px editor controls, and cold-reload browser
+  error/warning logs were empty.
+- Runtime Service connected through the isolated local development service.
+  The current environment's outbound resolution was blocked by the Runtime
+  SSRF policy and surfaced the sanitized `SUBSCRIPTION_RUNTIME_POLICY_BLOCKED`
+  diagnostic as designed; automated Runtime success/failure coverage remained
+  green.
+- `git diff --check`, scope review, local-path review, and secret-pattern review
+  passed. Mihomo and sing-box remain the only production Targets; Preview's
+  disabled future-target entries remain non-production and non-actionable.
 
 ### UI 2.0 checkpoint
 
@@ -284,8 +318,9 @@ Updated: 2026-08-20
 
 ## Open Pull Requests
 
-- PR #14: `autopilot/v1.0-rc -> main`, Draft RC user-acceptance candidate. Keep
-  Draft and do not merge it autonomously.
+- PR #14: `autopilot/v1.0-rc -> main`, RC user-acceptance candidate. Update it
+  with the integrated UI 2.0 evidence and prepare it for review, but do not
+  merge it autonomously.
 - PR #10: `feat/v0.8-strategy-routing -> main`, Draft, original Slice A checkpoint.
   Do not merge it during autonomous integration.
 - PR #11: V0.8 milestone, merged into `autopilot/v1` as `b0dba38`.
@@ -305,8 +340,9 @@ Updated: 2026-08-20
 
 ## Last Checkpoint
 
-- `c5e1a920d6f995411860d5fa9f165846b63dc149` is the latest verified UI 2.0
-  implementation checkpoint on `autopilot/ui2`.
+- `9ecab7455c9f8b3cde2fa4f62240dfa8cbff3233` is the verified RC integration
+  merge of accepted UI 2.0 source HEAD
+  `53c2879e6c8715a7c721b1b7ba79dfca258219a7`.
 - UI 2.0 was based on Pre-UI2 checkpoint
-  `78936fee55c3fc219dd83b259c8a9821e62ecf69`. Draft PR #14 remains unchanged
-  and must not be merged autonomously.
+  `78936fee55c3fc219dd83b259c8a9821e62ecf69`. PR #14 must not be merged
+  autonomously.
