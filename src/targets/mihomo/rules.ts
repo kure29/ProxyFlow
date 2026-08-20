@@ -1,4 +1,4 @@
-import type { RouteTargetIR, RuleSourceIR, ServiceIR, TrafficMatcherIR } from '../../core/ir'
+import { findRuleSource, type RouteTargetIR, type RuleSourceIR, type ServiceIR, type TrafficMatcherIR } from '../../core/ir'
 import type { MihomoCompileContext } from './context'
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
@@ -17,7 +17,19 @@ export function compileMihomoRules(context: MihomoCompileContext) {
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) rules.push(...compileServiceRules(serviceId, target, route.id, context))
     } else if (route.matcher.kind === 'rule-set') {
-      rules.push(...compileServiceRules(route.matcher.id, target, route.id, context))
+      const reference = findRuleSource(context.ir.services, route.matcher.id)
+      if (!reference) {
+        context.issues.push(mihomoIssue('MIHOMO_RULE_SET_NOT_FOUND', 'error', 'route', `Rule set “${route.matcher.id}” 不存在于 IR catalog。`, route.id))
+        continue
+      }
+      if (reference.source.provider !== 'ios-rule-script' && reference.source.provider !== 'remote') {
+        context.issues.push(mihomoIssue(
+          'MIHOMO_RULE_SOURCE_FORMAT_UNSUPPORTED', 'error', 'route', `Rule set “${reference.source.id}” 没有 Mihomo 可用的 remote rule source。`, route.id,
+        ))
+        continue
+      }
+      const resolved = resolveRuleSource({ id: reference.source.id, name: reference.source.id, ruleSources: [] }, reference.source, context, route.id)
+      if (resolved) rules.push(`RULE-SET,${resolved},${target}`)
     } else {
       const rule = matcherRule(route.matcher, target, route.id, context)
       if (rule) rules.push(rule)
@@ -53,11 +65,11 @@ function compileServiceRules(serviceId: string, target: string, routeId: string,
   return []
 }
 
-function resolveRuleSource(service: ServiceIR, source: RuleSourceIR, context: MihomoCompileContext) {
+function resolveRuleSource(service: ServiceIR, source: RuleSourceIR, context: MihomoCompileContext, ownerId = service.id) {
   const url = source.url
   if (!url || !isSafeRemoteUrl(url)) {
     context.issues.push(mihomoIssue(
-      'MIHOMO_INVALID_RULE_SOURCE_URL', 'error', 'rule-provider', `Service “${service.name}” 的规则地址必须使用 http/https。`, service.id,
+      'MIHOMO_INVALID_RULE_SOURCE_URL', 'error', 'rule-provider', `Service “${service.name}” 的规则地址必须使用 http/https。`, ownerId,
     ))
     return undefined
   }
@@ -66,7 +78,7 @@ function resolveRuleSource(service: ServiceIR, source: RuleSourceIR, context: Mi
     || (source.format === 'mrs' && (source.behavior ?? 'classical') === 'classical')) {
     context.issues.push(mihomoIssue(
       'MIHOMO_RULE_SOURCE_FORMAT_UNSUPPORTED', 'error', 'rule-provider',
-      `Service “${service.name}” 的 ${source.format} / ${source.behavior ?? 'classical'} 组合不能作为 Mihomo Rule Provider。`, service.id,
+      `Service “${service.name}” 的 ${source.format} / ${source.behavior ?? 'classical'} 组合不能作为 Mihomo Rule Provider。`, ownerId,
     ))
     return undefined
   }

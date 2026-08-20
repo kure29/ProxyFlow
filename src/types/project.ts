@@ -1,9 +1,11 @@
 import type { Edge, Node } from '@xyflow/react'
-import type { TargetClient, OutputDefinition } from './output'
+import type { TargetClient, OutputDefinition, MihomoOutputProfile } from './output'
 import type { ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
+import type { PrimaryTarget } from '../core/capabilities'
 
-export type { TargetClient, OutputDefinition } from './output'
+export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
+export type { PrimaryTarget } from '../core/capabilities'
 export type { ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
 
 export type BlockCategory =
@@ -40,6 +42,22 @@ export type BlockType =
   | 'output'
 
 export type EdgeSemantic = 'data' | 'route' | 'strategy' | 'chain' | 'output' | 'dns'
+export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
+export type DnsResolverKind = 'doh' | 'dot' | 'udp' | 'system'
+export type DnsResolverRole = 'default' | 'direct' | 'fallback'
+export type DnsResolverRegion = 'system' | 'global' | 'mainland-china'
+
+export interface DnsResolverConfig {
+  id: string
+  name: string
+  kind: DnsResolverKind
+  role: DnsResolverRole
+  address?: string
+  enabled: boolean
+  presetId?: string
+  region?: DnsResolverRegion
+}
+
 export interface BlockNodeData extends Record<string, unknown> {
   blockType: BlockType
   category: BlockCategory
@@ -107,7 +125,9 @@ export interface BlockNodeData extends Record<string, unknown> {
   targetKind?: 'strategy' | 'direct' | 'reject'
   ruleSource?: string
   client?: TargetClient
+  mihomoProfile?: MihomoOutputProfile
   compatibility?: string
+  dnsResolvers?: DnsResolverConfig[]
   resolver?: string
   renamePattern?: string
   renameReplacement?: string
@@ -121,6 +141,9 @@ export interface BlockNodeData extends Record<string, unknown> {
   loadBalanceMode?: 'round-robin' | 'consistent-hash'
   proxyId?: string
   routePriority?: number
+  routeMatcherKind?: RouteMatcherKind
+  routeMatcherValue?: string
+  routeMatcherPort?: number
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number
@@ -140,6 +163,7 @@ export interface ProxyFlowProject {
   version: number
   id: string
   name: string
+  primaryTarget?: PrimaryTarget
   graph: {
     nodes: GraphNode[]
     edges: GraphEdge[]

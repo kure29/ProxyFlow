@@ -3,6 +3,9 @@ import type { BlockNodeData, FlowEdgeData, GraphEdge, GraphNode, OutputDefinitio
 import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
 import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
+import { miniIcon } from './miniIcons'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createDnsResolver } from '../core/dns/resolverProfiles'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -21,14 +24,16 @@ const edge = (id: string, source: string, target: string, semantic: FlowEdgeData
 })
 
 export const outputDefinitions: OutputDefinition[] = [
-  { id: 'mihomo', target: 'mihomo', label: 'Mihomo', status: 'supported' },
-  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported' },
-  { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype' },
-  { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon' },
-  { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon' },
-  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon' },
-  { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon' },
+  { id: 'mihomo', target: 'mihomo', label: 'Mihomo', status: 'supported', icon: '/third-party/mihomo-party/icon.png', iconDark: '/third-party/mihomo-party/icon.png' },
+  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported', icon: '/third-party/sing-box/icon.svg', iconDark: '/third-party/sing-box/icon.svg' },
+  { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype', ...miniIcon('surge') },
+  { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon', ...miniIcon('loon') },
+  { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon', ...miniIcon('quantumultx', 'quanX') },
+  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon', ...miniIcon('shadowrocket') },
+  { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon', ...miniIcon('stash') },
 ]
+
+export const productionOutputDefinitions = outputDefinitions.filter((output) => output.status === 'supported')
 
 export const demoNodes: GraphNode[] = [
   node('hkt-subscription', 80, 80, {
@@ -76,7 +81,7 @@ export const demoNodes: GraphNode[] = [
     services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', dnsResolvers: [createDnsResolver('cloudflare')!],
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · Default Proxy', subtitleKey: 'demo.final.subtitle', icon: 'corner-down-right',
@@ -84,7 +89,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('output', 1360, 250, {
     blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', subtitleKey: 'demo.output.subtitle', icon: 'package-check',
-    client: 'mihomo', compatibility: 'Supported', protected: true,
+    client: 'mihomo', compatibility: 'Supported', protected: true, mihomoProfile: createMihomoOutputProfile(),
   }),
 ]
 
@@ -110,6 +115,7 @@ export const demoProject: ProxyFlowProject = {
   version: PROJECT_SCHEMA_VERSION,
   id: 'proxyflow-demo',
   name: '我的代理配置',
+  primaryTarget: 'mihomo',
   graph: { nodes: demoNodes, edges: demoEdges },
   services: serviceCatalog,
   outputs: outputDefinitions,

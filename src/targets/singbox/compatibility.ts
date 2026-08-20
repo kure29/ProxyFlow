@@ -1,4 +1,5 @@
-import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR, type TrafficMatcherIR } from '../../core/ir'
+import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
+import { getTargetCapabilities, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
@@ -8,6 +9,8 @@ export interface SingBoxCompatibilityResult {
   supported: boolean
   issues: CompatibilityIssue[]
 }
+
+const singBoxCapabilities = getTargetCapabilities('sing-box')
 
 export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibilityResult {
   const issues: CompatibilityIssue[] = []
@@ -66,13 +69,18 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
   }
 
   for (const strategy of ir.strategies) {
-    if (strategy.kind === 'fallback') issues.push(singBoxIssue(
-      'SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED', 'error', 'strategy',
-      `Fallback strategy “${strategy.name}” 在基线版本中没有等价 outbound。`, strategy.id,
-    ))
-    if (strategy.kind === 'load-balance') issues.push(singBoxIssue(
-      'SINGBOX_STRATEGY_LOAD_BALANCE_UNSUPPORTED', 'error', 'strategy',
-      `Load Balance strategy “${strategy.name}” 在基线版本中没有等价 outbound。`, strategy.id,
+    const capabilityKind: StrategyCapability | undefined = strategy.kind === 'fallback'
+      ? 'failover'
+      : strategy.kind === 'load-balance'
+        ? 'load-balance'
+        : undefined
+    const capability = capabilityKind ? singBoxCapabilities.strategies[capabilityKind] : undefined
+    if (capability?.status === 'unsupported') issues.push(singBoxIssue(
+      capability.reason ?? 'SINGBOX_STRATEGY_UNSUPPORTED', 'error', 'strategy',
+      strategy.kind === 'fallback'
+        ? `Fallback strategy “${strategy.name}” 在基线版本中没有等价 outbound。`
+        : `Load Balance strategy “${strategy.name}” 在基线版本中没有等价 outbound。`,
+      strategy.id,
     ))
     if ((strategy.kind === 'auto-select' || strategy.kind === 'fallback')
       && strategy.healthCheck?.url && !isSafeHttpUrl(strategy.healthCheck.url)) issues.push(singBoxIssue(
@@ -80,7 +88,7 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       `Strategy “${strategy.name}” 的 URLTest 地址必须使用 http/https。`, strategy.id,
     ))
     if (strategy.kind === 'select') issues.push(singBoxIssue(
-      'SINGBOX_SELECTOR_CLASH_API_REQUIRED', 'warning', 'strategy',
+      singBoxCapabilities.strategies.manual.reason ?? 'SINGBOX_SELECTOR_CLASH_API_REQUIRED', 'warning', 'strategy',
       `Selector “${strategy.name}” 的运行时切换需要 Clash API。`, strategy.id,
     ))
     if (strategy.kind === 'chain' && strategy.hops.some((hop) => {
@@ -103,12 +111,13 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       }
     } else if (route.matcher.kind === 'rule-set') {
       const ruleSetId = route.matcher.id
-      const source = ir.services.flatMap((service) => service.ruleSources).find((item) => item.id === ruleSetId)
+      const reference = findRuleSource(ir.services, ruleSetId)
+      const source = reference?.source
       if (!source || !isSingBoxRuleSource(source)) issues.push(singBoxIssue(
         'SINGBOX_INVALID_RULESET', 'error', 'route', `Rule set “${ruleSetId}” 不是 sing-box source/binary 格式。`, route.id,
       ))
-    } else if (!matcherSupported(route.matcher)) issues.push(singBoxIssue(
-      'SINGBOX_MATCHER_UNSUPPORTED', 'error', 'route',
+    } else if (singBoxCapabilities.routingMatchers[route.matcher.kind].status === 'unsupported') issues.push(singBoxIssue(
+      singBoxCapabilities.routingMatchers[route.matcher.kind].reason ?? 'SINGBOX_MATCHER_UNSUPPORTED', 'error', 'route',
       `Matcher “${route.matcher.kind}” 在现代 sing-box 配置中无法无损表达。`, route.id,
     ))
   }
@@ -123,21 +132,21 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
     if (!resolver.address || !['doh', 'dot', 'udp', 'system'].includes(resolver.kind)) issues.push(singBoxIssue(
       'SINGBOX_INVALID_DNS', 'error', 'dns', `DNS resolver “${resolver.id}” 缺少可用地址。`, resolver.id,
     ))
+    if (resolver.role && resolver.role !== 'default') issues.push(singBoxIssue(
+      'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的 ${resolver.role} 角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
+    ))
   }
 
   issues.push(singBoxIssue(
     'SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED', 'info', 'inbound',
-    'V0.6 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
+    'ProxyFlow 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
   ))
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }
 
 export function isSingBoxRuleSource(source: { format?: string }) {
-  return source.format === 'sing-box-source' || source.format === 'sing-box-binary'
-}
-
-function matcherSupported(matcher: TrafficMatcherIR) {
-  return ['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port'].includes(matcher.kind)
+  if (!source.format || !(source.format in singBoxCapabilities.ruleSources)) return false
+  return singBoxCapabilities.ruleSources[source.format as RuleSourceFormat].status === 'supported'
 }
 
 function strategyUsesResolvedEndpoints(strategy: StrategyIR, ir: ProxyFlowIR, stack: Set<string>): boolean {

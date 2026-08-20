@@ -1,6 +1,6 @@
-# Mihomo Compiler MVP
+# Mihomo Compiler
 
-ProxyFlow v0.7.0 的真实编译链路：
+ProxyFlow v1.0 RC 的真实编译链路：
 
 ```text
 ProxyFlowIR
@@ -23,6 +23,9 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 - [Routing Rules](https://wiki.metacubex.one/en/config/rules/)
 - [Rule Providers](https://wiki.metacubex.one/en/config/rule-providers/)
 - [DNS](https://wiki.metacubex.one/en/config/dns/)
+- [Global settings](https://wiki.metacubex.one/en/config/general/)
+- [Tun](https://wiki.metacubex.one/en/config/inbound/tun/)
+- [Domain sniffing](https://wiki.metacubex.one/en/config/sniff/)
 - [dialer-proxy](https://wiki.metacubex.one/en/config/proxies/dialer-proxy/)
 - [HTTP / SOCKS proxies](https://wiki.metacubex.one/en/config/proxies/)
 - [Shadowsocks](https://wiki.metacubex.one/en/config/proxies/ss/)
@@ -68,16 +71,24 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 | IPv4 / IPv6 / ASN | `IP-CIDR` / `IP-CIDR6` / `IP-ASN` | Supported |
 | GeoIP / GeoSite | `GEOIP` / `GEOSITE` | Supported |
 | DIRECT / REJECT / Final | built-in target / `MATCH` | Supported |
-| DNS | `enable`、`redir-host`、bootstrap、nameserver | MVP subset |
+| DNS | `enable`、`redir-host` / `fake-ip`、bootstrap、nameserver、IPv6 | Supported subset; Fake-IP is coordinated with Desktop TUN |
+| Mihomo Output Profile | `mixed-port`、`allow-lan`、`ipv6`、`mode`、`unified-delay`、`tcp-concurrent`、`profile` | Supported target-specific settings |
+| Desktop TUN preset | `tun.enable`、`stack`、`auto-route`、`auto-detect-interface`、DNS hijack、`strict-route` | Supported when an enabled DNS node exists; platform-specific fields omitted |
+| Domain sniffer | HTTP/TLS/QUIC port maps, DNS mapping, pure-IP parsing | Supported opt-in; no raw schema editor |
 | Chain | Provider clone + `override.dialer-proxy` | Supported with protocol/UDP Warning |
 
 ## Defaults
 
-所有默认值集中于 `defaults.ts`：
+编译常量位于 `defaults.ts`，Output Profile 默认值位于 `profile.ts`：
 
 - `mixed-port: 7890`
 - `mode: rule`
 - `allow-lan: false`
+- `ipv6: true`
+- `unified-delay: true`
+- `tcp-concurrent: true`
+- `profile.store-selected: true`
+- Local Proxy preset with `dns.enhanced-mode: redir-host`
 - Provider update interval: 21600 seconds
 - Rule Provider update interval: 86400 seconds
 - Health check: Google `generate_204`, 300 seconds
@@ -119,6 +130,8 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 - Imported Config source 仍未实现
 - 不执行网络请求或验证 Remote Rule 可达性
 - Latency Sort 需要真实测速，因此返回 `SPEED_TEST_REQUIRED`
-- DNS 只覆盖当前 Universal IR 的最小字段
+- DNS 只覆盖当前 Universal IR 的最小字段；Output Profile 可选择 redir-host 或 Fake-IP
+- Desktop TUN 只生成跨平台安全的基础字段，不猜测设备名、接口、UID、路由表或本地路径
+- Mihomo 运行设置保存在 Output 节点，不进入 Universal IR；sing-box 不消费这些字段
 - Chain 不保证所有 UDP/传输协议组合均可工作
 - Surge、Loon、Quantumult X 等其他 Target 尚未实现；sing-box 由独立 Compiler 处理

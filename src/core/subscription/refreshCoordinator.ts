@@ -16,6 +16,8 @@ export interface RefreshRequest {
   sourceName: string
   url: string
   activeSnapshot?: SubscriptionSnapshot
+  fetcher?: SourceFetcher
+  onFetched?: (result: Awaited<ReturnType<SourceFetcher['fetch']>>) => void
 }
 
 export interface RefreshHandlers {
@@ -61,7 +63,8 @@ export class RefreshCoordinator {
     handlers.onStart(generation, attemptedAt, fingerprint)
 
     try {
-      const fetched = await this.fetcher.fetch(request.url, { signal: controller.signal })
+      const fetched = await (request.fetcher ?? this.fetcher).fetch(request.url, { signal: controller.signal })
+      request.onFetched?.(fetched)
       if (!this.isCurrent(key, generation)) return { outcome: 'superseded' }
       const fetchedAt = this.now().toISOString()
       const result = parseSubscription(fetched.text, { sourceId: request.sourceId, sourceName: request.sourceName })

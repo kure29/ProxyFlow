@@ -250,7 +250,7 @@ function parseClashNode(raw: unknown, sourceId: string, sourceName: string, inde
       break
     }
     default:
-      return fail('PROXY_PROTOCOL_UNSUPPORTED', `${name} 使用了 V0.6 不支持的协议 “${type}”。`)
+      return fail('PROXY_PROTOCOL_UNSUPPORTED', `${name} 使用了当前版本不支持的协议 “${type}”。`)
   }
 
   const endpointWithoutCompatibility = {

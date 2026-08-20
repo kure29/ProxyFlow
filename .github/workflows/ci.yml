@@ -19,3 +19,9 @@ jobs:
       - run: npm ci
       - run: npm test -- --run
       - run: npm run build
+      - run: npm run runtime:build
+      - run: npm run test:deployment
+      - run: docker compose config --quiet
+        env:
+          PROXYFLOW_RUNTIME_TOKEN: fictional-ci-token-123456789
+          PROXYFLOW_DATA_DIR: /tmp/proxyflow-ci-data

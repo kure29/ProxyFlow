@@ -1,22 +1,33 @@
 import { applyEdgeChanges, applyNodeChanges, MarkerType, type Connection, type EdgeChange, type NodeChange, type XYPosition } from '@xyflow/react'
 import { create } from 'zustand'
-import { blockByType } from '../data/blockLibrary'
+import { blockByType, resolveLibraryNodePreset } from '../data/blockLibrary'
 import { demoProject } from '../data/demoProject'
 import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
+import { moveRoutingRule, moveRoutingRuleToIndex } from '../core/routing/routeProductModel'
+import {
+  clearRuntimeServiceConfig, loadRuntimeServiceConfig, saveRuntimeServiceConfig, ServerRuntimeProvider,
+  type RuntimeServiceConfig,
+} from '../core/runtime'
 import {
   commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
   snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
-  type RefreshAllSummary, type RefreshHandlers, type SubscriptionInputKind, type SubscriptionRefreshError,
+  type RefreshAllSummary, type RefreshHandlers, type SubscriptionFetchPath, type SubscriptionInputKind, type SubscriptionRefreshError,
   type SubscriptionRuntimeRecord, type SubscriptionSnapshot,
 } from '../core/subscription'
 import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createDnsResolver } from '../core/dns/resolverProfiles'
+import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
+import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
+import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 
 interface GraphSnapshot {
+  primaryTarget: PrimaryTarget | null
   nodes: GraphNode[]
   edges: GraphEdge[]
 }
@@ -24,6 +35,7 @@ interface GraphSnapshot {
 interface BuilderState {
   projectId: string
   projectName: string
+  primaryTarget: PrimaryTarget | null
   nodes: GraphNode[]
   edges: GraphEdge[]
   selectedNodeId: string | null
@@ -33,6 +45,7 @@ interface BuilderState {
   historyFuture: GraphSnapshot[]
   transactionStart: GraphSnapshot | null
   previewOpen: boolean
+  previewTarget: PrimaryTarget | null
   saveStatus: 'saved' | 'saving'
   hydrated: boolean
   recoveryRequired: boolean
@@ -40,44 +53,56 @@ interface BuilderState {
   toast: string | null
   subscriptionSnapshots: Record<string, SubscriptionSnapshot>
   subscriptionRuntimes: Record<string, SubscriptionRuntimeRecord>
+  runtimeService: RuntimeServiceConfig | null
   onNodesChange: (changes: NodeChange<GraphNode>[]) => void
   onEdgesChange: (changes: EdgeChange<GraphEdge>[]) => void
   connect: (connection: Connection) => boolean
-  addNode: (type: BlockType, position: XYPosition) => string | null
+  addNode: (type: BlockType, position: XYPosition, data?: Partial<BlockNodeData>) => string | null
+  addLibraryNode: (entryType: BlockType, position: XYPosition, data?: Partial<BlockNodeData>) => string | null
   duplicateNode: (id: string) => void
   removeNode: (id: string) => void
   deleteSelected: () => void
   selectNode: (id: string | null, service?: string | null, additive?: boolean) => void
   selectEdge: (id: string | null) => void
   updateNodeData: (id: string, patch: Partial<BlockNodeData>) => void
+  setWorkspaceInputs: (nodeId: string, sourceIds: string[]) => boolean
+  moveProcessingStep: (nodeId: string, direction: 'up' | 'down') => boolean
   setRoutingTarget: (nodeId: string, targetId: string) => void
+  moveRoutingRule: (nodeId: string, direction: 'up' | 'down') => void
+  moveRoutingRuleToIndex: (nodeId: string, targetIndex: number) => void
   addHop: (chainId: string) => void
   removeHop: (chainId: string, hopId: string) => void
   moveHop: (chainId: string, from: number, to: number) => void
   setOutputClient: (id: string, client: TargetClient) => void
+  setPrimaryTarget: (target: PrimaryTarget) => void
   beginTransaction: () => void
   commitTransaction: () => void
   undo: () => void
   redo: () => void
   autoLayout: () => void
-  setPreviewOpen: (open: boolean) => void
+  setPreviewOpen: (open: boolean, target?: PrimaryTarget) => void
   setSaveStatus: (status: 'saved' | 'saving') => void
   setToast: (message: string | null) => void
+  setRuntimeServiceConfig: (config: RuntimeServiceConfig | null) => void
+  disconnectRuntimeService: () => void
   hydrate: (project: ProxyFlowProject | null | undefined) => void
   resetToDemo: () => void
-  createNewProject: () => void
+  createNewProject: (primaryTarget?: PrimaryTarget) => void
+  renameProject: (name: string) => boolean
   dismissRecoveryNotice: () => void
   parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
   refreshSubscription: (id: string) => Promise<void>
   refreshAllSubscriptions: () => Promise<RefreshAllSummary>
   applyEmptySubscription: (id: string) => Promise<void>
+  adoptSubscriptionSnapshot: (id: string, snapshot: SubscriptionSnapshot) => Promise<void>
   keepCurrentSubscription: (id: string) => void
   clearCachedSubscription: (id: string) => Promise<void>
   hydrateSubscriptionCache: () => Promise<void>
   toProject: () => ProxyFlowProject
 }
 
-const cloneSnapshot = (nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot => ({
+const cloneSnapshot = (primaryTarget: PrimaryTarget | null, nodes: GraphNode[], edges: GraphEdge[]): GraphSnapshot => ({
+  primaryTarget,
   nodes: structuredClone(nodes),
   edges: structuredClone(edges),
 })
@@ -93,10 +118,12 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'rename') return { renameMode: 'regex', renamePattern: '', renameReplacement: '', renameIgnoreCase: false, renameGlobal: true }
   if (type === 'limit') return { limit: 10 }
   if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
+  if (type === 'load-balance') return { loadBalanceMode: 'round-robin' }
   if (type === 'proxy-chain') return { hopIds: [] }
-  if (['routing-group', 'service-rule', 'custom-rule'].includes(type)) return { services: [], ruleSource: type === 'custom-rule' ? 'custom' : 'ios_rule_script' }
-  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported' }
-  if (type === 'dns') return { resolver: 'https://1.1.1.1/dns-query' }
+  if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
+  if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
+  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoOutputProfile() }
+  if (type === 'dns') return { dnsResolvers: [createDnsResolver('cloudflare')!] }
   return {}
 }
 
@@ -142,6 +169,18 @@ async function rehydrateEmbeddedSubscriptions(
 
 export const useBuilderStore = create<BuilderState>((set, get) => {
   const inputGenerations = new Map<string, number>()
+  let hydrationProjectId: string | null = null
+  let hydrationBarrier: Promise<void> = Promise.resolve()
+  const trackHydration = (projectId: string, task: Promise<void>) => {
+    hydrationProjectId = projectId
+    hydrationBarrier = task.catch(() => undefined)
+  }
+  const waitForHydration = async (projectId: string) => {
+    if (hydrationProjectId !== projectId) return
+    const barrier = hydrationBarrier
+    await barrier
+    if (hydrationProjectId === projectId && hydrationBarrier !== barrier) await waitForHydration(projectId)
+  }
   const nextInputGeneration = (projectId: string, sourceId: string) => {
     const key = `${projectId}\u0000${sourceId}`
     const generation = (inputGenerations.get(key) ?? 0) + 1
@@ -149,16 +188,20 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     return generation
   }
   const isCurrentInput = (projectId: string, sourceId: string, generation: number) => (inputGenerations.get(`${projectId}\u0000${sourceId}`) ?? 0) === generation
+  const cancelSubscriptionSource = (projectId: string, sourceId: string) => {
+    nextInputGeneration(projectId, sourceId)
+    subscriptionRefreshCoordinator.cancel(projectId, sourceId)
+  }
   const deleteSubscriptionSource = (projectId: string, sourceId: string) => {
     nextInputGeneration(projectId, sourceId)
     void subscriptionRefreshCoordinator.deleteSource(projectId, sourceId).catch(() => undefined)
   }
   const record = () => set((state) => ({
-    historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.nodes, state.edges)],
+    historyPast: [...state.historyPast.slice(-49), cloneSnapshot(state.primaryTarget, state.nodes, state.edges)],
     historyFuture: [],
   }))
 
-  const refreshHandlers = (id: string): RefreshHandlers => ({
+  const refreshHandlers = (id: string, fetchPath: SubscriptionFetchPath = 'browser'): RefreshHandlers => ({
     onStart: (generation, attemptedAt, fingerprint) => set((state) => {
       const previous = state.subscriptionRuntimes[id]
       const configChanged = Boolean(previous?.sourceConfigFingerprint && previous.sourceConfigFingerprint !== fingerprint)
@@ -169,7 +212,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           [id]: {
             ...base,
             inputKind: 'url', sourceConfigFingerprint: fingerprint, refreshStatus: 'loading',
-            lastAttemptAt: attemptedAt, requestGeneration: generation,
+            lastAttemptAt: attemptedAt, latestFetchPath: fetchPath, requestGeneration: generation,
             pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined, cacheError: undefined,
           },
         },
@@ -239,6 +282,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
   return {
     projectId: demoProject.id,
     projectName: demoProject.name,
+    primaryTarget: demoProject.primaryTarget ?? null,
     nodes: structuredClone(demoProject.graph.nodes),
     edges: structuredClone(demoProject.graph.edges),
     selectedNodeId: null,
@@ -248,6 +292,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     historyFuture: [],
     transactionStart: null,
     previewOpen: false,
+    previewTarget: null,
     saveStatus: 'saved',
     hydrated: false,
     recoveryRequired: false,
@@ -255,6 +300,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     toast: null,
     subscriptionSnapshots: {},
     subscriptionRuntimes: {},
+    runtimeService: loadRuntimeServiceConfig(),
 
     onNodesChange: (changes) => {
       const hasRemoval = changes.some((change) => change.type === 'remove')
@@ -287,7 +333,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       set((current) => ({ edges: [...current.edges, edge], selectedEdgeId: edge.id }))
       return true
     },
-    addNode: (type, position) => {
+    addNode: (type, position, dataPatch) => {
       const item = blockByType.get(type)
       if (!item) return null
       record()
@@ -296,7 +342,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         blockType: type, category: item.category, title: translateCurrent(blockTitleKey(type)), subtitle: translateCurrent(blockDescriptionKey(type)),
         titleKey: blockTitleKey(type), subtitleKey: blockDescriptionKey(type), icon: item.icon,
         ...defaultDataFor(type),
+        ...dataPatch,
       }
+      if (dataPatch?.titleKey) data.title = translateCurrent(dataPatch.titleKey as Parameters<typeof translateCurrent>[0])
+      if (dataPatch?.subtitleKey) data.subtitle = translateCurrent(dataPatch.subtitleKey as Parameters<typeof translateCurrent>[0])
       const node: GraphNode = { id, type: 'block', position, data, selected: true }
       set((state) => ({
         nodes: [...state.nodes.map((existing) => ({ ...existing, selected: false })), node],
@@ -304,6 +353,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         selectedEdgeId: null,
       }))
       return id
+    },
+    addLibraryNode: (entryType, position, data) => {
+      const preset = resolveLibraryNodePreset(entryType)
+      return get().addNode(preset.blockType, position, { ...preset.data, ...data })
     },
     duplicateNode: (id) => {
       const source = get().nodes.find((node) => node.id === id)
@@ -388,13 +441,53 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nextInputGeneration(current.projectId, id)
         void subscriptionRefreshCoordinator.deleteSource(current.projectId, id).catch(() => undefined)
       }
+      const soleOutputTarget = node?.data.blockType === 'output'
+        && current.nodes.filter((item) => item.data.blockType === 'output').length === 1
+        && patch.client !== undefined
+        ? (isPrimaryTarget(patch.client) ? patch.client : null)
+        : undefined
       set((state) => ({
-        nodes: state.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) } } : item),
+        nodes: updateWorkspaceNodeData(state.nodes, id, { ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) }),
+        ...(soleOutputTarget !== undefined ? { primaryTarget: soleOutputTarget } : {}),
         ...(urlChanged ? {
           subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
           subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
         } : {}),
       }))
+    },
+    setWorkspaceInputs: (nodeId, sourceIds) => {
+      const state = get()
+      const target = state.nodes.find((node) => node.id === nodeId)
+      if (!target || !['processing', 'strategy'].includes(target.data.category)) return false
+      const uniqueSourceIds = [...new Set(sourceIds)]
+      const connections = uniqueSourceIds.map((source) => ({ source, target: nodeId, sourceHandle: null, targetHandle: null }))
+      if (connections.some((connection) => !canUseWorkspaceInput(state.nodes, state.edges, nodeId, connection.source))) return false
+
+      const managedSemantics = new Set(['data', 'strategy'])
+      const existingInputs = state.edges
+        .filter((edge) => edge.target === nodeId && managedSemantics.has(String(edge.data?.semantic)))
+        .map((edge) => edge.source)
+      if (existingInputs.length === uniqueSourceIds.length && existingInputs.every((id) => uniqueSourceIds.includes(id))) return true
+
+      const retainedEdges = state.edges.filter((edge) => edge.target !== nodeId || !managedSemantics.has(String(edge.data?.semantic)))
+      const nextEdges: GraphEdge[] = connections.map((connection) => {
+        const semantic = semanticForConnection(connection, state.nodes)
+        return {
+          id: makeId(semantic), source: connection.source, target: connection.target, type: 'smoothstep',
+          data: { semantic }, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+        }
+      })
+      record()
+      set({ edges: [...retainedEdges, ...nextEdges] })
+      return true
+    },
+    moveProcessingStep: (nodeId, direction) => {
+      const state = get()
+      const edges = moveWorkspaceProcessingStep(state.nodes, state.edges, nodeId, direction)
+      if (edges === state.edges) return false
+      record()
+      set({ edges })
+      return true
     },
     setRoutingTarget: (nodeId, targetId) => {
       const state = get()
@@ -423,6 +516,20 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nodes: state.nodes.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, targetId, targetLabel: target.data.title, targetKind: 'strategy' } } : node),
         edges: [...oldEdges, newEdge],
       })
+    },
+    moveRoutingRule: (nodeId, direction) => {
+      const state = get()
+      const nodes = moveRoutingRule(state.nodes, nodeId, direction)
+      if (nodes === state.nodes) return
+      record()
+      set({ nodes })
+    },
+    moveRoutingRuleToIndex: (nodeId, targetIndex) => {
+      const state = get()
+      const nodes = moveRoutingRuleToIndex(state.nodes, nodeId, targetIndex)
+      if (nodes === state.nodes) return
+      record()
+      set({ nodes })
     },
     addHop: (chainId) => {
       const state = get()
@@ -485,7 +592,27 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
       get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
     },
-    beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.nodes, state.edges) })),
+    setPrimaryTarget: (target) => {
+      const state = get()
+      const outputNodes = state.nodes.filter((node) => node.data.blockType === 'output')
+      if (state.primaryTarget === target && (outputNodes.length !== 1 || outputNodes[0].data.client === target)) return
+      record()
+      const labels: Record<PrimaryTarget, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box' }
+      set({
+        primaryTarget: target,
+        nodes: outputNodes.length === 1 ? state.nodes.map((node) => node.id === outputNodes[0].id ? {
+          ...node,
+          data: {
+            ...node.data,
+            client: target,
+            title: translateCurrent('node.outputTitle', { target: labels[target] }),
+            titleKey: undefined,
+            compatibility: 'Supported',
+          },
+        } : node) : state.nodes,
+      })
+    },
+    beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.primaryTarget, state.nodes, state.edges) })),
     commitTransaction: () => {
       const start = get().transactionStart
       if (!start) return
@@ -496,9 +623,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const previous = state.historyPast.at(-1)
       if (!previous) return
       set({
-        nodes: structuredClone(previous.nodes), edges: structuredClone(previous.edges),
+        primaryTarget: previous.primaryTarget, nodes: structuredClone(previous.nodes), edges: structuredClone(previous.edges),
         historyPast: state.historyPast.slice(0, -1),
-        historyFuture: [cloneSnapshot(state.nodes, state.edges), ...state.historyFuture].slice(0, 50),
+        historyFuture: [cloneSnapshot(state.primaryTarget, state.nodes, state.edges), ...state.historyFuture].slice(0, 50),
         selectedNodeId: null, selectedEdgeId: null,
       })
     },
@@ -507,8 +634,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const next = state.historyFuture[0]
       if (!next) return
       set({
-        nodes: structuredClone(next.nodes), edges: structuredClone(next.edges),
-        historyPast: [...state.historyPast, cloneSnapshot(state.nodes, state.edges)].slice(-50),
+        primaryTarget: next.primaryTarget, nodes: structuredClone(next.nodes), edges: structuredClone(next.edges),
+        historyPast: [...state.historyPast, cloneSnapshot(state.primaryTarget, state.nodes, state.edges)].slice(-50),
         historyFuture: state.historyFuture.slice(1), selectedNodeId: null, selectedEdgeId: null,
       })
     },
@@ -528,7 +655,10 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         return { ...node, position: { x: isRouting ? layout.x + index * 280 : layout.x, y: isRouting ? layout.startY : layout.startY + index * layout.gap } }
       }) }))
     },
-    setPreviewOpen: (previewOpen) => set({ previewOpen }),
+    setPreviewOpen: (previewOpen, target) => set((state) => ({
+      previewOpen,
+      ...(previewOpen ? { previewTarget: target ?? state.primaryTarget } : {}),
+    })),
     setSaveStatus: (saveStatus) => set({ saveStatus }),
     setToast: (toast) => set({ toast }),
     parseSubscriptionInput: async (id, content, inputKind, fileName) => {
@@ -600,19 +730,29 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }))
     },
     refreshSubscription: async (id) => {
+      const projectId = get().projectId
+      await waitForHydration(projectId)
+      if (get().projectId !== projectId) return
       const node = get().nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
       const url = node?.data.subscriptionUrl?.trim()
       if (!node || !url) {
         set({ toast: translateCurrent('toast.enterSubscriptionUrl') })
         return
       }
-      nextInputGeneration(get().projectId, id)
+      nextInputGeneration(projectId, id)
       const state = get()
+      const fetchPath: SubscriptionFetchPath = state.runtimeService ? 'runtime' : 'browser'
+      const runtimeFetcher = state.runtimeService
+        ? new ServerRuntimeProvider(state.runtimeService, {
+          projectId: state.projectId, sourceId: id,
+          sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+        })
+        : undefined
       await subscriptionRefreshCoordinator.refresh({
         projectId: state.projectId, sourceId: id,
         sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
-        url, activeSnapshot: state.subscriptionSnapshots[id],
-      }, refreshHandlers(id))
+        url, activeSnapshot: state.subscriptionSnapshots[id], fetcher: runtimeFetcher,
+      }, refreshHandlers(id, fetchPath))
     },
     refreshAllSubscriptions: async () => {
       const state = get()
@@ -659,19 +799,52 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         nodes: current.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item),
       }))
       await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot, {
-        onCacheError: (error) => refreshHandlers(id).onCacheError(error, runtime.requestGeneration),
+        onCacheError: (error) => refreshHandlers(id, runtime.latestFetchPath).onCacheError(error, runtime.requestGeneration),
       }, runtime.requestGeneration)
-    },
-    keepCurrentSubscription: (id) => set((state) => {
-      const runtime = state.subscriptionRuntimes[id]
-      if (!runtime?.pendingEmptySnapshot) return state
-      return {
-        subscriptionRuntimes: {
-          ...state.subscriptionRuntimes,
-          [id]: { ...runtime, latestOutcome: 'success', pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined },
-        },
+      if (state.runtimeService) {
+        const node = state.nodes.find((item) => item.id === id)
+        if (node) await new ServerRuntimeProvider(state.runtimeService, {
+          projectId: state.projectId, sourceId: id,
+          sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+        }).confirmEmpty().catch(() => undefined)
       }
-    }),
+    },
+    adoptSubscriptionSnapshot: async (id, snapshot) => {
+      const state = get()
+      const node = state.nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
+      if (!node) return
+      const generation = nextInputGeneration(state.projectId, id)
+      subscriptionRefreshCoordinator.cancel(state.projectId, id)
+      const diff = await diffSubscriptionSnapshots(state.subscriptionSnapshots[id], snapshot)
+      if (!isCurrentInput(state.projectId, id, generation) || !get().nodes.some((item) => item.id === id && item.data.blockType === 'subscription')) return
+      set((current) => ({
+        subscriptionSnapshots: { ...current.subscriptionSnapshots, [id]: snapshot },
+        subscriptionRuntimes: {
+          ...current.subscriptionRuntimes,
+          [id]: {
+            ...emptySubscriptionRuntime(id, 'url', snapshot.sourceConfigFingerprint), refreshStatus: 'succeeded', activeState: snapshot.quality,
+            freshness: snapshotFreshness(snapshot.committedAt), latestOutcome: 'success', activeSnapshot: snapshot,
+            latestDiff: diff, lastSuccessfulAt: snapshot.committedAt,
+          },
+        },
+        nodes: current.nodes.map((item) => item.id === id ? { ...item, data: { ...item.data, ...snapshotNodeData(snapshot) } } : item),
+      }))
+      await subscriptionRefreshCoordinator.persistSnapshot(state.projectId, snapshot)
+    },
+    keepCurrentSubscription: (id) => {
+      const state = get()
+      const runtime = state.subscriptionRuntimes[id]
+      if (!runtime?.pendingEmptySnapshot) return
+      const node = state.nodes.find((item) => item.id === id)
+      set({ subscriptionRuntimes: {
+        ...state.subscriptionRuntimes,
+        [id]: { ...runtime, latestOutcome: 'success', pendingEmptySnapshot: undefined, pendingEmptyDiff: undefined },
+      } })
+      if (state.runtimeService && node) void new ServerRuntimeProvider(state.runtimeService, {
+        projectId: state.projectId, sourceId: id,
+        sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
+      }).discardEmpty().catch(() => undefined)
+    },
     clearCachedSubscription: async (id) => {
       const state = get()
       const node = state.nodes.find((item) => item.id === id && item.data.blockType === 'subscription')
@@ -749,11 +922,27 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         }
       }))
     },
+    setRuntimeServiceConfig: (config) => {
+      if (config) saveRuntimeServiceConfig(config)
+      else clearRuntimeServiceConfig()
+      set({ runtimeService: config })
+    },
+    disconnectRuntimeService: () => {
+      clearRuntimeServiceConfig()
+      set({ runtimeService: null })
+    },
     hydrate: (project) => {
       const previous = get()
-      const nextNodes = project?.graph.nodes ?? (project === undefined ? [] : demoProject.graph.nodes)
+      const migration = project ? migrateProject(project) : undefined
+      const value = migration?.success && migration.project ? migration.project : demoProject
+      const nextNodes = project === undefined ? [] : value.graph.nodes
+      const switchedProject = previous.projectId !== value.id
       const nextSources = new Map(nextNodes.filter((node) => node.data.blockType === 'subscription').map((node) => [node.id, node.data.subscriptionUrl ?? '']))
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
+        if (switchedProject) {
+          cancelSubscriptionSource(previous.projectId, source.id)
+          continue
+        }
         const nextUrl = nextSources.get(source.id)
         if (nextUrl === undefined || nextUrl !== (source.data.subscriptionUrl ?? '')) deleteSubscriptionSource(previous.projectId, source.id)
         else {
@@ -764,6 +953,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       if (project === undefined) {
         set({
           projectId: demoProject.id, projectName: demoProject.name,
+          primaryTarget: demoProject.primaryTarget ?? null,
           nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
           historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
           recoveryRequired: true,
@@ -771,20 +961,19 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           subscriptionSnapshots: {},
           subscriptionRuntimes: {},
         })
-        void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
+        trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
         return
       }
-      const migration = project ? migrateProject(project) : undefined
-      const value = migration?.success && migration.project ? migration.project : demoProject
+      const primaryTarget = resolveProjectPrimaryTarget(value).target
       set({
-        projectId: value.id, projectName: value.name, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
+        projectId: value.id, projectName: value.name, primaryTarget, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: migration?.recoveryRequired ?? false,
         recoveryNotice: migration?.message ?? null,
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
-      void rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput)
+      trackHydration(value.id, rehydrateEmbeddedSubscriptions(value.graph.nodes, get().parseSubscriptionInput))
       void get().hydrateSubscriptionCache()
     },
     resetToDemo: () => {
@@ -799,37 +988,48 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       set({
         projectId: demoProject.id, projectName: demoProject.name,
+        primaryTarget: demoProject.primaryTarget ?? null,
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.resetDemo'),
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
-      void rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput)
+      trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
     },
-    createNewProject: () => {
+    createNewProject: (primaryTarget = 'mihomo') => {
       const previous = get()
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
-        deleteSubscriptionSource(previous.projectId, source.id)
+        cancelSubscriptionSource(previous.projectId, source.id)
       }
-      const value = createBlankProject()
+      const value = createBlankProject(primaryTarget)
       set({
-        projectId: value.id, projectName: value.name,
+        projectId: value.id, projectName: value.name, primaryTarget,
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
         subscriptionSnapshots: {},
         subscriptionRuntimes: {},
       })
+      hydrationProjectId = value.id
+      hydrationBarrier = Promise.resolve()
+    },
+    renameProject: (name) => {
+      const normalized = name.trim()
+      if (!normalized) return false
+      if (normalized !== get().projectName) set({ projectName: normalized, saveStatus: 'saving' })
+      return true
     },
     dismissRecoveryNotice: () => set((state) => state.recoveryRequired ? state : { recoveryNotice: null }),
     toProject: () => {
       const state = get()
-      return localizeProject({
+      const project: ProxyFlowProject = {
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
+        ...(state.primaryTarget ? { primaryTarget: state.primaryTarget } : {}),
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
-      })
+      }
+      return { ...localizeProject(project), name: project.name }
     },
   }
 })

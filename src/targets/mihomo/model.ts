@@ -74,16 +74,52 @@ export interface MihomoRuleProvider {
 
 export interface MihomoDnsConfig {
   enable: boolean
-  'enhanced-mode': 'redir-host'
+  ipv6: boolean
+  'enhanced-mode': 'redir-host' | 'fake-ip'
+  'fake-ip-range'?: string
   'default-nameserver': string[]
   nameserver: string[]
+  'direct-nameserver'?: string[]
+  fallback?: string[]
+}
+
+export interface MihomoTunConfig {
+  enable: true
+  stack: 'mixed' | 'system' | 'gvisor'
+  'auto-route': true
+  'auto-detect-interface': true
+  'dns-hijack': string[]
+  'strict-route': boolean
+}
+
+export interface MihomoSnifferConfig {
+  enable: true
+  'force-dns-mapping': true
+  'parse-pure-ip': true
+  'override-destination': false
+  sniff: {
+    HTTP: { ports: Array<number | string>; 'override-destination': true }
+    TLS: { ports: number[] }
+    QUIC: { ports: number[] }
+  }
+}
+
+export interface MihomoProfileConfig {
+  'store-selected': boolean
+  'store-fake-ip': boolean
 }
 
 export interface MihomoConfig {
   'mixed-port': number
   'allow-lan': boolean
+  ipv6: boolean
   mode: 'rule'
   'log-level': 'info'
+  'unified-delay': boolean
+  'tcp-concurrent': boolean
+  profile: MihomoProfileConfig
+  tun?: MihomoTunConfig
+  sniffer?: MihomoSnifferConfig
   proxies?: MihomoProxy[]
   'proxy-providers'?: Record<string, MihomoProxyProvider>
   'proxy-groups'?: MihomoProxyGroup[]

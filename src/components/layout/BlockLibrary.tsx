@@ -11,16 +11,16 @@ export function BlockLibrary() {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-  const addNode = useBuilderStore((state) => state.addNode)
+  const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
   const { screenToFlowPosition } = useReactFlow()
   const groups = useMemo(() => blockLibrary.map((group) => ({
     ...group,
-    items: group.items.filter((item) => `${t(blockTitleKey(item.type))}${t(blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
+    items: group.items.filter((item) => `${t(item.titleKey ?? blockTitleKey(item.type))}${t(item.descriptionKey ?? blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
   })).filter((group) => group.items.length > 0), [query, t])
 
   const addAtCenter = (type: BlockType) => {
     const position = screenToFlowPosition({ x: window.innerWidth * 0.52, y: window.innerHeight * 0.5 })
-    addNode(type, position)
+    addLibraryNode(type, position)
   }
 
   return (
@@ -35,16 +35,17 @@ export function BlockLibrary() {
       </div>
       <div className="library-scroll">
         {groups.map((group) => {
-          const isCollapsed = collapsed.has(group.category)
+          const groupId = `${group.category}:${group.label}`
+          const isCollapsed = collapsed.has(groupId)
           return (
-            <section className="library-group" key={group.category}>
+            <section className="library-group" key={groupId}>
               <button className="library-group-title" onClick={() => setCollapsed((current) => {
                 const next = new Set(current)
-                next.has(group.category) ? next.delete(group.category) : next.add(group.category)
+                next.has(groupId) ? next.delete(groupId) : next.add(groupId)
                 return next
               })} aria-expanded={!isCollapsed}>
                 <span className={`category-dot category-dot--${group.category}`} />
-                {t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
+                {group.advanced ? (group.category === 'strategy' ? t('category.strategyAdvanced') : `${t('category.advanced')} · ${t(categoryKey(group.category))}`) : t(categoryKey(group.category))}<small>{group.items.length}</small><ChevronDown size={13} className={isCollapsed ? 'is-rotated' : ''} />
               </button>
               {!isCollapsed && <div className="library-items">
                 {group.items.map((item) => (
@@ -59,7 +60,7 @@ export function BlockLibrary() {
                     onClick={() => addAtCenter(item.type)}
                   >
                     <span className="library-item-icon"><BlockIcon name={item.icon} /></span>
-                    <span><strong>{t(blockTitleKey(item.type))}</strong><small>{t(blockDescriptionKey(item.type))}</small></span>
+                    <span><strong>{t(item.titleKey ?? blockTitleKey(item.type))}</strong><small>{t(item.descriptionKey ?? blockDescriptionKey(item.type))}</small></span>
                     <GripVertical className="library-grip" size={14} />
                   </button>
                 ))}

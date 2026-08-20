@@ -112,7 +112,7 @@ function materializeSingle(ir: ProxyFlowIR, transform: Exclude<TransformIR, { ki
     return withIssues(ready(proxies, before.length), input.issues)
   }
   if (transform.kind === 'sort') {
-    if (transform.by === 'latency') return failedWithIssues('SPEED_TEST_REQUIRED', '延迟排序需要真实测速；V0.6 不生成假延迟。', transform.id, input.issues)
+    if (transform.by === 'latency') return failedWithIssues('SPEED_TEST_REQUIRED', '延迟排序需要真实测速；ProxyFlow 不生成假延迟。', transform.id, input.issues)
     const by = transform.by ?? 'name'
     const proxies = [...before].sort((left, right) => sortValue(left, by).localeCompare(sortValue(right, by), undefined, { numeric: true, sensitivity: 'base' }))
     if (transform.direction === 'descending') proxies.reverse()

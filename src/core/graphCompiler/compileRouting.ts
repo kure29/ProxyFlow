@@ -1,9 +1,8 @@
-import type { FinalRouteIR, RouteIR, RouteTargetIR } from '../ir'
-import { semanticIssue } from '../ir'
+import type { FinalRouteIR, RouteIR, RouteTargetIR, TrafficMatcherIR } from '../ir'
+import { findRuleSourceMatches, normalizeCustomMatcher, semanticIssue } from '../ir'
 import type { GraphCompileContext } from './context'
 import { isStrategyNode } from './helpers'
-
-const routeTypes = new Set(['routing-group', 'service-rule', 'custom-rule'])
+import { rankRoutingRules, resolveRouteMatcherKind } from '../routing/routeProductModel'
 
 export interface CompiledRouting {
   routes: RouteIR[]
@@ -11,12 +10,16 @@ export interface CompiledRouting {
 }
 
 export function compileRouting(context: GraphCompileContext): CompiledRouting {
-  const routeNodes = context.project.graph.nodes.filter((node) => !node.data.disabled && routeTypes.has(node.data.blockType))
-  const routes = routeNodes.flatMap((node, index): RouteIR[] => {
-    const serviceIds = compileServiceIds(node.id, node.data.title, node.data.services ?? [], context)
-    if (serviceIds.length === 0) {
+  const routes = rankRoutingRules(context.project.graph.nodes).flatMap(({ node, priority }): RouteIR[] => {
+    const matcherKind = resolveRouteMatcherKind(node.data)
+    const matcher = matcherKind === 'service'
+      ? compileServiceMatcher(node.id, node.data.title, node.data.services ?? [], context)
+      : matcherKind
+        ? compileCustomMatcher(node.id, node.data.title, matcherKind, node.data, context)
+        : undefined
+    if (!matcher) {
       context.addIssue(semanticIssue(
-        'ROUTE_MATCHER_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid service matcher.`,
+        'ROUTE_MATCHER_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid matcher.`,
         { nodeId: node.id, entity: { type: 'route', id: node.id } },
       ))
       return []
@@ -32,9 +35,9 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
     return [{
       id: node.id,
       name: node.data.title,
-      matcher: { kind: 'service', serviceIds },
+      matcher,
       target,
-      priority: Number.isFinite(node.data.routePriority) ? node.data.routePriority! : (index + 1) * 10,
+      priority,
     }]
   })
 
@@ -57,6 +60,40 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
     return { routes }
   }
   return { routes, finalRoute: { target } }
+}
+
+function compileServiceMatcher(nodeId: string, name: string, services: string[], context: GraphCompileContext): TrafficMatcherIR | undefined {
+  const serviceIds = compileServiceIds(nodeId, name, services, context)
+  return serviceIds.length > 0 ? { kind: 'service', serviceIds } : undefined
+}
+
+function compileCustomMatcher(nodeId: string, name: string, kind: Exclude<NonNullable<GraphCompileContext['project']['graph']['nodes'][number]['data']['routeMatcherKind']>, 'service'>, data: GraphCompileContext['project']['graph']['nodes'][number]['data'], context: GraphCompileContext): TrafficMatcherIR | undefined {
+  const normalized = normalizeCustomMatcher(kind, data.routeMatcherValue, data.routeMatcherPort)
+  if (!normalized.ok) {
+    context.addIssue(semanticIssue(
+      normalized.code, 'error', 'compile', `Route "${name}" has an invalid ${kind} matcher.`,
+      { nodeId, entity: { type: 'route', id: nodeId } },
+    ))
+    return undefined
+  }
+  if (normalized.matcher.kind === 'rule-set') {
+    const matches = findRuleSourceMatches(context.project.services, normalized.matcher.id)
+    if (matches.length === 0) {
+      context.addIssue(semanticIssue(
+        'ROUTE_RULE_SET_NOT_FOUND', 'error', 'compile', `Route "${name}" references missing rule set "${normalized.matcher.id}".`,
+        { nodeId, entity: { type: 'route', id: nodeId } },
+      ))
+      return undefined
+    }
+    if (matches.length > 1) {
+      context.addIssue(semanticIssue(
+        'ROUTE_RULE_SET_AMBIGUOUS', 'error', 'compile', `Rule set "${normalized.matcher.id}" is defined more than once.`,
+        { nodeId, entity: { type: 'route', id: nodeId } },
+      ))
+      return undefined
+    }
+  }
+  return normalized.matcher
 }
 
 function compileServiceIds(nodeId: string, name: string, services: string[], context: GraphCompileContext) {

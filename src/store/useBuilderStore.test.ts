@@ -3,9 +3,13 @@ import { IDBFactory } from 'fake-indexeddb'
 import { demoProject } from '../data/demoProject'
 import { hktDemoSubscription } from '../data/demoSubscriptions'
 import { compileGraph } from '../core/graphCompiler'
+import { v08BasicRoutingFixture } from '../core/__fixtures__/v08Acceptance'
 import { deriveProjectRuntime } from '../core/proxySet'
 import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
+import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createBlankProject } from '../data/newProject'
+import { appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver } from '../core/dns/resolverProfiles'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -24,6 +28,98 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount + 1)
     useBuilderStore.getState().removeNode(id!)
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount)
+  })
+
+  it('creates pasted-link and configuration-file library actions as subscription sources', () => {
+    const pastedId = useBuilderStore.getState().addLibraryNode('manual-proxy', { x: 120, y: 120 })!
+    const fileId = useBuilderStore.getState().addLibraryNode('import-config', { x: 240, y: 120 })!
+    const pasted = useBuilderStore.getState().nodes.find((node) => node.id === pastedId)!
+    const file = useBuilderStore.getState().nodes.find((node) => node.id === fileId)!
+
+    expect(pasted.data).toEqual(expect.objectContaining({
+      blockType: 'subscription', subscriptionInputKind: 'paste', titleKey: 'library.source.pasteLinksTitle', icon: 'clipboard-paste',
+    }))
+    expect(file.data).toEqual(expect.objectContaining({
+      blockType: 'subscription', subscriptionInputKind: 'file', titleKey: 'library.source.configFileTitle', icon: 'file-input',
+    }))
+    expect(useBuilderStore.getState().addNode('manual-proxy', { x: 360, y: 120 })).toBeTruthy()
+    expect(useBuilderStore.getState().nodes.at(-1)?.data.blockType).toBe('manual-proxy')
+  })
+
+  it('applies Workspace creation data in the same add transaction', () => {
+    const id = useBuilderStore.getState().addLibraryNode('service-rule', { x: 120, y: 120 }, {
+      routeMatcherKind: 'port',
+      routeMatcherPort: 443,
+    })!
+
+    expect(useBuilderStore.getState().nodes.find((item) => item.id === id)?.data).toEqual(expect.objectContaining({
+      blockType: 'service-rule', routeMatcherKind: 'port', routeMatcherPort: 443,
+    }))
+  })
+
+  it('moves routing rules to a list index with undo support', () => {
+    const before = useBuilderStore.getState().nodes
+      .filter((node) => ['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType))
+      .map((node) => node.id)
+    const last = before.at(-1)!
+    useBuilderStore.getState().moveRoutingRuleToIndex(last, 0)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === last)?.data.routePriority).toBe(10)
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === last)?.data.routePriority).toBeUndefined()
+  })
+
+  it('replaces Workspace inputs atomically and preserves undo', () => {
+    expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['hkt-subscription'])).toBe(true)
+    expect(useBuilderStore.getState().edges.filter((edge) => edge.target === 'us-filter').map((edge) => edge.source)).toEqual(['hkt-subscription'])
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().edges.filter((edge) => edge.target === 'us-filter').map((edge) => edge.source)).toEqual(['us-subscription'])
+  })
+
+  it('rejects invalid Workspace input connections without changing the graph', () => {
+    const before = structuredClone(useBuilderStore.getState().edges)
+    expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['china-route'])).toBe(false)
+    expect(useBuilderStore.getState().edges).toEqual(before)
+  })
+
+  it('does not expose Routing rules as Strategy input candidates', () => {
+    const before = structuredClone(useBuilderStore.getState().edges)
+    expect(useBuilderStore.getState().setWorkspaceInputs('hk-auto', ['final-route'])).toBe(false)
+    expect(useBuilderStore.getState().edges).toEqual(before)
+  })
+
+  it('moves a linear Processing step atomically with one undo and redo entry', () => {
+    const project = createBlankProject('mihomo')
+    project.graph.nodes.unshift(
+      { id: 'source', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'subscription', category: 'source', title: 'Source', subtitle: '', icon: 'radio' } },
+      { id: 'filter', type: 'block', position: { x: 1, y: 0 }, data: { blockType: 'filter', category: 'processing', title: 'Filter', subtitle: '', icon: 'list-filter' } },
+      { id: 'rename', type: 'block', position: { x: 2, y: 0 }, data: { blockType: 'rename', category: 'processing', title: 'Rename', subtitle: '', icon: 'text-cursor-input' } },
+      { id: 'strategy', type: 'block', position: { x: 3, y: 0 }, data: { blockType: 'auto-select', category: 'strategy', title: 'Auto', subtitle: '', icon: 'gauge' } },
+    )
+    project.graph.edges = [
+      { id: 'before', source: 'source', target: 'filter', data: { semantic: 'data' } },
+      { id: 'bridge', source: 'filter', target: 'rename', data: { semantic: 'data' } },
+      { id: 'after', source: 'rename', target: 'strategy', data: { semantic: 'data' } },
+    ]
+    useBuilderStore.getState().hydrate(project)
+
+    expect(useBuilderStore.getState().moveProcessingStep('filter', 'down')).toBe(true)
+    const moved = useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))
+    expect(moved).toEqual([
+      { id: 'before', source: 'source', target: 'rename' },
+      { id: 'bridge', source: 'rename', target: 'filter' },
+      { id: 'after', source: 'filter', target: 'strategy' },
+    ])
+    expect(useBuilderStore.getState().historyPast).toHaveLength(1)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual([
+      { id: 'before', source: 'source', target: 'filter' },
+      { id: 'bridge', source: 'filter', target: 'rename' },
+      { id: 'after', source: 'rename', target: 'strategy' },
+    ])
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual(moved)
   })
 
   it('creates, duplicates and reloads Limit nodes with numeric default 10', () => {
@@ -65,6 +161,14 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.title).toBe('香港节点筛选')
   })
 
+  it('opens Preview on the Primary Target unless another production target is requested', () => {
+    useBuilderStore.getState().setPreviewOpen(true)
+    expect(useBuilderStore.getState()).toEqual(expect.objectContaining({ previewOpen: true, previewTarget: 'mihomo' }))
+
+    useBuilderStore.getState().setPreviewOpen(true, 'sing-box')
+    expect(useBuilderStore.getState()).toEqual(expect.objectContaining({ previewOpen: true, previewTarget: 'sing-box' }))
+  })
+
   it('keeps existing selection when a node is selected additively', () => {
     useBuilderStore.getState().selectNode('hk-filter')
     useBuilderStore.getState().selectNode('us-filter', null, true)
@@ -82,6 +186,8 @@ describe('builder store', () => {
       filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
     })
     const serialized = JSON.stringify(useBuilderStore.getState().toProject())
+    useBuilderStore.getState().selectNode('output')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'hk-filter')?.data.filterRegions).toEqual(['HK', 'SG'])
     const project = JSON.parse(serialized)
     expect(project.version).toBe(2)
     useBuilderStore.getState().hydrate(project)
@@ -89,6 +195,257 @@ describe('builder store', () => {
       filterMode: 'region', filterOperation: 'exclude', filterRegions: ['HK', 'SG'],
       filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
     }))
+  })
+
+  it('round-trips multiple DNS resolvers through undo, redo and Schema 2 hydration', () => {
+    const dnsId = useBuilderStore.getState().addNode('dns', { x: 120, y: 120 })!
+    let resolvers = appendDnsResolverPreset([], 'cloudflare')
+    resolvers = appendDnsResolverPreset(resolvers, 'alidns')
+    resolvers = appendDnsResolverPreset(resolvers, 'google')
+    const aliDnsId = resolvers.find((resolver) => resolver.presetId === 'alidns')!.id
+    const googleId = resolvers.find((resolver) => resolver.presetId === 'google')!.id
+    resolvers = patchDnsResolver(resolvers, aliDnsId, { name: 'AliDNS Direct', role: 'direct' })
+    resolvers = deleteDnsResolver(resolvers, googleId)
+    useBuilderStore.getState().updateNodeData(dnsId, { dnsResolvers: resolvers })
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toHaveLength(1)
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    expect(project.version).toBe(2)
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'AliDNS Direct', role: 'direct' }),
+    ]))
+  })
+
+  it('round-trips the Mihomo Output Profile in Project Schema 2 with undo and redo', () => {
+    const profile = {
+      ...createMihomoOutputProfile('desktop-tun'),
+      mixedPort: 7893,
+      allowLan: true,
+      strictRoute: true,
+    }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile?.preset).toBe('local-proxy')
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    const exportedProfile = project.graph.nodes.find((node: { id: string }) => node.id === 'output').data.mihomoProfile
+    expect(project.version).toBe(2)
+    expect(exportedProfile).toEqual(profile)
+    expect(Object.keys(exportedProfile)).not.toContain('secret')
+    expect(Object.keys(exportedProfile)).not.toContain('password')
+    expect(Object.keys(exportedProfile)).not.toContain('path')
+    expect(JSON.stringify(exportedProfile)).not.toContain('/Users/')
+
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('keeps older Schema 2 projects without a Mihomo Output Profile readable', () => {
+    const project = structuredClone(demoProject)
+    const output = project.graph.nodes.find((node) => node.id === 'output')!
+    delete output.data.mihomoProfile
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().toProject().version).toBe(2)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toBeUndefined()
+  })
+
+  it('creates Mihomo and sing-box projects with matching primary targets', () => {
+    useBuilderStore.getState().createNewProject('mihomo')
+    const mihomoProjectId = useBuilderStore.getState().projectId
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('mihomo')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('mihomo')
+
+    useBuilderStore.getState().createNewProject('sing-box')
+    expect(useBuilderStore.getState().projectId).not.toBe(mihomoProjectId)
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('sing-box')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+  })
+
+  it('renames a new project and preserves the trimmed name through target switches and hydration', () => {
+    useBuilderStore.getState().createNewProject('mihomo')
+    expect(useBuilderStore.getState().renameProject('  Production routing  ')).toBe(true)
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+    expect(useBuilderStore.getState().toProject().name).toBe('Production routing')
+
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    useBuilderStore.getState().setPrimaryTarget('mihomo')
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+
+    const saved = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(saved)
+    expect(useBuilderStore.getState().projectName).toBe('Production routing')
+    expect(useBuilderStore.getState().toProject().name).toBe('Production routing')
+  })
+
+  it('rejects an empty project rename without restoring the default name', () => {
+    useBuilderStore.getState().createNewProject()
+    useBuilderStore.getState().renameProject('Keep this name')
+
+    expect(useBuilderStore.getState().renameProject('   ')).toBe(false)
+    expect(useBuilderStore.getState().projectName).toBe('Keep this name')
+  })
+
+  it('infers legacy primary targets and preserves ambiguous projects verbatim', () => {
+    const legacy = createBlankProject('sing-box')
+    delete legacy.primaryTarget
+    useBuilderStore.getState().hydrate(legacy)
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+
+    const ambiguous = createBlankProject('mihomo')
+    delete ambiguous.primaryTarget
+    ambiguous.graph.nodes.push({
+      ...structuredClone(ambiguous.graph.nodes.find((node) => node.data.blockType === 'output')!),
+      id: 'secondary-output',
+      data: { ...structuredClone(ambiguous.graph.nodes.find((node) => node.data.blockType === 'output')!.data), client: 'sing-box' },
+    })
+    const graphBefore = structuredClone(ambiguous.graph)
+    useBuilderStore.getState().hydrate(ambiguous)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBeUndefined()
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+  })
+
+  it('fails closed for corrupted primary-target metadata without changing the graph', () => {
+    const project = createBlankProject('mihomo') as unknown as Record<string, unknown>
+    project.primaryTarget = 'surge'
+    const graphBefore = structuredClone(project.graph)
+    useBuilderStore.getState().hydrate(project as unknown as ReturnType<typeof createBlankProject>)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+  })
+
+  it('selects a Primary Target for a legacy project without Output without inventing graph data', () => {
+    const legacy = createBlankProject('mihomo')
+    delete legacy.primaryTarget
+    legacy.graph.nodes = legacy.graph.nodes.filter((node) => node.data.blockType !== 'output')
+    const graphBefore = structuredClone(legacy.graph)
+
+    useBuilderStore.getState().hydrate(legacy)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+  })
+
+  it('selects and round-trips a multi-Output legacy project without rewriting either Output', () => {
+    const legacy = createBlankProject('mihomo')
+    delete legacy.primaryTarget
+    const mihomoOutput = legacy.graph.nodes.find((node) => node.data.blockType === 'output')!
+    mihomoOutput.data.mihomoProfile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893 }
+    legacy.graph.nodes.push({
+      ...structuredClone(mihomoOutput),
+      id: 'sing-box-output',
+      data: { ...structuredClone(mihomoOutput.data), client: 'sing-box', title: 'sing-box Output', mihomoProfile: undefined },
+    })
+    const graphBefore = structuredClone(legacy.graph)
+
+    useBuilderStore.getState().hydrate(legacy)
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+
+    const exported = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(exported)
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    const reExported = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    expect({ ...reExported, updatedAt: exported.updatedAt }).toEqual(exported)
+    expect(useBuilderStore.getState().nodes.map((node) => [node.id, node.data.client])).toEqual([
+      ['final-route', undefined], ['output', 'mihomo'], ['sing-box-output', 'sing-box'],
+    ])
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(
+      expect.objectContaining({ preset: 'desktop-tun', mixedPort: 7893 }),
+    )
+  })
+
+  it('switches a sole Output non-destructively and includes primary target in undo and redo', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    const graphBeforeSwitch = {
+      nodes: structuredClone(useBuilderStore.getState().nodes),
+      edges: structuredClone(useBuilderStore.getState().edges),
+    }
+
+    useBuilderStore.getState().setPrimaryTarget('sing-box')
+    const switchedOutput = useBuilderStore.getState().nodes.find((node) => node.id === 'output')!
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(switchedOutput.data.client).toBe('sing-box')
+    expect(switchedOutput.data.mihomoProfile).toEqual(profile)
+    expect(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output')).toEqual(
+      graphBeforeSwitch.nodes.filter((node) => node.id !== 'output'),
+    )
+    expect(useBuilderStore.getState().edges).toEqual(graphBeforeSwitch.edges)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('synchronizes a sole supported Output edit without deleting target-native data', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7893 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    useBuilderStore.getState().setOutputClient('output', 'sing-box')
+    expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {
+    const domain = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 120 })!
+    const cidr = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 220 })!
+    const port = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 320 })!
+    const ruleSet = useBuilderStore.getState().addNode('custom-rule', { x: 120, y: 420 })!
+    useBuilderStore.getState().updateNodeData(domain, { routeMatcherKind: 'domain', routeMatcherValue: 'api.example.com', routePriority: 10 })
+    useBuilderStore.getState().updateNodeData(cidr, { routeMatcherKind: 'ip-cidr6', routeMatcherValue: '2001:db8::/32', routePriority: 20 })
+    useBuilderStore.getState().updateNodeData(port, { routeMatcherKind: 'port', routeMatcherPort: 443, routePriority: 30 })
+    useBuilderStore.getState().updateNodeData(ruleSet, { routeMatcherKind: 'rule-set', routeMatcherValue: 'ios-openai', routePriority: 40 })
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    expect(project.version).toBe(2)
+    useBuilderStore.getState().hydrate(project)
+    const data = (id: string) => useBuilderStore.getState().nodes.find((node) => node.id === id)?.data
+    expect(data(domain)).toEqual(expect.objectContaining({ routeMatcherKind: 'domain', routeMatcherValue: 'api.example.com', routePriority: 10 }))
+    expect(data(cidr)).toEqual(expect.objectContaining({ routeMatcherKind: 'ip-cidr6', routeMatcherValue: '2001:db8::/32', routePriority: 20 }))
+    expect(data(port)).toEqual(expect.objectContaining({ routeMatcherKind: 'port', routeMatcherPort: 443, routePriority: 30 }))
+    expect(data(ruleSet)).toEqual(expect.objectContaining({ routeMatcherKind: 'rule-set', routeMatcherValue: 'ios-openai', routePriority: 40 }))
+  })
+
+  it('round-trips the V0.8 strategy and routing acceptance project through JSON', () => {
+    useBuilderStore.getState().hydrate(structuredClone(v08BasicRoutingFixture))
+    const before = useBuilderStore.getState().toProject()
+    const exported = JSON.parse(JSON.stringify(before))
+    expect(exported.version).toBe(2)
+
+    useBuilderStore.getState().hydrate(exported)
+    const imported = useBuilderStore.getState().toProject()
+    const nodeData = (id: string) => imported.graph.nodes.find((node) => node.id === id)?.data
+    expect(nodeData('auto')).toEqual(expect.objectContaining({ blockType: 'auto-select', testUrl: 'https://example.com/ping', interval: 180, tolerance: 60 }))
+    expect(nodeData('local')).toEqual(expect.objectContaining({ routeMatcherKind: 'domain-suffix', routeMatcherValue: 'lan', targetKind: 'direct', routePriority: 20 }))
+    expect(nodeData('ads')).toEqual(expect.objectContaining({ routeMatcherKind: 'domain-keyword', routeMatcherValue: 'ads', targetKind: 'reject', routePriority: 30 }))
+    expect(compileGraph(imported).ir).toEqual(compileGraph(before).ir)
   })
 
   it('adds, reorders and removes proxy chain hops', () => {
@@ -164,7 +521,23 @@ describe('builder store', () => {
     expect(failedRuntime.activeSnapshot).toBe(successful)
     expect(failedRuntime.lastSuccessfulAt).toBe(successfulRuntime.lastSuccessfulAt)
     expect(failedRuntime.lastFailureAt).toBeTruthy()
+    expect(failedRuntime.latestFetchPath).toBe('browser')
     expect(failedRuntime.latestError?.message).not.toContain('token=private')
+  })
+
+  it('keeps the recorded Runtime fetch path after the service is disconnected', async () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://runtime-path.example.invalid/list' })
+    useBuilderStore.getState().setRuntimeServiceConfig({ baseUrl: 'https://runtime.example.invalid', token: 'fictional-runtime-token' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      text: 'socks5://runtime:fictional@runtime-node.example.invalid:1080#Runtime',
+    }), { headers: { 'content-type': 'application/json' } })))
+
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
+    useBuilderStore.getState().disconnectRuntimeService()
+    expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
   })
 
   it('keeps downstream Filter output and graph compilation stable after a failed refresh', async () => {
@@ -188,6 +561,38 @@ describe('builder store', () => {
     expect(afterFilter?.outputCount).toBe(beforeFilter?.outputCount)
     expect(afterGraph.ir?.sources).toEqual(beforeGraph.ir?.sources)
     expect(afterGraph.ir?.strategies).toEqual(beforeGraph.ir?.strategies)
+  })
+
+  it('waits for embedded subscription hydration before starting a network refresh', async () => {
+    const originalParse = useBuilderStore.getState().parseSubscriptionInput
+    let releaseHydration!: () => void
+    const hydrationGate = new Promise<void>((resolve) => { releaseHydration = resolve })
+    useBuilderStore.setState({
+      parseSubscriptionInput: async (...args) => {
+        await hydrationGate
+        return originalParse(...args)
+      },
+    })
+
+    try {
+      useBuilderStore.getState().hydrate(structuredClone(demoProject))
+      useBuilderStore.getState().updateNodeData('hkt-subscription', {
+        subscriptionUrl: 'https://hydration-barrier.example.invalid/list', subscriptionInputKind: 'url',
+      })
+      const fetch = vi.fn(async () => new Response(hktDemoSubscription))
+      vi.stubGlobal('fetch', fetch)
+      const refresh = useBuilderStore.getState().refreshSubscription('hkt-subscription')
+
+      await Promise.resolve()
+      expect(fetch).not.toHaveBeenCalled()
+      releaseHydration()
+      await refresh
+
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(useBuilderStore.getState().subscriptionSnapshots['us-subscription']).toBeDefined()
+    } finally {
+      useBuilderStore.setState({ parseSubscriptionInput: originalParse })
+    }
   })
 
   it('invalidates active runtime immediately when the subscription URL changes', async () => {
@@ -284,6 +689,25 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
     expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].activeState).toBe('none')
     expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionUrl).toBe(url)
+  })
+
+  it('preserves the previous Project LKG when creating and switching between projects', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory())
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://project-switch.example.invalid/list' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('socks5://switch:fictional@switch-node.example.invalid:1080#Switch')))
+    await useBuilderStore.getState().refreshSubscription(sourceId)
+    const firstProject = structuredClone(useBuilderStore.getState().toProject())
+    const deleteSource = vi.spyOn(subscriptionRuntimeRepository, 'deleteSource')
+
+    useBuilderStore.getState().createNewProject('sing-box')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(deleteSource).not.toHaveBeenCalledWith(firstProject.id, sourceId)
+
+    useBuilderStore.getState().hydrate(firstProject)
+    await useBuilderStore.getState().hydrateSubscriptionCache()
+    expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]?.result.readyCount).toBe(1)
   })
 
   it('does not let late cache hydration overwrite a newer network refresh', async () => {

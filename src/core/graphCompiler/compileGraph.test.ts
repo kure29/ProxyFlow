@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import {
   chinaDirectFixture,
+  customDomainRouteFixture,
+  customPortRouteFixture,
   fallbackFixture,
   fixedStrategyFixture,
   hkJpUsChainFixture,
@@ -66,6 +68,15 @@ describe('compileGraph', () => {
     expect(china.ir?.routes[0].target).toEqual({ kind: 'direct' })
   })
 
+  it('compiles typed custom route matchers', () => {
+    const domain = compileGraph(customDomainRouteFixture)
+    const port = compileGraph(customPortRouteFixture)
+    expect(domain.success).toBe(true)
+    expect(domain.ir?.routes[0]).toEqual(expect.objectContaining({ matcher: { kind: 'domain-suffix', value: 'example.com' } }))
+    expect(port.success).toBe(true)
+    expect(port.ir?.routes[0]).toEqual(expect.objectContaining({ matcher: { kind: 'port', port: 443 } }))
+  })
+
   it('compiles manual select, fallback and load balance strategies', () => {
     expect(compileGraph(manualSelectFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'select', candidates: [{ kind: 'source', id: 'source' }] }))
     expect(compileGraph(fallbackFixture).ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'fallback', candidates: [{ kind: 'source', id: 'source-a' }, { kind: 'source', id: 'source-b' }] }))
@@ -89,6 +100,40 @@ describe('compileGraph', () => {
     expect(result.ir?.strategies.find((strategy) => strategy.id === 'us-via-hk')).toEqual(expect.objectContaining({ kind: 'chain', hops: [{ kind: 'strategy', id: 'hk-auto' }, { kind: 'strategy', id: 'us-auto' }] }))
     expect(result.ir?.routes.find((route) => route.id === 'ai-services')).toEqual(expect.objectContaining({ matcher: { kind: 'service', serviceIds: ['openai', 'claude', 'gemini'] }, target: { kind: 'strategy', id: 'us-via-hk' } }))
     expect(result.ir?.outputs[0]).toEqual(expect.objectContaining({ target: 'mihomo' }))
+    expect(result.ir?.dns?.resolvers).toEqual([
+      expect.objectContaining({ id: 'cloudflare-default', kind: 'doh', role: 'default' }),
+    ])
+  })
+
+  it('compiles multiple resolvers from one DNS owner and rejects a second owner', () => {
+    const project = structuredClone(demoProject)
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    dns.data.dnsResolvers = [
+      { id: 'global', name: 'Global', kind: 'doh', role: 'default', address: 'https://dns.example.com/dns-query', enabled: true },
+      { id: 'direct', name: 'Direct', kind: 'udp', role: 'direct', address: '192.0.2.53:53', enabled: true },
+      { id: 'disabled', name: 'Disabled', kind: 'doh', role: 'fallback', address: 'https://fallback.example.com/dns-query', enabled: false },
+    ]
+    expect(compileGraph(project).ir?.dns?.resolvers).toEqual([
+      expect.objectContaining({ id: 'global', role: 'default' }),
+      expect.objectContaining({ id: 'direct', role: 'direct' }),
+    ])
+
+    project.graph.nodes.push({ ...structuredClone(dns), id: 'dns-second' })
+    const blocked = compileGraph(project)
+    expect(blocked.success).toBe(false)
+    expect(blocked.issues).toContainEqual(expect.objectContaining({ code: 'DNS_MULTIPLE', severity: 'error' }))
+  })
+
+  it('fails closed for malformed imported DNS resolver data instead of throwing', () => {
+    const project = structuredClone(demoProject)
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    dns.data.dnsResolvers = [{
+      id: 'malformed', name: 'Malformed', kind: 'doh', role: 'default', address: 53, enabled: true,
+    } as never]
+
+    const result = compileGraph(project)
+    expect(result.success).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_INVALID', severity: 'error' }))
   })
 
   it('reports stable codes for invalid graph semantics', () => {

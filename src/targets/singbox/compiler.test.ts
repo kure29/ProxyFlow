@@ -11,7 +11,11 @@ function compile(ir: ProxyFlowIR) {
   const result = compileSingBox(ir, { now: fixedNow })
   expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
   expect(result.mock).toBe(false)
-  return { result, config: JSON.parse(result.content) as SingBoxConfig }
+  const config = JSON.parse(result.content) as SingBoxConfig
+  const sourceProxyCount = ir.sources.reduce((count, source) => count + ('proxies' in source ? source.proxies?.length ?? 0 : 0), 0)
+  expect(result.stats?.proxyCount).toBeLessThanOrEqual(sourceProxyCount)
+  expect(result.stats?.endpointCount).toBe(result.stats?.proxyCount)
+  return { result, config }
 }
 
 function outbound(config: SingBoxConfig, tag: string) {
@@ -26,6 +30,7 @@ describe('SingBoxCompiler', () => {
     expect(pending).toBeInstanceOf(Promise)
     const result = await pending
     expect(result).toEqual(expect.objectContaining({ success: true, mock: false, generatedAt: '2026-08-16T00:00:00.000Z' }))
+    expect(result.stats?.proxyCount).toBe(3)
     expect(() => JSON.parse(result.content)).not.toThrow()
   })
 
@@ -81,7 +86,8 @@ describe('SingBoxCompiler', () => {
     ]
     const { config } = compile(ir)
     expect(config.dns?.servers).toEqual([
-      { type: 'https', tag: 'doh', server: 'dns.example.com', path: '/custom-query' },
+      { type: 'local', tag: 'local-dns' },
+      { type: 'https', tag: 'doh', server: 'dns.example.com', path: '/custom-query', domain_resolver: 'local-dns' },
       { type: 'tls', tag: 'dot', server: '1.1.1.1', server_port: 853 },
       { type: 'udp', tag: 'udp', server: '8.8.8.8', server_port: 53 },
       { type: 'local', tag: 'system' },
@@ -89,6 +95,17 @@ describe('SingBoxCompiler', () => {
     expect(config.route.default_domain_resolver).toBe('doh')
     expect(outbound(config, 'US HTTP')).toEqual(expect.objectContaining({ domain_resolver: 'doh' }))
     expect(outbound(config, 'US SOCKS')).not.toHaveProperty('domain_resolver')
+  })
+
+  it('fails closed when a resolver role cannot be preserved', () => {
+    const ir = explicitProxyIR()
+    ir.dns!.resolvers = [
+      { id: 'direct', kind: 'doh', role: 'direct', address: 'https://dns.example.com/dns-query' },
+    ]
+    const result = compileSingBox(ir)
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SINGBOX_DNS_ROLE_UNSUPPORTED', severity: 'error' }))
   })
 
   it('lowers remote source and binary rule sets and rejects incompatible formats', () => {

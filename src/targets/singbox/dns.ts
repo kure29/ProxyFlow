@@ -25,8 +25,18 @@ export function compileSingBoxDns(dns: DnsIR | undefined, context: SingBoxCompil
     servers.push(server)
   }
   if (servers.length === 0) return undefined
-  context.dnsTag = servers[0].tag
-  return { servers, final: servers[0].tag }
+  const final = servers[0].tag
+  const needsBootstrap = servers.some((server) => server.type !== 'local' && !isIpAddress(server.server))
+  if (needsBootstrap) {
+    const bootstrapTag = context.names.allocate('local-dns', 'local-dns')
+    for (let index = 0; index < servers.length; index += 1) {
+      const server = servers[index]
+      if (server.type !== 'local' && !isIpAddress(server.server)) servers[index] = { ...server, domain_resolver: bootstrapTag }
+    }
+    servers.unshift({ type: 'local', tag: bootstrapTag })
+  }
+  context.dnsTag = final
+  return { servers, final }
 }
 
 function parseResolver(kind: 'doh' | 'dot' | 'udp' | 'system', address: string, tag: string): SingBoxDnsServer | undefined {
@@ -58,4 +68,8 @@ function parseResolver(kind: 'doh' | 'dot' | 'udp' | 'system', address: string, 
   } catch {
     return undefined
   }
+}
+
+function isIpAddress(value: string) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(value) || value.includes(':')
 }

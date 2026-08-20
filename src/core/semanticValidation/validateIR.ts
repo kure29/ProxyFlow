@@ -1,5 +1,5 @@
 import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCandidateRef } from '../ir'
-import { isUnmodeledProxy, semanticIssue } from '../ir'
+import { findRuleSourceMatches, isUnmodeledProxy, semanticIssue, validateMatcherIR } from '../ir'
 import { isSupportedShadowsocksMethod, validateProxyEndpointSemantics } from '../proxy'
 import { detectChainCycles } from './detectChainCycles'
 
@@ -17,6 +17,7 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
   validateDuplicateIds(ir.transforms, 'transform', add)
   validateDuplicateIds(ir.strategies, 'strategy', add)
   validateDuplicateIds(ir.services, 'service', add)
+  validateDuplicateIds(ir.services.flatMap((service) => service.ruleSources), 'rule-set', add)
   validateDuplicateIds(ir.routes, 'route', add)
   validateDuplicateIds(ir.outputs, 'output', add)
 
@@ -132,8 +133,15 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
         'SERVICE_REFERENCE_NOT_FOUND', 'error', `Service reference “${serviceId}” does not exist.`, 'route', route.id,
       ))
     }
-    if (route.matcher.kind === 'port' && (!Number.isInteger(route.matcher.port) || route.matcher.port < 1 || route.matcher.port > 65_535)) add(entityIssue(
-      'ROUTE_PORT_INVALID', 'error', `Route "${route.name}" has an invalid port matcher.`, 'route', route.id,
+    const matcherError = validateMatcherIR(route.matcher)
+    if (matcherError) add(entityIssue(
+      matcherError, 'error', `Route "${route.name}" has an invalid ${route.matcher.kind} matcher.`, 'route', route.id,
+    ))
+    if (route.matcher.kind === 'rule-set' && findRuleSourceMatches(ir.services, route.matcher.id).length === 0) add(entityIssue(
+      'ROUTE_RULE_SET_NOT_FOUND', 'error', `Rule set reference “${route.matcher.id}” does not exist.`, 'route', route.id,
+    ))
+    if (route.matcher.kind === 'rule-set' && findRuleSourceMatches(ir.services, route.matcher.id).length > 1) add(entityIssue(
+      'ROUTE_RULE_SET_AMBIGUOUS', 'error', `Rule set reference “${route.matcher.id}” is ambiguous.`, 'route', route.id,
     ))
     validateRouteTarget(route.target, strategyIds, 'route', route.id, add)
   }

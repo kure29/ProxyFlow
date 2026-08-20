@@ -39,7 +39,7 @@ export function parseShareLinks(input: string, options: ParseSubscriptionOptions
       const code = scheme && UNSUPPORTED_SCHEMES.has(scheme) ? 'PROXY_PROTOCOL_UNSUPPORTED' : 'PROXY_LINK_UNRECOGNIZED'
       const name = safeFragmentName(line) ?? `Unsupported line ${index + 1}`
       const issue = subscriptionIssue(code, 'error', scheme
-        ? `${name} 使用了 V0.6 不支持的协议 “${scheme}”。`
+        ? `${name} 使用了当前版本不支持的协议 “${scheme}”。`
         : `第 ${index + 1} 行不是可识别的代理分享链接。`, { nodeName: name, line: index + 1 })
       parsed = {
         node: {

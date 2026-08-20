@@ -1,4 +1,5 @@
-import type { BlockCategory, BlockType } from '../types/project'
+import type { MessageKey } from '../i18n'
+import type { BlockCategory, BlockNodeData, BlockType } from '../types/project'
 
 export interface BlockLibraryItem {
   type: BlockType
@@ -6,11 +7,14 @@ export interface BlockLibraryItem {
   title: string
   description: string
   icon: string
+  titleKey?: MessageKey
+  descriptionKey?: MessageKey
 }
 
 export interface BlockLibraryGroup {
   category: BlockCategory
   label: string
+  advanced?: boolean
   items: BlockLibraryItem[]
 }
 
@@ -18,9 +22,14 @@ export const blockLibrary: BlockLibraryGroup[] = [
   {
     category: 'source', label: '数据源', items: [
       { type: 'subscription', category: 'source', title: '订阅源', description: '导入远程节点订阅', icon: 'radio' },
-      { type: 'manual-proxy', category: 'source', title: '手动节点', description: '添加单个代理节点', icon: 'server' },
-      { type: 'provider', category: 'source', title: 'Proxy Provider', description: '引用节点提供方', icon: 'cloud' },
-      { type: 'import-config', category: 'source', title: '配置导入', description: '从现有配置开始', icon: 'file-input' },
+      {
+        type: 'manual-proxy', category: 'source', title: '粘贴节点链接', description: '粘贴 URI 节点链接并导入', icon: 'clipboard-paste',
+        titleKey: 'library.source.pasteLinksTitle', descriptionKey: 'library.source.pasteLinksDescription',
+      },
+      {
+        type: 'import-config', category: 'source', title: '配置文件', description: '从 Mihomo 或 sing-box 配置导入节点', icon: 'file-input',
+        titleKey: 'library.source.configFileTitle', descriptionKey: 'library.source.configFileDescription',
+      },
     ],
   },
   {
@@ -38,25 +47,26 @@ export const blockLibrary: BlockLibraryGroup[] = [
       { type: 'manual-select', category: 'strategy', title: '手动选择', description: '由用户指定活动节点', icon: 'mouse-pointer-2' },
       { type: 'auto-select', category: 'strategy', title: '自动选择最快', description: '持续选择延迟最低节点', icon: 'gauge' },
       { type: 'fallback', category: 'strategy', title: '故障切换', description: '不可用时自动切换', icon: 'refresh-cw' },
-      { type: 'load-balance', category: 'strategy', title: '负载均衡', description: '在节点间分配连接', icon: 'scale' },
-      { type: 'fixed-proxy', category: 'strategy', title: '固定节点', description: '固定使用指定代理', icon: 'pin' },
     ],
   },
   {
-    category: 'chain', label: '高级路由', items: [
+    category: 'strategy', label: '高级策略', advanced: true, items: [
+      { type: 'load-balance', category: 'strategy', title: '负载均衡', description: '在节点间分配连接', icon: 'scale' },
+    ],
+  },
+  {
+    category: 'chain', label: '高级路由', advanced: true, items: [
       { type: 'proxy-chain', category: 'chain', title: '代理链', description: '串联多个策略形成链路', icon: 'route' },
     ],
   },
   {
-    category: 'routing', label: '服务分流', items: [
-      { type: 'routing-group', category: 'routing', title: '分流规则组', description: '一组服务流量的去向', icon: 'waypoints' },
-      { type: 'service-rule', category: 'routing', title: '服务规则', description: '按服务选择流量', icon: 'blocks' },
-      { type: 'custom-rule', category: 'routing', title: '自定义规则', description: '使用高级匹配条件', icon: 'braces' },
+    category: 'routing', label: '分流', items: [
+      { type: 'service-rule', category: 'routing', title: '分流规则', description: '按服务、域名、CIDR 或端口匹配流量', icon: 'waypoints' },
       { type: 'final', category: 'routing', title: 'Final', description: '其余流量的最终去向', icon: 'corner-down-right' },
     ],
   },
   {
-    category: 'dns', label: 'DNS', items: [
+    category: 'dns', label: 'DNS', advanced: true, items: [
       { type: 'dns', category: 'dns', title: 'DNS 配置', description: '设置域名解析策略', icon: 'globe-2' },
     ],
   },
@@ -67,4 +77,42 @@ export const blockLibrary: BlockLibraryGroup[] = [
   },
 ]
 
-export const blockByType = new Map(blockLibrary.flatMap((group) => group.items).map((item) => [item.type, item]))
+export interface LibraryNodePreset {
+  blockType: BlockType
+  data?: Partial<BlockNodeData>
+}
+
+export function resolveLibraryNodePreset(entryType: BlockType): LibraryNodePreset {
+  const item = blockLibrary.flatMap((group) => group.items).find((candidate) => candidate.type === entryType)
+  if (entryType === 'manual-proxy') return {
+    blockType: 'subscription',
+    data: {
+      subscriptionInputKind: 'paste', icon: item?.icon ?? 'clipboard-paste',
+      titleKey: item?.titleKey, subtitleKey: item?.descriptionKey,
+    },
+  }
+  if (entryType === 'import-config') return {
+    blockType: 'subscription',
+    data: {
+      subscriptionInputKind: 'file', icon: item?.icon ?? 'file-input',
+      titleKey: item?.titleKey, subtitleKey: item?.descriptionKey,
+    },
+  }
+  return { blockType: entryType }
+}
+
+// Legacy routing entries remain resolvable for old Projects but are not product entry points.
+const legacySourceItems: BlockLibraryItem[] = [
+  { type: 'manual-proxy', category: 'source', title: 'Legacy manual proxy', description: 'Compatibility-only proxy node', icon: 'server' },
+  { type: 'provider', category: 'source', title: 'Legacy proxy provider', description: 'Compatibility-only provider node', icon: 'cloud' },
+  { type: 'import-config', category: 'source', title: 'Legacy config import', description: 'Compatibility-only import node', icon: 'file-input' },
+]
+const legacyRoutingItems: BlockLibraryItem[] = [
+  { type: 'routing-group', category: 'routing', title: 'Legacy routing group', description: 'Compatibility-only routing node', icon: 'waypoints' },
+  { type: 'custom-rule', category: 'routing', title: 'Legacy custom rule', description: 'Compatibility-only matcher node', icon: 'braces' },
+]
+const legacyStrategyItems: BlockLibraryItem[] = [
+  { type: 'fixed-proxy', category: 'strategy', title: 'Legacy fixed proxy', description: 'Compatibility-only fixed strategy', icon: 'pin' },
+]
+
+export const blockByType = new Map([...blockLibrary.flatMap((group) => group.items), ...legacySourceItems, ...legacyRoutingItems, ...legacyStrategyItems].map((item) => [item.type, item]))
