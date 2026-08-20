@@ -27,6 +27,12 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
         const normalized = normalizeCustomMatcher(kind, node.data.routeMatcherValue, node.data.routeMatcherPort)
         if (!normalized.ok) add(normalized.code, `This routing rule has an invalid ${kind} matcher.`, 'error')
         else if (normalized.matcher.kind === 'rule-set') {
+          if (node.data.customRuleSource) {
+            if (node.data.customRuleSource.id !== normalized.matcher.id) add('ROUTE_RULE_SOURCE_REFERENCE_MISMATCH', 'This route does not reference its attached rule source.', 'error')
+            else if (!node.data.customRuleSource.enabled) add('RULE_SOURCE_DISABLED', 'This rule source is disabled.', 'error')
+            else if (node.data.customRuleSource.matchers.length === 0) add('RULE_SOURCE_NO_SUPPORTED_RULES', 'This rule source has no normalized rules.', 'error')
+            continue
+          }
           const matches = findRuleSourceMatches(services, normalized.matcher.id)
           if (matches.length === 0) add('ROUTE_RULE_SET_NOT_FOUND', 'This routing rule references a missing rule set.', 'error')
           else if (matches.length > 1) add('ROUTE_RULE_SET_AMBIGUOUS', 'This routing rule references an ambiguous rule set.', 'error')

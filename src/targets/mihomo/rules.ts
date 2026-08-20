@@ -22,6 +22,13 @@ export function compileMihomoRules(context: MihomoCompileContext) {
         context.issues.push(mihomoIssue('MIHOMO_RULE_SET_NOT_FOUND', 'error', 'route', `Rule set “${route.matcher.id}” 不存在于 IR catalog。`, route.id))
         continue
       }
+      if (reference.source.inlineMatchers?.length) {
+        for (const matcher of reference.source.inlineMatchers) {
+          const rule = matcherRule(matcher, target, route.id, context)
+          if (rule) rules.push(rule)
+        }
+        continue
+      }
       if (reference.source.provider !== 'ios-rule-script' && reference.source.provider !== 'remote') {
         context.issues.push(mihomoIssue(
           'MIHOMO_RULE_SOURCE_FORMAT_UNSUPPORTED', 'error', 'route', `Rule set “${reference.source.id}” 没有 Mihomo 可用的 remote rule source。`, route.id,

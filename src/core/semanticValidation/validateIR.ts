@@ -21,6 +21,18 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
   validateDuplicateIds(ir.routes, 'route', add)
   validateDuplicateIds(ir.outputs, 'output', add)
 
+  for (const service of ir.services) for (const source of service.ruleSources) {
+    if (source.provider === 'custom' && !source.inlineMatchers?.length) add(entityIssue(
+      'RULE_SOURCE_NO_SUPPORTED_RULES', 'error', `Custom rule source "${source.id}" has no normalized rules.`, 'rule-set', source.id,
+    ))
+    for (const matcher of source.inlineMatchers ?? []) {
+      const matcherError = validateMatcherIR(matcher)
+      if (matcherError) add(entityIssue(
+        matcherError, 'error', `Rule source "${source.id}" contains an invalid ${matcher.kind} matcher.`, 'rule-set', source.id,
+      ))
+    }
+  }
+
   for (const source of ir.sources) {
     if (!source.name.trim()) add(entityIssue('SOURCE_NAME_MISSING', 'error', 'Source name is required.', 'source', source.id))
     if (source.kind === 'subscription' && !source.url && !source.proxies?.length) add(entityIssue(

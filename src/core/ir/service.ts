@@ -7,6 +7,8 @@ export interface RuleSourceIR {
   format?: 'yaml' | 'text' | 'mrs' | 'sing-box-source' | 'sing-box-binary' | 'multi-client' | 'universal'
   behavior?: 'domain' | 'ipcidr' | 'classical'
   url?: string
+  /** Parsed and validated matcher values. Target compilers must lower these instead of the raw source. */
+  inlineMatchers?: TrafficMatcherIR[]
 }
 
 export interface ServiceIR {

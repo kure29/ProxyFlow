@@ -22,6 +22,32 @@ function ruleSetIR(format: 'mihomo' | 'sing-box') {
 }
 
 describe('Rule Set target lowering', () => {
+  it('lowers an imported normalized Rule Source in both targets without emitting a remote provider', () => {
+    const ir = explicitProxyIR()
+    ir.services = [{
+      id: 'custom-rule-source:fictional', name: 'Fictional source', ruleSources: [{
+        id: 'fictional-source', provider: 'custom', format: 'yaml', behavior: 'classical',
+        inlineMatchers: [{ kind: 'domain-suffix', value: 'example.com' }, { kind: 'port', port: 443 }],
+      }],
+    }]
+    ir.routes = [{ id: 'custom-source-route', name: 'Custom source', matcher: { kind: 'rule-set', id: 'fictional-source' }, target: { kind: 'direct' }, priority: 10 }]
+
+    const mihomo = compileMihomo(ir, { now: fixedNow })
+    expect(mihomo.success).toBe(true)
+    const mihomoConfig = parse(mihomo.content) as MihomoConfig
+    expect(mihomoConfig.rules.slice(0, 2)).toEqual(['DOMAIN-SUFFIX,example.com,DIRECT', 'DST-PORT,443,DIRECT'])
+    expect(mihomoConfig['rule-providers']).toBeUndefined()
+
+    const singbox = compileSingBox(ir, { now: fixedNow })
+    expect(singbox.success).toBe(true)
+    const singboxConfig = JSON.parse(singbox.content) as SingBoxConfig
+    expect(singboxConfig.route.rules.slice(0, 2)).toEqual([
+      { domain_suffix: ['example.com'], action: 'route', outbound: 'direct' },
+      { port: [443], action: 'route', outbound: 'direct' },
+    ])
+    expect(singboxConfig.route.rule_set).toBeUndefined()
+  })
+
   it.each([
     ['yaml', 'classical'],
     ['text', 'domain'],
