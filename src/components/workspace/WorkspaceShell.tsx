@@ -68,6 +68,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
   const toProject = useBuilderStore((state) => state.toProject)
   const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
   const removeNode = useBuilderStore((state) => state.removeNode)
+  const duplicateNode = useBuilderStore((state) => state.duplicateNode)
   const selectNode = useBuilderStore((state) => state.selectNode)
   const refreshSubscription = useBuilderStore((state) => state.refreshSubscription)
   const moveProcessingStep = useBuilderStore((state) => state.moveProcessingStep)
@@ -210,6 +211,8 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
           onMove={moveRule}
           onMoveToIndex={moveRuleToIndex}
           onEdit={editInWorkspace}
+          onDuplicate={(item) => duplicateNode(item.node.id)}
+          onDelete={(item) => removeNode(item.node.id)}
           getNodeTitle={(node) => localizeNodeTitle(node, locale)}
           getTargetSummary={(node, fallback) => node.data.targetKind === 'strategy' && node.data.targetId
             ? localizeNodeTitle(nodes.find((candidate) => candidate.id === node.data.targetId) ?? node, locale)
@@ -307,6 +310,7 @@ function routingWorkspaceCopy(t: ReturnType<typeof useI18n>['t'], target: Primar
     back: t('workspace.routing.back'), close: t('workspace.routing.close'), serviceMatcher: t('workspace.routing.serviceMatcher'), customMatcher: t('workspace.routing.customMatcher'),
     finalRoute: t('workspace.routing.finalRoute'), target: t('workspace.routing.target'), moveUp: t('workspace.moveUp'), moveDown: t('workspace.moveDown'),
     dragRule: t('workspace.routing.drag'), more: t('workspace.routing.more'),
+    edit: t('workspace.edit'), duplicate: t('canvas.copyNode'), delete: t('workspace.delete'), cancel: t('workspace.cancel'),
     unsupportedByTarget: t('workspace.routing.unsupportedByTarget', { target: target ? getTargetCapabilities(target).label : t('workspace.targetRequired') }),
     statusLabels: { ready: t('workspace.routing.status.ready'), warning: t('workspace.routing.status.warning'), error: t('workspace.routing.status.error'), disabled: t('workspace.routing.status.disabled') },
     capabilityLabels: { supported: t('workspace.compatibility.supported'), partial: t('workspace.compatibility.partial'), unsupported: t('workspace.compatibility.unsupported'), 'target-native': t('workspace.compatibility.targetNative') },

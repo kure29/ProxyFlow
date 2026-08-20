@@ -135,6 +135,23 @@ Inspector as a scrollable `60dvh` bottom sheet. Both sheets lock page scrolling,
 trap keyboard focus, close with Escape or their close control, restore focus,
 and use `44px` primary interactions.
 
+## Export And Mobile Overlays
+
+At `>=1024px`, Export uses a two-pane composition. The left pane orders Target,
+Compatibility, Status, and Configuration as a single review flow. The right
+pane is a bounded, sticky configuration preview with target format, Copy and
+Export actions, line numbers, lightweight syntax highlighting, and internal
+code scrolling. Compiler blockers stay explicit; the preview never substitutes
+mock configuration for a failed compile.
+
+Below `768px`, target and configuration options remain single-column and the
+inline code pane is replaced by the full-screen Preview modal. Long-form Project
+creation and Preview use full-screen dialogs; target selection, routing-rule
+insertion, and confirmations use bottom sheets; routing contextual actions use
+an action sheet with Edit, Copy, Move, and Delete choices. These overlays honor
+safe-area insets, lock page scrolling, trap focus, close with Escape when the
+workflow permits, and restore focus to a persistent launcher.
+
 ## Phase Checkpoints
 
 - Phase 1: semantic spacing, typography, control, icon-button, card, code, and

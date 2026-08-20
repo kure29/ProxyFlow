@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Clock3, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
@@ -30,6 +30,9 @@ export function PreviewModal() {
   const setToast = useBuilderStore((state) => state.setToast)
   const [copied, setCopied] = useState(false)
   const [mode, setMode] = useState<PreviewMode>('mihomo')
+  const panelRef = useRef<HTMLElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const { fitView } = useReactFlow()
   const targetCompileEnabled = open && mode !== 'ir'
   const { graphResult, mihomoState, singBoxState } = useProjectCompiles(targetCompileEnabled)
@@ -38,6 +41,37 @@ export function PreviewModal() {
   useEffect(() => {
     if (open) setMode(previewTarget ?? primaryTarget ?? 'mihomo')
   }, [open, previewTarget, primaryTarget])
+  useEffect(() => {
+    if (!open) return
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    const focusFrame = window.requestAnimationFrame(() => closeRef.current?.focus())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setOpen(false)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(panelRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
+      window.requestAnimationFrame(() => returnFocusRef.current?.focus())
+    }
+  }, [open, setOpen])
   if (!open) return null
 
   const graphIssues: DisplayIssue[] = graphResult.issues.map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
@@ -86,12 +120,12 @@ export function PreviewModal() {
     })
   }
   return <div className="modal-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
-    <section className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title" onMouseDown={(event) => event.stopPropagation()}>
+    <section ref={panelRef} className="preview-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title" onMouseDown={(event) => event.stopPropagation()}>
       <header>
         <div className="preview-icon">{mode === 'ir' ? <Braces size={19} /> : <FileCode2 size={19} />}</div>
         <div><span>{mode === 'ir' ? t('preview.developerPreview') : t('preview.realCompile')}</span><h2 id="preview-title">{targetLabel}</h2></div>
         <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : APP_VERSION_LABEL}</span>
-        <button onClick={() => setOpen(false)} aria-label={t('preview.closeAria')}><X size={18} /></button>
+        <button ref={closeRef} onClick={() => setOpen(false)} aria-label={t('preview.closeAria')}><X size={18} /></button>
       </header>
       <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>
         {loading ? <LoaderCircle className="spin" size={15} /> : !compileSuccess ? <AlertTriangle size={15} /> : <Info size={15} />}
