@@ -20,6 +20,11 @@ Updated: 2026-08-20
   navigation; Sources / Proxies and More use focus-managed drawers. Routing
   uses two-line cards with editable targets and non-drag reorder controls, while
   DNS is a single-column, touch-sized card surface.
+- Phase 3 — Desktop Workspace is complete at `571e0c1` and pushed to the same
+  branch. Desktop now begins at `1024px` with a `52px` TopBar, persistent
+  `200px` Sidebar, centered content, two-column Source and Proxy cards,
+  counted Region/Protocol facets, a vertical Processing pipeline, compact
+  Routing rows, and two-column DNS resolver cards.
 - The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
   `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
   compact and icon controls; `44px` mobile touch targets; card padding; and the
@@ -36,9 +41,14 @@ Updated: 2026-08-20
   at `375`, `390`, and `430px` with no horizontal overflow or console issues.
   The tested `375px` shell/Routing path has no interaction below `44px`; drawer
   focus enters the first contextual item and returns to its trigger on close.
-- Next checkpoint: Phase 3 — Desktop Workspace (compact TopBar, `200px`
-  Sidebar, content sizing, Routing, DNS, Sources, Proxies, and Processing at
-  `1024/1440`).
+- Phase 3 verification: focused Workspace/mobile navigation/Routing/DNS tests
+  `13/13`, full Vitest `539/539`, production build, diff check, and secret
+  review passed. Browser QA passed at exact `1024px` and `1440px` in Chinese
+  and English with a clean cold reload, no horizontal page overflow, and no
+  console warnings or errors. A `390px` mobile Proxy regression pass confirmed
+  one-column cards and `44px` facet controls.
+- Next checkpoint: Phase 4 — Visual Flow (desktop palette/inspector sizing,
+  floating controls, and mobile Add/Inspector sheets).
 
 ## Integration
 
