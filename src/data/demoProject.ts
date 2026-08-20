@@ -4,8 +4,7 @@ import { PROJECT_SCHEMA_VERSION } from '../core/project/version'
 import { serviceCatalog } from './serviceCatalog'
 import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
 import { miniIcon } from './miniIcons'
-import { createMihomoOutputProfile } from '../targets/mihomo/profile'
-import { createDnsResolver } from '../core/dns/resolverProfiles'
+import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -81,7 +80,7 @@ export const demoNodes: GraphNode[] = [
     services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', dnsResolvers: [createDnsResolver('cloudflare')!],
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: 'Fake-IP · AliDNS / DNSPod', icon: 'globe-2', dnsResolvers: createMihomoStarterDnsResolvers(),
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · Default Proxy', subtitleKey: 'demo.final.subtitle', icon: 'corner-down-right',
@@ -89,7 +88,7 @@ export const demoNodes: GraphNode[] = [
   }),
   node('output', 1360, 250, {
     blockType: 'output', category: 'output', title: 'Mihomo Output', subtitle: '真实编译 · MVP', subtitleKey: 'demo.output.subtitle', icon: 'package-check',
-    client: 'mihomo', compatibility: 'Supported', protected: true, mihomoProfile: createMihomoOutputProfile(),
+    client: 'mihomo', compatibility: 'Supported', protected: true, mihomoProfile: createMihomoStarterProfile(),
   }),
 ]
 

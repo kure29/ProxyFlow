@@ -101,7 +101,8 @@ describe('compileGraph', () => {
     expect(result.ir?.routes.find((route) => route.id === 'ai-services')).toEqual(expect.objectContaining({ matcher: { kind: 'service', serviceIds: ['openai', 'claude', 'gemini'] }, target: { kind: 'strategy', id: 'us-via-hk' } }))
     expect(result.ir?.outputs[0]).toEqual(expect.objectContaining({ target: 'mihomo' }))
     expect(result.ir?.dns?.resolvers).toEqual([
-      expect.objectContaining({ id: 'cloudflare-default', kind: 'doh', role: 'default' }),
+      expect.objectContaining({ id: 'alidns-default', kind: 'doh', role: 'default' }),
+      expect.objectContaining({ id: 'dnspod-default', kind: 'doh', role: 'default' }),
     ])
   })
 

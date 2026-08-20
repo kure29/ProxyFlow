@@ -20,8 +20,7 @@ import {
 import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
-import { createMihomoOutputProfile } from '../targets/mihomo/profile'
-import { createDnsResolver } from '../core/dns/resolverProfiles'
+import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
 import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
@@ -122,8 +121,8 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'proxy-chain') return { hopIds: [] }
   if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
-  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoOutputProfile() }
-  if (type === 'dns') return { dnsResolvers: [createDnsResolver('cloudflare')!] }
+  if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoStarterProfile() }
+  if (type === 'dns') return { dnsResolvers: createMihomoStarterDnsResolvers() }
   return {}
 }
 

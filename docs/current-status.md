@@ -91,6 +91,37 @@ Updated: 2026-08-20
 - Next checkpoint: user acceptance of `ui/responsive-layout-refactor`. No merge
   to `main`, tag, or release has been performed.
 
+## UI 2.1 Focused Polish
+
+- Branch: `ui/2.1-focused-polish`, based on the accepted Responsive Layout
+  refactor rather than the older `main` UI.
+- The focused UI work adds the final ProxyFlow brand asset, responsive project
+  header and direct language selector, Project Overview, de-duplicated Visual
+  Flow/save status, simplified Service Rule and expanded validated custom Rule
+  Source workflow, without changing Project, IR, Runtime, DNS, or Routing
+  ownership semantics.
+- Service artwork now restores the Clash Verge Mini visual set where an asset
+  exists, uses the requested HOMOMIX Claude artwork, and provides distinct
+  working Disney+, Google, and Gemini icons. Exact upstream revisions and the
+  currently missing upstream repository licenses are recorded in
+  `src/assets/services/SOURCES.md`.
+- The ProxyFlow PNG master is cropped to its intended rounded tile with
+  transparent corners. TopBar, favicon, Apple Touch Icon, and PWA icons use
+  derived PNG assets without an external white canvas border.
+- New Mihomo Projects now use only the supported subset of the referenced
+  qichiyuhub starter configuration: mixed port 7890, LAN enabled, IPv6 disabled,
+  Desktop TUN, Fake-IP DNS, sniffer, profile persistence, unified delay,
+  concurrent TCP, AliDNS/DNSPod resolvers, and AliDNS bootstrap. Controller/UI,
+  credentials, remote providers, and unmodeled parameters remain excluded;
+  legacy Projects without a profile retain the conservative Local Proxy
+  fallback.
+- Icon verification passed focused service tests, full tests, production build,
+  and desktop/mobile browser smoke in Chinese and English with no horizontal
+  overflow or console warnings/errors. The Mihomo starter slice passes its
+  Graph -> IR -> validation -> compiler tests and the full automated suite.
+- No merge to `main`, tag, release, force push, or branch deletion has been
+  performed.
+
 ## Integration
 
 - Integration branch: `autopilot/v1`

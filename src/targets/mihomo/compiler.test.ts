@@ -1,6 +1,7 @@
 import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
+import { createBlankProject } from '../../data/newProject'
 import { hktDemoSubscription, usDemoSubscription } from '../../data/demoSubscriptions'
 import { explicitProxyIR } from '../../core/__fixtures__/crossTargetFixtures'
 import { subscriptionSnapshotFixture } from '../../core/__fixtures__/subscriptionFixtures'
@@ -74,6 +75,42 @@ describe('MihomoCompiler', () => {
     expect(config.dns).toBeUndefined()
   })
 
+  it('compiles a new Mihomo project with the validated starter defaults', () => {
+    const project = createBlankProject('mihomo')
+    const graph = compileGraph(project)
+    expect(graph.success).toBe(true)
+    const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    const config = parseConfig(graph.ir!, output.data.mihomoProfile).config
+
+    expect(config).toEqual(expect.objectContaining({
+      'mixed-port': 7890,
+      'allow-lan': true,
+      ipv6: false,
+      'unified-delay': true,
+      'tcp-concurrent': true,
+      profile: { 'store-selected': true, 'store-fake-ip': true },
+    }))
+    expect(config.tun).toEqual(expect.objectContaining({
+      enable: true,
+      stack: 'mixed',
+      'auto-route': true,
+      'auto-detect-interface': true,
+      'dns-hijack': ['any:53', 'tcp://any:53'],
+    }))
+    expect(config.sniffer?.enable).toBe(true)
+    expect(config.dns).toEqual(expect.objectContaining({
+      enable: true,
+      ipv6: false,
+      'enhanced-mode': 'fake-ip',
+      'fake-ip-range': '198.18.0.0/16',
+      'default-nameserver': ['223.5.5.5'],
+      nameserver: ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+    }))
+    for (const excludedField of ['external-controller', 'secret', 'external-ui', 'bind-address', 'auto-redirect']) {
+      expect(config).not.toHaveProperty(excludedField)
+    }
+  })
+
   it('coordinates Desktop TUN, Fake-IP DNS, sniffer and persistence settings', () => {
     const ir = baseIR()
     ir.dns = {
@@ -101,7 +138,7 @@ describe('MihomoCompiler', () => {
       enable: true,
       ipv6: true,
       'enhanced-mode': 'fake-ip',
-      'fake-ip-range': '198.18.0.1/16',
+      'fake-ip-range': '198.18.0.0/16',
       nameserver: ['https://dns.example.com/dns-query'],
     }))
     expect(config.sniffer).toEqual(expect.objectContaining({
@@ -234,7 +271,7 @@ describe('MihomoCompiler', () => {
     }))
     expect(config.rules[0]).toBe('RULE-SET,OpenAI,US via HK')
     expect(config.rules.at(-1)).toBe('MATCH,US via HK')
-    expect(config.dns?.nameserver).toEqual(['https://1.1.1.1/dns-query'])
+    expect(config.dns?.nameserver).toEqual(['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'])
   })
 
   it('lowers a two-hop materialized chain through proxy dialer-proxy', () => {
