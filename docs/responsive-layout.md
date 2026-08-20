@@ -94,6 +94,26 @@ Mobile DNS uses one resolver card per row. Resolver fields remain capability
 driven, unsupported state remains explicit, endpoint values use the mono scale,
 and all form, enabled, delete, and Add interactions are at least `44px`.
 
+## Desktop Shell And Workspaces
+
+Desktop composition starts at `1024px`. The TopBar is `52px`, the persistent
+Workspace Sidebar is `200px`, and ordinary page content is centered within the
+shared `1100px` content primitive. Routing, Proxies, and Export may use the
+remaining desktop width when their denser controls need it. The active Sidebar
+destination uses a visible left indicator in addition to color and background.
+
+Sources and Proxies use two-column desktop card grids. Source cards expose
+format, health, safe host metadata, node count, refresh state, and compact
+actions. Proxy filters present Region and Protocol as counted horizontal facets
+while Source, source availability, and compatibility remain secondary selects;
+cards only show Project-derived metadata and never invent latency data.
+
+Processing remains an ordered vertical pipeline with explicit connectors and
+non-drag move controls. Routing uses compact `52px`-class rows with matcher
+values on the mono scale and directly editable targets. DNS uses a two-column
+resolver-card grid, while tablet and mobile retain the one-card-per-row
+composition and capability-driven fail-closed behavior.
+
 ## Phase Checkpoints
 
 - Phase 1: semantic spacing, typography, control, icon-button, card, code, and

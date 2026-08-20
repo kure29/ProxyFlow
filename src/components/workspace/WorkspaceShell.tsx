@@ -173,7 +173,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
       </header>
 
-      <section className="workspace-section-body">
+      <section className="workspace-section-body" data-section={activeSection}>
         {activeSection === 'sources' && <SourcesWorkspace
           items={projection.sources}
           runtimes={runtimes}

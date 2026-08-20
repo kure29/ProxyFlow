@@ -73,7 +73,7 @@ export function MobileWorkspaceNavigation({
         first.focus()
       }
     }
-    const desktopQuery = window.matchMedia('(min-width: 1200px)')
+    const desktopQuery = window.matchMedia('(min-width: 1024px)')
     const closeAtDesktop = (event: MediaQueryListEvent) => {
       if (event.matches) onOpenChange(false)
     }
