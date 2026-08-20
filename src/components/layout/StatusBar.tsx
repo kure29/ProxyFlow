@@ -8,7 +8,6 @@ export function StatusBar({ view, health }: { view: ProductView; health: Primary
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
-  const saveStatus = useBuilderStore((state) => state.saveStatus)
   const issues = health.diagnostics
   const issueTitle = issues.map((issue) => localizeDiagnosticMessage(issue.code, issue.message, locale)).join('\n')
   const checking = health.status === 'checking'
@@ -23,7 +22,7 @@ export function StatusBar({ view, health }: { view: ProductView; health: Primary
         <span>{t('status.nodes', { count: nodes.length })}</span><span>{t('status.connections', { count: edges.length })}</span>
         <span className="status-spacer" />
         <span className="status-hint"><MousePointer2 size={12} /> {t('status.hint')}</span></>}
-      {view === 'workspace' && <><span className="status-spacer" /><span className="status-save" aria-live="polite"><i className={saveStatus === 'saving' ? 'saving-dot' : 'saved-dot'} />{saveStatus === 'saving' ? t('top.saving') : t('top.savedLocally')}</span></>}
+      {view === 'workspace' && <span className="status-spacer" />}
     </footer>
   )
 }

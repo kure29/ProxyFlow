@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Menu, MoreHorizontal, Network, PanelsTopLeft } from 'lucide-react'
-import proxyFlowMark from '../../assets/proxyflow-mark.svg'
+import { Check, ChevronDown, Download, Eye, Globe2, Network, PanelsTopLeft } from 'lucide-react'
+import proxyFlowLogo from '../../assets/brand/proxyflow-logo.png'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
 import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
-import { Button, IconButton, SegmentedControl } from '../ui/Primitives'
+import { Button, SegmentedControl } from '../ui/Primitives'
 import { APP_VERSION_BADGE, APP_VERSION_LABEL } from '../../version'
 import { resolveTopBarActions } from './shellState'
 import type { ProductView } from '../workspace/types'
@@ -26,7 +26,7 @@ interface TopBarProps {
 
 export function TopBar({ view, projects, onViewChange, onProjectChange, onProjectNameCommit, onNewProject, onOpenWorkspaceSection, primaryHealth }: TopBarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
@@ -45,8 +45,8 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
   useEffect(() => setProjectNameDraft(visibleProjectName), [projectId, visibleProjectName])
 
   useEffect(() => {
-    if (!projectMenuOpen && !moreMenuOpen) return
-    const close = () => { setProjectMenuOpen(false); setMoreMenuOpen(false) }
+    if (!projectMenuOpen && !languageMenuOpen) return
+    const close = () => { setProjectMenuOpen(false); setLanguageMenuOpen(false) }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close()
     }
@@ -56,7 +56,7 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
       window.removeEventListener('click', close)
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [moreMenuOpen, projectMenuOpen])
+  }, [languageMenuOpen, projectMenuOpen])
 
   const commitProjectName = (value: string) => {
     if (!renameProject(value)) {
@@ -68,25 +68,17 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
 
   return (
     <header className="topbar" data-view={view}>
-      <IconButton
-        className="topbar-mobile-menu"
-        label={t('top.projectMenu')}
-        aria-controls={projectMenuOpen ? 'project-menu' : undefined}
-        aria-expanded={projectMenuOpen}
-        onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}
-      ><Menu size={20} /></IconButton>
-      <div className="brand">
-        <img className="brand-mark" src={proxyFlowMark} alt="" aria-hidden="true" />
+      <button className="brand" type="button" aria-label={t('workspace.overview')} onClick={() => onOpenWorkspaceSection('overview')}>
+        <img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" />
         <strong>ProxyFlow</strong>
         <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>
-      </div>
-      <div className="project-switcher-wrap" data-mobile-open={projectMenuOpen || undefined}>
+      </button>
+      <div className="project-switcher-wrap">
         <div className="project-switcher">
           <span>
-            <small>{t('top.currentProject')}</small>
             <input
               className="project-name-input"
-              aria-label={t('top.currentProject')}
+              aria-label={t('top.projectName')}
               value={projectNameDraft}
               onFocus={() => { editStartName.current = projectName; cancelRename.current = false }}
               onChange={(event) => {
@@ -152,17 +144,18 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
         <RuntimeServicePanel />
         {actions.preview && <Button className="top-preview-action" variant="secondary" aria-label={t('top.preview')} onClick={() => setPreviewOpen(true)}><Eye size={16} /><span>{t('top.preview')}</span></Button>}
         {actions.export && <Button className="top-export-action" variant="primary" aria-label={t('top.exportConfig')} onClick={() => onOpenWorkspaceSection('export')}><Download size={16} /><span>{t('top.exportConfig')}</span></Button>}
-        <div className="topbar-overflow-wrap">
-          <IconButton
-            className="topbar-overflow-trigger"
-            label={t('top.chooseLanguage')}
-            aria-expanded={moreMenuOpen}
-            onClick={(event) => { event.stopPropagation(); setMoreMenuOpen((open) => !open) }}
-          ><MoreHorizontal size={17} /></IconButton>
-          {moreMenuOpen && <div className="language-menu topbar-overflow-menu" role="menu" aria-label={t('top.language')} onClick={(event) => event.stopPropagation()}>
-            <span>{t('top.language')}</span>
-            <button type="button" role="menuitem" className={locale === 'zh-CN' ? 'is-active' : ''} onClick={() => { setLocale('zh-CN'); setMoreMenuOpen(false) }}><span>中文</span>{locale === 'zh-CN' && <Check size={13} />}</button>
-            <button type="button" role="menuitem" className={locale === 'en-US' ? 'is-active' : ''} onClick={() => { setLocale('en-US'); setMoreMenuOpen(false) }}><span>English</span>{locale === 'en-US' && <Check size={13} />}</button>
+        <div className="topbar-language-wrap">
+          <button
+            type="button"
+            className="topbar-language-trigger"
+            aria-label={t('top.chooseLanguage')}
+            title={t('top.chooseLanguage')}
+            aria-expanded={languageMenuOpen}
+            onClick={(event) => { event.stopPropagation(); setLanguageMenuOpen((open) => !open) }}
+          ><Globe2 size={17} /><span>{locale === 'zh-CN' ? '中文' : 'English'}</span><ChevronDown size={13} /></button>
+          {languageMenuOpen && <div className="language-menu topbar-language-menu" role="menu" aria-label={t('top.language')} onClick={(event) => event.stopPropagation()}>
+            <button type="button" role="menuitem" className={locale === 'zh-CN' ? 'is-active' : ''} onClick={() => { setLocale('zh-CN'); setLanguageMenuOpen(false) }}><span>简体中文</span>{locale === 'zh-CN' && <Check size={13} />}</button>
+            <button type="button" role="menuitem" className={locale === 'en-US' ? 'is-active' : ''} onClick={() => { setLocale('en-US'); setLanguageMenuOpen(false) }}><span>English</span>{locale === 'en-US' && <Check size={13} />}</button>
           </div>}
         </div>
       </nav>

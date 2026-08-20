@@ -182,7 +182,7 @@ rather than precise edge construction.
 
 ## Brand And Icons
 
-- `src/assets/proxyflow-mark.svg` is the shared three-flow ProxyFlow mark used
+- `src/assets/brand/proxyflow-logo.png` is the shared user-provided ProxyFlow logo used
   by the product shell; the favicon uses the same visual language.
 - Product controls use Lucide stroke icons and accessible labels.
 - Do not add glow, neon, 3D treatment, or an alternative ProxyFlow mark.
