@@ -31,6 +31,13 @@ Updated: 2026-08-20
   explicit close control, and centered floating Canvas controls. Mobile enters
   Visual Flow explicitly from the Project menu and uses focus-managed Add Node
   and `60dvh` Inspector bottom sheets.
+- Phase 5 — Modal / Export is complete at `9ec4b53` and pushed to the same
+  branch. Desktop Export now pairs the ordered Target, Compatibility, Status,
+  and Configuration flow with a bounded sticky code preview. Mobile uses a
+  full-screen Preview, single-column Export options, bottom sheets for target
+  and node selection, and an Edit / Copy / Move / Delete routing action sheet.
+  Long-form dialogs and sheets include safe-area spacing, scroll lock, focus
+  trapping and return, Escape handling, and touch-sized controls.
 - The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
   `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
   compact and icon controls; `44px` mobile touch targets; card padding; and the
@@ -60,8 +67,16 @@ Updated: 2026-08-20
   zero inactive Inspector width, `48px` collapse, mobile sheet scroll lock,
   Escape/close behavior, focus return, no horizontal overflow, and no console
   warnings or errors.
-- Next checkpoint: Phase 5 — Modal / Export (desktop split layout, full-screen
-  mobile preview, bottom/action sheets, and mobile dialog behavior).
+- Phase 5 verification: focused Export, Routing, and Project-flow tests `7/7`,
+  full Vitest `539/539`, production build, diff check, scope review, and secret
+  review passed. Browser QA passed at `390`, `1024`, and `1440px` in Chinese and
+  English: the desktop preview remains bounded, mobile Preview and Project
+  creation are full-screen, target/routing sheets restore focus and page scroll,
+  all sampled actions are `44-52px`, and cold reloads have no console warnings
+  or errors.
+- Next checkpoint: Phase 6 — Responsive Polish across all required widths,
+  followed by the final consecutive regression, build, browser, and review
+  gates.
 
 ## Integration
 
