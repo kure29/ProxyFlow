@@ -73,6 +73,16 @@ export function validateMihomoOutputProfile(
       entityId,
     ))
   }
+  if (value !== undefined && normalized.profile.preset !== 'desktop-tun'
+    && normalized.profile.dnsMode !== 'disabled' && !dnsEnabled) {
+    issues.push(mihomoIssue(
+      'MIHOMO_DNS_PROFILE_REQUIRES_DNS',
+      'error',
+      'output-profile',
+      'The selected Mihomo DNS enhancement mode requires an enabled DNS node in the project.',
+      entityId,
+    ))
+  }
   return { profile: normalized.profile, issues }
 }
 

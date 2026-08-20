@@ -196,6 +196,18 @@ describe('MihomoCompiler', () => {
     expect(incompatibleResult.issues.map((issue) => issue.code)).toContain('MIHOMO_TUN_FAKE_IP_REQUIRED')
   })
 
+  it('fails closed when an explicit Local Proxy DNS enhancement has no DNS node', () => {
+    const profile = { ...createMihomoOutputProfile(), dnsMode: 'fake-ip' as const }
+    const result = compileMihomo(baseIR(), { now: fixedNow, outputNodeId: 'output', profile })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'MIHOMO_DNS_PROFILE_REQUIRES_DNS', entityId: 'output' }))
+
+    const disabled = compileMihomo(baseIR(), {
+      now: fixedNow, outputNodeId: 'output', profile: { ...profile, dnsMode: 'disabled' },
+    })
+    expect(disabled.success).toBe(true)
+  })
+
   it('produces deterministic Desktop TUN YAML and forwards compiler target options', async () => {
     const ir = baseIR()
     ir.dns = { enabled: true, mode: 'automatic' }
