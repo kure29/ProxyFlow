@@ -6,8 +6,28 @@ Updated: 2026-08-20
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `28c1329e1720541b17bd28ab9534ae089e6d4558`
+- `origin/main`: `0d3cc3c4bb4784ddd8dc710df29363a1af52d3f4`
 - Product Direction PR #9 is merged.
+
+## Responsive Layout Refactor
+
+- Branch: `ui/responsive-layout-refactor` (based on the verified latest
+  `origin/main`).
+- Phase 1 — Foundations is complete at `6b66cf9` and pushed to
+  `origin/ui/responsive-layout-refactor`.
+- The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
+  `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
+  compact and icon controls; `44px` mobile touch targets; card padding; and the
+  shared `1100px` content-width primitive.
+- `DESIGN.md` and `docs/responsive-layout.md` record the new breakpoint,
+  typography, spacing, sizing, and responsive-composition contract.
+- Phase 1 verification: focused layout tests `8/8`, full Vitest `539/539`,
+  production build passed, `git diff --check` passed, and secret review found no
+  credential material. Browser smoke passed at `390px` and `1440px`: no
+  horizontal overflow, no console errors or warnings, and sampled mobile
+  primary/icon actions resolve to `44px` targets.
+- Next checkpoint: Phase 2 — Mobile Layout (TopBar, bottom navigation, Routing
+  cards, DNS single-column layout, and touch targets at `375/390/430`).
 
 ## Integration
 
