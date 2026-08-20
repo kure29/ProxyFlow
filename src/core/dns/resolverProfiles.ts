@@ -52,6 +52,23 @@ export function createCustomDnsResolver(
   }
 }
 
+export function appendDnsResolverPreset(resolvers: readonly DnsResolverConfig[], presetId: string) {
+  const resolver = createDnsResolver(presetId, 'default', resolvers)
+  return resolver ? [...resolvers, resolver] : [...resolvers]
+}
+
+export function appendCustomDnsResolver(resolvers: readonly DnsResolverConfig[]) {
+  return [...resolvers, createCustomDnsResolver(resolvers)]
+}
+
+export function patchDnsResolver(resolvers: readonly DnsResolverConfig[], id: string, patch: Partial<DnsResolverConfig>) {
+  return resolvers.map((resolver) => resolver.id === id ? { ...resolver, ...patch } : resolver)
+}
+
+export function deleteDnsResolver(resolvers: readonly DnsResolverConfig[], id: string) {
+  return resolvers.filter((resolver) => resolver.id !== id)
+}
+
 export function normalizeDnsResolvers(
   resolvers: readonly DnsResolverConfig[] | undefined,
   legacyResolver?: string,

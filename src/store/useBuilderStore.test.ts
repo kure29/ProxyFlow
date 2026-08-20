@@ -9,6 +9,7 @@ import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 import { createBlankProject } from '../data/newProject'
+import { appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver } from '../core/dns/resolverProfiles'
 
 describe('builder store', () => {
   beforeEach(() => {
@@ -198,10 +199,13 @@ describe('builder store', () => {
 
   it('round-trips multiple DNS resolvers through undo, redo and Schema 2 hydration', () => {
     const dnsId = useBuilderStore.getState().addNode('dns', { x: 120, y: 120 })!
-    const resolvers = [
-      { id: 'default', name: 'Cloudflare', kind: 'doh' as const, role: 'default' as const, address: 'https://dns.example.com/dns-query', enabled: true },
-      { id: 'direct', name: 'AliDNS', kind: 'doh' as const, role: 'direct' as const, address: 'https://direct.example.com/dns-query', enabled: true },
-    ]
+    let resolvers = appendDnsResolverPreset([], 'cloudflare')
+    resolvers = appendDnsResolverPreset(resolvers, 'alidns')
+    resolvers = appendDnsResolverPreset(resolvers, 'google')
+    const aliDnsId = resolvers.find((resolver) => resolver.presetId === 'alidns')!.id
+    const googleId = resolvers.find((resolver) => resolver.presetId === 'google')!.id
+    resolvers = patchDnsResolver(resolvers, aliDnsId, { name: 'AliDNS Direct', role: 'direct' })
+    resolvers = deleteDnsResolver(resolvers, googleId)
     useBuilderStore.getState().updateNodeData(dnsId, { dnsResolvers: resolvers })
     useBuilderStore.getState().undo()
     expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toHaveLength(1)
@@ -212,6 +216,9 @@ describe('builder store', () => {
     expect(project.version).toBe(2)
     useBuilderStore.getState().hydrate(project)
     expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'AliDNS Direct', role: 'direct' }),
+    ]))
   })
 
   it('round-trips the Mihomo Output Profile in Project Schema 2 with undo and redo', () => {
