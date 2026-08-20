@@ -26,6 +26,7 @@ import {
 } from './workspaceCreation'
 import { RoutingWorkspace, type RoutingWorkspaceCopy } from './RoutingWorkspace'
 import { DnsWorkspace, type DnsWorkspaceCopy } from './DnsWorkspace'
+import { MobileWorkspaceNavigation } from './MobileWorkspaceNavigation'
 import {
   ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, SourcesWorkspace,
   StrategiesWorkspace,
@@ -80,6 +81,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
   const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
   const [editorOpen, setEditorOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
   const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
@@ -148,7 +150,16 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
           <Icon size={17} /><span>{t(label)}</span>{counts[id] !== undefined && <small>{counts[id]}</small>}
         </button>)}
       </div>
-      <label className="workspace-mobile-section"><span>{t('workspace.sectionSelector')}</span><select aria-label={t('workspace.sectionSelector')} value={activeSection} onChange={(event) => onSectionChange(event.target.value as WorkspaceSectionId)}>{navigation.map(({ id, label }) => <option key={id} value={id}>{t(label)}{counts[id] !== undefined ? ` · ${counts[id]}` : ''}</option>)}</select></label>
+      <MobileWorkspaceNavigation
+        activeSection={activeSection}
+        items={navigation.map(({ id, icon, label }) => ({ id, icon, label: t(label), count: counts[id] }))}
+        open={mobileNavigationOpen}
+        openLabel={t('workspace.mobileNavigation.open')}
+        closeLabel={t('workspace.mobileNavigation.close')}
+        title={t('workspace.mobileNavigation.title')}
+        onOpenChange={setMobileNavigationOpen}
+        onSectionChange={onSectionChange}
+      />
       <button type="button" className="visual-flow-link" onClick={() => onViewChange('visual-flow')}><Network size={16} /><span>{t('top.visualFlow')}</span></button>
     </nav>
 

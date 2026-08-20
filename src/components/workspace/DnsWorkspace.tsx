@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { ChevronDown, Globe2, Plus, Server, Trash2 } from 'lucide-react'
 import { getTargetCapabilities, type CapabilityStatus, type PrimaryTarget } from '../../core/capabilities'
 import {
-  createCustomDnsResolver, createDnsResolver, DNS_RESOLVER_PRESETS, normalizeDnsResolvers,
-  resolveDnsResolverRegion,
+  appendCustomDnsResolver, appendDnsResolverPreset, deleteDnsResolver, DNS_RESOLVER_PRESETS,
+  normalizeDnsResolvers, patchDnsResolver, resolveDnsResolverRegion,
 } from '../../core/dns/resolverProfiles'
 import type { DnsResolverConfig, DnsResolverKind, DnsResolverRole } from '../../types/project'
 
@@ -38,13 +38,17 @@ export function DnsWorkspace({
   const addRootRef = useRef<HTMLDivElement>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const addMenuRef = useRef<HTMLDivElement>(null)
+  const focusMenuOnOpenRef = useRef(false)
   const resolvers = useMemo(
     () => normalizeDnsResolvers(node?.dnsResolvers, node?.resolver),
     [node?.dnsResolvers, node?.resolver],
   )
   useEffect(() => {
     if (!adding) return
-    const focusFrame = window.requestAnimationFrame(() => addMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus())
+    const focusFrame = focusMenuOnOpenRef.current
+      ? window.requestAnimationFrame(() => addMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus())
+      : undefined
+    focusMenuOnOpenRef.current = false
     const closeOutside = (event: PointerEvent) => {
       if (!addRootRef.current?.contains(event.target as Node)) setAdding(false)
     }
@@ -57,7 +61,7 @@ export function DnsWorkspace({
     window.addEventListener('pointerdown', closeOutside)
     window.addEventListener('keydown', closeOnEscape)
     return () => {
-      window.cancelAnimationFrame(focusFrame)
+      if (focusFrame !== undefined) window.cancelAnimationFrame(focusFrame)
       window.removeEventListener('pointerdown', closeOutside)
       window.removeEventListener('keydown', closeOnEscape)
     }
@@ -69,8 +73,8 @@ export function DnsWorkspace({
     <button type="button" className="primary-action" onClick={onCreateDns}><Plus size={16} />{copy.addDns}</button>
   </div>
 
-  const update = (id: string, patch: Partial<DnsResolverConfig>) => onChange(resolvers.map((resolver) => resolver.id === id ? { ...resolver, ...patch } : resolver))
-  const remove = (id: string) => onChange(resolvers.filter((resolver) => resolver.id !== id))
+  const update = (id: string, patch: Partial<DnsResolverConfig>) => onChange(patchDnsResolver(resolvers, id, patch))
+  const remove = (id: string) => onChange(deleteDnsResolver(resolvers, id))
   const closeAddMenu = (returnFocus = true) => {
     setAdding(false)
     if (returnFocus) window.requestAnimationFrame(() => addButtonRef.current?.focus())
@@ -87,14 +91,17 @@ export function DnsWorkspace({
           : (current + 1) % items.length
     items[next]?.focus()
   }
-  const addPreset = (presetId: string) => {
-    const resolver = createDnsResolver(presetId, 'default', resolvers)
-    if (resolver) onChange([...resolvers, resolver])
-    closeAddMenu()
+  const openAddMenu = (focusFirstItem: boolean) => {
+    focusMenuOnOpenRef.current = focusFirstItem
+    setAdding(true)
   }
-  const addCustom = () => {
-    onChange([...resolvers, createCustomDnsResolver(resolvers)])
-    closeAddMenu()
+  const addPreset = (presetId: string, returnFocus: boolean) => {
+    onChange(appendDnsResolverPreset(resolvers, presetId))
+    closeAddMenu(returnFocus)
+  }
+  const addCustom = (returnFocus: boolean) => {
+    onChange(appendCustomDnsResolver(resolvers))
+    closeAddMenu(returnFocus)
   }
 
   return <div className="dns-workspace">
@@ -102,33 +109,33 @@ export function DnsWorkspace({
       if (adding && !event.currentTarget.contains(event.relatedTarget as Node | null)) setAdding(false)
     }}>
       <button ref={addButtonRef} type="button" className="primary-action" aria-haspopup="menu" aria-controls={adding ? 'dns-preset-menu' : undefined} aria-expanded={adding} onKeyDown={(event) => {
-        if (event.key === 'ArrowDown' && !adding) { event.preventDefault(); setAdding(true) }
-      }} onClick={() => adding ? closeAddMenu() : setAdding(true)}><Plus size={16} />{copy.addResolver}<ChevronDown size={14} /></button>
+        if (event.key === 'ArrowDown' && !adding) { event.preventDefault(); openAddMenu(true) }
+      }} onClick={(event) => adding ? closeAddMenu(event.detail === 0) : openAddMenu(event.detail === 0)}><Plus size={16} />{copy.addResolver}<ChevronDown size={14} /></button>
       {adding && <div ref={addMenuRef} id="dns-preset-menu" className="dns-preset-menu" role="menu" onKeyDown={navigateAddMenu}>
         {DNS_RESOLVER_PRESETS.map((preset) => {
-          const status = resolverCapability(target, preset.kind)
-          return <button type="button" role="menuitem" key={preset.id} disabled={status === 'unsupported'} onClick={() => addPreset(preset.id)}>
+          const status = dnsResolverCapability(target, preset.kind)
+          return <button type="button" role="menuitem" key={preset.id} disabled={status === 'unsupported'} onClick={(event) => addPreset(preset.id, event.detail === 0)}>
             <Server size={17} /><span><strong>{preset.name}</strong><small>{preset.kind.toUpperCase()} · {copy.regions[preset.region]}</small></span>{status === 'unsupported' && <i>{copy.unsupported}</i>}
           </button>
         })}
-        <button type="button" role="menuitem" onClick={addCustom}><Globe2 size={17} /><span><strong>{copy.customResolver}</strong><small>DoH / DoT / UDP</small></span></button>
+        <button type="button" role="menuitem" onClick={(event) => addCustom(event.detail === 0)}><Globe2 size={17} /><span><strong>{copy.customResolver}</strong><small>DoH / DoT / UDP</small></span></button>
       </div>}
     </div></div>
 
     {resolvers.length === 0
       ? <div className="workspace-empty-state"><Server size={24} /><strong>{copy.emptyTitle}</strong><p>{copy.emptyDescription}</p></div>
       : <div className="dns-resolver-list">{resolvers.map((resolver) => {
-        const kindStatus = resolverCapability(target, resolver.kind)
-        const roleStatus = roleCapability(target, resolver.role)
+        const kindStatus = dnsResolverCapability(target, resolver.kind)
+        const roleStatus = dnsRoleCapability(target, resolver.role)
         const unsupported = kindStatus === 'unsupported' || roleStatus === 'unsupported'
         const region = resolveDnsResolverRegion(resolver)
         return <article className={unsupported ? 'is-unsupported' : ''} key={resolver.id}>
           <header><span><Server size={17} /><span><strong>{resolver.name}</strong><small>{resolver.kind.toUpperCase()}{region ? ` · ${copy.regions[region]}` : ''}</small></span></span>{unsupported && <em>{copy.unsupported}</em>}</header>
           <div className="dns-resolver-fields">
             <label><span>{copy.name}</span><input value={resolver.name} onChange={(event) => update(resolver.id, { name: event.target.value })} /></label>
-            <label><span>{copy.protocol}</span><select value={resolver.kind} onChange={(event) => update(resolver.id, { kind: event.target.value as DnsResolverKind })}>{(['doh', 'dot', 'udp', 'system'] as const).map((kind) => <option key={kind} value={kind} disabled={resolverCapability(target, kind) === 'unsupported'}>{kind.toUpperCase()}</option>)}</select></label>
+            <label><span>{copy.protocol}</span><select value={resolver.kind} onChange={(event) => update(resolver.id, { kind: event.target.value as DnsResolverKind })}>{(['doh', 'dot', 'udp', 'system'] as const).map((kind) => <option key={kind} value={kind} disabled={dnsResolverCapability(target, kind) === 'unsupported'}>{kind.toUpperCase()}</option>)}</select></label>
             <label className="dns-endpoint-field"><span>{copy.endpoint}</span><input value={resolver.address ?? ''} disabled={resolver.kind === 'system'} onChange={(event) => update(resolver.id, { address: event.target.value })} /></label>
-            <label><span>{copy.role}</span><select value={resolver.role} onChange={(event) => update(resolver.id, { role: event.target.value as DnsResolverRole })}>{(['default', 'direct', 'fallback'] as const).map((role) => <option key={role} value={role} disabled={roleCapability(target, role) === 'unsupported'}>{copy.roles[role]}</option>)}</select></label>
+            <label><span>{copy.role}</span><select value={resolver.role} onChange={(event) => update(resolver.id, { role: event.target.value as DnsResolverRole })}>{(['default', 'direct', 'fallback'] as const).map((role) => <option key={role} value={role} disabled={dnsRoleCapability(target, role) === 'unsupported'}>{copy.roles[role]}</option>)}</select></label>
           </div>
           <footer><label className="dns-enabled-toggle"><input type="checkbox" checked={resolver.enabled} onChange={(event) => update(resolver.id, { enabled: event.target.checked })} /><span>{copy.enabled}</span></label><button type="button" className="icon-button" aria-label={`${copy.remove}: ${resolver.name}`} title={copy.remove} onClick={() => remove(resolver.id)}><Trash2 size={16} /></button></footer>
         </article>
@@ -136,10 +143,10 @@ export function DnsWorkspace({
   </div>
 }
 
-function resolverCapability(target: PrimaryTarget | null, kind: DnsResolverKind): CapabilityStatus | 'unknown' {
+function dnsResolverCapability(target: PrimaryTarget | null, kind: DnsResolverKind): CapabilityStatus | 'unknown' {
   return target ? getTargetCapabilities(target).dns[kind].status : 'unknown'
 }
 
-function roleCapability(target: PrimaryTarget | null, role: DnsResolverRole): CapabilityStatus | 'unknown' {
+function dnsRoleCapability(target: PrimaryTarget | null, role: DnsResolverRole): CapabilityStatus | 'unknown' {
   return target ? getTargetCapabilities(target).dns[`${role}-role`].status : 'unknown'
 }
