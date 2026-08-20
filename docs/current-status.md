@@ -13,12 +13,12 @@ Updated: 2026-08-20
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V1.0 - Stable Workflow (RC)
-- Current slice: UI 2.0 verified checkpoint and user-acceptance handoff
+- Current slice: UI 2.0 Mobile navigation and DNS acceptance polish complete
 - RC branch: `autopilot/v1.0-rc`
 - UI 2.0 branch: `autopilot/ui2`
 - UI 2.0 base: `78936fee55c3fc219dd83b259c8a9821e62ecf69`
 - Latest verified UI 2.0 implementation commit:
-  `c5e1a920d6f995411860d5fa9f165846b63dc149`
+  `838b45b26928a55a72ee79d7b85c28688730ce86`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
@@ -155,11 +155,19 @@ Updated: 2026-08-20
 - UI 2.0 Slice 8 (Responsive / Accessibility / Polish) covers desktop, medium,
   and 390px layouts, compact navigation, full-screen mobile editors, 44px touch
   targets, visible focus, reduced motion, English/Chinese copy, and overflow.
+- UI 2.0 Mobile acceptance polish replaces the native Workspace section select
+  with an application-controlled left Drawer on tablet/mobile. It preserves all
+  eight Project sections, active state, counts, 44px targets, focus return,
+  Escape, close button, backdrop dismissal, scroll lock, and the persistent
+  Desktop Sidebar. DNS preset actions now stay within the mobile viewport above
+  the fixed status bar, avoid touch-triggered focus jumps, and retain target
+  capability blocking. Checkpoint `838b45b` is pushed to `origin/autopilot/ui2`.
 
 ## Current Slice
 
-- The UI 2.0 implementation unit is complete and verified on `autopilot/ui2`.
-- The remaining action is review and acceptance of the pushed checkpoint; no
+- The bounded Mobile navigation and DNS regression unit is complete, verified,
+  committed, and pushed on `autopilot/ui2`.
+- The remaining action is user acceptance on a physical iOS/Safari device; no
   additional UI 2.0 implementation slice is open.
 - Draft PR #14 remains unchanged and must not be merged by this branch work.
 
@@ -167,17 +175,47 @@ Updated: 2026-08-20
 
 - None. Foundations through Responsive / Accessibility / Final Polish are
   implemented in the verified checkpoint.
-- Any acceptance feedback must be handled as a new, bounded coherent unit on
-  `autopilot/ui2`, followed by the same test, QA, commit, push, and status cycle.
+- The only remaining acceptance action is physical-device confirmation of the
+  Mobile Drawer and DNS touch flow. Any new feedback must be handled as another
+  bounded coherent unit on `autopilot/ui2`.
 
 ## Next
 
-1. Review the pushed UI 2.0 checkpoint and collect bounded acceptance feedback.
-2. If accepted, prepare the UI 2.0 milestone integration path into
-   `autopilot/v1`; do not merge to `main` and do not merge Draft PR #14.
+1. Re-test Mobile Workspace navigation and DNS resolver add/edit/role/delete/
+   reload on a physical iOS/Safari device at the user acceptance boundary.
+2. If accepted, prepare the separately authorized V1.0 pre-release integration
+   path; do not merge to `main` and do not merge Draft PR #14 in this unit.
 3. Do not tag `v1.0.0` or create a GitHub Release without explicit approval.
 
 ## Latest Validation
+
+### UI 2.0 Mobile acceptance polish
+
+- Verified implementation commit:
+  `838b45b26928a55a72ee79d7b85c28688730ce86`.
+- Focused Mobile navigation, DNS mutation/capability/target export, resolver
+  profile, and Project persistence suites passed at 56/56 tests. The final full
+  `npm test` gate passed 539/539 tests across 59 test files.
+- `npm run build` passed. Final chunks: main `272.10 kB`, target compile path
+  `460.00 kB`, Visual Flow `23.14 kB`, Preview `8.95 kB`; no `>500 kB` warning.
+- `npm run runtime:build` passed with `runtime-dist/server.js` at `214.41 kB`.
+- `git diff --check`, staged diff check, scope review, local-absolute-path and
+  secret-pattern review passed. The UI mechanical design detector returned no
+  findings.
+- In-app Chromium browser QA passed at 390x844, 393x852, 430x932, and 1440x900.
+  The Drawer stayed at 86vw / 336px maximum on phones, retained active state and
+  counts, closed after navigation, returned focus on Escape, restored scrolling,
+  and produced no horizontal page overflow. Desktop retained the persistent
+  Sidebar and absolute DNS menu behavior.
+- DNS Mobile browser QA added Cloudflare/Google/AliDNS presets, edited fields and
+  Mihomo resolver role, deleted resolvers, reloaded persisted Project state,
+  checked Project Health, and previewed real Mihomo YAML plus sing-box JSON with
+  the expected DNS endpoints. sing-box Direct/Fallback roles remained disabled;
+  retained unsupported state surfaced `SINGBOX_DNS_ROLE_UNSUPPORTED` and blocked
+  that target rather than pretending success.
+- Browser QA simulated touch-sized responsive layouts; a real iOS Safari device
+  was not available in this environment, so physical-device acceptance remains
+  explicitly pending.
 
 ### UI 2.0 checkpoint
 
@@ -259,6 +297,10 @@ Updated: 2026-08-20
 - None.
 
 ## Known Non-Blockers
+
+- The Mobile Drawer and DNS fixes passed Chromium responsive/touch-oriented QA,
+  but still require the user's physical iOS Safari acceptance check; simulator
+  QA is not represented as a real-device pass.
 
 - Subscription hydration timing fluctuation was fixed with a deterministic
   project-scoped barrier and regression coverage; the full suite passed three
