@@ -21,18 +21,22 @@ describe('Mobile Workspace navigation', () => {
       openLabel: 'Open Project navigation',
       closeLabel: 'Close Project navigation',
       title: 'Project navigation',
+      inputLabel: 'Sources / Proxies',
+      moreLabel: 'More',
       onOpenChange: () => undefined,
       onSectionChange: () => undefined,
     }))
 
     expect(html).not.toContain('<select')
+    expect(html).toContain('Sources / Proxies')
+    expect(html).toContain('More')
     expect(html).toContain('aria-haspopup="dialog"')
     expect(html).toContain('aria-expanded="true"')
     expect(html).toContain('role="dialog"')
     expect(html).toContain('aria-modal="true"')
     expect(html).toContain('aria-current="page"')
     expect(html).toContain('DNS / Advanced: 1')
-    expect(html).toContain('Proxies: 18')
+    expect(html).toContain('Export: 2')
     expect(html).toContain('aria-label="Close Project navigation"')
   })
 

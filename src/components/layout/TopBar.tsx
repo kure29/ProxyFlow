@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Focus, LayoutTemplate, MoreHorizontal, Network, PanelsTopLeft, Redo2, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Download, Eye, Focus, LayoutTemplate, Menu, MoreHorizontal, Network, PanelsTopLeft, Redo2, Undo2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import proxyFlowMark from '../../assets/proxyflow-mark.svg'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -11,6 +11,8 @@ import { resolveTopBarActions } from './shellState'
 import type { ProductView } from '../workspace/types'
 import type { WorkspaceSectionId } from '../../core/workspace'
 import type { ProjectListItem } from '../../storage/projectStorage'
+import { getTargetCapabilities } from '../../core/capabilities'
+import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
 
 interface TopBarProps {
   view: ProductView
@@ -20,15 +22,17 @@ interface TopBarProps {
   onProjectNameCommit: () => Promise<void>
   onNewProject: () => void
   onOpenWorkspaceSection: (section: WorkspaceSectionId) => void
+  primaryHealth: PrimaryTargetHealth
 }
 
-export function TopBar({ view, projects, onViewChange, onProjectChange, onProjectNameCommit, onNewProject, onOpenWorkspaceSection }: TopBarProps) {
+export function TopBar({ view, projects, onViewChange, onProjectChange, onProjectNameCommit, onNewProject, onOpenWorkspaceSection, primaryHealth }: TopBarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
   const { fitView } = useReactFlow()
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const renameProject = useBuilderStore((state) => state.renameProject)
   const saveStatus = useBuilderStore((state) => state.saveStatus)
   const undo = useBuilderStore((state) => state.undo)
@@ -42,6 +46,8 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
   const editStartName = useRef(projectName)
   const cancelRename = useRef(false)
   const actions = resolveTopBarActions(view)
+  const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : '—'
+  const healthLabel = primaryHealth.status === 'ready' ? t('top.healthReady') : primaryHealth.status === 'blocked' ? t('top.healthBlocked') : t('top.healthChecking')
 
   useEffect(() => setProjectNameDraft(visibleProjectName), [projectId, visibleProjectName])
 
@@ -69,12 +75,19 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
 
   return (
     <header className="topbar" data-view={view}>
+      <IconButton
+        className="topbar-mobile-menu"
+        label={t('top.projectMenu')}
+        aria-controls={projectMenuOpen ? 'project-menu' : undefined}
+        aria-expanded={projectMenuOpen}
+        onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}
+      ><Menu size={20} /></IconButton>
       <div className="brand">
         <img className="brand-mark" src={proxyFlowMark} alt="" aria-hidden="true" />
         <strong>ProxyFlow</strong>
         <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>
       </div>
-      <div className="project-switcher-wrap">
+      <div className="project-switcher-wrap" data-mobile-open={projectMenuOpen || undefined}>
         <div className="project-switcher">
           <span>
             <small>{t('top.currentProject')}</small>
@@ -110,7 +123,7 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
             onClick={(event) => { event.stopPropagation(); setProjectMenuOpen((open) => !open) }}
           ><ChevronDown size={14} /></button>
         </div>
-        {projectMenuOpen && <div className="project-menu" role="menu" aria-label={t('top.recentProjects')} onClick={(event) => event.stopPropagation()}>
+        {projectMenuOpen && <div id="project-menu" className="project-menu" role="menu" aria-label={t('top.recentProjects')} onClick={(event) => event.stopPropagation()}>
           <span>{t('top.recentProjects')}</span>
           {projects.map((project) => {
             const name = project.id === projectId ? visibleProjectName : localizeProjectName(project.name, locale)
@@ -130,6 +143,9 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
         <button className={view === 'workspace' ? 'is-active' : ''} aria-pressed={view === 'workspace'} onClick={() => onViewChange('workspace')}><PanelsTopLeft size={15} /><span>{t('top.workspace')}</span></button>
         <button className={view === 'visual-flow' ? 'is-active' : ''} aria-pressed={view === 'visual-flow'} onClick={() => onViewChange('visual-flow')}><Network size={15} /><span>{t('top.visualFlow')}</span></button>
       </SegmentedControl>
+
+      <span className="topbar-mobile-target" title={t('workspace.primaryTarget')}>{targetLabel}</span>
+      <span className="topbar-mobile-health" data-status={primaryHealth.status} role="status" aria-label={healthLabel} title={healthLabel} />
 
       <nav className="top-actions" aria-label={view === 'visual-flow' ? t('top.canvasActions') : t('top.workspaceActions')}>
         <div className="save-indicator" aria-live="polite">

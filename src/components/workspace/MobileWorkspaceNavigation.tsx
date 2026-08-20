@@ -1,6 +1,6 @@
-import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, Menu, X, type LucideIcon } from 'lucide-react'
+import { MoreHorizontal, X, type LucideIcon } from 'lucide-react'
 import type { WorkspaceSectionId } from '../../core/workspace'
 import { activateMobileWorkspaceSection } from './mobileWorkspaceNavigationModel'
 
@@ -18,22 +18,32 @@ interface MobileWorkspaceNavigationProps {
   openLabel: string
   closeLabel: string
   title: string
+  inputLabel: string
+  moreLabel: string
   onOpenChange: (open: boolean) => void
   onSectionChange: (section: WorkspaceSectionId) => void
 }
 
 export function MobileWorkspaceNavigation({
-  activeSection, items, open, openLabel, closeLabel, title, onOpenChange, onSectionChange,
+  activeSection, items, open, openLabel, closeLabel, title, inputLabel, moreLabel, onOpenChange, onSectionChange,
 }: MobileWorkspaceNavigationProps) {
-  const triggerRef = useRef<HTMLButtonElement>(null)
+  const inputTriggerRef = useRef<HTMLButtonElement>(null)
+  const moreTriggerRef = useRef<HTMLButtonElement>(null)
+  const lastTriggerRef = useRef<HTMLButtonElement | null>(null)
   const drawerRef = useRef<HTMLElement>(null)
   const activeItemRef = useRef<HTMLButtonElement>(null)
   const wasOpenRef = useRef(false)
-  const activeItem = items.find((item) => item.id === activeSection) ?? items[0]
+  const [panel, setPanel] = useState<'input' | 'more'>('more')
+  const inputItems = items.filter(({ id }) => id === 'sources' || id === 'proxies')
+  const primaryItems = items.filter(({ id }) => id === 'processing' || id === 'strategies' || id === 'routing')
+  const moreItems = items.filter(({ id }) => !inputItems.some((item) => item.id === id) && !primaryItems.some((item) => item.id === id))
+  const drawerItems = panel === 'input' ? inputItems : moreItems
+  const inputActive = inputItems.some(({ id }) => id === activeSection)
+  const moreActive = moreItems.some(({ id }) => id === activeSection)
 
   useEffect(() => {
     if (!open) {
-      if (wasOpenRef.current) triggerRef.current?.focus()
+      if (wasOpenRef.current) lastTriggerRef.current?.focus()
       wasOpenRef.current = false
       return
     }
@@ -78,8 +88,14 @@ export function MobileWorkspaceNavigation({
     }
   }, [onOpenChange, open])
 
-  if (!activeItem) return null
-  const ActiveIcon = activeItem.icon
+  if (!items.length) return null
+  const InputIcon = inputItems.find(({ id }) => id === activeSection)?.icon ?? inputItems[0]?.icon
+  const openPanel = (nextPanel: 'input' | 'more') => {
+    setPanel(nextPanel)
+    lastTriggerRef.current = nextPanel === 'input' ? inputTriggerRef.current : moreTriggerRef.current
+    onOpenChange(true)
+  }
+  const drawerHasActiveItem = drawerItems.some(({ id }) => id === activeSection)
   const drawer = open ? <div
     className="workspace-mobile-navigation-backdrop"
     onClick={(event: ReactMouseEvent<HTMLDivElement>) => {
@@ -88,12 +104,12 @@ export function MobileWorkspaceNavigation({
   >
     <aside ref={drawerRef} id="workspace-mobile-navigation-drawer" className="workspace-mobile-navigation-drawer" role="dialog" aria-modal="true" aria-labelledby="workspace-mobile-navigation-title">
       <header>
-        <strong id="workspace-mobile-navigation-title">{title}</strong>
+        <strong id="workspace-mobile-navigation-title">{panel === 'input' ? inputLabel : title}</strong>
         <button type="button" className="workspace-mobile-navigation-close" aria-label={closeLabel} onClick={() => onOpenChange(false)}><X size={18} /></button>
       </header>
       <nav aria-label={title}>
-        {items.map(({ id, icon: Icon, label, count }) => <button
-          ref={id === activeSection ? activeItemRef : undefined}
+        {drawerItems.map(({ id, icon: Icon, label, count }, index) => <button
+          ref={id === activeSection || (index === 0 && !drawerHasActiveItem) ? activeItemRef : undefined}
           type="button"
           className={id === activeSection ? 'is-active' : ''}
           aria-label={count === undefined ? label : `${label}: ${count}`}
@@ -109,23 +125,39 @@ export function MobileWorkspaceNavigation({
     </aside>
   </div> : null
 
-  return <div className="workspace-mobile-navigation">
+  return <nav className="workspace-mobile-navigation" aria-label={title}>
     <button
-      ref={triggerRef}
+      ref={inputTriggerRef}
       type="button"
-      className="workspace-mobile-navigation-trigger"
-      aria-label={`${openLabel}: ${activeItem.label}`}
+      className={inputActive ? 'is-active' : ''}
+      aria-label={`${openLabel}: ${inputLabel}`}
       aria-haspopup="dialog"
       aria-controls={open ? 'workspace-mobile-navigation-drawer' : undefined}
-      aria-expanded={open}
-      onClick={() => onOpenChange(!open)}
+      aria-expanded={open && panel === 'input'}
+      aria-current={inputActive ? 'page' : undefined}
+      onClick={() => open && panel === 'input' ? onOpenChange(false) : openPanel('input')}
     >
-      <Menu size={18} />
-      <ActiveIcon className="workspace-mobile-navigation-current-icon" size={17} />
-      <span>{activeItem.label}</span>
-      {activeItem.count !== undefined && <small>{activeItem.count}</small>}
-      <ChevronRight size={16} />
+      {InputIcon && <InputIcon size={19} />}
+      <span>{inputLabel}</span>
     </button>
+    {primaryItems.map(({ id, icon: Icon, label }) => <button
+      type="button"
+      className={id === activeSection ? 'is-active' : ''}
+      aria-current={id === activeSection ? 'page' : undefined}
+      key={id}
+      onClick={() => activateMobileWorkspaceSection(id, onSectionChange, () => onOpenChange(false))}
+    ><Icon size={19} /><span>{label}</span></button>)}
+    <button
+      ref={moreTriggerRef}
+      type="button"
+      className={moreActive ? 'is-active' : ''}
+      aria-label={`${openLabel}: ${moreLabel}`}
+      aria-haspopup="dialog"
+      aria-controls={open ? 'workspace-mobile-navigation-drawer' : undefined}
+      aria-expanded={open && panel === 'more'}
+      aria-current={moreActive ? 'page' : undefined}
+      onClick={() => open && panel === 'more' ? onOpenChange(false) : openPanel('more')}
+    ><MoreHorizontal size={20} /><span>{moreLabel}</span></button>
     {drawer && (typeof document === 'undefined' ? drawer : createPortal(drawer, document.body))}
-  </div>
+  </nav>
 }

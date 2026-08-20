@@ -185,9 +185,9 @@ export function RoutingWorkspace({
           <span className="routing-rule-order">{index + 1}</span>
           <div className="routing-rule-summary">
             <strong>{title}</strong>
-            <span><b>{presentation.intent === 'service' ? copy.serviceMatcher : copy.customMatcher}</b>{presentation.matcherSummary}</span>
+            <span><b>{presentation.intent === 'service' ? copy.serviceMatcher : copy.customMatcher}</b><code>{presentation.matcherSummary}</code></span>
           </div>
-          <div className="routing-rule-target"><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></div>
+          <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
           <RuleStatus status={status} label={unsupported ? copy.unsupportedByTarget : copy.statusLabels[status]} />
           <div className="routing-rule-actions">
             <button type="button" className="icon-button" disabled={index === 0} aria-label={`${copy.moveUp}: ${title}`} title={copy.moveUp} onClick={() => onMove(item.node.id, 'up')}><ArrowUp size={15} /></button>
@@ -204,7 +204,7 @@ export function RoutingWorkspace({
         return <article className="routing-rule-row is-final" data-status={status} key={item.node.id} role="listitem">
           <span className="routing-rule-order">F</span>
           <div className="routing-rule-summary"><strong>{title}</strong><span><b>{copy.finalRoute}</b></span></div>
-          <div className="routing-rule-target"><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></div>
+          <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
           <RuleStatus status={status} label={copy.statusLabels[status]} />
           <div className="routing-rule-actions"><button type="button" className="icon-button" aria-label={`${copy.more}: ${title}`} title={copy.more} onClick={() => onEdit(item)}><MoreHorizontal size={17} /></button></div>
         </article>

@@ -157,6 +157,8 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
         openLabel={t('workspace.mobileNavigation.open')}
         closeLabel={t('workspace.mobileNavigation.close')}
         title={t('workspace.mobileNavigation.title')}
+        inputLabel={t('workspace.mobileNavigation.sourcesProxies')}
+        moreLabel={t('workspace.mobileNavigation.more')}
         onOpenChange={setMobileNavigationOpen}
         onSectionChange={onSectionChange}
       />

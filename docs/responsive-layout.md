@@ -70,6 +70,30 @@ endpoints use the mono stack. Ordinary interface copy does not.
 - Routing always exposes a non-drag move alternative. Capability-dependent DNS
   and Export controls remain registry-driven and fail closed.
 
+## Mobile Shell And Workspaces
+
+The mobile TopBar is `52px` plus the top safe-area inset. It contains only the
+Project menu, ProxyFlow mark, current Primary Target, Project-health status,
+and Export action. The Project menu retains mobile access to Project rename,
+Project selection, and Project creation without expanding the persistent
+header.
+
+Workspace navigation is fixed to the bottom at `56px` plus the bottom safe-area
+inset. Its five destinations are Sources / Proxies, Processing, Strategies,
+Routing, and More. Sources / Proxies and More open focus-managed navigation
+drawers; More owns DNS / Advanced, Inspect, and Export. Content reserves the
+same bottom space, and the mobile StatusBar is replaced by the TopBar health
+indicator and bottom navigation.
+
+Mobile Routing uses bordered two-line cards. The first line contains order,
+matcher, and status; the second contains the editable target and Up, Down, and
+More actions. Matcher machine values use the mono scale. Drag remains
+available, but the `44px` move controls are the keyboard and touch alternative.
+
+Mobile DNS uses one resolver card per row. Resolver fields remain capability
+driven, unsupported state remains explicit, endpoint values use the mono scale,
+and all form, enabled, delete, and Add interactions are at least `44px`.
+
 ## Phase Checkpoints
 
 - Phase 1: semantic spacing, typography, control, icon-button, card, code, and

@@ -158,6 +158,7 @@ export function App() {
       onProjectNameCommit={persistCurrentProject}
       onNewProject={() => setNewProjectOpen(true)}
       onOpenWorkspaceSection={openWorkspaceSection}
+      primaryHealth={primaryHealth}
     />
     {view === 'workspace'
       ? <WorkspaceShell activeSection={workspaceSection} onSectionChange={setWorkspaceSection} onViewChange={setView} primaryHealth={primaryHealth} />
