@@ -114,6 +114,27 @@ values on the mono scale and directly editable targets. DNS uses a two-column
 resolver-card grid, while tablet and mobile retain the one-card-per-row
 composition and capability-driven fail-closed behavior.
 
+## Visual Flow
+
+Desktop Visual Flow uses the same `>=1024px` boundary as Workspace. Its Block
+Library defaults to `220px`, resizes within conservative bounds, and collapses
+to a `48px` icon rail. The Inspector defaults to `360px`, consumes no Canvas
+space while there is no node or edge selection, and always exposes an explicit
+close control. Stored widths use versioned keys so the refactor defaults take
+effect without interpreting a legacy width as the new default.
+
+Undo, Redo, Fit View, Auto Layout, and current zoom live in a low-emphasis
+floating control group centered along the Canvas bottom edge. They are not
+duplicated in the TopBar or StatusBar. The Canvas, Block Library, and Inspector
+continue to operate directly on the shared Project Graph.
+
+Below `768px`, Visual Flow remains an explicit secondary view entered from the
+mobile Project menu. The Block Library is hidden until the `Add node` control
+opens a safe-area-aware bottom sheet. Selecting a node or edge opens the
+Inspector as a scrollable `60dvh` bottom sheet. Both sheets lock page scrolling,
+trap keyboard focus, close with Escape or their close control, restore focus,
+and use `44px` primary interactions.
+
 ## Phase Checkpoints
 
 - Phase 1: semantic spacing, typography, control, icon-button, card, code, and

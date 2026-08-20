@@ -66,9 +66,9 @@
   --topbar-height: 52px;
   --statusbar-height: 32px;
   --sidebar-width: 200px;
-  --palette-width: 300px;
-  --palette-rail-width: 56px;
-  --inspector-width: 440px;
+  --palette-width: 220px;
+  --palette-rail-width: 48px;
+  --inspector-width: 360px;
 
   --z-topbar: 40;
   --z-panel: 20;

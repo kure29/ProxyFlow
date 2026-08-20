@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Focus, LayoutTemplate, Menu, MoreHorizontal, Network, PanelsTopLeft, Redo2, Undo2 } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
+import { Check, ChevronDown, Download, Eye, Menu, MoreHorizontal, Network, PanelsTopLeft } from 'lucide-react'
 import proxyFlowMark from '../../assets/proxyflow-mark.svg'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
@@ -29,17 +28,11 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
-  const { fitView } = useReactFlow()
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const renameProject = useBuilderStore((state) => state.renameProject)
   const saveStatus = useBuilderStore((state) => state.saveStatus)
-  const undo = useBuilderStore((state) => state.undo)
-  const redo = useBuilderStore((state) => state.redo)
-  const autoLayout = useBuilderStore((state) => state.autoLayout)
-  const canUndo = useBuilderStore((state) => state.historyPast.length > 0)
-  const canRedo = useBuilderStore((state) => state.historyFuture.length > 0)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const visibleProjectName = localizeProjectName(projectName, locale)
   const [projectNameDraft, setProjectNameDraft] = useState(visibleProjectName)
@@ -136,6 +129,10 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
             </button>
           })}
           <button type="button" role="menuitem" onClick={() => { onNewProject(); setProjectMenuOpen(false) }}>{t('top.newProject')} <small>{APP_VERSION_LABEL}</small></button>
+          <button type="button" role="menuitem" className="project-menu-view-switch" onClick={() => { onViewChange(view === 'workspace' ? 'visual-flow' : 'workspace'); setProjectMenuOpen(false) }}>
+            {view === 'workspace' ? <Network size={15} /> : <PanelsTopLeft size={15} />}
+            <span>{view === 'workspace' ? t('top.visualFlow') : t('top.workspace')}</span>
+          </button>
         </div>}
       </div>
 
@@ -153,12 +150,6 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
           {saveStatus === 'saving' ? t('top.saving') : t('top.savedLocally')}
         </div>
         <RuntimeServicePanel />
-        {view === 'visual-flow' && <div className="top-action-group">
-          {actions.undo && <IconButton label={t('top.undo')} disabled={!canUndo} onClick={undo}><Undo2 size={16} /></IconButton>}
-          {actions.redo && <IconButton label={t('top.redo')} disabled={!canRedo} onClick={redo}><Redo2 size={16} /></IconButton>}
-          {actions.autoLayout && <IconButton label={t('top.autoLayout')} onClick={() => { autoLayout(); window.setTimeout(() => fitView({ padding: 0.15, duration: 180 }), 40) }}><LayoutTemplate size={16} /></IconButton>}
-          {actions.fit && <IconButton label={t('status.fit')} onClick={() => fitView({ padding: 0.15, duration: 180 })}><Focus size={16} /></IconButton>}
-        </div>}
         {actions.preview && <Button className="top-preview-action" variant="secondary" aria-label={t('top.preview')} onClick={() => setPreviewOpen(true)}><Eye size={16} /><span>{t('top.preview')}</span></Button>}
         {actions.export && <Button className="top-export-action" variant="primary" aria-label={t('top.exportConfig')} onClick={() => onOpenWorkspaceSection('export')}><Download size={16} /><span>{t('top.exportConfig')}</span></Button>}
         <div className="topbar-overflow-wrap">

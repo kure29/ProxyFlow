@@ -1,7 +1,7 @@
 import type { ProductView } from '../workspace/types'
 
 export const MOBILE_SHELL_MAX = 767
-export const DESKTOP_SHELL_MIN = 1200
+export const DESKTOP_SHELL_MIN = 1024
 
 export type ShellMode = 'mobile' | 'tablet' | 'desktop'
 
@@ -21,13 +21,12 @@ export interface TopBarActionVisibility {
   export: boolean
 }
 
-export function resolveTopBarActions(view: ProductView): TopBarActionVisibility {
-  const visualFlow = view === 'visual-flow'
+export function resolveTopBarActions(_view: ProductView): TopBarActionVisibility {
   return {
-    undo: visualFlow,
-    redo: visualFlow,
-    autoLayout: visualFlow,
-    fit: visualFlow,
+    undo: false,
+    redo: false,
+    autoLayout: false,
+    fit: false,
     refreshAll: false,
     preview: true,
     export: true,

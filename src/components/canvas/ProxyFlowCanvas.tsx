@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import {
-  Background, BackgroundVariant, Controls, MarkerType, MiniMap, ReactFlow, type Connection, type NodeMouseHandler,
+  Background, BackgroundVariant, MarkerType, MiniMap, ReactFlow, type Connection, type NodeMouseHandler,
   useReactFlow,
 } from '@xyflow/react'
 import { Copy, Focus, Plus, Power, Trash2 } from 'lucide-react'
@@ -179,7 +179,6 @@ export function ProxyFlowCanvas() {
           pannable
           zoomable
         />
-        <Controls className="proxy-controls" position="bottom-right" showInteractive={false} />
       </ReactFlow>
 
       {menu && <div className="context-menu" style={{ left: menu.x, top: menu.y }} onClick={(event) => event.stopPropagation()}>

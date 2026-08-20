@@ -4,9 +4,8 @@ import { resolveShellMode, resolveTopBarActions } from './shellState'
 describe('product shell state', () => {
   it('uses explicit desktop, tablet, and mobile layout boundaries', () => {
     expect(resolveShellMode(1440)).toBe('desktop')
-    expect(resolveShellMode(1200)).toBe('desktop')
-    expect(resolveShellMode(1199)).toBe('tablet')
-    expect(resolveShellMode(1024)).toBe('tablet')
+    expect(resolveShellMode(1024)).toBe('desktop')
+    expect(resolveShellMode(1023)).toBe('tablet')
     expect(resolveShellMode(768)).toBe('tablet')
     expect(resolveShellMode(767)).toBe('mobile')
     expect(resolveShellMode(390)).toBe('mobile')
@@ -24,12 +23,12 @@ describe('product shell state', () => {
     })
   })
 
-  it('exposes graph controls only in Visual Flow', () => {
+  it('keeps graph controls in the floating canvas toolbar', () => {
     expect(resolveTopBarActions('visual-flow')).toEqual({
-      undo: true,
-      redo: true,
-      autoLayout: true,
-      fit: true,
+      undo: false,
+      redo: false,
+      autoLayout: false,
+      fit: false,
       refreshAll: false,
       preview: true,
       export: true,

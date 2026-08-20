@@ -4,9 +4,9 @@ export interface PanelSizeConfig {
   maxWidth: number
 }
 
-export const LIBRARY_PANEL: PanelSizeConfig = { defaultWidth: 300, minWidth: 260, maxWidth: 520 }
-export const INSPECTOR_PANEL: PanelSizeConfig = { defaultWidth: 390, minWidth: 320, maxWidth: 620 }
-export const MIN_CANVAS_WIDTH = 480
+export const LIBRARY_PANEL: PanelSizeConfig = { defaultWidth: 220, minWidth: 200, maxWidth: 360 }
+export const INSPECTOR_PANEL: PanelSizeConfig = { defaultWidth: 360, minWidth: 320, maxWidth: 480 }
+export const MIN_CANVAS_WIDTH = 400
 
 export function clampPanelWidth(width: number, config: PanelSizeConfig) {
   if (!Number.isFinite(width)) return config.defaultWidth

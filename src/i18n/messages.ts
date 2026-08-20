@@ -337,6 +337,8 @@ export const enUS = {
   'layout.resizeLibrary': 'Resize block library',
   'layout.resizeInspector': 'Resize inspector',
   'layout.closeInspector': 'Close inspector',
+  'layout.addNode': 'Add node',
+  'layout.closeLibrary': 'Close block library',
 
   'library.aria': 'Configuration block library',
   'library.label': 'Blocks',
@@ -1307,6 +1309,8 @@ export const zhCN: Record<MessageKey, string> = {
   'layout.resizeLibrary': '调整模块库宽度',
   'layout.resizeInspector': '调整属性检查器宽度',
   'layout.closeInspector': '关闭属性检查器',
+  'layout.addNode': '添加节点',
+  'layout.closeLibrary': '关闭模块库',
 
   'library.aria': '配置模块库',
   'library.label': '模块',

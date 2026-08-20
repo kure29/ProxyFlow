@@ -4,22 +4,22 @@ import { clampPanelWidth, fitPanelWidths, INSPECTOR_PANEL, LIBRARY_PANEL, readSt
 describe('panel sizing', () => {
   it('restores valid preferences and rejects corrupt or out-of-range storage', () => {
     const storage = (value: string | null) => ({ getItem: () => value })
-    expect(readStoredPanelWidth(storage('412'), 'left', LIBRARY_PANEL)).toBe(412)
-    expect(readStoredPanelWidth(storage('NaN'), 'left', LIBRARY_PANEL)).toBe(300)
-    expect(readStoredPanelWidth(storage('120'), 'left', LIBRARY_PANEL)).toBe(300)
-    expect(readStoredPanelWidth(storage(null), 'right', INSPECTOR_PANEL)).toBe(390)
+    expect(readStoredPanelWidth(storage('312'), 'left', LIBRARY_PANEL)).toBe(312)
+    expect(readStoredPanelWidth(storage('NaN'), 'left', LIBRARY_PANEL)).toBe(220)
+    expect(readStoredPanelWidth(storage('120'), 'left', LIBRARY_PANEL)).toBe(220)
+    expect(readStoredPanelWidth(storage(null), 'right', INSPECTOR_PANEL)).toBe(360)
   })
 
   it('preserves the canvas minimum while respecting panel minimums', () => {
-    expect(fitPanelWidths(1440, 520, 620)).toEqual({ libraryWidth: 436, inspectorWidth: 524 })
-    expect(fitPanelWidths(1920, 520, 620)).toEqual({ libraryWidth: 520, inspectorWidth: 620 })
-    expect(fitPanelWidths(1000, 520, 620)).toEqual({ libraryWidth: 260, inspectorWidth: 320 })
+    expect(fitPanelWidths(1440, 360, 480)).toEqual({ libraryWidth: 360, inspectorWidth: 480 })
+    expect(fitPanelWidths(1000, 360, 480)).toEqual({ libraryWidth: 240, inspectorWidth: 360 })
+    expect(fitPanelWidths(800, 360, 480)).toEqual({ libraryWidth: 200, inspectorWidth: 320 })
   })
 
   it('clamps direct resize input to each panel boundary', () => {
-    expect(clampPanelWidth(120, LIBRARY_PANEL)).toBe(260)
-    expect(clampPanelWidth(900, LIBRARY_PANEL)).toBe(520)
+    expect(clampPanelWidth(120, LIBRARY_PANEL)).toBe(200)
+    expect(clampPanelWidth(900, LIBRARY_PANEL)).toBe(360)
     expect(clampPanelWidth(120, INSPECTOR_PANEL)).toBe(320)
-    expect(clampPanelWidth(900, INSPECTOR_PANEL)).toBe(620)
+    expect(clampPanelWidth(900, INSPECTOR_PANEL)).toBe(480)
   })
 })

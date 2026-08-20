@@ -151,6 +151,7 @@
   .project-menu > span, .topbar-overflow-menu > span { display: block; padding: 5px var(--space-2) 7px; color: var(--color-text-muted); font-size: var(--text-meta-size); line-height: var(--text-meta-line); font-weight: 500; letter-spacing: 0; }
   .project-menu button { min-height: var(--control-height); color: var(--color-text-secondary); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
   .project-menu button.is-active { color: var(--color-primary); background: var(--color-primary-soft); }
+  .project-menu .project-menu-view-switch { display: none; }
 
   .product-view-switcher {
     min-width: 208px;
@@ -779,6 +780,7 @@
     .topbar .project-switcher-wrap[data-mobile-open] .project-switcher { height: var(--touch-target); }
     .topbar .project-switcher-wrap[data-mobile-open] .project-name-input { height: var(--touch-target); font-size: var(--text-body-size); }
     .topbar .project-switcher-wrap[data-mobile-open] .project-menu { position: static; width: 100%; max-height: min(360px, calc(100dvh - 132px)); margin-top: var(--space-2); overflow-y: auto; box-shadow: none; }
+    .topbar .project-switcher-wrap[data-mobile-open] .project-menu .project-menu-view-switch { min-height: var(--touch-target); display: flex; margin-top: var(--space-1); border-top: 1px solid var(--color-border); }
     .topbar .product-view-switcher { display: none; }
     .topbar-mobile-target {
       grid-column: 3;
@@ -2438,6 +2440,72 @@
       min-height: var(--touch-target);
       height: var(--touch-target);
     }
+  }
+
+  .visual-inspector-panel { display: flex; flex-direction: column; }
+  .visual-inspector-panel > .inspector { min-height: 0; height: auto; flex: 1 1 auto; }
+  .visual-inspector-toolbar { min-height: var(--touch-target); flex: 0 0 var(--touch-target); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+  .visual-inspector-toolbar strong { color: var(--color-text); font-size: var(--text-body-size); line-height: var(--text-body-line); font-weight: 600; }
+  .visual-inspector-dismiss { width: var(--control-height-compact); height: var(--control-height-compact); flex-basis: var(--control-height-compact); }
+
+  .canvas-region { position: relative; }
+  .visual-flow-floating-controls { position: absolute; z-index: 14; left: 50%; bottom: var(--space-4); display: flex; align-items: center; gap: 2px; padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: color-mix(in srgb, var(--color-surface) 94%, transparent); box-shadow: var(--shadow-panel); transform: translateX(-50%); }
+  .visual-flow-floating-controls .ui-icon-button { width: var(--control-height-compact); height: var(--control-height-compact); flex-basis: var(--control-height-compact); }
+  .visual-flow-control-separator { width: 1px; height: 16px; margin-inline: var(--space-1); background: var(--color-border); }
+  .visual-flow-zoom { min-width: 44px; color: var(--color-text-muted); font-size: var(--text-meta-size); line-height: var(--text-meta-line); font-variant-numeric: tabular-nums; text-align: center; }
+  .visual-flow-add-node,
+  .visual-flow-sheet-backdrop { display: none; }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .visual-flow-mobile-toolbar { display: none; }
+  }
+
+  @media (max-width: 767px) {
+    .workspace[data-shell-mode="mobile"] { grid-template-columns: minmax(0, 1fr); }
+    .workspace[data-shell-mode="mobile"] > .canvas-region { grid-column: 1; }
+    .workspace[data-shell-mode="mobile"] .visual-library-panel.is-collapsed { display: none; }
+    .workspace[data-shell-mode="mobile"] .visual-library-panel:not(.is-collapsed) {
+      position: absolute;
+      z-index: 62;
+      inset: auto 0 0;
+      width: 100%;
+      height: min(68vh, 620px);
+      height: min(68dvh, 620px);
+      padding-bottom: env(safe-area-inset-bottom);
+      border: 1px solid var(--color-border);
+      border-bottom: 0;
+      border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+      background: var(--color-surface);
+      box-shadow: var(--shadow-floating);
+    }
+    .workspace[data-shell-mode="mobile"] .visual-library-panel .palette-toggle { top: var(--space-2); right: var(--space-3); width: var(--touch-target); height: var(--touch-target); }
+    .workspace[data-shell-mode="mobile"] .visual-library-panel .block-library { background: var(--color-surface); }
+
+    .visual-flow-sheet-backdrop { position: absolute; z-index: 60; inset: 0; display: block; background: var(--color-backdrop); }
+    .visual-flow-add-node { position: absolute; z-index: 40; left: var(--space-3); bottom: var(--space-3); min-height: var(--touch-target); display: inline-flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); border: 1px solid color-mix(in srgb, var(--color-primary) 32%, var(--color-border)); border-radius: var(--radius-control); color: #fff; background: var(--color-primary); box-shadow: var(--shadow-panel); font-size: var(--text-body-size); line-height: var(--text-body-line); font-weight: 600; }
+    .visual-flow-floating-controls { display: none; }
+    .visual-flow-mobile-toolbar { right: var(--space-3); bottom: var(--space-3); }
+
+    .workspace[data-shell-mode="mobile"] .visual-inspector-panel {
+      position: absolute;
+      z-index: 62;
+      inset: auto 0 0;
+      width: 100%;
+      height: 60vh;
+      height: 60dvh;
+      padding-bottom: env(safe-area-inset-bottom);
+      border: 1px solid var(--color-border);
+      border-bottom: 0;
+      border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+      background: var(--color-surface);
+      box-shadow: var(--shadow-floating);
+    }
+    .workspace[data-shell-mode="mobile"] .visual-inspector-toolbar { min-height: 52px; flex-basis: 52px; padding-left: var(--space-4); }
+    .workspace[data-shell-mode="mobile"] .visual-inspector-dismiss { width: var(--touch-target); height: var(--touch-target); flex-basis: var(--touch-target); }
+    .workspace[data-shell-mode="mobile"] .visual-inspector-panel .inspector-field input,
+    .workspace[data-shell-mode="mobile"] .visual-inspector-panel .inspector-field select,
+    .workspace[data-shell-mode="mobile"] .visual-inspector-panel button,
+    .workspace[data-shell-mode="mobile"] .visual-inspector-panel .toggle-row { min-height: var(--touch-target); }
   }
 
   @media (max-width: 420px) {
