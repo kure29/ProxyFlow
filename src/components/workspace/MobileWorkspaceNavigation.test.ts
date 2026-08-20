@@ -2,7 +2,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Boxes, FileOutput, Globe2, Radio } from 'lucide-react'
 import { describe, expect, it, vi } from 'vitest'
-import { activateMobileWorkspaceSection, MobileWorkspaceNavigation, type MobileWorkspaceNavigationItem } from './MobileWorkspaceNavigation'
+import { MobileWorkspaceNavigation, type MobileWorkspaceNavigationItem } from './MobileWorkspaceNavigation'
+import { activateMobileWorkspaceSection } from './mobileWorkspaceNavigationModel'
 
 const items: MobileWorkspaceNavigationItem[] = [
   { id: 'sources', icon: Radio, label: 'Sources', count: 2 },

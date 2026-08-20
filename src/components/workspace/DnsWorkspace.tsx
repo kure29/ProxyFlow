@@ -143,10 +143,10 @@ export function DnsWorkspace({
   </div>
 }
 
-export function dnsResolverCapability(target: PrimaryTarget | null, kind: DnsResolverKind): CapabilityStatus | 'unknown' {
+function dnsResolverCapability(target: PrimaryTarget | null, kind: DnsResolverKind): CapabilityStatus | 'unknown' {
   return target ? getTargetCapabilities(target).dns[kind].status : 'unknown'
 }
 
-export function dnsRoleCapability(target: PrimaryTarget | null, role: DnsResolverRole): CapabilityStatus | 'unknown' {
+function dnsRoleCapability(target: PrimaryTarget | null, role: DnsResolverRole): CapabilityStatus | 'unknown' {
   return target ? getTargetCapabilities(target).dns[`${role}-role`].status : 'unknown'
 }

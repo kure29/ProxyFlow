@@ -2,6 +2,7 @@ import { useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, Menu, X, type LucideIcon } from 'lucide-react'
 import type { WorkspaceSectionId } from '../../core/workspace'
+import { activateMobileWorkspaceSection } from './mobileWorkspaceNavigationModel'
 
 export interface MobileWorkspaceNavigationItem {
   id: WorkspaceSectionId
@@ -19,15 +20,6 @@ interface MobileWorkspaceNavigationProps {
   title: string
   onOpenChange: (open: boolean) => void
   onSectionChange: (section: WorkspaceSectionId) => void
-}
-
-export function activateMobileWorkspaceSection(
-  section: WorkspaceSectionId,
-  onSectionChange: (section: WorkspaceSectionId) => void,
-  onClose: () => void,
-) {
-  onSectionChange(section)
-  onClose()
 }
 
 export function MobileWorkspaceNavigation({

@@ -2,15 +2,14 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { explicitProxyIR } from '../../core/__fixtures__/crossTargetFixtures'
+import { getTargetCapabilities } from '../../core/capabilities'
 import {
   appendCustomDnsResolver, appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver,
 } from '../../core/dns/resolverProfiles'
 import { compileMihomo } from '../../targets/mihomo/compiler'
 import { compileSingBox } from '../../targets/singbox/compiler'
 import type { DnsResolverConfig } from '../../types/project'
-import {
-  dnsResolverCapability, dnsRoleCapability, DnsWorkspace, type DnsWorkspaceCopy,
-} from './DnsWorkspace'
+import { DnsWorkspace, type DnsWorkspaceCopy } from './DnsWorkspace'
 
 const copy: DnsWorkspaceCopy = {
   emptyTitle: 'No DNS resolvers yet',
@@ -52,10 +51,10 @@ describe('DNS Workspace mobile actions', () => {
   })
 
   it('keeps unsupported target capabilities disabled and visibly blocked', () => {
-    expect(dnsResolverCapability('mihomo', 'system')).toBe('unsupported')
-    expect(dnsResolverCapability('sing-box', 'system')).toBe('supported')
-    expect(dnsRoleCapability('sing-box', 'direct')).toBe('unsupported')
-    expect(dnsRoleCapability('sing-box', 'fallback')).toBe('unsupported')
+    expect(getTargetCapabilities('mihomo').dns.system.status).toBe('unsupported')
+    expect(getTargetCapabilities('sing-box').dns.system.status).toBe('supported')
+    expect(getTargetCapabilities('sing-box').dns['direct-role'].status).toBe('unsupported')
+    expect(getTargetCapabilities('sing-box').dns['fallback-role'].status).toBe('unsupported')
 
     const html = renderToStaticMarkup(createElement(DnsWorkspace, {
       node: {
