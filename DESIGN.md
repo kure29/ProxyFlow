@@ -183,12 +183,13 @@ rather than precise edge construction.
 ## Brand And Icons
 
 - `src/assets/brand/proxyflow-logo.png` is the shared user-provided ProxyFlow logo used
-  by the product shell; the favicon uses the same visual language.
+  by the product shell. Favicon, Apple Touch, and PWA PNGs are derived from this
+  borderless transparent-corner master.
 - Product controls use Lucide stroke icons and accessible labels.
 - Do not add glow, neon, 3D treatment, or an alternative ProxyFlow mark.
-- Use third-party artwork only when its source and use are verified. Claude has
-  no verified artwork in the current catalog, so it intentionally uses the
-  neutral `C` text fallback rather than an unrelated logo.
+- Service-only third-party artwork must retain its exact source revision in
+  `src/assets/services/SOURCES.md`; it must never replace product navigation or
+  target icons.
 
 ## Responsive And Accessibility Contract
 
