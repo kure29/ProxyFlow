@@ -18,7 +18,7 @@ Updated: 2026-08-20
 - UI 2.0 branch: `autopilot/ui2`
 - UI 2.0 base: `78936fee55c3fc219dd83b259c8a9821e62ecf69`
 - Latest verified UI 2.0 implementation commit:
-  `838b45b26928a55a72ee79d7b85c28688730ce86`
+  `11f84e73cda6894fe1b6f598a18f526247f04eba`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
@@ -192,7 +192,8 @@ Updated: 2026-08-20
 ### UI 2.0 Mobile acceptance polish
 
 - Verified implementation commit:
-  `838b45b26928a55a72ee79d7b85c28688730ce86`.
+  `11f84e73cda6894fe1b6f598a18f526247f04eba` (functional fix checkpoint
+  `838b45b26928a55a72ee79d7b85c28688730ce86`).
 - Focused Mobile navigation, DNS mutation/capability/target export, resolver
   profile, and Project persistence suites passed at 56/56 tests. The final full
   `npm test` gate passed 539/539 tests across 59 test files.
@@ -216,6 +217,9 @@ Updated: 2026-08-20
 - Browser QA simulated touch-sized responsive layouts; a real iOS Safari device
   was not available in this environment, so physical-device acceptance remains
   explicitly pending.
+- The final cold-load 390px smoke passed after moving test-only navigation logic
+  out of React component modules; the restarted dev server emitted no component
+  Fast Refresh warnings.
 
 ### UI 2.0 checkpoint
 
