@@ -9,7 +9,7 @@
 
 @layer ui2 {
   .ui-button {
-    min-height: var(--control-height-compact);
+    min-height: var(--control-height);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -35,9 +35,9 @@
   .ui-button--danger { color: #fff; background: var(--color-danger); border-color: var(--color-danger); }
 
   .ui-icon-button {
-    width: var(--control-height);
-    height: var(--control-height);
-    flex: 0 0 var(--control-height);
+    width: var(--icon-button-size);
+    height: var(--icon-button-size);
+    flex: 0 0 var(--icon-button-size);
     display: inline-grid;
     place-items: center;
     border-radius: var(--radius-control);
@@ -50,15 +50,16 @@
   .ui-icon-button:disabled { opacity: .38; }
 
   .ui-segmented-control { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ui-status-badge { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-secondary); }
+  .ui-segmented-control > button { min-height: var(--control-height-compact); }
+  .ui-status-badge { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
   .ui-status-badge.is-info { color: var(--color-info); }
   .ui-status-badge.is-success { color: var(--color-success); }
   .ui-status-badge.is-warning { color: var(--color-warning); }
   .ui-status-badge.is-danger { color: var(--color-danger); }
 
   .primary-action, .secondary-action {
-    min-height: var(--control-height-compact);
-    height: var(--control-height-compact);
+    min-height: var(--control-height);
+    height: var(--control-height);
     padding: 0 var(--space-3);
     border-radius: var(--radius-control);
     font-size: var(--text-meta-size);
@@ -74,8 +75,48 @@
   .secondary-action { color: var(--color-text-secondary); background: var(--color-surface); border-color: var(--color-border-strong); }
   .secondary-action:hover:not(:disabled) { color: var(--color-text); background: var(--color-surface-subtle); border-color: var(--color-border-strong); }
   .primary-action:disabled, .secondary-action:disabled { opacity: .45; cursor: not-allowed; }
-  .icon-button { color: var(--color-text-secondary); }
+  .icon-button {
+    width: var(--icon-button-size);
+    height: var(--icon-button-size);
+    min-width: var(--icon-button-size);
+    min-height: var(--icon-button-size);
+    color: var(--color-text-secondary);
+  }
   .icon-button:hover:not(:disabled) { color: var(--color-text); background: var(--color-surface-subtle); }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select {
+    min-height: var(--control-height);
+    font-size: var(--text-body-size);
+    line-height: var(--text-body-line);
+  }
+
+  textarea {
+    font-size: var(--text-body-size);
+    line-height: var(--text-body-line);
+  }
+
+  code,
+  pre,
+  .ui-code {
+    font-family: var(--font-mono);
+    font-size: var(--text-code-size);
+    line-height: var(--text-code-line);
+    font-weight: 400;
+    font-variant-ligatures: none;
+  }
+
+  .ui-card {
+    min-width: 0;
+    padding: var(--card-padding);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .ui-card--compact { padding: var(--card-padding-compact); }
+  .ui-page-shell { width: min(100%, var(--content-max-width)); margin-inline: auto; }
+  .ui-section-stack { display: grid; gap: var(--space-6); }
 
   .app-shell { grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--statusbar-height); background: var(--color-app-background); }
   .topbar {
