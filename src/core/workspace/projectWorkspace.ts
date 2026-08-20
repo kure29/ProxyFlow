@@ -4,7 +4,7 @@ import { isConnectionAllowed } from '../graph/graphRules'
 import { isUnmodeledProxy } from '../ir'
 import type { ResolvedProxyEndpointIR, SupportedProxyProtocol } from '../proxy'
 import { resolveProjectPrimaryTarget, type PrimaryTargetResolution } from '../project/primaryTarget'
-import { rankRoutingRules } from '../routing/routeProductModel'
+import { rankWorkspaceRoutingRules } from '../routing/routeProductModel'
 import type { SubscriptionSnapshot } from '../subscription'
 import type { BlockNodeData, EdgeSemantic, GraphNode, ProxyFlowProject } from '../../types/project'
 
@@ -22,6 +22,8 @@ export interface WorkspaceNodeItem {
   outgoing: WorkspaceConnection[]
 }
 
+export type WorkspaceSourceAvailability = 'healthy' | 'refreshing' | 'error' | 'stale' | 'idle' | 'disabled'
+
 export interface WorkspaceProxySummary {
   id: string
   name: string
@@ -29,6 +31,7 @@ export interface WorkspaceProxySummary {
   region: string
   sourceId: string
   sourceName: string
+  sourceAvailability: WorkspaceSourceAvailability
   compatibility: CapabilityStatus | 'unknown'
 }
 
@@ -53,6 +56,7 @@ export interface WorkspaceProjection {
 
 export interface WorkspaceProjectionOptions {
   subscriptionSnapshots?: Record<string, SubscriptionSnapshot>
+  sourceAvailability?: Record<string, WorkspaceSourceAvailability | undefined>
 }
 
 export function createWorkspaceProjection(
@@ -86,11 +90,11 @@ export function createWorkspaceProjection(
   return {
     primaryTarget,
     sources: items.filter(({ node }) => node.data.category === 'source'),
-    proxies: summarizeProxies(compiled.ir?.sources ?? [], primaryTarget),
+    proxies: summarizeProxies(compiled.ir?.sources ?? [], primaryTarget, options.sourceAvailability),
     processing: items.filter(({ node }) => node.data.category === 'processing'),
     strategies: items.filter(({ node }) => node.data.category === 'strategy'),
     chains: items.filter(({ node }) => node.data.category === 'chain'),
-    routing: rankRoutingRules(project.graph.nodes).map(({ node, priority }, order) => ({
+    routing: rankWorkspaceRoutingRules(project.graph.nodes).map(({ node, priority }, order) => ({
       ...itemById.get(node.id)!, priority, order,
     })),
     finalRoutes: items.filter(({ node }) => node.data.blockType === 'final'),
@@ -117,6 +121,11 @@ export function canUseWorkspaceInput(
   targetId: string,
   sourceId: string,
 ): boolean {
+  const source = nodes.find((node) => node.id === sourceId)
+  const target = nodes.find((node) => node.id === targetId)
+  if (!source || !target) return false
+  if (!['processing', 'strategy'].includes(target.data.category)) return false
+  if (!['source', 'processing'].includes(source.data.category)) return false
   if (!isConnectionAllowed({ source: sourceId, target: targetId, sourceHandle: null, targetHandle: null }, nodes)) return false
   const pending = [targetId]
   const visited = new Set<string>()
@@ -133,6 +142,7 @@ export function canUseWorkspaceInput(
 function summarizeProxies(
   sources: NonNullable<ReturnType<typeof compileGraph>['ir']>['sources'],
   primaryTarget: PrimaryTargetResolution,
+  sourceAvailability: WorkspaceProjectionOptions['sourceAvailability'] = {},
 ): WorkspaceProxySummary[] {
   return sources.flatMap((source) => {
     if (source.kind !== 'manual-proxy' && source.kind !== 'subscription') return []
@@ -144,6 +154,7 @@ function summarizeProxies(
         region: 'UNKNOWN',
         sourceId: source.id,
         sourceName: source.name,
+        sourceAvailability: sourceAvailability[source.id] ?? 'healthy',
         compatibility: 'unsupported' as const,
       }
       return {
@@ -153,6 +164,7 @@ function summarizeProxies(
         region: proxy.metadata?.region?.code ?? 'UNKNOWN',
         sourceId: source.id,
         sourceName: source.name,
+        sourceAvailability: sourceAvailability[source.id] ?? 'healthy',
         compatibility: proxyCapabilityStatus(proxy, primaryTarget),
       }
     })

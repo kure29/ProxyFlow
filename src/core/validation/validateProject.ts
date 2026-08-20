@@ -33,7 +33,7 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
         }
       }
     }
-    if (node.data.blockType === 'final' && !outgoing(node.id)) add('UI_FINAL_TARGET_MISSING', 'Final must connect to an outbound target.', 'error')
+    if (node.data.blockType === 'final' && !hasInlineFinalTarget(node) && !outgoing(node.id)) add('UI_FINAL_TARGET_MISSING', 'Final must connect to an outbound target.', 'error')
     if (node.data.blockType === 'output' && !node.data.client) add('UI_OUTPUT_CLIENT_MISSING', 'Select a target client.', 'error')
     if (node.data.blockType === 'filter' && node.data.filterMode === 'regex' && node.data.filterRegexPattern?.trim()) {
       try {
@@ -54,4 +54,10 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     }
   }
   return issues
+}
+
+function hasInlineFinalTarget(node: GraphNode) {
+  if (node.data.targetKind === 'direct' || node.data.targetKind === 'reject') return true
+  const legacyTarget = `${node.data.targetId ?? ''} ${node.data.targetLabel ?? ''}`.trim().toLowerCase()
+  return /\b(?:direct|reject)\b/.test(legacyTarget)
 }

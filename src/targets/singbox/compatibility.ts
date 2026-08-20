@@ -132,6 +132,9 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
     if (!resolver.address || !['doh', 'dot', 'udp', 'system'].includes(resolver.kind)) issues.push(singBoxIssue(
       'SINGBOX_INVALID_DNS', 'error', 'dns', `DNS resolver “${resolver.id}” 缺少可用地址。`, resolver.id,
     ))
+    if (resolver.role && resolver.role !== 'default') issues.push(singBoxIssue(
+      'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的 ${resolver.role} 角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
+    ))
   }
 
   issues.push(singBoxIssue(

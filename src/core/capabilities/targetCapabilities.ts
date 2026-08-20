@@ -8,7 +8,7 @@ export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
 export type TransportCapability = 'tcp' | 'ws' | 'http' | 'h2' | 'grpc' | 'httpupgrade' | 'xhttp'
-export type DnsCapability = 'basic' | 'doh' | 'dot' | 'udp' | 'system' | 'redir-host' | 'fake-ip'
+export type DnsCapability = 'basic' | 'doh' | 'dot' | 'udp' | 'system' | 'default-role' | 'direct-role' | 'fallback-role' | 'redir-host' | 'fake-ip'
 export type ChainCapability = 'single-hop' | 'multi-hop' | 'provider-hop'
 export type RuleSourceFormat = NonNullable<RuleSource['format']>
 
@@ -95,6 +95,9 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       dot: supported(),
       udp: supported(),
       system: unsupported('MIHOMO_INVALID_DNS_URL'),
+      'default-role': supported(),
+      'direct-role': targetNative('Mihomo direct-nameserver resolver role.'),
+      'fallback-role': targetNative('Mihomo fallback resolver role.'),
       'redir-host': targetNative('Mihomo output profile DNS enhancement mode.'),
       'fake-ip': targetNative('Mihomo output profile DNS enhancement mode used by Desktop TUN.'),
     },
@@ -159,6 +162,9 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       dot: supported(),
       udp: supported(),
       system: supported(),
+      'default-role': supported(),
+      'direct-role': unsupported('SINGBOX_DNS_ROLE_UNSUPPORTED'),
+      'fallback-role': unsupported('SINGBOX_DNS_ROLE_UNSUPPORTED'),
       'redir-host': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),
       'fake-ip': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),
     },

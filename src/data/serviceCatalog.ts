@@ -13,7 +13,7 @@ const iosRuleSource = (service: string, ruleCount: number) => ({
 
 export const serviceCatalog: ServiceDefinition[] = [
   { id: 'openai', name: 'OpenAI', category: 'ai', description: 'ChatGPT 与 OpenAI API', ...miniIcon('OpenAI'), ruleSources: [iosRuleSource('OpenAI', 42)], defaultMatchers: ['DOMAIN', 'DOMAIN-SUFFIX', 'IP-CIDR'] },
-  { id: 'claude', name: 'Claude', category: 'ai', description: 'Anthropic Claude', ...miniIcon('Nucleus'), ruleSources: [iosRuleSource('Claude', 24)], defaultMatchers: ['DOMAIN-SUFFIX'] },
+  { id: 'claude', name: 'Claude', category: 'ai', description: 'Anthropic Claude', ruleSources: [iosRuleSource('Claude', 24)], defaultMatchers: ['DOMAIN-SUFFIX'] },
   { id: 'gemini', name: 'Gemini', category: 'ai', description: 'Google Gemini', ...miniIcon('Google'), ruleSources: [iosRuleSource('Gemini', 31)], defaultMatchers: ['DOMAIN-SUFFIX', 'IP-CIDR'] },
   { id: 'youtube', name: 'YouTube', category: 'streaming', ...miniIcon('YouTube'), ruleSources: [iosRuleSource('YouTube', 186)], defaultMatchers: ['DOMAIN', 'DOMAIN-SUFFIX', 'IP-CIDR'] },
   { id: 'netflix', name: 'Netflix', category: 'streaming', ...miniIcon('Netflix'), ruleSources: [iosRuleSource('Netflix', 94)], defaultMatchers: ['DOMAIN-SUFFIX', 'IP-CIDR'] },

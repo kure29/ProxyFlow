@@ -5,6 +5,7 @@ import { serviceCatalog } from './serviceCatalog'
 import { hktDemoSubscription, usDemoSubscription } from './demoSubscriptions'
 import { miniIcon } from './miniIcons'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
+import { createDnsResolver } from '../core/dns/resolverProfiles'
 
 const node = (id: string, x: number, y: number, data: BlockNodeData): GraphNode => ({
   id,
@@ -31,6 +32,8 @@ export const outputDefinitions: OutputDefinition[] = [
   { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon', ...miniIcon('shadowrocket') },
   { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon', ...miniIcon('stash') },
 ]
+
+export const productionOutputDefinitions = outputDefinitions.filter((output) => output.status === 'supported')
 
 export const demoNodes: GraphNode[] = [
   node('hkt-subscription', 80, 80, {
@@ -78,7 +81,7 @@ export const demoNodes: GraphNode[] = [
     services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', resolver: 'https://1.1.1.1/dns-query',
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: '基础 DNS · redir-host', subtitleKey: 'demo.dns.subtitle', icon: 'globe-2', dnsResolvers: [createDnsResolver('cloudflare')!],
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · Default Proxy', subtitleKey: 'demo.final.subtitle', icon: 'corner-down-right',

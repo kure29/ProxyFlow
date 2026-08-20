@@ -79,6 +79,8 @@ export interface MihomoDnsConfig {
   'fake-ip-range'?: string
   'default-nameserver': string[]
   nameserver: string[]
+  'direct-nameserver'?: string[]
+  fallback?: string[]
 }
 
 export interface MihomoTunConfig {

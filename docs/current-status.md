@@ -1,6 +1,6 @@
 # ProxyFlow Autonomous Development Status
 
-Updated: 2026-08-18
+Updated: 2026-08-20
 
 ## Stable Main
 
@@ -13,9 +13,12 @@ Updated: 2026-08-18
 
 - Integration branch: `autopilot/v1`
 - Current milestone: V1.0 - Stable Workflow (RC)
-- Current slice: V1.0 RC2 Client-first user acceptance
+- Current slice: UI 2.0 verified checkpoint and user-acceptance handoff
 - RC branch: `autopilot/v1.0-rc`
-- Working RC2 branch: `autopilot/rc2-deployment`
+- UI 2.0 branch: `autopilot/ui2`
+- UI 2.0 base: `78936fee55c3fc219dd83b259c8a9821e62ecf69`
+- Latest verified UI 2.0 implementation commit:
+  `c5e1a920d6f995411860d5fa9f165846b63dc149`
 - RC1 checkpoint: `2efd946b5612ffc88d553b3971a47dd4ec9ebb23`
 - RC2 checkpoint: `a33ae2cf0fdfb73a18982a233ce2ebd37cb71dc6`
 - V0.8 milestone merge: `b0dba38f04089f3b02b81f53ab1512ab4ed5fc51` (PR #11)
@@ -119,24 +122,94 @@ Updated: 2026-08-18
   same-instance backend automatically through an HttpOnly, SameSite cookie;
   external Runtime connections retain Bearer-token and exact-origin behavior.
   Local Mode and browser-local Project ownership remain unchanged.
+- The Pre-UI2 checkpoint makes a newly created Project name immediately
+  editable and preserves the committed name across automatic save, Project
+  switching, hydration, and reload without allowing a default name to win.
+- The Pre-UI2 checkpoint restores the confirmed three-flow ProxyFlow mark for
+  the product shell and favicon.
+- The Pre-UI2 subscription path distinguishes browser and Runtime fetches and
+  classifies CORS, network, timeout, HTTP, Runtime unavailable/policy, and TLS
+  failures without exposing subscription secrets or clearing Last Known Good.
+- UI 2.0 Slice 1 (Foundations) adds the maintained `PRODUCT.md`, `DESIGN.md`,
+  semantic design tokens, shared controls, typography, spacing, focus, motion,
+  and Calm Blue status rules without replacing the existing React/CSS stack.
+- UI 2.0 Slice 2 (Workspace Shell) delivers the contextual TopBar, editable
+  Project switcher, Workspace / Visual Flow switch, Project-stage navigation,
+  view-aware status, responsive inspector, and collapsible Flow palette.
+- UI 2.0 Slice 3 (Routing) delivers Service Rule and Custom Rule creation,
+  capability-aware matcher choices, concise ordered rows, drag ordering plus
+  Move Up / Move Down controls, and consistent DIRECT/REJECT Final editing.
+- UI 2.0 Slice 4 (DNS) adds resolver profiles, presets, protocols, roles, and
+  target capability checks on the existing single DNS Graph owner. Mihomo
+  preserves Default/Direct/Fallback; sing-box fails closed for unsupported
+  roles and now emits a valid local bootstrap resolver for hostname DNS servers.
+- UI 2.0 Slice 5 (Export) is a full Workspace page with Mihomo/sing-box Target,
+  Target Configuration, independent compatibility, Preview, and target-specific
+  download. No third production Target was added.
+- UI 2.0 Slice 6 (Other Pages) completes Sources, Proxies, Processing,
+  Strategies, Inspect, safe source presentation, filtering, runtime summaries,
+  and location-aware diagnostics over the same Project/Graph.
+- UI 2.0 Slice 7 (Visual Flow) applies the shared design language to the lazy
+  canvas, neutral nodes, status indicators, current DNS/Final summaries, palette,
+  inspector, controls, and contextual bottom status.
+- UI 2.0 Slice 8 (Responsive / Accessibility / Polish) covers desktop, medium,
+  and 390px layouts, compact navigation, full-screen mobile editors, 44px touch
+  targets, visible focus, reduced motion, English/Chinese copy, and overflow.
 
-## In Progress
+## Current Slice
 
-- RC2 Deployment / Release Hardening is being integrated into Draft PR #14.
+- The UI 2.0 implementation unit is complete and verified on `autopilot/ui2`.
+- The remaining action is review and acceptance of the pushed checkpoint; no
+  additional UI 2.0 implementation slice is open.
+- Draft PR #14 remains unchanged and must not be merged by this branch work.
+
+## Remaining UI 2.0 Slices
+
+- None. Foundations through Responsive / Accessibility / Final Polish are
+  implemented in the verified checkpoint.
+- Any acceptance feedback must be handled as a new, bounded coherent unit on
+  `autopilot/ui2`, followed by the same test, QA, commit, push, and status cycle.
 
 ## Next
 
-1. Complete deployment validation and CI for the RC2 candidate.
-2. Run the documented RC2 user-acceptance workflow.
-3. Keep PR #14 Draft and do not merge it without explicit user approval.
-4. Do not tag `v1.0.0` or create a formal release.
+1. Review the pushed UI 2.0 checkpoint and collect bounded acceptance feedback.
+2. If accepted, prepare the UI 2.0 milestone integration path into
+   `autopilot/v1`; do not merge to `main` and do not merge Draft PR #14.
+3. Do not tag `v1.0.0` or create a GitHub Release without explicit approval.
 
 ## Latest Validation
 
-- `npm test`: 443/443 passed three consecutive times (44 test files)
-- `npm run build`: passed
-- `npm run runtime:build`: passed (Node 22 SSR service bundle)
-- `git diff --check`: passed
+### UI 2.0 checkpoint
+
+- Verified implementation commit:
+  `c5e1a920d6f995411860d5fa9f165846b63dc149`.
+- Focused Routing, DNS, Export, Workspace/Flow, persistence, validation, and
+  target fail-closed suites passed; the final full `npm test` gate passed
+  three consecutive times at 534/534 tests across 57 test files.
+- `npm run build` passed. Final chunks: main `268.95 kB`, target compile path
+  `459.66 kB`, Visual Flow `23.14 kB`, Preview `8.95 kB`; no `>500 kB` warning.
+- `npm run runtime:build` passed with `runtime-dist/server.js` at `214.41 kB`.
+- `git diff --check`, staged diff check, scope review, and tracked/untracked
+  secret-pattern review passed. The UI mechanical design detector returned no
+  findings.
+- Browser QA passed in Chinese and English at 1440px, 1024px, and 390px.
+  Workspace, Routing, DNS, Export, responsive/full-screen editors, and Visual
+  Flow produced no horizontal page overflow. Mobile editor controls measured
+  44px. Cold reloads had empty error/warning logs, the three-flow mark loaded,
+  and the favicon used the same mark.
+- Workspace Final target edit -> Visual Flow -> Workspace -> cold reload kept
+  the same DIRECT/REJECT semantics; the temporary QA edit was restored to
+  DIRECT. Final validation and node summaries no longer contradict the stored
+  target.
+- Official binary validation used current credential-free Default DoH output.
+  Mihomo Meta `v1.19.30` accepted YAML with `-t`; sing-box `v1.13.18` accepted
+  JSON with `check`. Download archive SHA-256 values matched the recorded
+  `2c7f...d9f4` and `9fbc...9107` checksums.
+- Package candidate remains `1.0.0-rc.2`; Project Schema remains `2`; Runtime
+  Storage Schema remains `1`.
+
+### Earlier RC2 evidence
+
 - RC2 browser QA: Workspace is the default in Chinese and English; Mihomo and
   sing-box new-project choices, structured Processing/Strategy/Routing edits,
   independent Export states, non-destructive Target switching, lazy Preview,
@@ -192,7 +265,8 @@ Updated: 2026-08-18
   consecutive times after the fix.
 - A transient i18n Provider error can appear only while `messages.ts` is replaced
   by Vite HMR; it does not reproduce after a cold reload or in production build.
-- TopBar, Preview, and starter recovery copy use the `V1.0 RC2` label.
+- UI 2.0 keeps the RC version as muted metadata and hides it in the mobile brand
+  treatment; it is not a primary status badge.
 - Node's experimental `node:sqlite` warning appears in Runtime Service tests;
   it is expected for the Node 22 MVP prerequisite and is not emitted by the browser.
 - Docker client, Compose, and Buildx are installed locally, but the Docker daemon
@@ -231,5 +305,8 @@ Updated: 2026-08-18
 
 ## Last Checkpoint
 
-- `a33ae2c` on `autopilot/rc2-client-first` (RC2 implementation and release prep)
-- `autopilot/v1.0-rc` contains the RC2 checkpoint and remains Draft PR #14.
+- `c5e1a920d6f995411860d5fa9f165846b63dc149` is the latest verified UI 2.0
+  implementation checkpoint on `autopilot/ui2`.
+- UI 2.0 was based on Pre-UI2 checkpoint
+  `78936fee55c3fc219dd83b259c8a9821e62ecf69`. Draft PR #14 remains unchanged
+  and must not be merged autonomously.

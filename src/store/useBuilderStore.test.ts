@@ -56,6 +56,17 @@ describe('builder store', () => {
     }))
   })
 
+  it('moves routing rules to a list index with undo support', () => {
+    const before = useBuilderStore.getState().nodes
+      .filter((node) => ['routing-group', 'service-rule', 'custom-rule'].includes(node.data.blockType))
+      .map((node) => node.id)
+    const last = before.at(-1)!
+    useBuilderStore.getState().moveRoutingRuleToIndex(last, 0)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === last)?.data.routePriority).toBe(10)
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === last)?.data.routePriority).toBeUndefined()
+  })
+
   it('replaces Workspace inputs atomically and preserves undo', () => {
     expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['hkt-subscription'])).toBe(true)
     expect(useBuilderStore.getState().edges.filter((edge) => edge.target === 'us-filter').map((edge) => edge.source)).toEqual(['hkt-subscription'])
@@ -68,6 +79,46 @@ describe('builder store', () => {
     const before = structuredClone(useBuilderStore.getState().edges)
     expect(useBuilderStore.getState().setWorkspaceInputs('us-filter', ['china-route'])).toBe(false)
     expect(useBuilderStore.getState().edges).toEqual(before)
+  })
+
+  it('does not expose Routing rules as Strategy input candidates', () => {
+    const before = structuredClone(useBuilderStore.getState().edges)
+    expect(useBuilderStore.getState().setWorkspaceInputs('hk-auto', ['final-route'])).toBe(false)
+    expect(useBuilderStore.getState().edges).toEqual(before)
+  })
+
+  it('moves a linear Processing step atomically with one undo and redo entry', () => {
+    const project = createBlankProject('mihomo')
+    project.graph.nodes.unshift(
+      { id: 'source', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'subscription', category: 'source', title: 'Source', subtitle: '', icon: 'radio' } },
+      { id: 'filter', type: 'block', position: { x: 1, y: 0 }, data: { blockType: 'filter', category: 'processing', title: 'Filter', subtitle: '', icon: 'list-filter' } },
+      { id: 'rename', type: 'block', position: { x: 2, y: 0 }, data: { blockType: 'rename', category: 'processing', title: 'Rename', subtitle: '', icon: 'text-cursor-input' } },
+      { id: 'strategy', type: 'block', position: { x: 3, y: 0 }, data: { blockType: 'auto-select', category: 'strategy', title: 'Auto', subtitle: '', icon: 'gauge' } },
+    )
+    project.graph.edges = [
+      { id: 'before', source: 'source', target: 'filter', data: { semantic: 'data' } },
+      { id: 'bridge', source: 'filter', target: 'rename', data: { semantic: 'data' } },
+      { id: 'after', source: 'rename', target: 'strategy', data: { semantic: 'data' } },
+    ]
+    useBuilderStore.getState().hydrate(project)
+
+    expect(useBuilderStore.getState().moveProcessingStep('filter', 'down')).toBe(true)
+    const moved = useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))
+    expect(moved).toEqual([
+      { id: 'before', source: 'source', target: 'rename' },
+      { id: 'bridge', source: 'rename', target: 'filter' },
+      { id: 'after', source: 'filter', target: 'strategy' },
+    ])
+    expect(useBuilderStore.getState().historyPast).toHaveLength(1)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual([
+      { id: 'before', source: 'source', target: 'filter' },
+      { id: 'bridge', source: 'filter', target: 'rename' },
+      { id: 'after', source: 'rename', target: 'strategy' },
+    ])
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().edges.map(({ id, source, target }) => ({ id, source, target }))).toEqual(moved)
   })
 
   it('creates, duplicates and reloads Limit nodes with numeric default 10', () => {
@@ -143,6 +194,24 @@ describe('builder store', () => {
       filterMode: 'region', filterOperation: 'exclude', filterRegions: ['HK', 'SG'],
       filterRegexPattern: '^(HK|SG)-', filterRegexIgnoreCase: false,
     }))
+  })
+
+  it('round-trips multiple DNS resolvers through undo, redo and Schema 2 hydration', () => {
+    const dnsId = useBuilderStore.getState().addNode('dns', { x: 120, y: 120 })!
+    const resolvers = [
+      { id: 'default', name: 'Cloudflare', kind: 'doh' as const, role: 'default' as const, address: 'https://dns.example.com/dns-query', enabled: true },
+      { id: 'direct', name: 'AliDNS', kind: 'doh' as const, role: 'direct' as const, address: 'https://direct.example.com/dns-query', enabled: true },
+    ]
+    useBuilderStore.getState().updateNodeData(dnsId, { dnsResolvers: resolvers })
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toHaveLength(1)
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
+
+    const project = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    expect(project.version).toBe(2)
+    useBuilderStore.getState().hydrate(project)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
   })
 
   it('round-trips the Mihomo Output Profile in Project Schema 2 with undo and redo', () => {

@@ -2,11 +2,15 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { AlertTriangle, ArrowRight, Check, GripVertical, MoreHorizontal, Zap } from 'lucide-react'
 import { BlockIcon } from '../icons/BlockIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import type { GraphNode } from '../../types/project'
-import { categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, useI18n } from '../../i18n'
+import type { BlockNodeData, GraphNode } from '../../types/project'
+import {
+  categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle, useI18n,
+  type Locale,
+} from '../../i18n'
 import { detectRegion } from '../../core/proxy'
 import { snapshotFreshness } from '../../core/subscription'
 import { resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
+import { normalizeDnsResolvers } from '../../core/dns/resolverProfiles'
 
 const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final'])
 const noOutput = new Set(['output'])
@@ -21,10 +25,14 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
   const subscriptionTooltip = subscriptionRuntime?.latestError
     ? localizeDiagnosticMessage(subscriptionRuntime.latestError.code, subscriptionRuntime.latestError.message, locale)
     : undefined
+  const dnsSummary = data.blockType === 'dns' ? summarizeDnsNode(data) : undefined
+  const finalTarget = data.blockType === 'final'
+    ? resolveFinalTargetSummary(data, nodes, locale, t('inspector.notConfigured'))
+    : undefined
 
   return (
     <article
-      className={`flow-node flow-node--${data.category}${selected ? ' is-selected' : ''}${data.dimmed ? ' is-dimmed' : ''}${data.highlighted ? ' is-highlighted' : ''}${data.disabled ? ' is-disabled' : ''}`}
+      className={`flow-node flow-node--${data.category}${selected ? ' is-selected' : ''}${data.dimmed ? ' is-dimmed' : ''}${data.highlighted ? ' is-highlighted' : ''}${data.disabled ? ' is-disabled' : ''}${data.warning ? ' has-warning' : ''}`}
       aria-label={t('node.aria', { name: localizeDataValue(data.title, data.titleKey, locale) })}
     >
       {!noInput.has(data.blockType) && (
@@ -83,11 +91,14 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
         )}
 
         {data.blockType === 'dns' && (
-          <div className="node-dns-row"><span>DoH</span><code>1.1.1.1</code></div>
+          <div className="node-dns-row">
+            <span>{dnsSummary?.protocol ?? '—'}</span>
+            <code title={dnsSummary?.detail}>{dnsSummary ? `${dnsSummary.detail}${dnsSummary.additionalCount > 0 ? ` +${dnsSummary.additionalCount}` : ''}` : t('node.noEnabledResolvers')}</code>
+          </div>
         )}
 
         {data.blockType === 'final' && (
-          <div className="node-target-row"><span>{t('node.allOtherTraffic')}</span><ArrowRight size={13} /><b>{t('node.defaultProxy')}</b></div>
+          <div className="node-target-row"><span>{t('node.allOtherTraffic')}</span><ArrowRight size={13} /><b title={finalTarget}>{finalTarget}</b></div>
         )}
 
         {data.blockType === 'output' && (
@@ -100,7 +111,9 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       </div>
 
       <footer className="node-footer">
-        <span>{localizeDataValue(data.subtitle, data.subtitleKey, locale)}</span>
+        <span>{data.blockType === 'final'
+          ? `${t('workspace.routing.finalRoute')} · ${finalTarget}`
+          : localizeDataValue(data.subtitle, data.subtitleKey, locale)}</span>
         <GripVertical size={13} />
       </footer>
 
@@ -109,6 +122,34 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       )}
     </article>
   )
+}
+
+export function summarizeDnsNode(data: Pick<BlockNodeData, 'dnsResolvers' | 'resolver'>) {
+  const enabledResolvers = normalizeDnsResolvers(data.dnsResolvers, data.resolver).filter((resolver) => resolver.enabled)
+  const primary = enabledResolvers[0]
+  if (!primary) return undefined
+  return {
+    protocol: primary.kind.toUpperCase(),
+    detail: primary.name.trim() || primary.address?.trim() || primary.id,
+    additionalCount: enabledResolvers.length - 1,
+  }
+}
+
+export function resolveFinalTargetSummary(
+  data: Pick<BlockNodeData, 'targetKind' | 'targetId' | 'targetLabel'>,
+  nodes: readonly GraphNode[],
+  locale: Locale,
+  missing: string,
+) {
+  if (data.targetKind === 'direct') return 'DIRECT'
+  if (data.targetKind === 'reject') return 'REJECT'
+  const targetId = data.targetId?.trim()
+  if (data.targetKind === 'strategy' && targetId) {
+    const target = nodes.find((node) => node.id === targetId)
+    if (target) return localizeNodeTitle(target, locale)
+  }
+  const storedTarget = data.targetLabel?.trim() || targetId
+  return storedTarget ? localizeKnownSystemText(storedTarget, locale) : missing
 }
 
 function subscriptionNodeStatus(runtime: ReturnType<typeof useBuilderStore.getState>['subscriptionRuntimes'][string] | undefined) {

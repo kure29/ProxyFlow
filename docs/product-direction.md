@@ -66,6 +66,35 @@ routing semantics. Target-native extensions remain namespaced and inactive
 when another Primary Target is selected. Adding a future Target must extend the
 capability profile and compiler without replacing the Project or shared core.
 
+## UI 2.0 Product Surface
+
+UI 2.0 applies the Hybrid Workspace model as a product-surface contract, not a
+new application architecture. Workspace remains the default and uses the
+following compact Project navigation:
+
+```text
+Sources -> Proxies -> Processing -> Strategies -> Routing
+        -> DNS / Advanced -> Inspect -> Export
+```
+
+Visual Flow remains available for topology, connection editing, Chain, and
+advanced debugging. Workspace edits, Visual Flow edits, persistence,
+undo/redo, validation, and compilation must continue through the same Project
+and Graph.
+
+The surface follows a Calm Blue and neutral semantic design system. Blue is for
+brand, interaction, focus, and selection; green, orange, and red are reserved
+for success, warning, and error/destructive status. Module categories must not
+create a competing rainbow color system. Product icons use one stroke style,
+while third-party artwork is used only when its source is verified.
+
+Desktop may place a non-modal inspector beside the current page. Tablet may use
+an overlay inspector. Mobile is a single-column Workspace with a compact
+section selector and full-screen editors. The complete basic workflow must
+remain possible without precise canvas interaction. The maintainable UI
+contract is recorded in [`DESIGN.md`](../DESIGN.md) and
+[`docs/ui-2.0.md`](ui-2.0.md).
+
 ## Local Mode
 
 Local Mode is permanent and must remain independently usable.
@@ -133,6 +162,13 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - Rule Group is a UI container only. It may group, fold, order, or enable rules, but it owns no matcher, target, or priority semantics.
 - Output selects an export target; it is not a routing target.
 - Final is presented to users as Default Route or 未匹配流量.
+- Routing presents Service Rule and Custom Rule as two authoring paths over one
+  rule model. Rule-source repositories and raw matcher details remain Advanced.
+- A Project has at most one active DNS owner node. That node may hold multiple
+  resolver profiles; target-specific resolver roles must use capability-driven
+  controls and fail closed when unsupported.
+- Mihomo and sing-box are the only production Export targets. Future targets
+  must not appear as ready or actionable before a real compiler path exists.
 
 ## Feature Admission Gate
 
@@ -177,7 +213,10 @@ Introduce an optional, self-hosted Runtime Service for a controlled Subscription
 
 ### V1.0 - Stable Workflow
 
-Deliver a stable, client-first, explainable, migratable, and verifiable workflow from a real subscription to Mihomo or sing-box output.
+Deliver a stable, client-first, explainable, migratable, and verifiable workflow
+from a real subscription to Mihomo or sing-box output. UI 2.0 organizes this
+workflow into a coherent Workspace plus Visual Flow product surface without
+forking the underlying Project model.
 
 ### V1.x - Selective Expansion
 

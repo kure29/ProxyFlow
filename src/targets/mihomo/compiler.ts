@@ -66,7 +66,14 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     rules,
     ...(dns ? { dns } : {}),
   }
-  return { success: true, content: serializeMihomoConfig(config), issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
+  return {
+    success: true,
+    content: serializeMihomoConfig(config),
+    issues: deduplicateDiagnostics(issues),
+    generatedAt,
+    mock: false,
+    stats: { proxyCount: context.proxies.size, endpointCount: context.compiledEndpointIds.size },
+  }
 }
 
 export class MihomoCompiler implements ConfigCompiler {

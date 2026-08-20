@@ -46,7 +46,15 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
       ...(context.dnsTag ? { default_domain_resolver: context.dnsTag } : {}),
     },
   }
-  return { success: true, content: serializeSingBoxConfig(config), issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
+  const proxyCount = [...context.endpointTags.values()].filter((tag) => context.outbounds.has(tag)).length
+  return {
+    success: true,
+    content: serializeSingBoxConfig(config),
+    issues: deduplicateDiagnostics(issues),
+    generatedAt,
+    mock: false,
+    stats: { proxyCount, endpointCount: proxyCount },
+  }
 }
 
 function failed(issues: CompileResult['issues'], generatedAt: string): CompileResult {

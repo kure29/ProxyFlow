@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Route } from 'lucide-react'
+import { Check, Route, X } from 'lucide-react'
 import proxyFlowMark from '../assets/proxyflow-mark.svg'
 import { TopBar } from '../components/layout/TopBar'
 import { StatusBar } from '../components/layout/StatusBar'
@@ -11,6 +11,7 @@ import { WorkspaceShell } from '../components/workspace/WorkspaceShell'
 import { NewProjectDialog } from '../components/workspace/NewProjectDialog'
 import type { ProductView } from '../components/workspace/types'
 import type { WorkspaceSectionId } from '../core/workspace'
+import { summarizePrimaryTargetHealth, useProjectCompiles } from '../components/compiler/useProjectCompiles'
 
 const VisualFlowWorkspace = lazy(() => import('../components/workspace/VisualFlowWorkspace'))
 const PreviewModal = lazy(() => import('../components/preview/PreviewModal').then(({ PreviewModal: Component }) => ({ default: Component })))
@@ -36,6 +37,11 @@ export function App() {
   const resetToDemo = useBuilderStore((state) => state.resetToDemo)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const dismissRecoveryNotice = useBuilderStore((state) => state.dismissRecoveryNotice)
+  const primaryCompiles = useProjectCompiles(Boolean(primaryTarget), {
+    mihomo: primaryTarget === 'mihomo',
+    singBox: primaryTarget === 'sing-box',
+  })
+  const primaryHealth = summarizePrimaryTargetHealth(primaryCompiles, primaryTarget)
   const loadStarted = useRef(false)
   const saveQueue = useRef<Promise<void>>(Promise.resolve())
   const [view, setView] = useState<ProductView>('workspace')
@@ -137,6 +143,11 @@ export function App() {
     if (useBuilderStore.getState().projectId === project.id) setSaveStatus('saved')
   }
 
+  const openWorkspaceSection = useCallback((section: WorkspaceSectionId) => {
+    setWorkspaceSection(section)
+    setView('workspace')
+  }, [])
+
   return <div className="app-shell">
     <a href={view === 'workspace' ? '#workspace-main' : '#canvas'} className="skip-link">{view === 'workspace' ? t('app.skipToWorkspace') : t('app.skipToCanvas')}</a>
     <TopBar
@@ -146,19 +157,20 @@ export function App() {
       onProjectChange={switchProject}
       onProjectNameCommit={persistCurrentProject}
       onNewProject={() => setNewProjectOpen(true)}
+      onOpenWorkspaceSection={openWorkspaceSection}
     />
     {view === 'workspace'
-      ? <WorkspaceShell activeSection={workspaceSection} onSectionChange={setWorkspaceSection} onViewChange={setView} />
-      : <Suspense fallback={<div className="visual-flow-loading" role="status"><Route size={22} /><span>{t('app.loading')}</span></div>}><VisualFlowWorkspace /></Suspense>}
-    <StatusBar view={view} />
+      ? <WorkspaceShell activeSection={workspaceSection} onSectionChange={setWorkspaceSection} onViewChange={setView} primaryHealth={primaryHealth} />
+      : <Suspense fallback={<div className="visual-flow-loading" role="status"><Route size={22} /><span>{t('app.loading')}</span></div>}><VisualFlowWorkspace onOpenWorkspaceSection={openWorkspaceSection} /></Suspense>}
+    <StatusBar view={view} health={primaryHealth} />
     {previewOpen && <Suspense fallback={null}><PreviewModal /></Suspense>}
     <SubscriptionEmptyConfirmation />
     {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>
       <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>
-      <div><button className="secondary-action" onClick={() => setNewProjectOpen(true)}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}>×</button>}</div>
+      <div><button className="secondary-action" onClick={() => setNewProjectOpen(true)}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}><X size={16} /></button>}</div>
     </section>}
     {!hydrated && <div className="loading-screen"><img className="brand-mark" src={proxyFlowMark} alt="" aria-hidden="true" /><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
-    {toast && <div className="toast" role="status"><span><CheckIcon /></span>{toast}</div>}
+    {toast && <div className="toast" role="status"><span><Check size={12} /></span>{toast}</div>}
     <NewProjectDialog
       open={newProjectOpen || Boolean(hydrated && primaryTarget === null && view === 'workspace')}
       required={!newProjectOpen && Boolean(hydrated && primaryTarget === null && view === 'workspace')}
@@ -167,8 +179,4 @@ export function App() {
       onComplete={() => { setNewProjectOpen(false); setView('workspace'); setWorkspaceSection('sources') }}
     />
   </div>
-}
-
-function CheckIcon() {
-  return <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="m3.5 8.2 2.7 2.7 6.3-6.3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }

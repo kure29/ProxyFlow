@@ -24,6 +24,7 @@ export interface MihomoCompileContext {
   ruleProviderNames: NameRegistry
   sourceNames: Map<string, string>
   proxyNamesById: Map<string, string>
+  compiledEndpointIds: Set<string>
   proxies: Map<string, MihomoProxy>
   strategyNames: Map<string, string>
   providers: Map<string, MihomoProxyProvider>
@@ -50,6 +51,7 @@ export function createMihomoContext(ir: ProxyFlowIR, issues: CompatibilityIssue[
     ruleProviderNames: new NameRegistry(),
     sourceNames,
     proxyNamesById,
+    compiledEndpointIds: new Set(),
     proxies: new Map(),
     strategyNames,
     providers: new Map(),

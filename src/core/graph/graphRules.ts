@@ -23,9 +23,9 @@ export function semanticForConnection(connection: Connection, nodes: GraphNode[]
   const source = nodes.find((node) => node.id === connection.source)
   const target = nodes.find((node) => node.id === connection.target)
   if (!source || !target) return 'data' as const
+  if (source.data.category === 'dns') return 'dns' as const
   if (target.data.category === 'output') return 'output' as const
   if (source.data.category === 'routing') return 'route' as const
   if (target.data.category === 'chain') return 'strategy' as const
-  if (source.data.category === 'dns') return 'dns' as const
   return 'data' as const
 }

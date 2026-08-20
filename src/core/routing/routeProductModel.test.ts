@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { demoNodes } from '../../data/demoProject'
 import { blockByType, blockLibrary } from '../../data/blockLibrary'
 import type { GraphNode } from '../../types/project'
-import { moveRoutingRule, rankRoutingRules, resolveRouteMatcherKind, routeOrder } from './routeProductModel'
+import { moveRoutingRule, moveRoutingRuleToIndex, rankRoutingRules, rankWorkspaceRoutingRules, resolveRouteMatcherKind, routeOrder } from './routeProductModel'
 
 const route = (id: string, blockType: GraphNode['data']['blockType'], routePriority?: number): GraphNode => ({
   id, type: 'block', position: { x: 0, y: 0 }, data: {
@@ -29,6 +29,15 @@ describe('routing product model adapter', () => {
     const moved = moveRoutingRule(nodes, 'second', 'up')
     expect(rankRoutingRules(moved).map(({ node }) => node.id)).toEqual(['second', 'first', 'third'])
     expect(routeOrder('second', moved)).toEqual({ index: 0, count: 3, canMoveUp: false, canMoveDown: true })
+  })
+
+  it('moves a rule directly to a semantic list index and retains disabled rules in Workspace', () => {
+    const disabled = route('disabled', 'service-rule', 20)
+    disabled.data.disabled = true
+    const nodes = [route('first', 'service-rule', 10), disabled, route('third', 'custom-rule', 30)]
+    expect(rankRoutingRules(nodes).map(({ node }) => node.id)).toEqual(['first', 'third'])
+    expect(rankWorkspaceRoutingRules(nodes).map(({ node }) => node.id)).toEqual(['first', 'disabled', 'third'])
+    expect(rankWorkspaceRoutingRules(moveRoutingRuleToIndex(nodes, 'third', 0)).map(({ node }) => node.id)).toEqual(['third', 'first', 'disabled'])
   })
 
   it('keeps the demo graph routable through the adapter', () => {
