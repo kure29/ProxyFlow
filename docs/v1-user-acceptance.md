@@ -299,6 +299,31 @@ accepted by that target.
 
 ## Acceptance Result
 
+### UI 2.0 checkpoint — 2026-08-20
+
+Verified implementation commit:
+`c5e1a920d6f995411860d5fa9f165846b63dc149` on `autopilot/ui2`.
+
+- Sections 1-12: `PASS` through focused tests, three consecutive full test
+  passes, and Chinese/English browser QA at desktop, medium, and 390px. The
+  checked flows include Workspace navigation, Routing, DNS, Export, responsive
+  inspectors, accessibility labels/touch targets, and Visual Flow round-trip.
+- Section 13: `PARTIAL` only for the unchanged real Docker lifecycle check.
+  Runtime tests and the Runtime build pass; the previously recorded Docker
+  daemon limitation remains. Local Mode and current UI 2.0 do not require the
+  Runtime Service.
+- Sections 14-15: `PASS`. Project/Graph persistence and round-trip tests pass;
+  cold English and Chinese reloads have empty browser error/warning logs; the
+  three-flow logo and favicon load; scope and tracked/untracked secret scans are
+  clean; and lazy chunks remain below the warning threshold.
+- Automated gates: `npm test` passed 534/534 tests in 57 files three consecutive
+  times; Web and Runtime builds passed; `git diff --check` and the UI mechanical
+  detector passed with no findings.
+- Representative official target validation: current credential-free Default
+  DoH output passed Mihomo Meta `v1.19.30 -t` and sing-box `v1.13.18 check`.
+  This validation found and fixed the missing sing-box DNS bootstrap resolver
+  before the final gates were repeated.
+
 Record each numbered section as `PASS`, `PARTIAL`, or `BLOCKED`. A `PARTIAL`
 result must name the target-specific limitation. A `BLOCKED` result must include
 the visible diagnostic and recovery step.
