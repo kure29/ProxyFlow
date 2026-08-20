@@ -61,7 +61,7 @@ export const blockLibrary: BlockLibraryGroup[] = [
   },
   {
     category: 'routing', label: '分流', items: [
-      { type: 'service-rule', category: 'routing', title: '分流规则', description: '按服务、域名、CIDR 或端口匹配流量', icon: 'waypoints' },
+      { type: 'service-rule', category: 'routing', title: '服务规则', description: '将已知服务发送到指定策略或动作', icon: 'waypoints' },
       { type: 'final', category: 'routing', title: 'Final', description: '其余流量的最终去向', icon: 'corner-down-right' },
     ],
   },

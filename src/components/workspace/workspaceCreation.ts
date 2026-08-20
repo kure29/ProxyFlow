@@ -21,9 +21,9 @@ export const processingCreationOptions: WorkspaceCreationOption[] = [
 
 export const routingCreationOptions: WorkspaceCreationOption[] = [
   { id: 'service', blockType: 'service-rule', data: { routeMatcherKind: 'service', services: [], ruleSource: 'ios_rule_script' } },
-  { id: 'domain', blockType: 'service-rule', data: { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', services: [], ruleSource: 'custom' } },
-  { id: 'cidr', blockType: 'service-rule', data: { routeMatcherKind: 'ip-cidr', routeMatcherValue: '', services: [], ruleSource: 'custom' } },
-  { id: 'port', blockType: 'service-rule', data: { routeMatcherKind: 'port', routeMatcherPort: undefined, services: [], ruleSource: 'custom' } },
+  { id: 'domain', blockType: 'custom-rule', data: { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', services: [], ruleSource: 'custom' } },
+  { id: 'cidr', blockType: 'custom-rule', data: { routeMatcherKind: 'ip-cidr', routeMatcherValue: '', services: [], ruleSource: 'custom' } },
+  { id: 'port', blockType: 'custom-rule', data: { routeMatcherKind: 'port', routeMatcherPort: undefined, services: [], ruleSource: 'custom' } },
 ]
 
 export function strategyCreationOptions(target: PrimaryTarget | null): WorkspaceCreationOption[] {

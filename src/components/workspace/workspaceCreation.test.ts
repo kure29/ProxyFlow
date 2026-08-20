@@ -7,7 +7,7 @@ describe('Workspace creation options', () => {
       'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit',
     ])
     expect(routingCreationOptions.map((option) => option.blockType)).toEqual([
-      'service-rule', 'service-rule', 'service-rule', 'service-rule',
+      'service-rule', 'custom-rule', 'custom-rule', 'custom-rule',
     ])
     expect(routingCreationOptions.map((option) => option.data?.routeMatcherKind)).toEqual([
       'service', 'domain-suffix', 'ip-cidr', 'port',
