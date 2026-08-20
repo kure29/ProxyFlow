@@ -38,6 +38,11 @@ Updated: 2026-08-20
   and node selection, and an Edit / Copy / Move / Delete routing action sheet.
   Long-form dialogs and sheets include safe-area spacing, scroll lock, focus
   trapping and return, Escape handling, and touch-sized controls.
+- Phase 6 — Responsive Polish is complete at `f314124` and pushed to the same
+  branch. The final breakpoint sweep corrected the mobile Visual Flow grid so
+  its hidden palette no longer reserves a `48px` column, restored the tablet
+  Workspace navigation to a `44px` five-column rail, and made the tablet
+  Inspector a usable `360px` viewport-aligned overlay.
 - The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
   `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
   compact and icon controls; `44px` mobile touch targets; card padding; and the
@@ -74,9 +79,17 @@ Updated: 2026-08-20
   creation are full-screen, target/routing sheets restore focus and page scroll,
   all sampled actions are `44-52px`, and cold reloads have no console warnings
   or errors.
-- Next checkpoint: Phase 6 — Responsive Polish across all required widths,
-  followed by the final consecutive regression, build, browser, and review
-  gates.
+- Phase 6 verification: focused responsive tests `15/15`; three consecutive
+  full Vitest runs passed `539/539`; Web and Runtime production builds passed;
+  diff, scope, and secret reviews passed. Browser QA covered `375`, `390`,
+  `430`, `768`, `1024`, and `1440px` across Sources, Proxies, Processing,
+  Strategies, Routing, DNS, Inspect, Export, Visual Flow, sheets, and the
+  full-screen Preview in Chinese and English. No tested page has horizontal
+  document overflow, and final cold loads have no console warnings or errors.
+  Static UI detection reported only the specification-required `3px` active
+  Sidebar indicator; no actionable UI anti-pattern remains.
+- Next checkpoint: user acceptance of `ui/responsive-layout-refactor`. No merge
+  to `main`, tag, or release has been performed.
 
 ## Integration
 
