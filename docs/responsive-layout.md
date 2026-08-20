@@ -114,6 +114,19 @@ values on the mono scale and directly editable targets. DNS uses a two-column
 resolver-card grid, while tablet and mobile retain the one-card-per-row
 composition and capability-driven fail-closed behavior.
 
+## Tablet Composition
+
+From `768px` through `1023px`, Workspace uses a horizontal five-destination
+navigation rail above page content; Sources / Proxies and More retain the same
+focus-managed drawers used by the compact shell. At `768-900px`, the TopBar
+uses two rows so Project identity, view switching, and primary actions do not
+collide; the single-row TopBar returns above `900px`.
+
+Tablet Visual Flow retains a `48px` collapsed Block Library rail and lets the
+Canvas consume the remaining width. Selecting a node or edge opens the
+Inspector as a `360px` overlay aligned to the viewport edge, so the grid does
+not collapse the panel into its inactive zero-width column.
+
 ## Visual Flow
 
 Desktop Visual Flow uses the same `>=1024px` boundary as Workspace. Its Block
