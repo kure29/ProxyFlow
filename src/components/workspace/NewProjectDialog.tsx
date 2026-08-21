@@ -26,13 +26,21 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
   const [creating, setCreating] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
     setStep(1)
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
     window.setTimeout(() => headingRef.current?.focus(), 0)
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !required) onClose()
+      if (event.key === 'Escape' && !required) onCloseRef.current()
       if (event.key !== 'Tab') return
       const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
@@ -50,8 +58,22 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
       }
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open, required])
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
+      window.requestAnimationFrame(() => {
+        const previousTarget = returnFocusRef.current
+        if (previousTarget?.isConnected && previousTarget !== document.body && previousTarget !== document.documentElement) {
+          previousTarget.focus()
+          return
+        }
+        const persistentProjectTrigger = Array.from(document.querySelectorAll<HTMLElement>('.topbar-mobile-menu, .project-switcher-toggle'))
+          .find((element) => element.getClientRects().length > 0)
+        persistentProjectTrigger?.focus()
+      })
+    }
+  }, [open, required])
 
   if (!open) return null
 

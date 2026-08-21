@@ -208,7 +208,7 @@ describe('builder store', () => {
     resolvers = deleteDnsResolver(resolvers, googleId)
     useBuilderStore.getState().updateNodeData(dnsId, { dnsResolvers: resolvers })
     useBuilderStore.getState().undo()
-    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toHaveLength(1)
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toHaveLength(2)
     useBuilderStore.getState().redo()
     expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data.dnsResolvers).toEqual(resolvers)
 
@@ -232,7 +232,9 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
 
     useBuilderStore.getState().undo()
-    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile?.preset).toBe('local-proxy')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(
+      expect.objectContaining({ preset: 'desktop-tun', allowLan: true, ipv6: false }),
+    )
     useBuilderStore.getState().redo()
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
 
@@ -262,13 +264,26 @@ describe('builder store', () => {
     useBuilderStore.getState().createNewProject('mihomo')
     const mihomoProjectId = useBuilderStore.getState().projectId
     expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
-    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data).toEqual(
+      expect.objectContaining({
+        client: 'mihomo',
+        mihomoProfile: expect.objectContaining({ preset: 'desktop-tun', allowLan: true, ipv6: false }),
+      }),
+    )
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'dns')?.data.dnsResolvers).toEqual([
+      expect.objectContaining({ presetId: 'alidns', role: 'default' }),
+      expect.objectContaining({ presetId: 'dnspod', role: 'default' }),
+    ])
+    expect(useBuilderStore.getState().edges).toContainEqual(expect.objectContaining({
+      source: 'dns', target: 'output', data: { semantic: 'dns' },
+    }))
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('mihomo')
 
     useBuilderStore.getState().createNewProject('sing-box')
     expect(useBuilderStore.getState().projectId).not.toBe(mihomoProjectId)
     expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('sing-box')
+    expect(useBuilderStore.getState().nodes.some((node) => node.data.blockType === 'dns')).toBe(false)
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
   })
 
@@ -369,7 +384,7 @@ describe('builder store', () => {
     const reExported = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
     expect({ ...reExported, updatedAt: exported.updatedAt }).toEqual(exported)
     expect(useBuilderStore.getState().nodes.map((node) => [node.id, node.data.client])).toEqual([
-      ['final-route', undefined], ['output', 'mihomo'], ['sing-box-output', 'sing-box'],
+      ['final-route', undefined], ['dns', undefined], ['output', 'mihomo'], ['sing-box-output', 'sing-box'],
     ])
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(
       expect.objectContaining({ preset: 'desktop-tun', mixedPort: 7893 }),

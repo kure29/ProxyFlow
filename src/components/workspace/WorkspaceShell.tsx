@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
-  Boxes, ChevronDown, FileOutput, GitBranch, Globe2, ListFilter, Network, Plus,
+  Boxes, CheckCircle2, ChevronDown, CircleAlert, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
   Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
 } from 'lucide-react'
 import {
@@ -10,7 +10,7 @@ import {
 } from '../../core/workspace'
 import { deriveProjectRuntime } from '../../core/proxySet'
 import { getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
-import { blockDescriptionKey, blockTitleKey, localizeNodeTitle, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
+import { blockDescriptionKey, blockTitleKey, localizeNodeTitle, localizeProjectName, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import type { MessageKey } from '../../i18n'
 import { blockByType } from '../../data/blockLibrary'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -38,6 +38,7 @@ interface WorkspaceShellProps extends WorkspaceNavigationState {
 }
 
 const navigation = [
+  { id: 'overview', icon: Home, label: 'workspace.overview', description: 'workspace.description.overview' },
   { id: 'sources', icon: Radio, label: 'workspace.sources', description: 'workspace.description.sources' },
   { id: 'proxies', icon: Boxes, label: 'workspace.proxies', description: 'workspace.description.proxies' },
   { id: 'processing', icon: ListFilter, label: 'workspace.processing', description: 'workspace.description.processing' },
@@ -68,6 +69,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
   const toProject = useBuilderStore((state) => state.toProject)
   const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
   const removeNode = useBuilderStore((state) => state.removeNode)
+  const duplicateNode = useBuilderStore((state) => state.duplicateNode)
   const selectNode = useBuilderStore((state) => state.selectNode)
   const refreshSubscription = useBuilderStore((state) => state.refreshSubscription)
   const moveProcessingStep = useBuilderStore((state) => state.moveProcessingStep)
@@ -105,6 +107,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
     ...(targetCompiles.singBoxState.result?.issues ?? []),
   ], [targetCompiles.mihomoState.result, targetCompiles.singBoxState.result])
   const counts: Record<WorkspaceSectionId, number | undefined> = {
+    overview: undefined,
     sources: projection.sources.length,
     proxies: projection.proxies.length,
     processing: projection.processing.length,
@@ -157,10 +160,11 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
         openLabel={t('workspace.mobileNavigation.open')}
         closeLabel={t('workspace.mobileNavigation.close')}
         title={t('workspace.mobileNavigation.title')}
+        inputLabel={t('workspace.mobileNavigation.sourcesProxies')}
+        moreLabel={t('workspace.mobileNavigation.more')}
         onOpenChange={setMobileNavigationOpen}
         onSectionChange={onSectionChange}
       />
-      <button type="button" className="visual-flow-link" onClick={() => onViewChange('visual-flow')}><Network size={16} /><span>{t('top.visualFlow')}</span></button>
     </nav>
 
     <main id="workspace-main" className="workspace-content" tabIndex={-1}>
@@ -171,7 +175,24 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
       </header>
 
-      <section className="workspace-section-body">
+      <section className="workspace-section-body" data-section={activeSection}>
+        {activeSection === 'overview' && <ProjectOverview
+          projectName={localizeProjectName(projectName, locale)}
+          targetLabel={targetLabel}
+          canExport={primaryHealth.status === 'ready'}
+          health={primaryHealth}
+          proxyCount={projection.proxies.length}
+          strategyCount={projection.strategies.length + projection.chains.length}
+          routingCount={projection.routing.length}
+          dnsEnabled={projection.dns.some(({ node }) => node.data.disabled !== true)}
+          onOpenSection={onSectionChange}
+          onAddSubscription={() => addNode('subscription')}
+          onAddStrategy={() => {
+            const option = strategyCreationOptions(primaryTarget).find(({ disabled }) => !disabled)
+            if (option) addNode(option.blockType, option.data)
+            else setTargetDialogOpen(true)
+          }}
+        />}
         {activeSection === 'sources' && <SourcesWorkspace
           items={projection.sources}
           runtimes={runtimes}
@@ -208,6 +229,8 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
           onMove={moveRule}
           onMoveToIndex={moveRuleToIndex}
           onEdit={editInWorkspace}
+          onDuplicate={(item) => duplicateNode(item.node.id)}
+          onDelete={(item) => removeNode(item.node.id)}
           getNodeTitle={(node) => localizeNodeTitle(node, locale)}
           getTargetSummary={(node, fallback) => node.data.targetKind === 'strategy' && node.data.targetId
             ? localizeNodeTitle(nodes.find((candidate) => candidate.id === node.data.targetId) ?? node, locale)
@@ -236,6 +259,64 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
     </main>
     <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} onOpenWorkspaceSection={openSectionFromEditor} />
     <TargetSwitchDialog open={targetDialogOpen} current={primaryTarget} compiles={targetCompiles} onClose={closeTargetDialog} onSelect={selectTarget} />
+  </div>
+}
+
+interface ProjectOverviewProps {
+  projectName: string
+  targetLabel: string
+  canExport: boolean
+  health: PrimaryTargetHealth
+  proxyCount: number
+  strategyCount: number
+  routingCount: number
+  dnsEnabled: boolean
+  onOpenSection: (section: WorkspaceSectionId) => void
+  onAddSubscription: () => void
+  onAddStrategy: () => void
+}
+
+function ProjectOverview({
+  projectName, targetLabel, canExport, health, proxyCount, strategyCount, routingCount, dnsEnabled,
+  onOpenSection, onAddSubscription, onAddStrategy,
+}: ProjectOverviewProps) {
+  const { t } = useI18n()
+  const errorCount = health.diagnostics.filter(({ severity }) => severity === 'error').length
+  const warningCount = health.diagnostics.filter(({ severity }) => severity === 'warning').length
+  const facts = [
+    { label: t('workspace.overview.target'), value: targetLabel },
+    { label: t('workspace.overview.exportable'), value: canExport ? t('workspace.overview.yes') : t('workspace.overview.no'), status: canExport ? 'ready' : 'blocked' },
+    { label: t('workspace.overview.nodes'), value: String(proxyCount) },
+    { label: t('workspace.overview.strategies'), value: String(strategyCount) },
+    { label: t('workspace.overview.routing'), value: String(routingCount) },
+    { label: t('workspace.overview.dns'), value: dnsEnabled ? t('workspace.overview.enabled') : t('workspace.overview.disabled') },
+  ]
+
+  return <div className="project-overview">
+    <section className="project-overview-summary" aria-labelledby="project-overview-name">
+      <div>
+        <span>{t('workspace.overview.project')}</span>
+        <h2 id="project-overview-name">{projectName}</h2>
+      </div>
+      <div className="project-overview-health" data-ready={errorCount === 0 || undefined}>
+        {errorCount === 0 ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
+        <span><strong>{errorCount === 0 ? t('workspace.overview.clear') : t('workspace.overview.needsAttention')}</strong><small>{t('workspace.overview.issueSummary', { errors: errorCount, warnings: warningCount })}</small></span>
+      </div>
+    </section>
+    <dl className="project-overview-facts">
+      {facts.map(({ label, value, status }) => <div key={label} data-status={status}><dt>{label}</dt><dd>{value}</dd></div>)}
+      <div><dt>{t('workspace.overview.errors')}</dt><dd><button type="button" onClick={() => onOpenSection('inspect')}>{errorCount}</button></dd></div>
+      <div><dt>{t('workspace.overview.warnings')}</dt><dd><button type="button" onClick={() => onOpenSection('inspect')}>{warningCount}</button></dd></div>
+    </dl>
+    <section className="project-overview-shortcuts" aria-labelledby="project-overview-shortcuts">
+      <h3 id="project-overview-shortcuts">{t('workspace.overview.shortcuts')}</h3>
+      <div>
+        <button type="button" className="secondary-action" onClick={() => onOpenSection('inspect')}><SearchCheck size={16} />{t('workspace.inspect')}</button>
+        <button type="button" className="primary-action" onClick={() => onOpenSection('export')}><FileOutput size={16} />{t('workspace.export')}</button>
+        <button type="button" className="secondary-action" onClick={onAddSubscription}><Plus size={16} />{t('workspace.addSubscription')}</button>
+        <button type="button" className="secondary-action" onClick={onAddStrategy}><Plus size={16} />{t('workspace.addStrategy')}</button>
+      </div>
+    </section>
   </div>
 }
 
@@ -305,6 +386,7 @@ function routingWorkspaceCopy(t: ReturnType<typeof useI18n>['t'], target: Primar
     back: t('workspace.routing.back'), close: t('workspace.routing.close'), serviceMatcher: t('workspace.routing.serviceMatcher'), customMatcher: t('workspace.routing.customMatcher'),
     finalRoute: t('workspace.routing.finalRoute'), target: t('workspace.routing.target'), moveUp: t('workspace.moveUp'), moveDown: t('workspace.moveDown'),
     dragRule: t('workspace.routing.drag'), more: t('workspace.routing.more'),
+    edit: t('workspace.edit'), duplicate: t('canvas.copyNode'), delete: t('workspace.delete'), cancel: t('workspace.cancel'),
     unsupportedByTarget: t('workspace.routing.unsupportedByTarget', { target: target ? getTargetCapabilities(target).label : t('workspace.targetRequired') }),
     statusLabels: { ready: t('workspace.routing.status.ready'), warning: t('workspace.routing.status.warning'), error: t('workspace.routing.status.error'), disabled: t('workspace.routing.status.disabled') },
     capabilityLabels: { supported: t('workspace.compatibility.supported'), partial: t('workspace.compatibility.partial'), unsupported: t('workspace.compatibility.unsupported'), 'target-native': t('workspace.compatibility.targetNative') },

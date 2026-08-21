@@ -1,12 +1,12 @@
 import type { Edge, Node } from '@xyflow/react'
 import type { TargetClient, OutputDefinition, MihomoOutputProfile } from './output'
-import type { ServiceDefinition } from './services'
+import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
-export type { ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
+export type { CustomRuleSource, CustomRuleSourceFormat, ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
 
 export type BlockCategory =
   | 'source'
@@ -144,6 +144,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   routeMatcherKind?: RouteMatcherKind
   routeMatcherValue?: string
   routeMatcherPort?: number
+  customRuleSource?: CustomRuleSource
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number

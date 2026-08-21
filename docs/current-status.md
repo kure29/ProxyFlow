@@ -6,8 +6,121 @@ Updated: 2026-08-20
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `28c1329e1720541b17bd28ab9534ae089e6d4558`
+- `origin/main`: `0d3cc3c4bb4784ddd8dc710df29363a1af52d3f4`
 - Product Direction PR #9 is merged.
+
+## Responsive Layout Refactor
+
+- Branch: `ui/responsive-layout-refactor` (based on the verified latest
+  `origin/main`).
+- Phase 1 — Foundations is complete at `6b66cf9` and pushed to
+  `origin/ui/responsive-layout-refactor`.
+- Phase 2 — Mobile Layout is complete at `533d514` and pushed to the same
+  branch. Mobile now uses a `52px` safe-area-aware TopBar and `56px` bottom
+  navigation; Sources / Proxies and More use focus-managed drawers. Routing
+  uses two-line cards with editable targets and non-drag reorder controls, while
+  DNS is a single-column, touch-sized card surface.
+- Phase 3 — Desktop Workspace is complete at `571e0c1` and pushed to the same
+  branch. Desktop now begins at `1024px` with a `52px` TopBar, persistent
+  `200px` Sidebar, centered content, two-column Source and Proxy cards,
+  counted Region/Protocol facets, a vertical Processing pipeline, compact
+  Routing rows, and two-column DNS resolver cards.
+- Phase 4 — Visual Flow is complete at `9678d59` and pushed to the same
+  branch. Desktop uses a resizable `220px` Block Library with a `48px`
+  collapsed rail, an inactive-zero / selected-`360px` Inspector with an
+  explicit close control, and centered floating Canvas controls. Mobile enters
+  Visual Flow explicitly from the Project menu and uses focus-managed Add Node
+  and `60dvh` Inspector bottom sheets.
+- Phase 5 — Modal / Export is complete at `9ec4b53` and pushed to the same
+  branch. Desktop Export now pairs the ordered Target, Compatibility, Status,
+  and Configuration flow with a bounded sticky code preview. Mobile uses a
+  full-screen Preview, single-column Export options, bottom sheets for target
+  and node selection, and an Edit / Copy / Move / Delete routing action sheet.
+  Long-form dialogs and sheets include safe-area spacing, scroll lock, focus
+  trapping and return, Escape handling, and touch-sized controls.
+- Phase 6 — Responsive Polish is complete at `f314124` and pushed to the same
+  branch. The final breakpoint sweep corrected the mobile Visual Flow grid so
+  its hidden palette no longer reserves a `48px` column, restored the tablet
+  Workspace navigation to a `44px` five-column rail, and made the tablet
+  Inspector a usable `360px` viewport-aligned overlay.
+- The semantic design system now owns the required `20/28`, `15/22`, `13/18`,
+  `12/16`, and `12/16` mono type scales; `34px` standard controls; `28px`
+  compact and icon controls; `44px` mobile touch targets; card padding; and the
+  shared `1100px` content-width primitive.
+- `DESIGN.md` and `docs/responsive-layout.md` record the new breakpoint,
+  typography, spacing, sizing, and responsive-composition contract.
+- Phase 1 verification: focused layout tests `8/8`, full Vitest `539/539`,
+  production build passed, `git diff --check` passed, and secret review found no
+  credential material. Browser smoke passed at `390px` and `1440px`: no
+  horizontal overflow, no console errors or warnings, and sampled mobile
+  primary/icon actions resolve to `44px` targets.
+- Phase 2 verification: focused mobile/Routing/DNS tests `12/12`, full Vitest
+  `539/539`, production build and diff/secret checks passed. Browser QA passed
+  at `375`, `390`, and `430px` with no horizontal overflow or console issues.
+  The tested `375px` shell/Routing path has no interaction below `44px`; drawer
+  focus enters the first contextual item and returns to its trigger on close.
+- Phase 3 verification: focused Workspace/mobile navigation/Routing/DNS tests
+  `13/13`, full Vitest `539/539`, production build, diff check, and secret
+  review passed. Browser QA passed at exact `1024px` and `1440px` in Chinese
+  and English with a clean cold reload, no horizontal page overflow, and no
+  console warnings or errors. A `390px` mobile Proxy regression pass confirmed
+  one-column cards and `44px` facet controls.
+- Phase 4 verification: focused panel sizing, shell state, and Inspector
+  dismissal tests `8/8`, full Vitest `539/539`, production build, diff check,
+  and secret review passed. Browser QA passed at `390`, `768`, `1024`, and
+  `1440px`, including Chinese/English sheet copy, exact desktop panel sizing,
+  zero inactive Inspector width, `48px` collapse, mobile sheet scroll lock,
+  Escape/close behavior, focus return, no horizontal overflow, and no console
+  warnings or errors.
+- Phase 5 verification: focused Export, Routing, and Project-flow tests `7/7`,
+  full Vitest `539/539`, production build, diff check, scope review, and secret
+  review passed. Browser QA passed at `390`, `1024`, and `1440px` in Chinese and
+  English: the desktop preview remains bounded, mobile Preview and Project
+  creation are full-screen, target/routing sheets restore focus and page scroll,
+  all sampled actions are `44-52px`, and cold reloads have no console warnings
+  or errors.
+- Phase 6 verification: focused responsive tests `15/15`; three consecutive
+  full Vitest runs passed `539/539`; Web and Runtime production builds passed;
+  diff, scope, and secret reviews passed. Browser QA covered `375`, `390`,
+  `430`, `768`, `1024`, and `1440px` across Sources, Proxies, Processing,
+  Strategies, Routing, DNS, Inspect, Export, Visual Flow, sheets, and the
+  full-screen Preview in Chinese and English. No tested page has horizontal
+  document overflow, and final cold loads have no console warnings or errors.
+  Static UI detection reported only the specification-required `3px` active
+  Sidebar indicator; no actionable UI anti-pattern remains.
+- Next checkpoint: user acceptance of `ui/responsive-layout-refactor`. No merge
+  to `main`, tag, or release has been performed.
+
+## UI 2.1 Focused Polish
+
+- Branch: `ui/2.1-focused-polish`, based on the accepted Responsive Layout
+  refactor rather than the older `main` UI.
+- The focused UI work adds the final ProxyFlow brand asset, responsive project
+  header and direct language selector, Project Overview, de-duplicated Visual
+  Flow/save status, simplified Service Rule and expanded validated custom Rule
+  Source workflow, without changing Project, IR, Runtime, DNS, or Routing
+  ownership semantics.
+- Service artwork now restores the Clash Verge Mini visual set where an asset
+  exists, uses the requested HOMOMIX Claude artwork, and provides distinct
+  working Disney+, Google, and Gemini icons. Exact upstream revisions and the
+  currently missing upstream repository licenses are recorded in
+  `src/assets/services/SOURCES.md`.
+- The ProxyFlow PNG master is cropped to its intended rounded tile with
+  transparent corners. TopBar, favicon, Apple Touch Icon, and PWA icons use
+  derived PNG assets without an external white canvas border.
+- New Mihomo Projects now use only the supported subset of the referenced
+  qichiyuhub starter configuration: mixed port 7890, LAN enabled, IPv6 disabled,
+  Desktop TUN, Fake-IP DNS, sniffer, profile persistence, unified delay,
+  concurrent TCP, AliDNS/DNSPod resolvers, and AliDNS bootstrap. Controller/UI,
+  credentials, remote providers, and unmodeled parameters remain excluded;
+  legacy Projects without a profile retain the conservative Local Proxy
+  fallback.
+- Icon verification passed focused service tests, full tests, production build,
+  and desktop/mobile browser smoke in Chinese and English with no horizontal
+  overflow or console warnings/errors. The Mihomo starter slice passes its
+  Graph -> IR -> validation -> compiler tests and the full automated suite.
+- No merge to `main`, tag, release, force push, or branch deletion has been
+  performed.
 
 ## Integration
 

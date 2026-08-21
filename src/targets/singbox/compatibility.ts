@@ -113,8 +113,12 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       const ruleSetId = route.matcher.id
       const reference = findRuleSource(ir.services, ruleSetId)
       const source = reference?.source
-      if (!source || !isSingBoxRuleSource(source)) issues.push(singBoxIssue(
+      if (!source || (!source.inlineMatchers?.length && !isSingBoxRuleSource(source))) issues.push(singBoxIssue(
         'SINGBOX_INVALID_RULESET', 'error', 'route', `Rule set “${ruleSetId}” 不是 sing-box source/binary 格式。`, route.id,
+      ))
+      else for (const matcher of source.inlineMatchers ?? []) if (singBoxCapabilities.routingMatchers[matcher.kind].status === 'unsupported') issues.push(singBoxIssue(
+        singBoxCapabilities.routingMatchers[matcher.kind].reason ?? 'SINGBOX_MATCHER_UNSUPPORTED', 'error', 'route',
+        `Rule set “${ruleSetId}” contains matcher “${matcher.kind}” that cannot be lowered without loss.`, route.id,
       ))
     } else if (singBoxCapabilities.routingMatchers[route.matcher.kind].status === 'unsupported') issues.push(singBoxIssue(
       singBoxCapabilities.routingMatchers[route.matcher.kind].reason ?? 'SINGBOX_MATCHER_UNSUPPORTED', 'error', 'route',

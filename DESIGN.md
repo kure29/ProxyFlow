@@ -82,11 +82,12 @@ interface text.
 
 | Role | Size / line height | Weight |
 | --- | --- | --- |
-| Page title | `24px / 32px` | `600` |
-| Section title | `16px / 24px` | `600` |
-| Body | `14px / 20px` | `400` |
-| Strong label | `14px / 20px` | `500-600` |
-| Helper / metadata | `12px / 18px` | `400` |
+| Page title | `20px / 28px` | `600` |
+| Section title | `15px / 22px` | `600` |
+| Body | `13px / 18px` | `400` |
+| Strong label | `13px / 18px` | `500-600` |
+| Helper / metadata | `12px / 16px` | `400-500` |
+| Code / machine value | `12px / 16px` | `400` |
 
 Do not shrink Chinese helper text below a comfortably readable metadata size.
 Use the mono stack only for generated configuration, diagnostic codes, and
@@ -95,7 +96,7 @@ other literal machine values.
 ### Spacing, Shape, And Motion
 
 - Spacing scale: `4`, `8`, `12`, `16`, `24`, `32` pixels.
-- Normal control height: `40px`; compact controls: `36px`.
+- Desktop control height: `34px`; compact controls and icon buttons: `28px`.
 - Mobile touch target: at least `44px`.
 - Control radius: `8px`; cards: `10px`; panels: `12px`.
 - Borders are the normal container treatment. Shadows are reserved for actual
@@ -181,19 +182,20 @@ rather than precise edge construction.
 
 ## Brand And Icons
 
-- `src/assets/proxyflow-mark.svg` is the shared three-flow ProxyFlow mark used
-  by the product shell; the favicon uses the same visual language.
+- `src/assets/brand/proxyflow-logo.png` is the shared user-provided ProxyFlow logo used
+  by the product shell. Favicon, Apple Touch, and PWA PNGs are derived from this
+  borderless transparent-corner master.
 - Product controls use Lucide stroke icons and accessible labels.
 - Do not add glow, neon, 3D treatment, or an alternative ProxyFlow mark.
-- Use third-party artwork only when its source and use are verified. Claude has
-  no verified artwork in the current catalog, so it intentionally uses the
-  neutral `C` text fallback rather than an unrelated logo.
+- Service-only third-party artwork must retain its exact source revision in
+  `src/assets/services/SOURCES.md`; it must never replace product navigation or
+  target icons.
 
 ## Responsive And Accessibility Contract
 
-- Desktop (`>=1200px`): sidebar, main content, and optional non-modal inspector.
-- Medium (`768-1199px`): compact or collapsed navigation and overlay inspector.
-- Mobile (`<=767px`, including `390px`): single-column Workspace, compact
+- Desktop (`>=1024px`): sidebar, main content, and optional non-modal inspector.
+- Tablet (`768-1023px`): compact or collapsed navigation and overlay inspector.
+- Mobile (`<768px`, including `390px`): single-column Workspace, compact
   section selector, full-screen editors, and `44px` touch targets.
 
 Every primary workflow must work without Visual Flow. No supported viewport may

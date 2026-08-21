@@ -67,7 +67,7 @@ export function SourcesWorkspace({ items, runtimes, onRefresh, onEdit, onToggle,
     return <article className="workspace-source-item" data-status={source.status} key={source.id}>
       <div className="workspace-source-icon"><BlockIcon name={item.node.data.icon} size={19} /></div>
       <div className="workspace-source-main">
-        <div className="workspace-source-title"><strong>{localizeNodeTitle(item.node, locale)}</strong><SourceStatus status={source.status} label={t(sourceStatusMessages[source.status])} /></div>
+        <div className="workspace-source-title"><strong>{localizeNodeTitle(item.node, locale)}</strong><span className="workspace-source-format">{t(sourceKind)}</span><SourceStatus status={source.status} label={t(sourceStatusMessages[source.status])} /></div>
         <div className="workspace-source-meta">
           <span>{source.hostname ?? t(sourceKind)}</span>
           <span>{t('workspace.source.nodes', { count: source.nodeCount })}</span>
@@ -111,11 +111,13 @@ export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[]
 
   if (!proxies.length) return <WorkspaceEmpty icon={<Boxes size={22} />} title={t('workspace.empty.proxies')} />
   return <div className="workspace-proxies-page">
+    <div className="workspace-proxy-chip-filters">
+      <ProxyChipFilter label={t('workspace.proxy.allRegions')} value={region} options={options.regions} proxies={proxies} facet="region" onChange={setRegion} />
+      <ProxyChipFilter label={t('workspace.proxy.allProtocols')} value={protocol} options={options.protocols} proxies={proxies} facet="protocol" onChange={setProtocol} />
+    </div>
     <div className="workspace-proxy-filters" role="search">
       <label className="workspace-search-field"><span className="visually-hidden">{t('workspace.proxy.search')}</span><Search size={16} /><input type="search" value={search} placeholder={t('workspace.proxy.search')} onChange={(event) => setSearch(event.target.value)} />{search && <button type="button" aria-label={t('workspace.proxy.clearSearch')} onClick={() => setSearch('')}><X size={14} /></button>}</label>
       <FilterSelect label={t('workspace.proxy.allSources')} value={sourceId} onChange={setSourceId} options={options.sources} />
-      <FilterSelect label={t('workspace.proxy.allRegions')} value={region} onChange={setRegion} options={options.regions.map((value) => ({ value, label: value }))} />
-      <FilterSelect label={t('workspace.proxy.allProtocols')} value={protocol} onChange={setProtocol} options={options.protocols.map((value) => ({ value, label: value }))} />
       <FilterSelect label={t('workspace.proxy.allAvailability')} value={sourceAvailability} onChange={setSourceAvailability} options={options.sourceAvailabilities.map((value) => ({ value, label: t(sourceStatusMessages[value]) }))} />
       <FilterSelect label={t('workspace.proxy.allCompatibility')} value={compatibility} onChange={setCompatibility} options={options.compatibilities.map((value) => ({ value, label: t(compatibilityMessages[value]) }))} />
       {filteredState && <button type="button" className="workspace-clear-filters" onClick={() => { setSearch(''); setSourceId(''); setRegion(''); setProtocol(''); setSourceAvailability(''); setCompatibility('') }}>{t('workspace.proxy.clearFilters')}</button>}
@@ -123,9 +125,12 @@ export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[]
     <div className="workspace-table-summary">{t('workspace.proxy.results', { shown: filtered.length, total: proxies.length })}</div>
     {filtered.length === 0
       ? <WorkspaceEmpty icon={<Search size={22} />} title={t('workspace.proxy.noMatches')} />
-      : <div className="workspace-proxy-table" role="table" aria-label={t('workspace.proxies')} aria-rowcount={filtered.length + 1}>
-        <div role="row" className="is-heading"><span role="columnheader">{t('workspace.name')}</span><span role="columnheader">{t('workspace.protocol')}</span><span role="columnheader">{t('workspace.region')}</span><span role="columnheader">{t('workspace.source')}</span><span role="columnheader">{t('workspace.proxy.sourceAvailability')}</span><span role="columnheader">{t('workspace.compatibility')}</span></div>
-        {filtered.map((proxy) => <div role="row" key={`${proxy.sourceId}:${proxy.id}`}><strong role="cell" title={proxy.name}>{proxy.name}</strong><code role="cell">{proxy.protocol}</code><span role="cell">{proxy.region}</span><span role="cell" title={proxy.sourceName}>{proxy.sourceName}</span><SourceStatus role="cell" status={proxy.sourceAvailability} label={t(sourceStatusMessages[proxy.sourceAvailability])} /><b role="cell" className={`is-${proxy.compatibility}`}>{t(compatibilityMessages[proxy.compatibility])}</b></div>)}
+      : <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxies')}>
+        {filtered.map((proxy) => <article role="listitem" className="workspace-proxy-card" key={`${proxy.sourceId}:${proxy.id}`}>
+          <header><strong title={proxy.name}>{proxy.name}</strong><span>{proxy.region}</span></header>
+          <div><b className={`is-${proxy.compatibility}`}>{t(compatibilityMessages[proxy.compatibility])}</b></div>
+          <footer><code>{proxy.protocol}</code><span title={proxy.sourceName}>{proxy.sourceName}</span><SourceStatus status={proxy.sourceAvailability} label={t(sourceStatusMessages[proxy.sourceAvailability])} /></footer>
+        </article>)}
       </div>}
   </div>
 }
@@ -159,6 +164,7 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
         <button type="button" className="icon-button" disabled={!canMove.down} title={canMove.down ? t('workspace.processing.moveDown') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveDown')} onClick={() => onMove(step.id, 'down')}><ArrowDown size={16} /></button>
         <button type="button" className="row-action" onClick={() => onEdit(item)}>{t('workspace.open')}</button>
       </div>
+      {index < items.length - 1 && <ArrowDown className="workspace-processing-connector" size={14} aria-hidden="true" />}
     </li>
   })}</ol>
 }
@@ -235,6 +241,23 @@ export interface ProxyFilterOptions {
   protocols: WorkspaceProxySummary['protocol'][]
   sourceAvailabilities: WorkspaceProxySummary['sourceAvailability'][]
   compatibilities: WorkspaceProxySummary['compatibility'][]
+}
+
+function ProxyChipFilter({ label, value, options, proxies, facet, onChange }: {
+  label: string
+  value: string
+  options: readonly string[]
+  proxies: readonly WorkspaceProxySummary[]
+  facet: 'region' | 'protocol'
+  onChange: (value: string) => void
+}) {
+  return <section aria-label={label}>
+    <span>{label}</span>
+    <div role="group" aria-label={label}>
+      <button type="button" className={value === '' ? 'is-active' : ''} aria-pressed={value === ''} onClick={() => onChange('')}><span>{label}</span><small>{proxies.length}</small></button>
+      {options.map((option) => <button type="button" className={value === option ? 'is-active' : ''} aria-pressed={value === option} key={option} onClick={() => onChange(option)}><span>{option}</span><small>{proxies.filter((proxy) => proxy[facet] === option).length}</small></button>)}
+    </div>
+  </section>
 }
 
 export function collectProxyFilterOptions(proxies: readonly WorkspaceProxySummary[]): ProxyFilterOptions {

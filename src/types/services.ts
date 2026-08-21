@@ -18,6 +18,20 @@ export type ServiceMatcherDefinition =
   | { kind: 'ip-cidr6'; value: string }
   | { kind: 'port'; port: number }
 
+export type CustomRuleSourceFormat = 'mihomo-yaml' | 'surge-list'
+
+export interface CustomRuleSource {
+  id: string
+  name: string
+  inputKind: 'file' | 'url'
+  format: CustomRuleSourceFormat
+  fileName?: string
+  url?: string
+  icon?: string
+  enabled: boolean
+  matchers: ServiceMatcherDefinition[]
+}
+
 export interface ServiceDefinition {
   id: string
   name: string

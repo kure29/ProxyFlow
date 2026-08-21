@@ -1,0 +1,21 @@
+{
+  "name": "ProxyFlow",
+  "short_name": "ProxyFlow",
+  "description": "A local-first proxy configuration orchestration platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fb",
+  "theme_color": "#f7f8fb",
+  "icons": [
+    {
+      "src": "/icons/proxyflow-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/proxyflow-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
-import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
+import { PanelLeftClose, PanelLeftOpen, Plus, X } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { IconButton } from '../ui/Primitives'
@@ -8,10 +8,10 @@ import {
 } from './panelSizing'
 import { resolveShellMode, type ShellMode } from './shellState'
 
-const LIBRARY_WIDTH_KEY = 'proxyflow.ui.libraryWidth'
-const INSPECTOR_WIDTH_KEY = 'proxyflow.ui.inspectorWidth'
+const LIBRARY_WIDTH_KEY = 'proxyflow.ui.libraryWidth.v2'
+const INSPECTOR_WIDTH_KEY = 'proxyflow.ui.inspectorWidth.v2'
 const LIBRARY_COLLAPSED_KEY = 'proxyflow.ui.libraryCollapsed'
-const LIBRARY_RAIL_WIDTH = 56
+const LIBRARY_RAIL_WIDTH = 48
 
 interface ResizableWorkspaceProps {
   library: ReactNode
@@ -33,6 +33,14 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
   const selectNode = useBuilderStore((state) => state.selectNode)
   const selectEdge = useBuilderStore((state) => state.selectEdge)
   const inspectorOpen = Boolean(selectedNodeId || selectedEdgeId)
+  const addNodeTriggerRef = useRef<HTMLButtonElement>(null)
+  const libraryPanelRef = useRef<HTMLDivElement>(null)
+  const inspectorPanelRef = useRef<HTMLDivElement>(null)
+  const focusReturnRef = useRef<HTMLElement | null>(null)
+  const previousMobileSheetRef = useRef<'library' | 'inspector' | null>(null)
+  const mobileSheet = shellMode === 'mobile'
+    ? !libraryCollapsed ? 'library' : inspectorOpen ? 'inspector' : null
+    : null
 
   useEffect(() => {
     const onResize = () => {
@@ -58,7 +66,7 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
   const toggleLibrary = () => {
     setLibraryCollapsed((current) => {
       const next = !current
-      window.localStorage.setItem(LIBRARY_COLLAPSED_KEY, String(next))
+      if (shellMode === 'desktop') window.localStorage.setItem(LIBRARY_COLLAPSED_KEY, String(next))
       return next
     })
   }
@@ -68,7 +76,7 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
   )
 
   useEffect(() => {
-    if (!inspectorOpen || shellMode === 'desktop') return
+    if (!inspectorOpen || shellMode !== 'tablet') return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
@@ -78,18 +86,75 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [inspectorOpen, selectedEdgeId, selectedNodeId, selectEdge, selectNode, shellMode])
 
+  useEffect(() => {
+    if (shellMode === 'mobile' && inspectorOpen && !libraryCollapsed) setLibraryCollapsed(true)
+  }, [inspectorOpen, libraryCollapsed, shellMode])
+
+  useEffect(() => {
+    const previousSheet = previousMobileSheetRef.current
+    if (mobileSheet && !previousSheet) focusReturnRef.current = document.activeElement as HTMLElement
+    if (!mobileSheet && previousSheet) {
+      const returnTarget = focusReturnRef.current
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => (
+        previousSheet === 'library'
+          ? addNodeTriggerRef.current
+          : returnTarget?.isConnected ? returnTarget : addNodeTriggerRef.current
+      )?.focus()))
+      focusReturnRef.current = null
+    }
+    previousMobileSheetRef.current = mobileSheet
+  }, [mobileSheet])
+
+  useEffect(() => {
+    if (!mobileSheet) return
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    const panel = mobileSheet === 'library' ? libraryPanelRef.current : inspectorPanelRef.current
+    const focusFrame = window.requestAnimationFrame(() => panel?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')?.focus())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        mobileSheet === 'library' ? setLibraryCollapsed(true) : dismissInspector()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(panel?.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
+    }
+  }, [mobileSheet, selectedEdgeId, selectedNodeId, selectEdge, selectNode])
+
   return <div
     className={`workspace${libraryCollapsed ? ' is-library-collapsed' : ''}${inspectorOpen ? ' has-inspector' : ''}`}
     data-shell-mode={shellMode}
     style={style}
   >
-    <div className={`visual-library-panel${libraryCollapsed ? ' is-collapsed' : ''}`}>
+    {mobileSheet && <div className="visual-flow-sheet-backdrop" onMouseDown={() => mobileSheet === 'library' ? setLibraryCollapsed(true) : dismissInspector()} />}
+    <div
+      ref={libraryPanelRef}
+      className={`visual-library-panel${libraryCollapsed ? ' is-collapsed' : ''}`}
+      role={mobileSheet === 'library' ? 'dialog' : undefined}
+      aria-modal={mobileSheet === 'library' ? true : undefined}
+      aria-label={mobileSheet === 'library' ? t('library.title') : undefined}
+    >
       <IconButton
         className="palette-toggle"
-        label={t('library.title')}
+        label={libraryCollapsed ? t('library.title') : t('layout.closeLibrary')}
         aria-expanded={!libraryCollapsed}
         onClick={toggleLibrary}
-      >{libraryCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</IconButton>
+      >{libraryCollapsed ? <PanelLeftOpen size={18} /> : shellMode === 'mobile' ? <X size={18} /> : <PanelLeftClose size={18} />}</IconButton>
       <div className="visual-library-content" aria-hidden={libraryCollapsed}>{library}</div>
     </div>
     {!libraryCollapsed && shellMode === 'desktop' && <ResizeHandle
@@ -100,6 +165,7 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
       onChange={setLibraryWidth}
     />}
     {canvas}
+    {shellMode === 'mobile' && libraryCollapsed && !inspectorOpen && <button ref={addNodeTriggerRef} type="button" className="visual-flow-add-node" onClick={() => setLibraryCollapsed(false)}><Plus size={18} />{t('layout.addNode')}</button>}
     {inspectorOpen && shellMode === 'desktop' && <ResizeHandle
       side="right"
       label={t('layout.resizeInspector')}
@@ -107,11 +173,17 @@ export function ResizableWorkspace({ library, canvas, inspector }: ResizableWork
       config={INSPECTOR_PANEL}
       onChange={setInspectorWidth}
     />}
-    {inspectorOpen && <div className="visual-inspector-panel">
-      {shellMode !== 'desktop' && <div className="visual-inspector-toolbar">
+    {inspectorOpen && <div
+      ref={inspectorPanelRef}
+      className="visual-inspector-panel"
+      role={mobileSheet === 'inspector' ? 'dialog' : undefined}
+      aria-modal={mobileSheet === 'inspector' ? true : undefined}
+      aria-label={mobileSheet === 'inspector' ? t('inspector.title') : undefined}
+    >
+      <div className="visual-inspector-toolbar">
         <strong>{t('inspector.title')}</strong>
-        <IconButton className="visual-inspector-dismiss" label={t('layout.closeInspector')} autoFocus onClick={dismissInspector}><X size={18} /></IconButton>
-      </div>}
+        <IconButton className="visual-inspector-dismiss" label={t('layout.closeInspector')} autoFocus={shellMode !== 'desktop'} onClick={dismissInspector}><X size={18} /></IconButton>
+      </div>
       {inspector}
     </div>}
   </div>

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Route, X } from 'lucide-react'
-import proxyFlowMark from '../assets/proxyflow-mark.svg'
+import proxyFlowLogo from '../assets/brand/proxyflow-logo.png'
 import { TopBar } from '../components/layout/TopBar'
 import { StatusBar } from '../components/layout/StatusBar'
 import { useBuilderStore } from '../store/useBuilderStore'
@@ -45,7 +45,7 @@ export function App() {
   const loadStarted = useRef(false)
   const saveQueue = useRef<Promise<void>>(Promise.resolve())
   const [view, setView] = useState<ProductView>('workspace')
-  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSectionId>('sources')
+  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSectionId>('overview')
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const projectSaveKey = useMemo(() => JSON.stringify({
@@ -158,6 +158,7 @@ export function App() {
       onProjectNameCommit={persistCurrentProject}
       onNewProject={() => setNewProjectOpen(true)}
       onOpenWorkspaceSection={openWorkspaceSection}
+      primaryHealth={primaryHealth}
     />
     {view === 'workspace'
       ? <WorkspaceShell activeSection={workspaceSection} onSectionChange={setWorkspaceSection} onViewChange={setView} primaryHealth={primaryHealth} />
@@ -169,14 +170,14 @@ export function App() {
       <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>
       <div><button className="secondary-action" onClick={() => setNewProjectOpen(true)}>{t('app.newProject')}</button><button className="primary-action" onClick={resetToDemo}>{t('app.resetDemo')}</button>{!recoveryRequired && <button className="recovery-close" onClick={dismissRecoveryNotice} aria-label={t('app.dismissRecovery')}><X size={16} /></button>}</div>
     </section>}
-    {!hydrated && <div className="loading-screen"><img className="brand-mark" src={proxyFlowMark} alt="" aria-hidden="true" /><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
+    {!hydrated && <div className="loading-screen"><img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" /><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
     {toast && <div className="toast" role="status"><span><Check size={12} /></span>{toast}</div>}
     <NewProjectDialog
       open={newProjectOpen || Boolean(hydrated && primaryTarget === null && view === 'workspace')}
       required={!newProjectOpen && Boolean(hydrated && primaryTarget === null && view === 'workspace')}
       onClose={() => setNewProjectOpen(false)}
       beforeCreate={persistCurrentProject}
-      onComplete={() => { setNewProjectOpen(false); setView('workspace'); setWorkspaceSection('sources') }}
+      onComplete={() => { setNewProjectOpen(false); setView('workspace'); setWorkspaceSection('overview') }}
     />
   </div>
 }

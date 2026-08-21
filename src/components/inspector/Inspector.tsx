@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
 import {
-  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp, ExternalLink,
+  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp,
   ClipboardPaste, Database, Eye, FileOutput, FileUp, GitCompareArrows, Globe2, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
   History,
 } from 'lucide-react'
@@ -31,6 +31,10 @@ import {
 import { normalizeDnsResolvers } from '../../core/dns/resolverProfiles'
 import type { WorkspaceSectionId } from '../../core/workspace'
 import { getTargetCapabilities } from '../../core/capabilities'
+import {
+  parseCustomRuleSource, validateCustomRuleSourceForTarget, type CustomRuleSourceIssue,
+  type CustomRuleSourceRequestedFormat,
+} from '../../core/routing/customRuleSource'
 
 interface InspectorProps {
   node: GraphNode
@@ -612,7 +616,6 @@ function RoutingInspector({ node }: InspectorProps) {
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
   const moveRoutingRule = useBuilderStore((state) => state.moveRoutingRule)
   const targets = nodes.filter((item) => ['strategy', 'chain'].includes(item.data.category))
-  const [rulesOpen, setRulesOpen] = useState(false)
   const [servicePickerOpen, setServicePickerOpen] = useState(false)
   const [serviceQuery, setServiceQuery] = useState('')
   const services = node.data.services ?? []
@@ -621,9 +624,10 @@ function RoutingInspector({ node }: InspectorProps) {
   const matcherCapability = matcherKind ? routingCapabilities?.[matcherKind] : undefined
   const unsupportedMatcher = matcherCapability?.status === 'unsupported'
   const isRouteRule = isRoutingRuleType(node.data.blockType)
+  const isServiceRule = isRouteRule && node.data.blockType !== 'custom-rule'
+  const isCustomRule = node.data.blockType === 'custom-rule'
   const isServiceRoute = matcherKind === 'service'
-  const isAdvancedMatcher = Boolean(matcherKind && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
-  const selectedServices = services.map((value) => serviceCatalog.find((service) => service.id === value || service.name === value)).filter(Boolean)
+  const isAdvancedMatcher = Boolean(matcherKind && matcherKind !== 'rule-set' && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
   const availableServices = serviceCatalog.filter((service) => !services.includes(service.id) && !services.includes(service.name) && `${service.name} ${service.description ?? ''}`.toLowerCase().includes(serviceQuery.trim().toLowerCase()))
   const matcherValue = node.data.routeMatcherValue ?? ''
   const order = routeOrder(node.id, nodes)
@@ -631,41 +635,128 @@ function RoutingInspector({ node }: InspectorProps) {
     routeMatcherKind: value,
     ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
     ...(value !== 'port' ? { routeMatcherPort: undefined } : {}),
+    ...(value === 'rule-set' ? { routeMatcherValue: node.data.customRuleSource?.id ?? '' }
+      : value !== 'service' && value !== 'port' ? { routeMatcherValue: '' } : {}),
     ...(value === 'service' ? { ruleSource: node.data.ruleSource ?? 'ios_rule_script' } : {}),
   })
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     {unsupportedMatcher && primaryTarget && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('workspace.routing.unsupportedByTarget', { target: getTargetCapabilities(primaryTarget).label })}</strong>{matcherCapability.reason && <code>{matcherCapability.reason}</code>}</span></div>}
-    {isRouteRule && <Field label={t('inspector.matcherType')}>
+    {isCustomRule && <Field label={t('inspector.matcherType')}>
       <select value={isAdvancedMatcher ? '' : matcherKind ?? ''} onChange={(event) => setMatcher(event.target.value as BlockNodeData['routeMatcherKind'])}>
         <option value="" disabled>{t('inspector.selectBasicMatcher')}</option>
-        {BASIC_ROUTE_MATCHERS.map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
+        {BASIC_ROUTE_MATCHERS.filter((value) => value !== 'service').map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
+        <option value="rule-set">{t('inspector.matcher.ruleSet')}</option>
       </select>
     </Field>}
-    {isRouteRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" aria-expanded={servicePickerOpen} onClick={() => setServicePickerOpen((open) => !open)}>{servicePickerOpen ? <ChevronUp size={13} /> : <Plus size={13} />} {servicePickerOpen ? t('inspector.collapse') : t('inspector.add')}</button></div>
+    {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" aria-expanded={servicePickerOpen} onClick={() => setServicePickerOpen((open) => !open)}>{servicePickerOpen ? <ChevronUp size={13} /> : <Plus size={13} />} {servicePickerOpen ? t('inspector.collapse') : t('inspector.add')}</button></div>
     <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><AssetIcon className="service-avatar" src={definition?.icon} darkSrc={definition?.iconDark} fallback={label.slice(0, 1)} /><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
     {servicePickerOpen && <div className="service-picker"><div className="service-picker-heading"><div className="service-search"><Search size={15} /><input autoFocus value={serviceQuery} placeholder={t('inspector.searchServices')} onChange={(event) => setServiceQuery(event.target.value)} /></div><button type="button" className="service-picker-collapse" onClick={() => setServicePickerOpen(false)} aria-label={t('inspector.collapse')} title={t('inspector.collapse')}><ChevronUp size={16} /></button></div><div className="service-picker-options">{availableServices.map((service) => <button type="button" key={service.id} onClick={() => { update(node.id, { services: [...services, service.id] }); setServiceQuery('') }}><AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span><Plus size={15} /></button>)}{availableServices.length === 0 && <small>{t('inspector.noServices')}</small>}</div></div>}</>}
-    {isRouteRule && !isServiceRoute && !isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
+    {isCustomRule && matcherKind === 'rule-set' && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={primaryTarget} update={update} t={t} />}
+    {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><select value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(event) => setTarget(node.id, event.target.value)}><option value="" disabled>{t('inspector.selectTarget')}</option><option value="__direct__">DIRECT</option><option value="__reject__">REJECT</option>{targets.map((target) => <option key={target.id} value={target.id}>{localizeNodeTitle(target, locale)}</option>)}</select></Field>
     {isRouteRule && order && <div className="route-order"><span><strong>{t('inspector.routeOrder', { index: order.index + 1, count: order.count })}</strong><small>{t('inspector.routeOrderHint')}</small></span><div><button type="button" disabled={!order.canMoveUp} aria-label={t('inspector.moveRuleUp')} onClick={() => moveRoutingRule(node.id, 'up')}><ArrowUp size={14} /></button><button type="button" disabled={!order.canMoveDown} aria-label={t('inspector.moveRuleDown')} onClick={() => moveRoutingRule(node.id, 'down')}><ArrowDown size={14} /></button></div></div>}
     <div className="route-preview"><span className="route-source">{localizeNodeTitle(node, locale)}</span><ArrowLeftRight size={14} /><span className="route-target">{node.data.targetLabel ? localizeKnownSystemText(node.data.targetLabel, locale) : t('inspector.notConfigured')}</span></div>
-    {isRouteRule && <Advanced>
+    {isCustomRule && <Advanced>
       <Field label={t('inspector.advancedMatcher')}>
         <select value={isAdvancedMatcher ? matcherKind : '__none__'} onChange={(event) => setMatcher(event.target.value === '__none__' ? 'domain-suffix' : event.target.value as BlockNodeData['routeMatcherKind'])}>
           <option value="__none__">{t('inspector.noAdvancedMatcher')}</option>
-          {ADVANCED_ROUTE_MATCHERS.map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
+          {ADVANCED_ROUTE_MATCHERS.filter((value) => value !== 'rule-set').map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return <option key={value} value={value} disabled={unsupported}>{matcherLabel(value, t)}{unsupported ? ` · ${t('inspector.unsupported')}` : ''}</option> })}
         </select>
       </Field>
       {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
       <Field label={t('inspector.routePriority')} hint={t('inspector.routePriorityHint')}><input type="number" min="0" step="1" value={node.data.routePriority ?? ''} placeholder="10" onChange={(event) => update(node.id, { routePriority: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
-      {matcherKind && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherKind === 'service' ? services.join(', ') : matcherValue)}</code></div></div>}
-      {isServiceRoute && <>
-        <div className="rule-source-card"><div><span>{t('inspector.ruleSource')}</span><strong>{node.data.ruleSource === 'builtin' ? 'ProxyFlow' : 'ios_rule_script'}</strong><small>{node.data.ruleSource === 'builtin' ? t('inspector.builtinMetadata') : 'blackmatrix7 / ios_rule_script'}</small></div><a href="https://github.com/blackmatrix7/ios_rule_script" target="_blank" rel="noreferrer" aria-label={t('inspector.viewRuleSource')}><ExternalLink size={14} /></a></div>
-        <button className="inspector-secondary-button" onClick={() => setRulesOpen((open) => !open)}><Eye size={14} /> {rulesOpen ? t('inspector.hideRules') : t('inspector.showRules')}</button>
-        {rulesOpen && <div className="actual-rules"><div><span>{t('inspector.generatedServiceRules')}</span><code>{selectedServices.map((service) => service?.id).join(', ') || '—'}</code></div><small>{t('inspector.rulesDemoNote')}</small></div>}
-      </>}
+      {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
     </Advanced>}
   </>
+}
+
+function CustomRuleSourceEditor({ node, primaryTarget, update, t }: {
+  node: GraphNode
+  primaryTarget: ReturnType<typeof useBuilderStore.getState>['primaryTarget']
+  update: ReturnType<typeof useBuilderStore.getState>['updateNodeData']
+  t: ReturnType<typeof useI18n>['t']
+}) {
+  const existing = node.data.customRuleSource
+  const [name, setName] = useState(existing?.name ?? node.data.title)
+  const [inputKind, setInputKind] = useState<'file' | 'url'>(existing?.inputKind ?? 'file')
+  const [requestedFormat, setRequestedFormat] = useState<CustomRuleSourceRequestedFormat>('auto')
+  const [url, setUrl] = useState(existing?.url ?? '')
+  const [icon, setIcon] = useState(existing?.icon)
+  const [issues, setIssues] = useState<CustomRuleSourceIssue[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const importContent = async (content: string, metadata: { fileName?: string; sourceUrl?: string }) => {
+    const result = parseCustomRuleSource({
+      id: existing?.id ?? `custom-rule-${node.id}`,
+      name,
+      inputKind,
+      content,
+      requestedFormat,
+      fileName: metadata.fileName,
+      url: metadata.sourceUrl,
+      icon,
+      enabled: existing?.enabled ?? true,
+    })
+    if (!result.ok) { setIssues(result.issues); return }
+    const targetIssues = primaryTarget ? validateCustomRuleSourceForTarget(result.source, primaryTarget) : []
+    const nextIssues = [...result.issues, ...targetIssues]
+    setIssues(nextIssues)
+    if (targetIssues.some((issue) => issue.severity === 'error')) return
+    update(node.id, { customRuleSource: result.source, routeMatcherValue: result.source.id })
+  }
+
+  const importUrl = async () => {
+    setLoading(true)
+    setIssues([])
+    try {
+      const response = await fetch(url, { credentials: 'omit', redirect: 'follow' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      await importContent(await response.text(), { sourceUrl: url })
+    } catch (error) {
+      setIssues([{ code: 'RULE_SOURCE_FETCH_FAILED', severity: 'error', message: error instanceof Error ? error.message : t('inspector.ruleSource.fetchFailed') }])
+    } finally { setLoading(false) }
+  }
+
+  const updateExisting = (patch: Partial<NonNullable<BlockNodeData['customRuleSource']>>) => {
+    if (!existing) return
+    update(node.id, { customRuleSource: { ...existing, ...patch } })
+  }
+
+  return <section className="custom-rule-source" aria-label={t('inspector.ruleSource.title')}>
+    <div className="custom-rule-source-heading">
+      <AssetIcon className="service-avatar" src={icon} fallback="R" />
+      <span><strong>{t('inspector.ruleSource.title')}</strong><small>{t('inspector.ruleSource.normalizedHint')}</small></span>
+    </div>
+    <Field label={t('inspector.ruleSource.name')}><input value={name} onChange={(event) => { setName(event.target.value); updateExisting({ name: event.target.value }) }} /></Field>
+    <Field label={t('inspector.ruleSource.input')}><select value={inputKind} onChange={(event) => setInputKind(event.target.value as 'file' | 'url')}><option value="file">{t('inspector.ruleSource.file')}</option><option value="url">URL</option></select></Field>
+    <Field label={t('inspector.ruleSource.format')}><select value={requestedFormat} onChange={(event) => setRequestedFormat(event.target.value as CustomRuleSourceRequestedFormat)}><option value="auto">{t('inspector.ruleSource.autoDetect')}</option><option value="mihomo-yaml">Mihomo YAML</option><option value="surge-list">Surge List</option></select></Field>
+    {inputKind === 'file' ? <label className="custom-rule-source-upload"><FileUp size={15} /><span>{existing?.fileName ?? t('inspector.ruleSource.chooseFile')}</span><input type="file" accept=".yaml,.yml,.list,.txt,text/plain,application/yaml" onChange={async (event) => { const file = event.target.files?.[0]; if (file) await importContent(await file.text(), { fileName: file.name }) }} /></label>
+      : <div className="custom-rule-source-url"><Field label={t('inspector.ruleSource.url')}><input type="url" value={url} placeholder="https://rules.example.com/list.yaml" onChange={(event) => setUrl(event.target.value)} /></Field><button type="button" className="inspector-secondary-button" disabled={loading || !url.trim()} onClick={() => void importUrl()}><Link2 size={14} />{loading ? t('inspector.ruleSource.loading') : t('inspector.ruleSource.validate')}</button></div>}
+    <div className="custom-rule-source-icon">
+      <label className="inspector-secondary-button"><FileUp size={14} />{t('inspector.ruleSource.uploadIcon')}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={async (event) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+        if (!file.type.startsWith('image/') || file.size > 256_000) { setIssues([{ code: 'RULE_SOURCE_ICON_INVALID', severity: 'error', message: t('inspector.ruleSource.iconInvalid') }]); return }
+        const dataUrl = await fileToDataUrl(file)
+        setIcon(dataUrl)
+        updateExisting({ icon: dataUrl })
+      }} /></label>
+      {icon && <button type="button" className="inspector-secondary-button" onClick={() => { setIcon(undefined); updateExisting({ icon: undefined }) }}><X size={14} />{t('inspector.ruleSource.removeIcon')}</button>}
+    </div>
+    {existing && <label className="toggle-row compact"><span><strong>{t('inspector.ruleSource.enabled')}</strong><small>{existing.matchers.length} {t('inspector.ruleSource.rules')}</small></span><input type="checkbox" checked={existing.enabled} onChange={(event) => updateExisting({ enabled: event.target.checked })} /></label>}
+    {existing && <div className="custom-rule-source-status"><Check size={15} /><span><strong>{existing.format === 'mihomo-yaml' ? 'Mihomo YAML' : 'Surge List'}</strong><small>{t('inspector.ruleSource.validated', { count: existing.matchers.length })}</small></span></div>}
+    {issues.length > 0 && <div className="custom-rule-source-issues">{issues.map((issue, index) => <div data-severity={issue.severity} key={`${issue.code}-${index}`}><AlertTriangle size={14} /><span><strong>{issue.code}</strong><small>{issue.line ? `${t('inspector.ruleSource.line')} ${issue.line} · ` : ''}{issue.message}</small></span></div>)}</div>}
+  </section>
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid image data.'))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }
 
 function MatcherValueField({ node, kind, matcherValue, update, t }: { node: GraphNode; kind: NonNullable<BlockNodeData['routeMatcherKind']>; matcherValue: string; update: ReturnType<typeof useBuilderStore.getState>['updateNodeData']; t: ReturnType<typeof useI18n>['t'] }) {

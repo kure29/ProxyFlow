@@ -1,4 +1,5 @@
-import type { CompatibilityIssue, MihomoOutputProfile, MihomoRuntimePreset } from '../../types/project'
+import { createDnsResolver } from '../../core/dns/resolverProfiles'
+import type { CompatibilityIssue, DnsResolverConfig, MihomoOutputProfile, MihomoRuntimePreset } from '../../types/project'
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
 
@@ -24,6 +25,25 @@ export function createMihomoOutputProfile(preset: MihomoRuntimePreset = 'local-p
     unifiedDelay: true,
     tcpConcurrent: true,
   }
+}
+
+/**
+ * Defaults for newly created Mihomo projects. Existing and imported projects keep
+ * their stored profile, while missing legacy profiles continue to resolve to the
+ * conservative Local Proxy preset above.
+ */
+export function createMihomoStarterProfile(): MihomoOutputProfile {
+  return {
+    ...createMihomoOutputProfile('desktop-tun'),
+    allowLan: true,
+    ipv6: false,
+  }
+}
+
+export function createMihomoStarterDnsResolvers(): DnsResolverConfig[] {
+  const aliDns = createDnsResolver('alidns')!
+  const dnsPod = createDnsResolver('dnspod', 'default', [aliDns])!
+  return [aliDns, dnsPod]
 }
 
 export function resolveMihomoOutputProfile(value: unknown): MihomoOutputProfile {
@@ -70,6 +90,16 @@ export function validateMihomoOutputProfile(
       'error',
       'output-profile',
       'The Desktop TUN preset requires an enabled DNS node in the project.',
+      entityId,
+    ))
+  }
+  if (value !== undefined && normalized.profile.preset !== 'desktop-tun'
+    && normalized.profile.dnsMode !== 'disabled' && !dnsEnabled) {
+    issues.push(mihomoIssue(
+      'MIHOMO_DNS_PROFILE_REQUIRES_DNS',
+      'error',
+      'output-profile',
+      'The selected Mihomo DNS enhancement mode requires an enabled DNS node in the project.',
       entityId,
     ))
   }

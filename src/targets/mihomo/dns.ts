@@ -15,7 +15,7 @@ export function compileMihomoDns(dns: DnsIR | undefined, mode: MihomoDnsMode, ip
     'enhanced-mode': mode,
     ...(mode === 'fake-ip' ? { 'fake-ip-range': MIHOMO_DEFAULTS.fakeIpRange } : {}),
     'default-nameserver': [MIHOMO_DEFAULTS.dnsBootstrap],
-    nameserver: defaults.length > 0 ? defaults : [MIHOMO_DEFAULTS.dnsNameserver],
+    nameserver: defaults.length > 0 ? defaults : [...MIHOMO_DEFAULTS.dnsNameservers],
     ...(direct.length > 0 ? { 'direct-nameserver': direct } : {}),
     ...(fallback.length > 0 ? { fallback } : {}),
   }

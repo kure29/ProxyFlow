@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import {
   AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronLeft, CircleOff,
-  GripVertical, MoreHorizontal, Plus, Search, X,
+  Copy, GripVertical, MoreHorizontal, Pencil, Plus, Search, Trash2, X,
 } from 'lucide-react'
 import type { CapabilityDeclaration, CapabilityStatus } from '../../core/capabilities'
 import {
@@ -38,6 +38,10 @@ export interface RoutingWorkspaceCopy {
   moveDown: string
   dragRule: string
   more: string
+  edit: string
+  duplicate: string
+  delete: string
+  cancel: string
   unsupportedByTarget: string
   statusLabels: Record<RoutingRuleStatus, string>
   capabilityLabels: Record<CapabilityStatus, string>
@@ -55,6 +59,8 @@ export interface RoutingWorkspaceProps {
   onMove: (nodeId: string, direction: 'up' | 'down') => void
   onMoveToIndex: (nodeId: string, targetIndex: number) => void
   onEdit: (item: WorkspaceNodeItem) => void
+  onDuplicate: (item: WorkspaceNodeItem) => void
+  onDelete: (item: WorkspaceNodeItem) => void
   getNodeTitle?: (node: GraphNode) => string
   getTargetSummary?: (node: GraphNode, fallback: string) => string
 }
@@ -70,15 +76,20 @@ export function RoutingWorkspace({
   onMove,
   onMoveToIndex,
   onEdit,
+  onDuplicate,
+  onDelete,
   getNodeTitle,
   getTargetSummary,
 }: RoutingWorkspaceProps) {
   const [stage, setStage] = useState<AddStage>('closed')
   const [serviceQuery, setServiceQuery] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [actionItem, setActionItem] = useState<{ item: WorkspaceNodeItem; index: number; title: string; final: boolean } | null>(null)
   const addRootRef = useRef<HTMLDivElement>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const addPopoverRef = useRef<HTMLDivElement>(null)
+  const actionSheetRef = useRef<HTMLElement>(null)
+  const actionReturnFocusRef = useRef<HTMLButtonElement | null>(null)
   const visibleServices = useMemo(
     () => filterRoutingServices(services, serviceQuery),
     [serviceQuery, services],
@@ -86,6 +97,13 @@ export function RoutingWorkspace({
 
   useEffect(() => {
     if (stage === 'closed') return
+    const mobileSheet = window.matchMedia('(max-width: 767px)').matches
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    if (mobileSheet) {
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    }
     const focusFrame = window.requestAnimationFrame(() => {
       const selector = stage === 'service'
         ? 'input:not(:disabled)'
@@ -101,14 +119,56 @@ export function RoutingWorkspace({
       setStage('closed')
       addButtonRef.current?.focus()
     }
+    const trapFocus = (event: KeyboardEvent) => {
+      if (!mobileSheet || event.key !== 'Tab') return
+      const focusable = Array.from(addPopoverRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
     window.addEventListener('pointerdown', close)
     window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('keydown', trapFocus)
     return () => {
       window.cancelAnimationFrame(focusFrame)
       window.removeEventListener('pointerdown', close)
       window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('keydown', trapFocus)
+      if (mobileSheet) {
+        document.body.style.overflow = previousBodyOverflow
+        document.documentElement.style.overflow = previousRootOverflow
+      }
     }
   }, [stage])
+
+  useEffect(() => {
+    if (!actionItem) return
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    const focusFrame = window.requestAnimationFrame(() => actionSheetRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setActionItem(null); return }
+      if (event.key !== 'Tab') return
+      const focusable = Array.from(actionSheetRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)!
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
+      window.requestAnimationFrame(() => actionReturnFocusRef.current?.focus())
+    }
+  }, [actionItem])
 
   const closeAddPopover = (returnFocus = true) => {
     setStage('closed')
@@ -132,6 +192,11 @@ export function RoutingWorkspace({
     if (nodeId && items.some((item) => item.node.id === nodeId)) onMoveToIndex(nodeId, targetIndex)
     setDraggingId(null)
   }
+  const openActions = (trigger: HTMLButtonElement, item: WorkspaceNodeItem, index: number, title: string, final: boolean) => {
+    if (!window.matchMedia('(max-width: 767px)').matches) { onEdit(item); return }
+    actionReturnFocusRef.current = trigger
+    setActionItem({ item, index, title, final })
+  }
 
   return <section className="routing-workspace" aria-label={copy.rulesLabel}>
     <header className="routing-workspace-heading">
@@ -141,6 +206,7 @@ export function RoutingWorkspace({
         <button ref={addButtonRef} type="button" className="primary-action" aria-haspopup="dialog" aria-controls={stage === 'closed' ? undefined : 'routing-add-popover'} aria-expanded={stage !== 'closed'} onClick={() => stage === 'closed' ? setStage('kind') : closeAddPopover()}>
           <Plus size={16} />{copy.addRule}
         </button>
+        {stage !== 'closed' && <div className="routing-add-sheet-backdrop" onMouseDown={() => closeAddPopover()} />}
         {stage !== 'closed' && <div ref={addPopoverRef} id="routing-add-popover" className="routing-add-popover" role="dialog" aria-label={stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}>
           <header>
             {stage !== 'kind' && <button type="button" className="icon-button" aria-label={copy.back} title={copy.back} onClick={() => setStage('kind')}><ChevronLeft size={17} /></button>}
@@ -185,14 +251,14 @@ export function RoutingWorkspace({
           <span className="routing-rule-order">{index + 1}</span>
           <div className="routing-rule-summary">
             <strong>{title}</strong>
-            <span><b>{presentation.intent === 'service' ? copy.serviceMatcher : copy.customMatcher}</b>{presentation.matcherSummary}</span>
+            <span><b>{presentation.intent === 'service' ? copy.serviceMatcher : copy.customMatcher}</b><code>{presentation.matcherSummary}</code></span>
           </div>
-          <div className="routing-rule-target"><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></div>
+          <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
           <RuleStatus status={status} label={unsupported ? copy.unsupportedByTarget : copy.statusLabels[status]} />
           <div className="routing-rule-actions">
             <button type="button" className="icon-button" disabled={index === 0} aria-label={`${copy.moveUp}: ${title}`} title={copy.moveUp} onClick={() => onMove(item.node.id, 'up')}><ArrowUp size={15} /></button>
             <button type="button" className="icon-button" disabled={index === items.length - 1} aria-label={`${copy.moveDown}: ${title}`} title={copy.moveDown} onClick={() => onMove(item.node.id, 'down')}><ArrowDown size={15} /></button>
-            <button type="button" className="icon-button" aria-label={`${copy.more}: ${title}`} title={copy.more} onClick={() => onEdit(item)}><MoreHorizontal size={17} /></button>
+            <button type="button" className="icon-button" aria-label={`${copy.more}: ${title}`} title={copy.more} onClick={(event) => openActions(event.currentTarget, item, index, title, false)}><MoreHorizontal size={17} /></button>
           </div>
         </article>
       })}
@@ -204,12 +270,25 @@ export function RoutingWorkspace({
         return <article className="routing-rule-row is-final" data-status={status} key={item.node.id} role="listitem">
           <span className="routing-rule-order">F</span>
           <div className="routing-rule-summary"><strong>{title}</strong><span><b>{copy.finalRoute}</b></span></div>
-          <div className="routing-rule-target"><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></div>
+          <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
           <RuleStatus status={status} label={copy.statusLabels[status]} />
-          <div className="routing-rule-actions"><button type="button" className="icon-button" aria-label={`${copy.more}: ${title}`} title={copy.more} onClick={() => onEdit(item)}><MoreHorizontal size={17} /></button></div>
+          <div className="routing-rule-actions"><button type="button" className="icon-button" aria-label={`${copy.more}: ${title}`} title={copy.more} onClick={(event) => openActions(event.currentTarget, item, -1, title, true)}><MoreHorizontal size={17} /></button></div>
         </article>
       })}
     </div>
+    {actionItem && <div className="routing-action-sheet-backdrop" onMouseDown={() => setActionItem(null)}>
+      <aside ref={actionSheetRef} className="routing-action-sheet" role="dialog" aria-modal="true" aria-label={`${copy.more}: ${actionItem.title}`} onMouseDown={(event) => event.stopPropagation()}>
+        <header><span /><strong>{actionItem.title}</strong></header>
+        <div>
+          <button type="button" onClick={() => { onEdit(actionItem.item); setActionItem(null) }}><Pencil size={17} />{copy.edit}</button>
+          {!actionItem.final && <button type="button" onClick={() => { onDuplicate(actionItem.item); setActionItem(null) }}><Copy size={17} />{copy.duplicate}</button>}
+          {!actionItem.final && <button type="button" disabled={actionItem.index === 0} onClick={() => { onMove(actionItem.item.node.id, 'up'); setActionItem(null) }}><ArrowUp size={17} />{copy.moveUp}</button>}
+          {!actionItem.final && <button type="button" disabled={actionItem.index === items.length - 1} onClick={() => { onMove(actionItem.item.node.id, 'down'); setActionItem(null) }}><ArrowDown size={17} />{copy.moveDown}</button>}
+          <button type="button" className="danger" disabled={Boolean(actionItem.item.node.data.protected)} onClick={() => { onDelete(actionItem.item); setActionItem(null) }}><Trash2 size={17} />{copy.delete}</button>
+        </div>
+        <button type="button" className="routing-action-sheet-cancel" onClick={() => setActionItem(null)}>{copy.cancel}</button>
+      </aside>
+    </div>}
   </section>
 }
 

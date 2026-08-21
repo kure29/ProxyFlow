@@ -9,6 +9,7 @@ import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
 import { validateGraphStructure } from './validateGraphStructure'
+import { ruleSourceMatchersToIR, validateCustomRuleSourceForTarget } from '../routing/customRuleSource'
 
 export interface GraphCompileResult {
   ir?: ProxyFlowIR
@@ -20,6 +21,34 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
   try {
     const context = createGraphCompileContext(project, options)
     context.issues.push(...validateGraphStructure(project))
+    const customRuleSourceServices = project.graph.nodes.flatMap((node) => {
+      if (node.data.disabled || node.data.blockType !== 'custom-rule' || node.data.routeMatcherKind !== 'rule-set') return []
+      const source = node.data.customRuleSource
+      if (!source) return []
+      const inlineMatchers = ruleSourceMatchersToIR(source)
+      if (!inlineMatchers) {
+        context.addIssue(semanticIssue(
+          'RULE_SOURCE_NORMALIZED_MODEL_INVALID', 'error', 'compile', `Rule source "${source.name}" contains an invalid normalized matcher.`,
+          { nodeId: node.id, entity: { type: 'rule-set', id: source.id } },
+        ))
+        return []
+      }
+      if (project.primaryTarget) for (const issue of validateCustomRuleSourceForTarget(source, project.primaryTarget)) context.addIssue(semanticIssue(
+        issue.code, issue.severity, 'compile', issue.message,
+        { nodeId: node.id, entity: { type: 'rule-set', id: source.id } },
+      ))
+      return [{
+        id: `custom-rule-source:${source.id}`,
+        name: source.name,
+        ruleSources: [{
+          id: source.id,
+          provider: 'custom' as const,
+          format: source.format === 'mihomo-yaml' ? 'yaml' as const : 'text' as const,
+          behavior: 'classical' as const,
+          inlineMatchers,
+        }],
+      }]
+    })
     const routing = compileRouting(context)
     const draft: ProxyFlowIR = {
       version: PROXYFLOW_IR_VERSION,
@@ -31,7 +60,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       sources: compileSources(context),
       transforms: compileTransforms(context),
       strategies: compileStrategies(context),
-      services: project.services.map((service) => ({
+      services: [...project.services.map((service) => ({
         id: service.id,
         name: service.name,
         defaultMatchers: service.defaultMatchers,
@@ -43,7 +72,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
           ...(behavior ? { behavior } : {}),
           ...(url ? { url } : {}),
         })),
-      })),
+      })), ...customRuleSourceServices],
       routes: routing.routes,
       finalRoute: routing.finalRoute,
       dns: compileDns(context),

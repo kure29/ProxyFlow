@@ -23,6 +23,13 @@ export function compileSingBoxRouting(context: SingBoxCompileContext) {
         context.issues.push(singBoxIssue('SINGBOX_RULE_SET_NOT_FOUND', 'error', 'route', `Rule set “${route.matcher.id}” 不存在。`, route.id))
         continue
       }
+      if (reference.source.inlineMatchers?.length) {
+        for (const matcher of reference.source.inlineMatchers) {
+          const rule = matcherRule(matcher, action, route.id, context)
+          if (rule) rules.push(rule)
+        }
+        continue
+      }
       const tag = ensureRemoteRuleSet({ id: reference.source.id, name: reference.source.id }, reference.source, context)
       if (tag) rules.push({ rule_set: [tag], ...action })
       continue

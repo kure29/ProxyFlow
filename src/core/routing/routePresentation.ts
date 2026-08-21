@@ -3,7 +3,7 @@ import type { BlockNodeData, GraphNode, RouteMatcherKind, ServiceDefinition } fr
 import { resolveRouteMatcherKind } from './routeProductModel'
 
 export const CUSTOM_ROUTE_MATCHERS = [
-  'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port',
+  'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'rule-set',
 ] as const satisfies readonly RouteMatcherKind[]
 
 export type CustomRouteMatcherKind = typeof CUSTOM_ROUTE_MATCHERS[number]
@@ -104,7 +104,11 @@ function customMatcherSummary(
   copy: RoutingPresentationCopy,
 ) {
   if (!matcherKind) return copy.emptyMatcher
-  const value = matcherKind === 'port' ? data.routeMatcherPort : data.routeMatcherValue?.trim()
+  const value = matcherKind === 'port'
+    ? data.routeMatcherPort
+    : matcherKind === 'rule-set'
+      ? data.customRuleSource?.name ?? data.routeMatcherValue?.trim()
+      : data.routeMatcherValue?.trim()
   return value === undefined || value === ''
     ? `${copy.matcherLabels[matcherKind]} · ${copy.emptyMatcher}`
     : `${copy.matcherLabels[matcherKind]} · ${value}`

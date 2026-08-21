@@ -8,7 +8,7 @@ import { rankWorkspaceRoutingRules } from '../routing/routeProductModel'
 import type { SubscriptionSnapshot } from '../subscription'
 import type { BlockNodeData, EdgeSemantic, GraphNode, ProxyFlowProject } from '../../types/project'
 
-export type WorkspaceSectionId = 'sources' | 'proxies' | 'processing' | 'strategies' | 'routing' | 'dns' | 'inspect' | 'export'
+export type WorkspaceSectionId = 'overview' | 'sources' | 'proxies' | 'processing' | 'strategies' | 'routing' | 'dns' | 'inspect' | 'export'
 
 export interface WorkspaceConnection {
   edgeId: string

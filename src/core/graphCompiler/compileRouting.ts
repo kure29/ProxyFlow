@@ -77,6 +77,24 @@ function compileCustomMatcher(nodeId: string, name: string, kind: Exclude<NonNul
     return undefined
   }
   if (normalized.matcher.kind === 'rule-set') {
+    const customSource = data.customRuleSource
+    if (customSource) {
+      if (customSource.id !== normalized.matcher.id) {
+        context.addIssue(semanticIssue(
+          'ROUTE_RULE_SOURCE_REFERENCE_MISMATCH', 'error', 'compile', `Route "${name}" does not reference its attached rule source.`,
+          { nodeId, entity: { type: 'route', id: nodeId } },
+        ))
+        return undefined
+      }
+      if (!customSource.enabled) {
+        context.addIssue(semanticIssue(
+          'RULE_SOURCE_DISABLED', 'error', 'compile', `Rule source "${customSource.name}" is disabled.`,
+          { nodeId, entity: { type: 'route', id: nodeId } },
+        ))
+        return undefined
+      }
+      return normalized.matcher
+    }
     const matches = findRuleSourceMatches(context.project.services, normalized.matcher.id)
     if (matches.length === 0) {
       context.addIssue(semanticIssue(
