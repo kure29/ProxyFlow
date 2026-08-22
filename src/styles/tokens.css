@@ -26,12 +26,12 @@
   --color-backdrop: rgba(23, 32, 51, 0.28);
   --color-canvas-mask: rgba(247, 249, 252, 0.78);
 
-  --text-page-size: 20px;
-  --text-page-line: 28px;
+  --text-page-size: 22px;
+  --text-page-line: 30px;
   --text-section-size: 15px;
   --text-section-line: 22px;
-  --text-body-size: 13px;
-  --text-body-line: 18px;
+  --text-body-size: 14px;
+  --text-body-line: 20px;
   --text-label-size: 13px;
   --text-label-line: 18px;
   --text-meta-size: 12px;
@@ -55,9 +55,9 @@
   --shadow-floating: 0 16px 40px rgba(23, 32, 51, 0.14);
   --shadow-node: 0 8px 22px rgba(23, 32, 51, 0.08);
 
-  --control-height: 34px;
-  --control-height-compact: 28px;
-  --icon-button-size: 28px;
+  --control-height: 36px;
+  --control-height-compact: 32px;
+  --icon-button-size: 32px;
   --icon-size: 16px;
   --touch-target: 44px;
   --card-padding: var(--space-4);

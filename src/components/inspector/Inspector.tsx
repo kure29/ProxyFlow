@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown, ChevronUp,
+  AlertTriangle, ArrowDown, ArrowLeftRight, ArrowUp, CalendarClock, Check, ChevronDown,
   ClipboardPaste, Database, Eye, FileOutput, FileUp, GitCompareArrows, Globe2, GripVertical, LayoutTemplate, Link2, Plus, RefreshCw, Search, ShieldCheck, Trash2, X,
   History,
 } from 'lucide-react'
@@ -23,10 +24,10 @@ import {
   type SubscriptionExportMode, type SubscriptionFreshness, type SubscriptionRefreshError,
   type SubscriptionRequestProfile, type SubscriptionRuntimeRecord,
 } from '../../core/subscription'
-import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
+import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
-import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, type ProcessingExplanation } from '../../core/proxySet'
+import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
 import { isStarterProject } from './starterState'
 import {
   blockTitleKey, categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle,
@@ -65,6 +66,10 @@ function Advanced({ children }: { children: React.ReactNode }) {
 function SubscriptionInspector({ node }: InspectorProps) {
   const { locale, t, formatDateTime } = useI18n()
   const update = useBuilderStore((state) => state.updateNodeData)
+  const projectNodes = useBuilderStore((state) => state.nodes)
+  const projectEdges = useBuilderStore((state) => state.edges)
+  const toProject = useBuilderStore((state) => state.toProject)
+  const allSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const snapshot = useBuilderStore((state) => state.subscriptionSnapshots[node.id])
   const runtime = useBuilderStore((state) => state.subscriptionRuntimes[node.id])
   const refresh = useBuilderStore((state) => state.refreshSubscription)
@@ -91,6 +96,18 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const exportModeHint = exportMode === 'remote'
     ? t('inspector.exportMode.remoteHint')
     : exportMode === 'materialized' ? t('inspector.exportMode.materializedHint') : t('inspector.exportMode.autoHint')
+  const remotePlans = useMemo(() => {
+    const graph = compileGraph(toProject(), { subscriptionSnapshots: allSnapshots, retainDraftOnErrorForDiagnostics: true })
+    if (!graph.ir) return undefined
+    return (['mihomo', 'sing-box'] as const).map((target) => {
+      const capabilities = getTargetCapabilities(target)
+      const usages = planRemoteSourceUsage(graph.ir!, node.id, capabilities.remoteProxySource)
+      const plans = usages.length > 0
+        ? usages
+        : [{ consumerId: node.id, consumerName: t('inspector.exportMode.directPath'), plan: planRemoteProxySource(graph.ir!, { kind: 'source', id: node.id }, capabilities.remoteProxySource, 'select') }]
+      return { target, label: capabilities.label, plans }
+    })
+  }, [allSnapshots, exportMode, node.id, projectEdges, projectNodes, requestProfile, t, toProject])
   useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
   useEffect(() => {
     if (inputKind === 'paste') setPaste(node.data.subscriptionContent ?? '')
@@ -138,7 +155,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     <TextField node={node} field="title" label={t('inspector.name')} />
     {inputKind === 'url' && <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />}
     {inputKind === 'url' && <Field label={t('inspector.requestProfile')} hint={runtimeService ? t('inspector.requestProfileHint') : t('inspector.requestProfileLocalHint')}><WebSelect label={t('inspector.requestProfile')} value={requestProfile} onChange={(value) => update(node.id, { subscriptionRequestProfile: value as SubscriptionRequestProfile })} options={[{ value: 'auto', label: t('inspector.requestProfile.auto') }, { value: 'mihomo', label: t('inspector.requestProfile.mihomo') }, { value: 'sing-box', label: t('inspector.requestProfile.singBox') }, { value: 'generic', label: t('inspector.requestProfile.generic') }]} /></Field>}
-    {inputKind === 'url' && <><Field label={t('inspector.exportMode')} hint={exportModeHint}><WebSelect label={t('inspector.exportMode')} value={exportMode} onChange={(value) => update(node.id, { subscriptionExportMode: value as SubscriptionExportMode })} options={[{ value: 'auto', label: t('inspector.exportMode.auto') }, { value: 'remote', label: t('inspector.exportMode.remote') }, { value: 'materialized', label: t('inspector.exportMode.materialized') }]} /></Field><p className="source-export-capability-hint">{t('inspector.exportMode.capabilities')}</p></>}
+    {inputKind === 'url' && <><Field label={t('inspector.exportMode')} hint={exportModeHint}><WebSelect label={t('inspector.exportMode')} value={exportMode} onChange={(value) => update(node.id, { subscriptionExportMode: value as SubscriptionExportMode })} options={[{ value: 'auto', label: t('inspector.exportMode.auto') }, { value: 'remote', label: t('inspector.exportMode.remote') }, { value: 'materialized', label: t('inspector.exportMode.materialized') }]} /></Field><RemoteSourceStatus targets={remotePlans} /></>}
     {inputKind === 'paste' && <div className="source-input-panel"><Field label={t('inspector.nodeLinks')} hint={t('inspector.nodeLinksHint')}><textarea className="node-links-input" value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /></Field><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => void parseInput(node.id, paste, 'paste')}><ClipboardPaste size={15} /> {t('inspector.parseImport')}</button></div>}
     {inputKind === 'file' && <button type="button" className="config-file-picker" onClick={() => fileRef.current?.click()}><FileUp size={20} /><span><strong>{node.data.subscriptionFileName ?? t('inspector.noFileSelected')}</strong><small>{node.data.subscriptionFileName ? t('inspector.replaceConfigFile') : t('inspector.chooseConfigFile')}</small></span></button>}
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
@@ -147,10 +164,10 @@ function SubscriptionInspector({ node }: InspectorProps) {
       <strong>{sourceStatus(runtime, freshness, t)}</strong>
       {runtime?.refreshStatus === 'failed' && runtime.latestError
         ? <div className="source-error-detail"><code>{runtime.latestError.code}</code><span>{sourceErrorMessage(runtime.latestError, fetchPath === 'runtime', locale, t)}</span></div>
-        : <small>{runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.detectedFormat', { format: formatLabel(result.format, locale) }) : t('inspector.waitingInput')}</small>}
+        : <small>{runtime?.cacheError ? localizeDiagnosticMessage(runtime.cacheError.code, runtime.cacheError.message, locale) : result ? t('inspector.snapshotReady') : t('inspector.waitingInput')}</small>}
     </div>
     {runtime && <div className="source-timestamps"><div><span>{t('inspector.lastSuccessful')}</span><strong>{formatSourceTimestamp(runtime.lastSuccessfulAt, formatDateTime)}</strong></div><div><span>{t('inspector.latestAttempt')}</span><strong>{formatSourceTimestamp(runtime.lastAttemptAt, formatDateTime)}</strong></div><div><span>{t('inspector.snapshotAge')}</span><strong>{formatSnapshotAge(snapshot?.committedAt, t)}</strong></div></div>}
-    <div className="metric-cards"><div><span>{t('inspector.detected')}</span><strong>{result?.detectedCount ?? 0}</strong></div><div><span>{t('inspector.usable')}</span><strong>{result?.readyCount ?? 0}</strong></div></div>
+    <div className="metric-cards"><div><span>{t('inspector.detected')}</span><strong>{result?.detectedCount ?? 0}</strong></div><div><span>{t('inspector.usable')}</span><strong>{result ? result.readyCount + result.partialCount : 0}</strong></div></div>
     {result && <div className="import-summary"><div><span>{t('inspector.ready')}</span><strong>{result.readyCount}</strong></div><div><span>{t('inspector.warnings')}</span><strong>{result.partialCount}</strong></div><div><span>{t('inspector.unsupported')}</span><strong>{result.unsupportedCount}</strong></div></div>}
     {runtime?.refreshStatus === 'failed' && runtime.activeSnapshot && <div className="validation-banner validation-banner--warning"><AlertTriangle size={15} /><span><strong>{t('inspector.refreshFailed')}</strong>{t('inspector.cachedResult')}</span></div>}
     {freshness === 'stale' && runtime?.activeSnapshot && <div className="runtime-inline-status"><span className="status-dot-label status-stale"><i /> {t('inspector.sourceStatus.stale')}</span></div>}
@@ -158,7 +175,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     {protocols.length > 0 && <SummaryList label={t('inspector.protocols')} items={protocols} />}
     {regions.length > 0 && <SummaryList label={t('inspector.regions')} items={regions.map(([code, count]) => [`${code} · ${regionLabel(code, locale)}`, count])} />}
     <div className="subscription-actions">{inputKind === 'url' && <button className="inspector-secondary-button" onClick={() => void refresh(node.id)}><RefreshCw className={runtime?.refreshStatus === 'loading' ? 'spin' : ''} size={14} /> {runtime?.refreshStatus === 'failed' ? t('inspector.retry') : t('inspector.refresh')}</button>}<button className="inspector-secondary-button" disabled={!result?.nodes.length} onClick={() => { setNodePreviewStatus('all'); setNodesOpen(true) }}><Eye size={14} /> {t('inspector.viewNodes')}</button><button className="inspector-secondary-button" disabled={!result || result.partialCount + result.unsupportedCount === 0} onClick={() => { setNodePreviewStatus('issues'); setNodesOpen(true) }}><AlertTriangle size={14} /> {t('inspector.viewIssues')}</button><button className="inspector-secondary-button" disabled={!runtime?.latestDiff} onClick={() => setChangesOpen(true)}><GitCompareArrows size={14} /> {t('inspector.viewChanges')}</button>{inputKind === 'url' && <button className="inspector-secondary-button" disabled={!snapshot} onClick={() => setClearConfirmOpen(true)}><Database size={14} /> {t('inspector.clearCachedSnapshot')}</button>}</div>
-    {runtimeProvider && <section className="runtime-source-panel"><div className="runtime-source-heading"><div><span>{t('runtime.sourceKicker')}</span><strong>{t('runtime.sourceTitle')}</strong></div><span>{schedule?.enabled ? t('runtime.scheduleOn') : t('runtime.scheduleOff')}</span></div><div className="runtime-source-actions"><button className="inspector-secondary-button" onClick={() => setHistoryOpen((value) => !value)}><History size={14} /> {t('runtime.history')}</button><button className="inspector-secondary-button" onClick={() => void toggleSchedule()}><CalendarClock size={14} /> {schedule?.enabled ? t('runtime.disableSchedule') : t('runtime.enableSchedule')}</button></div><label className="runtime-source-interval">{t('runtime.interval')}<WebSelect label={t('runtime.interval')} value={String(scheduleInterval)} onChange={(value) => setScheduleInterval(Number(value))} options={[{ value: '300', label: t('runtime.interval5m') }, { value: '900', label: t('runtime.interval15m') }, { value: '3600', label: t('runtime.interval1h') }]} /></label>{serviceMessage && <small className="runtime-source-error">{serviceMessage}</small>}{historyOpen && <div className="runtime-history-list">{history.length === 0 ? <small>{t('runtime.noHistory')}</small> : history.slice(0, 10).map((entry) => <div key={entry.snapshotId}><span><strong>{entry.readyCount} / {entry.detectedCount}</strong><small>{formatDateShort(entry.committedAt, formatDateTime)}</small></span><button className="icon-button" onClick={() => void restore(entry.snapshotId)} aria-label={t('runtime.restore')} title={t('runtime.restore')}><History size={13} /></button></div>)}</div>}</section>}
+    {runtimeProvider && <section className="runtime-source-panel"><div className="runtime-source-heading"><div><span>{t('runtime.sourceKicker')}</span><strong>{t('runtime.sourceTitle')}</strong></div><span>{schedule?.enabled ? t('runtime.scheduleOn') : t('runtime.scheduleOff')}</span></div><div className="runtime-source-actions"><button className="inspector-secondary-button" onClick={() => setHistoryOpen((value) => !value)}><History size={14} /> {t('runtime.history')}</button><button className="inspector-secondary-button" onClick={() => void toggleSchedule()}><CalendarClock size={14} /> {schedule?.enabled ? t('runtime.disableSchedule') : t('runtime.enableSchedule')}</button></div>{schedule?.enabled && <label className="runtime-source-interval">{t('runtime.interval')}<WebSelect label={t('runtime.interval')} value={String(scheduleInterval)} onChange={(value) => setScheduleInterval(Number(value))} options={[{ value: '300', label: t('runtime.interval5m') }, { value: '900', label: t('runtime.interval15m') }, { value: '3600', label: t('runtime.interval1h') }]} /></label>}{serviceMessage && <small className="runtime-source-error">{serviceMessage}</small>}{historyOpen && <div className="runtime-history-list">{history.length === 0 ? <small>{t('runtime.noHistory')}</small> : history.slice(0, 10).map((entry) => <div key={entry.snapshotId}><span><strong>{entry.readyCount} / {entry.detectedCount}</strong><small>{formatDateShort(entry.committedAt, formatDateTime)}</small></span><button className="icon-button" onClick={() => void restore(entry.snapshotId)} aria-label={t('runtime.restore')} title={t('runtime.restore')}><History size={13} /></button></div>)}</div>}</section>}
     <input ref={fileRef} className="visually-hidden" type="file" accept=".yaml,.yml,.json,.txt,.conf,.config,text/plain,text/yaml,application/yaml,application/json" onChange={(event) => { void onFile(event.target.files?.[0]); event.target.value = '' }} />
     <p className="cache-privacy-note">{t('inspector.cachePrivacy')}</p>
     {node.data.subscriptionInputKind === 'file' && !snapshot && <div className="mock-note">{t('inspector.fileReimport')}</div>}
@@ -176,6 +193,37 @@ function summarize(values: string[]): Array<[string, number]> {
   const counts = new Map<string, number>()
   for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
   return [...counts].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+}
+
+function RemoteSourceStatus({ targets }: {
+  targets?: Array<{
+    target: 'mihomo' | 'sing-box'
+    label: string
+    plans: Array<{ consumerId: string; consumerName: string; plan: RemoteSourceLoweringPlan }>
+  }>
+}) {
+  const { locale, t } = useI18n()
+  if (!targets) return <p className="source-export-capability-hint">{t('inspector.exportMode.statusUnavailable')}</p>
+  return <section className="source-export-status" aria-label={t('inspector.exportMode.status')}>
+    <span>{t('inspector.exportMode.status')}</span>
+    {targets.map(({ target, label, plans }) => {
+      const decisions = new Set(plans.map(({ plan }) => plan.decision))
+      const status = decisions.has('unsupported') ? 'unsupported' as const
+        : decisions.has('native-remote') && decisions.has('materialized') ? 'mixed' as const
+          : decisions.has('native-remote') ? 'native' as const : 'materialized' as const
+      const statusLabel = status === 'unsupported' ? t('inspector.exportMode.status.unsupported')
+        : status === 'mixed' ? t('inspector.exportMode.status.mixed')
+          : status === 'native' ? t('inspector.exportMode.status.native') : t('inspector.exportMode.status.materialized')
+      return <div key={target} data-status={status}>
+        <header><strong>{label}</strong><b>{statusLabel}</b></header>
+        <ul>{plans.map(({ consumerId, consumerName, plan }) => {
+          const diagnostic = plan.diagnostics.find((item) => ['REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED', 'REMOTE_SOURCE_PROCESSING_UNSUPPORTED', 'REMOTE_SOURCE_TARGET_UNSUPPORTED', 'REMOTE_SOURCE_REQUEST_PROFILE_UNSUPPORTED', 'REMOTE_SOURCE_SNAPSHOT_UNAVAILABLE', 'REMOTE_SOURCE_MIXED_INPUTS', 'REMOTE_SOURCE_MATERIALIZED', 'REMOTE_SOURCE_NATIVE'].includes(item.code))
+          return <li key={`${consumerId}:${plan.decision}`}><span>{consumerName}</span><small>{diagnostic ? localizeDiagnosticMessage(diagnostic.code, diagnostic.message, locale) : t(plan.decision === 'native-remote' ? 'inspector.exportMode.nativePath' : 'inspector.exportMode.materializedPath')}</small></li>
+        })}</ul>
+        {status === 'unsupported' && <p><AlertTriangle size={14} />{t('inspector.exportMode.useAutoAdvice')}</p>}
+      </div>
+    })}
+  </section>
 }
 
 function sourceStatus(runtime: SubscriptionRuntimeRecord | undefined, freshness: SubscriptionFreshness, t: ReturnType<typeof useI18n>['t']) {
@@ -224,13 +272,6 @@ function statusClass(runtime: SubscriptionRuntimeRecord | undefined) {
   if (runtime?.refreshStatus === 'failed') return 'failed'
   if (runtime?.activeSnapshot) return 'ready'
   return 'idle'
-}
-
-function formatLabel(format: string, locale: 'en-US' | 'zh-CN') {
-  const labels = locale === 'zh-CN'
-    ? { base64: 'Base64 URI 列表', 'share-links': 'URI 列表', 'clash-yaml': 'Mihomo / Clash YAML', 'clash-json': 'Mihomo / Clash JSON', 'sub-store-json': 'Sub-Store JSON', 'sing-box-json': 'sing-box JSON', 'v2ray-json': 'V2Ray JSON', surge: 'Surge', surfboard: 'Surfboard', loon: 'Loon', 'quantumult-x': 'Quantumult X', egern: 'Egern', stash: 'Stash', unsupported: '不支持的格式' }
-    : { base64: 'Base64 URI List', 'share-links': 'URI List', 'clash-yaml': 'Mihomo / Clash YAML', 'clash-json': 'Mihomo / Clash JSON', 'sub-store-json': 'Sub-Store JSON', 'sing-box-json': 'sing-box JSON', 'v2ray-json': 'V2Ray JSON', surge: 'Surge', surfboard: 'Surfboard', loon: 'Loon', 'quantumult-x': 'Quantumult X', egern: 'Egern', stash: 'Stash', unsupported: 'Unsupported format' }
-  return labels[format as keyof typeof labels] ?? format
 }
 
 function formatSourceTimestamp(value: string | undefined, format: ReturnType<typeof useI18n>['formatDateTime']) {
@@ -615,10 +656,7 @@ function RoutingInspector({ node }: InspectorProps) {
   const activeService = useBuilderStore((state) => state.activeService)
   const update = useBuilderStore((state) => state.updateNodeData)
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
-  const moveRoutingRule = useBuilderStore((state) => state.moveRoutingRule)
   const targets = nodes.filter((item) => ['strategy', 'chain'].includes(item.data.category))
-  const [servicePickerOpen, setServicePickerOpen] = useState(false)
-  const [serviceQuery, setServiceQuery] = useState('')
   const services = node.data.services ?? []
   const matcherKind = resolveRouteMatcherKind(node.data)
   const routingCapabilities = primaryTarget ? getTargetCapabilities(primaryTarget).routingMatchers : undefined
@@ -629,9 +667,7 @@ function RoutingInspector({ node }: InspectorProps) {
   const isCustomRule = node.data.blockType === 'custom-rule'
   const isServiceRoute = matcherKind === 'service'
   const isAdvancedMatcher = Boolean(matcherKind && matcherKind !== 'rule-set' && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
-  const availableServices = serviceCatalog.filter((service) => !services.includes(service.id) && !services.includes(service.name) && `${service.name} ${service.description ?? ''}`.toLowerCase().includes(serviceQuery.trim().toLowerCase()))
   const matcherValue = node.data.routeMatcherValue ?? ''
-  const order = routeOrder(node.id, nodes)
   const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(node.id, {
     routeMatcherKind: value,
     ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
@@ -650,13 +686,12 @@ function RoutingInspector({ node }: InspectorProps) {
         { value: 'rule-set', label: t('inspector.matcher.ruleSet') },
       ]} />
     </Field>}
-    {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><button type="button" aria-expanded={servicePickerOpen} onClick={() => setServicePickerOpen((open) => !open)}>{servicePickerOpen ? <ChevronUp size={13} /> : <Plus size={13} />} {servicePickerOpen ? t('inspector.collapse') : t('inspector.add')}</button></div>
+    {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><small>{t('inspector.servicesSelected', { count: services.length })}</small></div>
     <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><AssetIcon className="service-avatar" src={definition?.icon} darkSrc={definition?.iconDark} fallback={label.slice(0, 1)} /><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
-    {servicePickerOpen && <div className="service-picker"><div className="service-picker-heading"><div className="service-search"><Search size={15} /><input autoFocus value={serviceQuery} placeholder={t('inspector.searchServices')} onChange={(event) => setServiceQuery(event.target.value)} /></div><button type="button" className="service-picker-collapse" onClick={() => setServicePickerOpen(false)} aria-label={t('inspector.collapse')} title={t('inspector.collapse')}><ChevronUp size={16} /></button></div><div className="service-picker-options">{availableServices.map((service) => <button type="button" key={service.id} onClick={() => { update(node.id, { services: [...services, service.id] }); setServiceQuery('') }}><AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span><Plus size={15} /></button>)}{availableServices.length === 0 && <small>{t('inspector.noServices')}</small>}</div></div>}</>}
+    <ServiceMultiSelectPopover selected={services} onChange={(next) => update(node.id, { services: next })} /></>}
     {isCustomRule && matcherKind === 'rule-set' && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={primaryTarget} update={update} t={t} />}
     {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><WebSelect label={t('inspector.targetStrategy')} value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(value) => setTarget(node.id, value)} options={[{ value: '', label: t('inspector.selectTarget'), disabled: true }, { value: '__direct__', label: 'DIRECT' }, { value: '__reject__', label: 'REJECT' }, ...targets.map((target) => ({ value: target.id, label: localizeNodeTitle(target, locale) }))]} /></Field>
-    {isRouteRule && order && <div className="route-order"><span><strong>{t('inspector.routeOrder', { index: order.index + 1, count: order.count })}</strong><small>{t('inspector.routeOrderHint')}</small></span><div><button type="button" disabled={!order.canMoveUp} aria-label={t('inspector.moveRuleUp')} onClick={() => moveRoutingRule(node.id, 'up')}><ArrowUp size={14} /></button><button type="button" disabled={!order.canMoveDown} aria-label={t('inspector.moveRuleDown')} onClick={() => moveRoutingRule(node.id, 'down')}><ArrowDown size={14} /></button></div></div>}
     <div className="route-preview"><span className="route-source">{localizeNodeTitle(node, locale)}</span><ArrowLeftRight size={14} /><span className="route-target">{node.data.targetLabel ? localizeKnownSystemText(node.data.targetLabel, locale) : t('inspector.notConfigured')}</span></div>
     {isCustomRule && <Advanced>
       <Field label={t('inspector.advancedMatcher')}>
@@ -666,9 +701,79 @@ function RoutingInspector({ node }: InspectorProps) {
         ]} />
       </Field>
       {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
-      <Field label={t('inspector.routePriority')} hint={t('inspector.routePriorityHint')}><input type="number" min="0" step="1" value={node.data.routePriority ?? ''} placeholder="10" onChange={(event) => update(node.id, { routePriority: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value)) })} /></Field>
       {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
     </Advanced>}
+  </>
+}
+
+function ServiceMultiSelectPopover({ selected, onChange }: { selected: string[]; onChange: (services: string[]) => void }) {
+  const { locale, t } = useI18n()
+  const id = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 320, maxHeight: 320 })
+  const visible = serviceCatalog.filter((service) => `${service.name} ${service.description ?? ''}`
+    .toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+
+  useEffect(() => {
+    if (!open) return
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const viewportPadding = 12
+    const below = window.innerHeight - rect.bottom - viewportPadding
+    const above = rect.top - viewportPadding
+    const maxHeight = Math.max(180, Math.min(360, Math.max(below, above)))
+    const width = Math.min(Math.max(rect.width, 320), window.innerWidth - viewportPadding * 2)
+    const left = Math.min(Math.max(viewportPadding, rect.left), window.innerWidth - viewportPadding - width)
+    const top = below >= Math.min(260, above)
+      ? Math.min(rect.bottom + 6, window.innerHeight - viewportPadding - maxHeight)
+      : Math.max(viewportPadding, rect.top - 6 - maxHeight)
+    setPosition({ top, left, width, maxHeight })
+    const frame = window.requestAnimationFrame(() => searchRef.current?.focus())
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!popoverRef.current?.contains(target) && !triggerRef.current?.contains(target)) setOpen(false)
+    }
+    window.addEventListener('pointerdown', closeOutside)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('pointerdown', closeOutside)
+    }
+  }, [open])
+
+  const moveFocus = (event: KeyboardEvent<HTMLElement>, edge?: 'first' | 'last') => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const options = Array.from(popoverRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)') ?? [])
+    if (!options.length) return
+    if (edge === 'first' || event.key === 'Home') options[0].focus()
+    else if (edge === 'last' || event.key === 'End') options.at(-1)?.focus()
+    else {
+      const current = options.indexOf(document.activeElement as HTMLButtonElement)
+      const delta = event.key === 'ArrowDown' ? 1 : -1
+      options[(current + delta + options.length) % options.length]?.focus()
+    }
+  }
+
+  return <>
+    <button ref={triggerRef} type="button" className="inspector-secondary-button service-picker-trigger" aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((value) => !value)}><Plus size={14} />{t('inspector.addService')}</button>
+    {open && createPortal(<div ref={popoverRef} id={id} className="service-picker service-picker-popover" style={{ position: 'fixed', top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight }} onKeyDown={(event) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }}>
+      <div className="service-picker-heading"><div className="service-search"><Search size={15} /><input ref={searchRef} value={query} placeholder={t('inspector.searchServices')} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => moveFocus(event, event.key === 'ArrowDown' ? 'first' : undefined)} /></div><button type="button" className="service-picker-collapse" onClick={() => { setOpen(false); triggerRef.current?.focus() }} aria-label={t('inspector.collapse')} title={t('inspector.collapse')}><X size={16} /></button></div>
+      <div className="service-picker-options" role="listbox" aria-multiselectable="true" aria-label={t('inspector.services')} onKeyDown={moveFocus}>{visible.map((service) => {
+        const isSelected = selected.includes(service.id) || selected.includes(service.name)
+        return <button type="button" role="option" aria-selected={isSelected} disabled={isSelected} key={service.id} onClick={() => onChange([...selected, service.id])}><AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span>{isSelected ? <Check size={15} /> : <Plus size={15} />}</button>
+      })}{visible.length === 0 && <small>{t('inspector.noServices')}</small>}</div>
+    </div>, document.body)}
   </>
 }
 

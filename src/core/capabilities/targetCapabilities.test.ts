@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PRIMARY_TARGETS, capabilityIsAvailable, getTargetCapabilities, strategyCapabilityForBlockType } from './targetCapabilities'
+import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
   it('declares the two production targets and their validated baselines', () => {
@@ -53,5 +54,17 @@ describe('target capability registry', () => {
     expect(mihomo.filtering.status).toBe('unsupported')
     expect(singBox.source).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'REMOTE_SOURCE_TARGET_UNSUPPORTED' }))
     expect(singBox.requestProfiles).toEqual([])
+  })
+
+  it('evaluates modeled Partial proxy variants against the selected target', () => {
+    const endpoint = {
+      kind: 'shadowsocks' as const,
+      protocol: 'shadowsocks' as const,
+      id: 'ss-obfs', name: 'SS obfs', server: 'ss.example.com', port: 8388,
+      method: 'aes-128-gcm', password: 'fictional-password', plugin: { name: 'obfs' },
+      metadata: { compatibility: { status: 'partial' as const, unsupportedFeatures: ['plugin:obfs'] } },
+    }
+    expect(proxyCompatibilityForTarget(endpoint, 'mihomo').status).toBe('target-native')
+    expect(proxyCompatibilityForTarget(endpoint, 'sing-box')).toEqual({ status: 'partial', unsupportedFeatures: ['plugin:obfs'] })
   })
 })

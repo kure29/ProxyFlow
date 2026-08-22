@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Globe2, MoreHorizontal } from 'lucide-react'
+import { Check, ChevronDown, Download, Globe2, MoreHorizontal } from 'lucide-react'
 import proxyFlowLogo from '../../assets/brand/proxyflow-logo.png'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
@@ -25,7 +25,6 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
   const projectName = useBuilderStore((state) => state.projectName)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const saveStatus = useBuilderStore((state) => state.saveStatus)
-  const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const visibleProjectName = localizeProjectName(projectName, locale)
   const actions = resolveTopBarActions(view)
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : '—'
@@ -72,7 +71,6 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
         {saveStatus === 'saving' ? t('top.saving') : t('top.savedLocally')}
       </div>
       <RuntimeServicePanel />
-      {actions.preview && <Button className="top-preview-action" variant="secondary" aria-label={t('top.preview')} onClick={() => setPreviewOpen(true)}><Eye size={16} /><span>{t('top.preview')}</span></Button>}
       {actions.export && <Button className="top-export-action" variant="primary" aria-label={t('top.exportConfig')} onClick={() => onOpenWorkspaceSection('export')}><Download size={16} /><span>{t('top.exportConfig')}</span></Button>}
       <div className="topbar-language-wrap">
         <button

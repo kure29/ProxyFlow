@@ -1,4 +1,5 @@
 import { isUnmodeledProxy, type ProxyFlowIR } from '../../core/ir'
+import { proxyCompatibilityForTarget } from '../../core/capabilities'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { mihomoIssue } from './errors'
@@ -27,19 +28,21 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
       'MIHOMO_UNSUPPORTED_SOURCE', 'error', 'source', 'Mihomo MVP 尚不能可靠生成 imported-config source。', source.id,
     ))
     if (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies) for (const proxy of source.proxies ?? []) {
-      if (!isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status === 'partial') issues.push(mihomoIssue(
+      if (isUnmodeledProxy(proxy)) continue
+      const targetCompatibility = proxyCompatibilityForTarget(proxy, 'mihomo')
+      if (targetCompatibility.status === 'partial') issues.push(mihomoIssue(
         'MIHOMO_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
-        `Proxy “${proxy.name}” 包含 Mihomo 映射尚未可靠支持的特性，已从本次节点集合排除：${proxy.metadata.compatibility.unsupportedFeatures?.join(', ') || proxy.metadata.compatibility.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
+        `Proxy “${proxy.name}” 包含 Mihomo 映射尚未可靠支持的特性：${targetCompatibility.unsupportedFeatures.join(', ') || proxy.metadata?.compatibility?.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
       ))
-      else if (!isUnmodeledProxy(proxy) && 'tls' in proxy && proxy.tls?.disableSni && proxy.protocol !== 'tuic') issues.push(mihomoIssue(
+      if ('tls' in proxy && proxy.tls?.disableSni && proxy.protocol !== 'tuic') issues.push(mihomoIssue(
         'MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED', 'error', 'source',
         `Proxy “${proxy.name}” 的 disable-SNI intent 无法由该 Mihomo proxy schema 无损表达。`, source.id,
       ))
-      else if (!isUnmodeledProxy(proxy) && (proxy.protocol === 'hysteria2' || proxy.protocol === 'tuic') && proxy.tls.fingerprint) issues.push(mihomoIssue(
+      else if ((proxy.protocol === 'hysteria2' || proxy.protocol === 'tuic') && proxy.tls.fingerprint) issues.push(mihomoIssue(
         'MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED', 'error', 'source',
         `Proxy “${proxy.name}” 的 QUIC TLS fingerprint intent 无法由 Mihomo Hysteria2/TUIC schema 无损表达。`, source.id,
       ))
-      else if (!isUnmodeledProxy(proxy) && proxy.protocol === 'http' && proxy.tls?.fingerprint) issues.push(mihomoIssue(
+      else if (proxy.protocol === 'http' && proxy.tls?.fingerprint) issues.push(mihomoIssue(
         'MIHOMO_HTTP_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', 'error', 'source',
         `Proxy “${proxy.name}” 的 TLS client fingerprint 不能映射为 Mihomo HTTP proxy 的 certificate fingerprint。`, source.id,
       ))

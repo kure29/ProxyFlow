@@ -235,7 +235,7 @@ function isValidSnapshot(value: unknown, scope: SubscriptionCacheScope): value i
     || !result.proxies.every(isValidEndpoint)
     || !result.issues.every(isValidIssue)
     || !value.issues.every(isValidIssue)
-    || (quality === 'usable' ? readyCount < 1 : detectedCount !== 0)
+    || (quality === 'usable' ? readyCount + partialCount < 1 : detectedCount !== 0)
   ) return false
   return value.http === undefined || isValidHttpMetadata(value.http)
 }

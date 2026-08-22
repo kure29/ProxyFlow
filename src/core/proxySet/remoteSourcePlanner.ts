@@ -32,6 +32,12 @@ export interface RemoteSourceLoweringPlan {
   diagnostics: RemoteSourcePlanDiagnostic[]
 }
 
+export interface RemoteSourceUsagePlan {
+  consumerId: string
+  consumerName: string
+  plan: RemoteSourceLoweringPlan
+}
+
 export interface RemoteProxySourceAdapter<TNative> {
   capabilities: RemoteProxySourceCapabilities
   lower(source: RemoteProxySourceIR): TNative
@@ -116,6 +122,47 @@ export function planRemoteProxySource(
       )] : []),
     ],
   }
+}
+
+/** Return the target lowering decision for every strategy path consuming one source. */
+export function planRemoteSourceUsage(
+  ir: ProxyFlowIR,
+  sourceId: string,
+  capabilities: RemoteProxySourceCapabilities,
+): RemoteSourceUsagePlan[] {
+  const chainHopIds = new Set(ir.strategies
+    .filter((strategy) => strategy.kind === 'chain')
+    .flatMap((strategy) => strategy.hops.map((hop) => hop.id)))
+  const usages: RemoteSourceUsagePlan[] = []
+  for (const strategy of ir.strategies) {
+    const consumer: RemoteSourceConsumer = chainHopIds.has(strategy.id)
+      ? 'chain-hop'
+      : strategy.kind === 'select' ? 'select'
+        : strategy.kind === 'auto-select' ? 'auto-select'
+          : strategy.kind === 'fallback' ? 'fallback'
+            : strategy.kind === 'load-balance' ? 'load-balance'
+              : 'fixed'
+    const refs: ProxySetRef[] = strategy.kind === 'auto-select' || strategy.kind === 'load-balance'
+      ? [strategy.source]
+      : strategy.kind === 'select' || strategy.kind === 'fallback'
+        ? strategy.candidates.filter((candidate): candidate is ProxySetRef => candidate.kind !== 'strategy')
+        : strategy.kind === 'fixed'
+          ? fixedProxySourceRef(ir, strategy.proxyId)
+          : []
+    for (const ref of refs) {
+      const plan = planRemoteProxySource(ir, ref, capabilities, consumer)
+      if (!plan.lineage.sourceIds.includes(sourceId)) continue
+      usages.push({ consumerId: strategy.id, consumerName: strategy.name, plan })
+    }
+  }
+  return usages
+}
+
+function fixedProxySourceRef(ir: ProxyFlowIR, proxyId?: string): ProxySetRef[] {
+  if (!proxyId) return []
+  const source = ir.sources.find((item) => (item.kind === 'manual-proxy' || item.kind === 'subscription')
+    && item.proxies?.some((proxy) => proxy.id === proxyId))
+  return source ? [{ kind: 'source', id: source.id }] : []
 }
 
 function unavailable(

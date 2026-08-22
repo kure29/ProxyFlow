@@ -46,7 +46,7 @@ export async function createSnapshotCandidate(input: CandidateInput): Promise<Su
 export function classifySnapshotQuality(content: string, result: SubscriptionParseResult): SubscriptionSnapshotQuality {
   if (!content.trim()) return 'invalid'
   if (result.format === 'unsupported') return 'invalid'
-  if (result.readyCount > 0) return 'usable'
+  if (result.readyCount + result.partialCount > 0) return 'usable'
   if (result.detectedCount === 0 && !result.issues.some((issue) => issue.severity === 'error')) return 'empty'
   return 'invalid'
 }

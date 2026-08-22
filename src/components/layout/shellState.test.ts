@@ -18,7 +18,7 @@ describe('product shell state', () => {
       autoLayout: false,
       fit: false,
       refreshAll: false,
-      preview: true,
+      preview: false,
       export: true,
     })
   })
@@ -30,7 +30,7 @@ describe('product shell state', () => {
       autoLayout: false,
       fit: false,
       refreshAll: false,
-      preview: true,
+      preview: false,
       export: true,
     })
   })

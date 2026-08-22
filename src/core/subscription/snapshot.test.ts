@@ -6,6 +6,7 @@ describe('subscription snapshot quality and freshness', () => {
   it('distinguishes usable, valid empty and invalid candidates', () => {
     const options = { sourceId: 'source' }
     expect(classifySnapshotQuality('socks5://node.example.invalid:1080#Node', parseSubscription('socks5://node.example.invalid:1080#Node', options))).toBe('usable')
+    expect(classifySnapshotQuality('ss://YWVzLTEyOC1nY206Zml4dHVyZS1wYXNzd29yZA==@partial.example.invalid:8388/?plugin=obfs#Partial', parseSubscription('ss://YWVzLTEyOC1nY206Zml4dHVyZS1wYXNzd29yZA==@partial.example.invalid:8388/?plugin=obfs#Partial', options))).toBe('usable')
     expect(classifySnapshotQuality('proxies: []', parseSubscription('proxies: []', options))).toBe('empty')
     expect(classifySnapshotQuality(' \n', parseSubscription(' \n', options))).toBe('invalid')
     expect(classifySnapshotQuality('not a subscription', parseSubscription('not a subscription', options))).toBe('invalid')

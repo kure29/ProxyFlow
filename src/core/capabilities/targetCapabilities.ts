@@ -44,6 +44,9 @@ export interface TargetCapabilityProfile {
   dns: Record<DnsCapability, CapabilityDeclaration>
   chains: Record<ChainCapability, CapabilityDeclaration>
   remoteProxySource: RemoteProxySourceCapabilities
+  proxyVariants: {
+    shadowsocksPlugins: readonly string[]
+  }
   native: Record<string, CapabilityDeclaration>
 }
 
@@ -133,6 +136,9 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       mixedWithExplicitMembers: supported(),
       requestProfiles: ['auto', 'mihomo'],
     },
+    proxyVariants: {
+      shadowsocksPlugins: ['obfs', 'v2ray-plugin'],
+    },
     native: {
       'desktop-tun': targetNative('Mihomo-only listener, TUN, DNS, and sniffer output profile.'),
       'domain-sniffer': targetNative('Mihomo HTTP, TLS, and QUIC sniffing configuration.'),
@@ -211,6 +217,9 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       multipleSourcesInGroup: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
       mixedWithExplicitMembers: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
       requestProfiles: [],
+    },
+    proxyVariants: {
+      shadowsocksPlugins: ['v2ray-plugin'],
     },
     native: {
       'runtime-inbound': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),

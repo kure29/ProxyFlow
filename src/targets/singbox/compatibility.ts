@@ -1,5 +1,5 @@
 import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
-import { getTargetCapabilities, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
+import { getTargetCapabilities, proxyCompatibilityForTarget, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
 import { createMaterializationContext, materializeProxySet, planRemoteProxySource } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
@@ -26,11 +26,13 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
         || !('port' in proxy) || proxy.port < 1 || proxy.port > 65_535) issues.push(singBoxIssue(
         'SINGBOX_INVALID_OUTBOUND', 'error', 'source', `Proxy “${proxy.name}” 缺少有效的地址。`, source.id,
       ))
-      else if (proxy.metadata?.compatibility?.status === 'partial') issues.push(singBoxIssue(
+      if (isUnmodeledProxy(proxy)) continue
+      const targetCompatibility = proxyCompatibilityForTarget(proxy, 'sing-box')
+      if (targetCompatibility.status === 'partial') issues.push(singBoxIssue(
         'SINGBOX_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
-        `Proxy “${proxy.name}” 包含 sing-box 映射尚未可靠支持的特性，已从本次节点集合排除：${proxy.metadata.compatibility.unsupportedFeatures?.join(', ') || proxy.metadata.compatibility.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
+        `Proxy “${proxy.name}” 包含 sing-box 映射尚未可靠支持的特性：${targetCompatibility.unsupportedFeatures.join(', ') || proxy.metadata?.compatibility?.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
       ))
-      else if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'xhttp') issues.push(singBoxIssue(
+      if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'xhttp') issues.push(singBoxIssue(
         'SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED', 'error', 'source',
         `Proxy “${proxy.name}” 使用 sing-box 1.13.14 不支持的 XHTTP transport。`, source.id,
       ))

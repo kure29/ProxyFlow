@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Boxes, ChevronDown, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
   Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
@@ -31,6 +31,7 @@ import {
   StrategiesWorkspace,
 } from './WorkspacePages'
 import type { ProjectListItem } from '../../storage/projectStorage'
+import { shouldDismissWorkspaceEditor } from './workspaceEditorLifecycle'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
@@ -83,6 +84,7 @@ export function WorkspaceShell({
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
   const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
   const [editorOpen, setEditorOpen] = useState(false)
+  const previousSectionRef = useRef(activeSection)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
   const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
 
@@ -128,12 +130,25 @@ export function WorkspaceShell({
     selectNode(nodeId)
     setEditorOpen(true)
   }
+  const showInFlow = (item: WorkspaceNodeItem) => {
+    setEditorOpen(false)
+    selectNode(item.node.id)
+    onViewChange('visual-flow')
+  }
   const addNode = (type: BlockType, data?: Partial<BlockNodeData>, openEditor = true) => {
     const index = nodes.filter((node) => node.data.blockType === type).length
     const id = addLibraryNode(type, { x: 80 + index * 36, y: 90 + index * 42 }, data)
     if (id && openEditor) setEditorOpen(true)
   }
   const closeEditor = useCallback(() => { setEditorOpen(false); selectNode(null) }, [selectNode])
+
+  useEffect(() => {
+    if (shouldDismissWorkspaceEditor(previousSectionRef.current, activeSection)) {
+      setEditorOpen(false)
+      selectNode(null)
+    }
+    previousSectionRef.current = activeSection
+  }, [activeSection, selectNode])
   const showEditorInFlow = useCallback(() => { setEditorOpen(false); onViewChange('visual-flow') }, [onViewChange])
   const openSectionFromEditor = useCallback((section: WorkspaceSectionId) => {
     closeEditor()
@@ -218,6 +233,9 @@ export function WorkspaceShell({
           onMove={(nodeId, direction) => { moveProcessingStep(nodeId, direction) }}
           onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled })}
           onEdit={editInWorkspace}
+          onShowFlow={showInFlow}
+          onDuplicate={(item) => duplicateNode(item.node.id)}
+          onDelete={(item) => removeNode(item.node.id)}
         />}
         {activeSection === 'strategies' && <StrategiesWorkspace
           items={[...projection.strategies, ...projection.chains]}
@@ -225,6 +243,9 @@ export function WorkspaceShell({
           runtime={pipelineRuntime}
           issues={projection.compileIssues}
           onEdit={editInWorkspace}
+          onShowFlow={showInFlow}
+          onDuplicate={(item) => duplicateNode(item.node.id)}
+          onDelete={(item) => removeNode(item.node.id)}
         />}
         {activeSection === 'routing' && <RoutingWorkspace
           items={projection.routing}
@@ -237,6 +258,7 @@ export function WorkspaceShell({
           onMove={moveRule}
           onMoveToIndex={moveRuleToIndex}
           onEdit={editInWorkspace}
+          onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
           onDelete={(item) => removeNode(item.node.id)}
           getNodeTitle={(node) => localizeNodeTitle(node, locale)}
