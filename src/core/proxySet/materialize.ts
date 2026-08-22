@@ -46,9 +46,7 @@ export function materializeProxySet(
       const resolved = source.proxies.filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy))
       return cache(context, key, readyProxySource(resolved))
     }
-    if (source.kind === 'subscription' && source.proxies) {
-      return cache(context, key, readyProxySource(source.proxies, source.id))
-    }
+    if (source.kind === 'subscription' && source.proxies) return cache(context, key, readyProxySource(source.proxies))
     if (source.kind === 'subscription' && source.materialization?.status === 'error') return cache(context, key, failed(
       source.materialization.issueCode ?? 'SOURCE_UNAVAILABLE', '订阅源解析失败；下游处理已被阻止。', source.id,
     ))
@@ -64,15 +62,12 @@ export function materializeProxySet(
   return cache(context, key, result)
 }
 
-function readyProxySource(resolved: ResolvedProxyEndpointIR[], entityId?: string) {
-  const proxies = resolved.filter((proxy) => proxy.metadata?.compatibility?.status !== 'partial')
-  const result = ready(proxies, resolved.length)
-  const excluded = resolved.length - proxies.length
-  if (excluded > 0) result.issues.push({
-    code: 'PROXY_VARIANT_EXCLUDED', severity: 'warning', ...(entityId ? { entityId } : {}),
-    message: `${excluded} 个包含未可靠支持特性的节点已从处理结果中排除；它们仍保留在 Import Summary 与节点预览中。`,
-  })
-  return result
+function readyProxySource(resolved: ResolvedProxyEndpointIR[]) {
+  // A resolved endpoint remains part of the target-neutral ProxySet even when its
+  // parser compatibility hint is partial. Target validators decide whether the
+  // modeled endpoint can be lowered; only unmodeled endpoints are excluded before
+  // materialization.
+  return ready(resolved, resolved.length)
 }
 
 function materializeMerge(ir: ProxyFlowIR, transform: Extract<TransformIR, { kind: 'merge' }>, context: MaterializationContext, stack: string[]) {

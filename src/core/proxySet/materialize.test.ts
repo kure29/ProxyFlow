@@ -180,7 +180,7 @@ describe('ProxySet materialization', () => {
     expect(failed.issues.map((issue) => issue.code)).toContain('SOURCE_UNAVAILABLE')
   })
 
-  it('keeps partial variants visible to the parser but excludes them from usable proxy sets with a warning', () => {
+  it('keeps resolved partial variants in target-neutral proxy sets', () => {
     const content = [
       'http://demo:pass@ready.example.com:8080#Ready',
       'vless://88888888-8888-4888-8888-888888888888@reality.example.com:443?security=reality&flow=xtls-rprx-vision&pbk=fake&sid=abcd#Reality',
@@ -190,12 +190,12 @@ describe('ProxySet materialization', () => {
     expect(parsed.partialCount).toBe(1)
     const result = materializeProxySet(irWith([], content), { kind: 'source', id: 'source' })
     expect(result.inputCount).toBe(2)
-    expect(result.outputCount).toBe(1)
-    expect(result.issues.map((issue) => issue.code)).toContain('PROXY_VARIANT_EXCLUDED')
+    expect(result.outputCount).toBe(2)
+    expect(result.issues.map((issue) => issue.code)).not.toContain('PROXY_VARIANT_EXCLUDED')
 
     const manual = irWith([], content)
     manual.sources = [{ kind: 'manual-proxy', id: 'source', name: 'Source', proxies: parsed.proxies }]
-    expect(materializeProxySet(manual, { kind: 'source', id: 'source' })).toEqual(expect.objectContaining({ inputCount: 2, outputCount: 1 }))
+    expect(materializeProxySet(manual, { kind: 'source', id: 'source' })).toEqual(expect.objectContaining({ inputCount: 2, outputCount: 2 }))
   })
 
   it('keeps warning-only endpoints in the usable ProxySet', () => {

@@ -16,7 +16,7 @@ export function compileMihomoStrategies(context: MihomoCompileContext) {
         if (plan.decision === 'unsupported') continue
       }
       const endpoint = strategy.proxyId ? context.ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
-        ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status !== 'partial') : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
+        ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy)) : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
       const proxyName = endpoint ? registerMihomoEndpoint(endpoint, context) : undefined
       if (!proxyName) {
         context.issues.push(mihomoIssue(

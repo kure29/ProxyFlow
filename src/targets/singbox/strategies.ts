@@ -28,7 +28,7 @@ function compileStrategy(
 
   if (strategy.kind === 'fixed') {
     const endpoint = strategy.proxyId ? context.ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
-      ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status !== 'partial') : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
+        ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy)) : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
     const proxyTag = endpoint ? registerSingBoxEndpoint(endpoint, context) : undefined
     if (!proxyTag) {
       context.issues.push(singBoxIssue(

@@ -143,4 +143,20 @@ describe('workspace presentation', () => {
       expect.not.objectContaining({ locationNodeId: expect.anything() }),
     ])
   })
+
+  it('collapses remote-source cascade diagnostics under the actionable root cause', () => {
+    const compatibility: CompatibilityIssue[] = [
+      { target: 'mihomo', code: 'REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED', severity: 'error', feature: 'remote-source', message: 'Fallback is forbidden.', entityId: 'source' },
+      { target: 'mihomo', code: 'REMOTE_SOURCE_PROCESSING_UNSUPPORTED', severity: 'error', feature: 'remote-source', message: 'Rename cannot be preserved.', entityId: 'source' },
+      { target: 'mihomo', code: 'REMOTE_SOURCE_RUNTIME_DRIFT', severity: 'info', feature: 'remote-source', message: 'Runtime nodes can change.', entityId: 'source' },
+    ]
+    const grouped = groupProjectHealthDiagnostics([], compatibility, new Set(['source']))
+
+    expect(grouped.compatibility).toHaveLength(2)
+    expect(grouped.compatibility[0]).toEqual(expect.objectContaining({
+      code: 'REMOTE_SOURCE_PROCESSING_UNSUPPORTED',
+      related: [expect.objectContaining({ code: 'REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED' })],
+    }))
+    expect(grouped.compatibility[1]).toEqual(expect.objectContaining({ code: 'REMOTE_SOURCE_RUNTIME_DRIFT' }))
+  })
 })

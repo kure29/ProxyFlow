@@ -199,14 +199,14 @@ function invalidCandidateError(candidate: SubscriptionSnapshotCandidate, at: str
   if (candidate.format === 'unsupported') code = candidate.result.issues.some((issue) => issue.code === 'PARSE_FAILED')
     ? 'SUBSCRIPTION_PARSE_FAILED'
     : 'SUBSCRIPTION_UNSUPPORTED_FORMAT'
-  else if (candidate.result.detectedCount > 0 && candidate.readyCount === 0) code = 'SUBSCRIPTION_NO_USABLE_NODES'
+  else if (candidate.result.detectedCount > 0 && candidate.readyCount + candidate.partialCount === 0) code = 'SUBSCRIPTION_NO_USABLE_NODES'
   else if (candidate.result.issues.some((issue) => issue.code === 'SUBSCRIPTION_TOO_LARGE')) code = 'SUBSCRIPTION_TOO_LARGE'
   return refreshError(code, safeErrorMessage(code), at)
 }
 
 function safeErrorMessage(code: SubscriptionRefreshErrorCode) {
   if (code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT') return 'The subscription format is not supported.'
-  if (code === 'SUBSCRIPTION_NO_USABLE_NODES') return 'The subscription contains no Ready nodes; the previous snapshot was retained.'
+  if (code === 'SUBSCRIPTION_NO_USABLE_NODES') return 'The subscription contains no resolved nodes; the previous snapshot was retained.'
   if (code === 'SUBSCRIPTION_TOO_LARGE') return 'The subscription exceeds the browser size limit.'
   return 'The subscription could not be parsed.'
 }

@@ -52,6 +52,11 @@ describe('i18n runtime', () => {
       .toBe('Runtime Service 将订阅目标或重定向解析为私有或非公网地址，因此已阻止请求。')
   })
 
+  it('keeps known diagnostic codes in technical details instead of primary copy', () => {
+    expect(localizeDiagnosticMessage('ROUTE_TARGET_MISSING', 'Route has no target.', 'zh-CN')).toBe('该分流规则尚未选择目标。')
+    expect(localizeDiagnosticMessage('TRANSFORM_MISSING_INPUT', 'Processing input missing.', 'en-US')).toBe('This processing node has no valid proxy-set input.')
+  })
+
   it('localizes built-in subscription metadata without changing user subscriptions', () => {
     const demoResult = parseSubscription(hktDemoSubscription, { sourceId: 'hkt-subscription', sourceName: 'HKT 订阅源' })
     demoResult.proxies[0].name = '🇭🇰 香港 SS 01'

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getTargetCapabilities } from '../capabilities'
 import { PROXYFLOW_IR_VERSION, type ProxyFlowIR } from '../ir'
-import { analyzeProxySetLineage, planRemoteProxySource } from './index'
+import { analyzeProxySetLineage, planRemoteProxySource, planRemoteSourceUsage } from './index'
 
 function fixture(exportMode: 'auto' | 'remote' | 'materialized' = 'auto', requestProfile: 'auto' | 'mihomo' | 'sing-box' | 'generic' = 'auto'): ProxyFlowIR {
   return {
@@ -95,5 +95,18 @@ describe('remote source lowering planner', () => {
     expect(plan).toEqual(expect.objectContaining({ decision: 'materialized' }))
     expect(plan.diagnostics).toContainEqual(expect.objectContaining({ code: 'REMOTE_SOURCE_MIXED_INPUTS' }))
     expect(ir.sources).toEqual(before)
+  })
+
+  it('reports direct and processed consumer paths independently for inspector feedback', () => {
+    const ir = fixture()
+    ir.strategies = [
+      { kind: 'select', id: 'direct', name: 'Direct Path', candidates: [{ kind: 'source', id: 'source-a' }] },
+      { kind: 'auto-select', id: 'processed', name: 'Processed Path', source: { kind: 'transform', id: 'rename-a' } },
+    ]
+    const usages = planRemoteSourceUsage(ir, 'source-a', getTargetCapabilities('mihomo').remoteProxySource)
+    expect(usages.map(({ consumerName, plan }) => [consumerName, plan.decision])).toEqual([
+      ['Direct Path', 'native-remote'],
+      ['Processed Path', 'materialized'],
+    ])
   })
 })

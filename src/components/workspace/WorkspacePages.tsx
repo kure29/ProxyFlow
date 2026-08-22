@@ -20,6 +20,7 @@ import type { MessageKey } from '../../i18n'
 import { BlockIcon } from '../icons/BlockIcon'
 import { RouteInspectorPanel } from '../inspector/Inspector'
 import { WebSelect } from '../ui/WebSelect'
+import { WorkspaceItemMenu } from './WorkspaceItemMenu'
 
 const sourceStatusMessages = {
   healthy: 'workspace.source.status.healthy',
@@ -136,7 +137,7 @@ export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[]
   </div>
 }
 
-export function ProcessingWorkspace({ items, runtime, issues, availability, onMove, onToggle, onEdit }: {
+export function ProcessingWorkspace({ items, runtime, issues, availability, onMove, onToggle, onEdit, onShowFlow, onDuplicate, onDelete }: {
   items: WorkspaceNodeItem[]
   runtime: ReadonlyMap<string, PipelineNodeRuntime>
   issues: StructuredDiagnostic[]
@@ -144,6 +145,9 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
   onMove: (nodeId: string, direction: 'up' | 'down') => void
   onToggle: (item: WorkspaceNodeItem, disabled: boolean) => void
   onEdit: (item: WorkspaceNodeItem) => void
+  onShowFlow: (item: WorkspaceNodeItem) => void
+  onDuplicate: (item: WorkspaceNodeItem) => void
+  onDelete: (item: WorkspaceNodeItem) => void
 }) {
   const { locale, t } = useI18n()
   if (!items.length) return <WorkspaceEmpty icon={<Settings2 size={22} />} title={t('workspace.empty.processing')} />
@@ -152,30 +156,35 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
     const canMove = availability(item.node.id)
     const disabled = step.status === 'disabled'
     return <li className="workspace-processing-step" data-status={step.status} key={step.id}>
-      <span className="workspace-step-number" aria-hidden="true">{index + 1}</span>
-      <div className="workspace-step-icon"><BlockIcon name={item.node.data.icon} size={18} /></div>
-      <div className="workspace-step-main">
+      <button type="button" className="workspace-card-body workspace-processing-body" onClick={() => onEdit(item)}>
+        <span className="workspace-step-number" aria-hidden="true">{index + 1}</span>
+        <span className="workspace-step-icon"><BlockIcon name={item.node.data.icon} size={18} /></span>
+        <span className="workspace-step-main">
         <div><strong>{localizeNodeTitle(item.node, locale)}</strong><StatusBadge status={step.status} /></div>
         <p>{processingSummaryLabel(step.summary, t)}</p>
         {(step.inputCount !== undefined || step.outputCount !== undefined) && <small>{t('workspace.processing.counts', { input: step.inputCount ?? 0, output: step.outputCount ?? 0, removed: step.removedCount ?? 0 })}</small>}
-      </div>
+        </span>
+      </button>
       <label className="workspace-compact-toggle"><span className="visually-hidden">{disabled ? t('workspace.enable') : t('workspace.disable')}</span><input type="checkbox" checked={!disabled} onChange={(event) => onToggle(item, !event.target.checked)} /></label>
       <div className="workspace-step-actions">
         <button type="button" className="icon-button" disabled={!canMove.up} title={canMove.up ? t('workspace.processing.moveUp') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveUp')} onClick={() => onMove(step.id, 'up')}><ArrowUp size={16} /></button>
         <button type="button" className="icon-button" disabled={!canMove.down} title={canMove.down ? t('workspace.processing.moveDown') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveDown')} onClick={() => onMove(step.id, 'down')}><ArrowDown size={16} /></button>
-        <button type="button" className="row-action" onClick={() => onEdit(item)}>{t('workspace.open')}</button>
+        <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
       </div>
       {index < items.length - 1 && <ArrowDown className="workspace-processing-connector" size={14} aria-hidden="true" />}
     </li>
   })}</ol>
 }
 
-export function StrategiesWorkspace({ items, target, runtime, issues, onEdit }: {
+export function StrategiesWorkspace({ items, target, runtime, issues, onEdit, onShowFlow, onDuplicate, onDelete }: {
   items: WorkspaceNodeItem[]
   target: PrimaryTarget | null
   runtime: ReadonlyMap<string, PipelineNodeRuntime>
   issues: StructuredDiagnostic[]
   onEdit: (item: WorkspaceNodeItem) => void
+  onShowFlow: (item: WorkspaceNodeItem) => void
+  onDuplicate: (item: WorkspaceNodeItem) => void
+  onDelete: (item: WorkspaceNodeItem) => void
 }) {
   const { t } = useI18n()
   const presentations = items.map((item) => ({ item, strategy: summarizeWorkspaceStrategy(item, target, runtime.get(item.node.id), issues) }))
@@ -184,8 +193,8 @@ export function StrategiesWorkspace({ items, target, runtime, issues, onEdit }: 
   if (!items.length) return <WorkspaceEmpty icon={<GitBranch size={22} />} title={t('workspace.empty.strategies')} />
 
   return <div className="workspace-strategy-page">
-    {basic.length > 0 && <section aria-labelledby="strategy-basic-title"><h2 id="strategy-basic-title">{t('workspace.strategy.basic')}</h2><div className="workspace-strategy-grid">{basic.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} />)}</div></section>}
-    {advanced.length > 0 && <details className="workspace-advanced-section"><summary>{t('workspace.strategy.advanced', { count: advanced.length })}</summary><div className="workspace-strategy-grid">{advanced.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} />)}</div></details>}
+    {basic.length > 0 && <section aria-labelledby="strategy-basic-title"><h2 id="strategy-basic-title">{t('workspace.strategy.basic')}</h2><div className="workspace-strategy-grid">{basic.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onShowFlow={onShowFlow} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></section>}
+    {advanced.length > 0 && <details className="workspace-advanced-section"><summary>{t('workspace.strategy.advanced', { count: advanced.length })}</summary><div className="workspace-strategy-grid">{advanced.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onShowFlow={onShowFlow} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></details>}
   </div>
 }
 
@@ -228,7 +237,7 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
         : <div>{entries.map((entry, index) => {
           const location = entry.locationNodeId ? nodeById.get(entry.locationNodeId) : undefined
           return <article key={`${entry.target ?? 'project'}-${entry.code}-${entry.locationNodeId ?? 'none'}-${index}`}>
-            <div><strong>{localizeDiagnosticMessage(entry.code, entry.message, locale)}</strong><span>{entry.target && <b>{entry.target}</b>}{location && <small>{localizeNodeTitle(location, locale)}</small>}<code>{entry.code}</code></span></div>
+            <div><strong>{localizeDiagnosticMessage(entry.code, entry.message, locale)}</strong><span>{entry.target && <b>{entry.target}</b>}{location && <small>{localizeNodeTitle(location, locale)}</small>}{entry.related?.length ? <small>{t('workspace.health.related', { count: entry.related.length })}</small> : null}</span>{<details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary><code>{entry.code}</code>{entry.related?.map((related, relatedIndex) => <div key={`${related.code}-${relatedIndex}`}><code>{related.code}</code><small>{localizeDiagnosticMessage(related.code, related.message, locale)}</small></div>)}</details>}</div>
             {entry.locationNodeId && <button type="button" onClick={() => onOpenNode(entry.locationNodeId!)}>{t('workspace.health.goTo')}<ArrowRight size={14} /></button>}
           </article>
         })}</div>}
@@ -339,17 +348,22 @@ function processingSummaryLabel(summary: ReturnType<typeof summarizeWorkspacePro
   return t('workspace.processing.summary.unknown')
 }
 
-function StrategyCard({ item, strategy, onEdit }: {
+function StrategyCard({ item, strategy, onEdit, onShowFlow, onDuplicate, onDelete }: {
   item: WorkspaceNodeItem
   strategy: ReturnType<typeof summarizeWorkspaceStrategy>
   onEdit: (item: WorkspaceNodeItem) => void
+  onShowFlow: (item: WorkspaceNodeItem) => void
+  onDuplicate: (item: WorkspaceNodeItem) => void
+  onDelete: (item: WorkspaceNodeItem) => void
 }) {
   const { locale, t } = useI18n()
   return <article className="workspace-strategy-card" data-status={strategy.status}>
-    <div className="workspace-strategy-icon"><BlockIcon name={item.node.data.icon} size={19} /></div>
-    <div className="workspace-strategy-main"><div><strong>{localizeNodeTitle(item.node, locale)}</strong><StatusBadge status={strategy.status} /></div><p>{t(strategyKindKey(strategy.kind))}</p><small>{strategySummaryLabel(strategy.summary, t)}</small></div>
-    <div className="workspace-strategy-meta">{strategy.candidateCount !== undefined && <span>{t('workspace.strategy.candidates', { count: strategy.candidateCount })}</span>}<b className={`is-${strategy.capability}`}>{strategy.capability === 'unknown' ? t('workspace.compatibility.unknown') : t(compatibilityMessages[strategy.capability])}</b></div>
-    <button type="button" className="row-action" onClick={() => onEdit(item)}>{t('workspace.open')}</button>
+    <button type="button" className="workspace-card-body workspace-strategy-body" onClick={() => onEdit(item)}>
+      <span className="workspace-strategy-icon"><BlockIcon name={item.node.data.icon} size={19} /></span>
+      <span className="workspace-strategy-main"><span><strong>{localizeNodeTitle(item.node, locale)}</strong><StatusBadge status={strategy.status} /></span><p>{t(strategyKindKey(strategy.kind))}</p><small>{strategySummaryLabel(strategy.summary, t)}</small></span>
+      <span className="workspace-strategy-meta">{strategy.candidateCount !== undefined && <span>{t('workspace.strategy.candidates', { count: strategy.candidateCount })}</span>}<b className={`is-${strategy.capability}`}>{strategy.capability === 'unknown' ? t('workspace.compatibility.unknown') : t(compatibilityMessages[strategy.capability])}</b></span>
+    </button>
+    <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
   </article>
 }
 

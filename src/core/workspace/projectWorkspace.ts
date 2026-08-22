@@ -1,4 +1,4 @@
-import { getTargetCapabilities, type CapabilityStatus, type TransportCapability } from '../capabilities'
+import { proxyCompatibilityForTarget, type CapabilityStatus } from '../capabilities'
 import { compileGraph } from '../graphCompiler'
 import { isConnectionAllowed } from '../graph/graphRules'
 import { isUnmodeledProxy } from '../ir'
@@ -176,16 +176,5 @@ function proxyCapabilityStatus(
   primaryTarget: PrimaryTargetResolution,
 ): CapabilityStatus | 'unknown' {
   if (!primaryTarget.target) return 'unknown'
-  const capabilities = getTargetCapabilities(primaryTarget.target)
-  const declarations = [capabilities.protocols[proxy.protocol]]
-  if ('transport' in proxy && proxy.transport) {
-    const transport: TransportCapability = proxy.transport.kind === 'http'
-      ? proxy.transport.variant
-      : proxy.transport.kind
-    declarations.push(capabilities.transports[transport])
-  }
-  if (declarations.some(({ status }) => status === 'unsupported')) return 'unsupported'
-  if (proxy.metadata?.compatibility?.status === 'partial' || declarations.some(({ status }) => status === 'partial')) return 'partial'
-  if (declarations.some(({ status }) => status === 'target-native')) return 'target-native'
-  return 'supported'
+  return proxyCompatibilityForTarget(proxy, primaryTarget.target).status
 }

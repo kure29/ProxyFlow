@@ -28,7 +28,7 @@ export function resolveTopBarActions(_view: ProductView): TopBarActionVisibility
     autoLayout: false,
     fit: false,
     refreshAll: false,
-    preview: true,
+    preview: false,
     export: true,
   }
 }

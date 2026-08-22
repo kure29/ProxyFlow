@@ -191,6 +191,7 @@ export interface WorkspaceHealthEntry {
   locationNodeId?: string
   target?: CompatibilityIssue['target']
   feature?: string
+  related?: WorkspaceHealthEntry[]
 }
 
 export interface WorkspaceHealthGroups {
@@ -212,10 +213,51 @@ export function groupProjectHealthDiagnostics(
     else warnings.push(entry)
   }
   return {
-    errors,
-    warnings,
-    compatibility: compatibilityDiagnostics.map((issue) => healthEntry(issue, availableNodeIds)),
+    errors: collapseHealthEntries(errors),
+    warnings: collapseHealthEntries(warnings),
+    compatibility: collapseHealthEntries(compatibilityDiagnostics.map((issue) => healthEntry(issue, availableNodeIds))),
   }
+}
+
+function collapseHealthEntries(entries: WorkspaceHealthEntry[]): WorkspaceHealthEntry[] {
+  const groups = new Map<string, WorkspaceHealthEntry[]>()
+  for (const entry of entries) {
+    const key = `${entry.target ?? 'project'}\u0000${entry.locationNodeId ?? 'project'}`
+    groups.set(key, [...(groups.get(key) ?? []), entry])
+  }
+  return [...groups.values()].flatMap(collapseScopedHealthEntries)
+}
+
+function collapseScopedHealthEntries(entries: WorkspaceHealthEntry[]) {
+  const byCode = new Map<string, WorkspaceHealthEntry[]>()
+  for (const entry of entries) {
+    const code = canonicalDiagnosticCode(entry.code)
+    byCode.set(code, [...(byCode.get(code) ?? []), entry])
+  }
+  const unique = [...byCode.entries()].map(([code, matches]) => ({
+    code,
+    entry: matches.length > 1 ? { ...matches[0], related: matches.slice(1) } : matches[0],
+  }))
+  const forcedIndex = unique.findIndex(({ code }) => code === 'REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED')
+  if (forcedIndex < 0) return unique.map(({ entry }) => entry)
+  const [forced] = unique.splice(forcedIndex, 1)
+  const root = unique.find(({ code }) => REMOTE_SOURCE_ROOT_CAUSES.has(code))
+  if (!root) return [...unique.map(({ entry }) => entry), forced.entry]
+  root.entry = { ...root.entry, related: [...(root.entry.related ?? []), forced.entry] }
+  return unique.map(({ entry }) => entry)
+}
+
+const REMOTE_SOURCE_ROOT_CAUSES = new Set([
+  'REMOTE_SOURCE_PROCESSING_UNSUPPORTED',
+  'REMOTE_SOURCE_TARGET_UNSUPPORTED',
+  'REMOTE_SOURCE_REQUEST_PROFILE_UNSUPPORTED',
+  'REMOTE_SOURCE_SNAPSHOT_UNAVAILABLE',
+  'REMOTE_SOURCE_MIXED_INPUTS',
+])
+
+function canonicalDiagnosticCode(code: string) {
+  const remoteIndex = code.indexOf('REMOTE_')
+  return remoteIndex >= 0 ? code.slice(remoteIndex) : code
 }
 
 function sourceStatus(node: GraphNode, runtime?: WorkspaceSourceRuntimeLike): WorkspaceSourceStatus {

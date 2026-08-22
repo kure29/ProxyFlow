@@ -56,7 +56,7 @@ describe('real subscription cross-target pipeline', () => {
     expect(singBox.outbounds.find((outbound) => outbound.type === 'vless')).toEqual(expect.objectContaining({ tls: expect.objectContaining({ enabled: true }), transport: expect.objectContaining({ type: 'grpc' }) }))
   })
 
-  it('maps HTTPS proxy TLS and excludes partial variants without blocking ready nodes', () => {
+  it('maps HTTPS proxy TLS and retains resolved partial variants for target validation', () => {
     const content = [
       'https://demo:pass@secure-http.example.com:443#HTTPS',
       'vless://88888888-8888-4888-8888-888888888888@reality.example.com:443?security=reality&flow=xtls-rprx-vision&pbk=fake&sid=abcd#Reality',
@@ -69,7 +69,10 @@ describe('real subscription cross-target pipeline', () => {
     expect(mihomoResult.success).toBe(true)
     expect(mihomoResult.issues.map((issue) => issue.code)).toContain('MIHOMO_PROXY_VARIANT_UNSUPPORTED')
     const mihomo = parseYaml(mihomoResult.content) as MihomoConfig
-    expect(mihomo.proxies).toEqual([expect.objectContaining({ type: 'http', tls: true, sni: 'secure-http.example.com' })])
+    expect(mihomo.proxies).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'http', tls: true, sni: 'secure-http.example.com' }),
+      expect.objectContaining({ type: 'vless', name: 'Reality' }),
+    ]))
 
     const singBoxResult = compileSingBox(ir, { now })
     expect(singBoxResult.success).toBe(true)
@@ -86,10 +89,10 @@ describe('real subscription cross-target pipeline', () => {
     const mihomoResult = compileMihomo(ir, { now })
     expect(mihomoResult.success).toBe(true)
     const mihomo = parseYaml(mihomoResult.content) as MihomoConfig
-    expect(mihomo.proxies).toEqual([expect.objectContaining({
+    expect(mihomo.proxies).toEqual(expect.arrayContaining([expect.objectContaining({
       type: 'vless', tls: true, servername: 'www.example.com', 'client-fingerprint': 'chrome',
       'reality-opts': { 'public-key': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'short-id': 'abcd1234' },
-    })])
+    })]))
 
     const singBoxResult = compileSingBox(ir, { now })
     expect(singBoxResult.success).toBe(true)
@@ -254,11 +257,11 @@ describe('real subscription cross-target pipeline', () => {
     }
   })
 
-  it('keeps a Partial endpoint out of target output through source, transform, strategy, and chain paths', () => {
+  it('keeps resolved Partial endpoints in ProxySets and evaluates compatibility per target', () => {
     const parsed = parseSubscription([
       'socks5://demo:pass@entry.example.com:1080#Entry',
       'http://demo:pass@exit.example.com:8080#Exit',
-      'vless://aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa@blocked.example.com:443?security=none&sni=www.example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#Blocked',
+      'ss://YWVzLTEyOC1nY206Zml4dHVyZS1wYXNzd29yZA==@ss-plugin.example.com:8388/?plugin=obfs%3Bobfs%3Dhttp#Plugin',
     ].join('\n'), { sourceId: 'firewall', sourceName: 'Firewall' })
     expect(parsed.partialCount).toBe(1)
     const ir = directIR(parsed.proxies)
@@ -273,19 +276,19 @@ describe('real subscription cross-target pipeline', () => {
     const mihomo = compileMihomo(ir, { now })
     const singBox = compileSingBox(ir, { now })
     expect([mihomo.success, singBox.success]).toEqual([true, true])
-    expect(mihomo.content).not.toContain('blocked.example.com')
-    expect(singBox.content).not.toContain('blocked.example.com')
-    expect(mihomo.issues.map((issue) => issue.code)).toContain('MIHOMO_PROXY_VARIANT_UNSUPPORTED')
+    expect(materializeProxySet(ir, { kind: 'source', id: 'source' }).outputCount).toBe(3)
+    expect(materializeProxySet(ir, { kind: 'transform', id: 'rename' }).outputCount).toBe(3)
+    expect(mihomo.content).toContain('ss-plugin.example.com')
+    expect(singBox.content).toContain('ss-plugin.example.com')
+    expect(mihomo.issues.map((issue) => issue.code)).not.toContain('MIHOMO_PROXY_VARIANT_UNSUPPORTED')
     expect(singBox.issues.map((issue) => issue.code)).toContain('SINGBOX_PROXY_VARIANT_UNSUPPORTED')
 
     const blockedId = parsed.proxies.find((proxy) => proxy.metadata?.compatibility?.status === 'partial')!.id
     const fixed = directIR(parsed.proxies)
     fixed.strategies = [{ kind: 'fixed', id: 'blocked-fixed', name: 'Blocked Fixed', proxyId: blockedId }]
     fixed.finalRoute = { target: { kind: 'strategy', id: 'blocked-fixed' } }
-    for (const result of [compileMihomo(fixed, { now }), compileSingBox(fixed, { now })]) {
-      expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
-      expect(result.content).not.toContain('blocked.example.com')
-    }
+    expect(compileMihomo(fixed, { now })).toEqual(expect.objectContaining({ success: true }))
+    expect(compileSingBox(fixed, { now })).toEqual(expect.objectContaining({ success: true }))
   })
 
   it.each([100, 500, 1000])('parses and processes %i nodes without changing count', (count) => {

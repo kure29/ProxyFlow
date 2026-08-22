@@ -38,12 +38,18 @@ describe('RefreshCoordinator', () => {
   it.each([
     ['unsupported format', 'not a subscription', 'SUBSCRIPTION_UNSUPPORTED_FORMAT'],
     ['blank response', '   \n', 'SUBSCRIPTION_PARSE_FAILED'],
-    ['all Partial', partialOnlyBody(), 'SUBSCRIPTION_NO_USABLE_NODES'],
   ])('rejects %s without committing', async (_label, body, code) => {
     const runtime = harness()
     const result = await new RefreshCoordinator(sequenceFetcher(body), new MemorySubscriptionRuntimeRepository()).refresh(request(), runtime.handlers)
     expect(result).toEqual(expect.objectContaining({ outcome: 'failure', error: expect.objectContaining({ code }) }))
     expect(runtime.active).toBeUndefined()
+  })
+
+  it('commits an all-Partial subscription because every endpoint is still modeled', async () => {
+    const runtime = harness()
+    const result = await new RefreshCoordinator(sequenceFetcher(partialOnlyBody()), new MemorySubscriptionRuntimeRepository()).refresh(request(), runtime.handlers)
+    expect(result.outcome).toBe('success')
+    expect(runtime.active).toEqual(expect.objectContaining({ quality: 'usable', readyCount: 0, partialCount: 1 }))
   })
 
   it('commits mixed Ready and Partial nodes as usable', async () => {
