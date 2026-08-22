@@ -139,7 +139,7 @@ export function PreviewModal() {
         <aside>
           <span>{t('preview.mode')}</span>
           {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
-          <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong>Universal IR</strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
+          <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           <button disabled><b><Clock3 size={17} /></b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
           {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}

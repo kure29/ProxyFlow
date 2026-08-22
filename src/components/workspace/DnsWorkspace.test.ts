@@ -69,7 +69,7 @@ describe('DNS Workspace mobile actions', () => {
 
     expect(html).toContain('is-unsupported')
     expect(html).toContain('Unsupported by target')
-    expect(html).toMatch(/<option[^>]*disabled=""[^>]*value="direct"|<option[^>]*value="direct"[^>]*disabled=""/)
+    expect(html).toMatch(/<button[^>]*aria-label="Role"[^>]*aria-invalid="true"/)
   })
 
   it('passes supported preset state through both production target exports', () => {

@@ -6,6 +6,7 @@ import {
   normalizeDnsResolvers, patchDnsResolver, resolveDnsResolverRegion,
 } from '../../core/dns/resolverProfiles'
 import type { DnsResolverConfig, DnsResolverKind, DnsResolverRole } from '../../types/project'
+import { WebSelect } from '../ui/WebSelect'
 
 export interface DnsWorkspaceCopy {
   emptyTitle: string
@@ -133,9 +134,9 @@ export function DnsWorkspace({
           <header><span><Server size={17} /><span><strong>{resolver.name}</strong><small>{resolver.kind.toUpperCase()}{region ? ` · ${copy.regions[region]}` : ''}</small></span></span>{unsupported && <em>{copy.unsupported}</em>}</header>
           <div className="dns-resolver-fields">
             <label><span>{copy.name}</span><input value={resolver.name} onChange={(event) => update(resolver.id, { name: event.target.value })} /></label>
-            <label><span>{copy.protocol}</span><select value={resolver.kind} onChange={(event) => update(resolver.id, { kind: event.target.value as DnsResolverKind })}>{(['doh', 'dot', 'udp', 'system'] as const).map((kind) => <option key={kind} value={kind} disabled={dnsResolverCapability(target, kind) === 'unsupported'}>{kind.toUpperCase()}</option>)}</select></label>
+            <label><span>{copy.protocol}</span><WebSelect label={copy.protocol} value={resolver.kind} invalid={kindStatus === 'unsupported'} onChange={(value) => update(resolver.id, { kind: value as DnsResolverKind })} options={(['doh', 'dot', 'udp', 'system'] as const).map((kind) => ({ value: kind, label: kind.toUpperCase(), disabled: dnsResolverCapability(target, kind) === 'unsupported' }))} /></label>
             <label className="dns-endpoint-field"><span>{copy.endpoint}</span><input value={resolver.address ?? ''} disabled={resolver.kind === 'system'} onChange={(event) => update(resolver.id, { address: event.target.value })} /></label>
-            <label><span>{copy.role}</span><select value={resolver.role} onChange={(event) => update(resolver.id, { role: event.target.value as DnsResolverRole })}>{(['default', 'direct', 'fallback'] as const).map((role) => <option key={role} value={role} disabled={dnsRoleCapability(target, role) === 'unsupported'}>{copy.roles[role]}</option>)}</select></label>
+            <label><span>{copy.role}</span><WebSelect label={copy.role} value={resolver.role} invalid={roleStatus === 'unsupported'} onChange={(value) => update(resolver.id, { role: value as DnsResolverRole })} options={(['default', 'direct', 'fallback'] as const).map((role) => ({ value: role, label: copy.roles[role], disabled: dnsRoleCapability(target, role) === 'unsupported' }))} /></label>
           </div>
           <footer><label className="dns-enabled-toggle"><input type="checkbox" checked={resolver.enabled} onChange={(event) => update(resolver.id, { enabled: event.target.checked })} /><span>{copy.enabled}</span></label><button type="button" className="icon-button" aria-label={`${copy.remove}: ${resolver.name}`} title={copy.remove} onClick={() => remove(resolver.id)}><Trash2 size={16} /></button></footer>
         </article>

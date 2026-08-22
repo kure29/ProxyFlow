@@ -25,6 +25,7 @@ import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 import { normalizeValidProjectName } from '../core/project/projectName'
+import { findAvailableNodePosition } from './nodePlacement'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -346,7 +347,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       if (dataPatch?.titleKey) data.title = translateCurrent(dataPatch.titleKey as Parameters<typeof translateCurrent>[0])
       if (dataPatch?.subtitleKey) data.subtitle = translateCurrent(dataPatch.subtitleKey as Parameters<typeof translateCurrent>[0])
-      const node: GraphNode = { id, type: 'block', position, data, selected: true }
+      const node: GraphNode = { id, type: 'block', position: findAvailableNodePosition(position, get().nodes), data, selected: true }
       set((state) => ({
         nodes: [...state.nodes.map((existing) => ({ ...existing, selected: false })), node],
         selectedNodeId: id,
@@ -365,7 +366,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const duplicateId = makeId(source.data.blockType)
       const duplicate: GraphNode = {
         ...structuredClone(source), id: duplicateId,
-        position: { x: source.position.x + 36, y: source.position.y + 36 },
+        position: findAvailableNodePosition({ x: source.position.x + 36, y: source.position.y + 36 }, get().nodes),
         data: { ...structuredClone(source.data), title: translateCurrent('toast.duplicateSuffix', { name: localizeDataValue(source.data.title, source.data.titleKey, getCurrentLocale()) }), titleKey: undefined, protected: false }, selected: true,
       }
       set((state) => ({
@@ -546,7 +547,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         const fallback: GraphNode = {
           id: fallbackId,
           type: 'block',
-          position: { x: chain.position.x - 300, y: chain.position.y + 420 },
+          position: findAvailableNodePosition({ x: chain.position.x - 300, y: chain.position.y + 420 }, state.nodes),
           data: {
             blockType: 'fallback', category: 'strategy', title: translateCurrent('block.fallback.title'), titleKey: 'block.fallback.title',
             subtitle: translateCurrent('block.fallback.description'), subtitleKey: 'block.fallback.description', icon: 'refresh-cw', strategyMode: translateCurrent('demo.strategy.fallback'),

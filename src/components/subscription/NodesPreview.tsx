@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Search, X, XCircle } from 'lucide-react'
 import { maskServer, proxyProtocolLabel, REGION_OPTIONS, type ResolvedProxyEndpointIR, type SupportedProxyProtocol } from '../../core/proxy'
 import type { SubscriptionSnapshot } from '../../core/subscription'
 import { localizeDiagnosticMessage, localizeKnownSystemText, regionLabel, useI18n } from '../../i18n'
+import { WebSelect } from '../ui/WebSelect'
 
 export function NodesPreview({ snapshot, onClose, initialStatus = 'all' }: { snapshot?: SubscriptionSnapshot; onClose: () => void; initialStatus?: 'all' | 'issues' }) {
   const { locale, t } = useI18n()
@@ -27,20 +28,21 @@ export function NodesPreview({ snapshot, onClose, initialStatus = 'all' }: { sna
       <header><div><span>{t('nodesPreview.pool')}</span><h2 id="nodes-preview-title">{t('nodesPreview.title')}</h2><p>{t('nodesPreview.summary', { detected: nodes.length, ready: snapshot?.result?.readyCount ?? 0, warnings: snapshot?.result?.partialCount ?? 0, unsupported: snapshot?.result?.unsupportedCount ?? 0 })}</p></div><button onClick={onClose} aria-label={t('nodesPreview.closeAria')}><X size={18} /></button></header>
       <div className="nodes-preview-filters">
         <label><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('nodesPreview.search')} /></label>
-        <select value={protocol} onChange={(event) => setProtocol(event.target.value)}><option value="all">{t('nodesPreview.allProtocols')}</option>{protocols.map((item) => <option key={item} value={item}>{protocolName(item)}</option>)}</select>
-        <select value={region} onChange={(event) => setRegion(event.target.value)}><option value="all">{t('nodesPreview.allRegions')}</option>{REGION_OPTIONS.map((item) => <option key={item.code} value={item.code}>{item.code} · {regionLabel(item.code, locale)}</option>)}</select>
-        <select value={status} onChange={(event) => setStatus(event.target.value as 'all' | 'issues')}><option value="all">{t('nodesPreview.allStatuses')}</option><option value="issues">{t('nodesPreview.issuesOnly')}</option></select>
+        <WebSelect label={t('nodesPreview.allProtocols')} value={protocol} onChange={setProtocol} options={[{ value: 'all', label: t('nodesPreview.allProtocols') }, ...protocols.map((item) => ({ value: item, label: protocolName(item) }))]} />
+        <WebSelect label={t('nodesPreview.allRegions')} value={region} onChange={setRegion} options={[{ value: 'all', label: t('nodesPreview.allRegions') }, ...REGION_OPTIONS.map((item) => ({ value: item.code, label: `${item.code} · ${regionLabel(item.code, locale)}` }))]} />
+        <WebSelect label={t('nodesPreview.allStatuses')} value={status} onChange={(value) => setStatus(value as 'all' | 'issues')} options={[{ value: 'all', label: t('nodesPreview.allStatuses') }, { value: 'issues', label: t('nodesPreview.issuesOnly') }]} />
       </div>
       <div className="nodes-preview-table" role="table">
         <div className="nodes-preview-row is-heading" role="row"><span>{t('nodesPreview.name')}</span><span>{t('nodesPreview.protocol')}</span><span>{t('nodesPreview.region')}</span><span>{t('nodesPreview.server')}</span><span>{t('nodesPreview.port')}</span><span>{t('nodesPreview.security')}</span><span>{t('nodesPreview.status')}</span></div>
         {filtered.map((node) => <Fragment key={node.id}><div className={`nodes-preview-row${node.issues.length ? ' has-issues' : ''}`} role="row" tabIndex={node.issues.length ? 0 : undefined} aria-expanded={node.issues.length ? expandedNodeId === node.id : undefined} onClick={() => node.issues.length && setExpandedNodeId((current) => current === node.id ? null : node.id)} onKeyDown={(event) => { if (node.issues.length && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setExpandedNodeId((current) => current === node.id ? null : node.id) } }}>
-          <span><strong>{node.name}</strong><small>{localizeKnownSystemText(node.sourceName, locale)}</small></span>
-          <span><code>{protocolName(node.protocol)}</code></span>
-          <span>{node.endpoint?.metadata?.region?.code ?? 'UNKNOWN'}<small>{t('nodesPreview.hint', { source: node.endpoint?.metadata?.region?.source ?? '—' })}</small></span>
-          <span><code>{node.server ? maskServer(node.server) : '—'}</code></span>
-          <span>{node.port ?? '—'}</span>
-          <span><small className="node-safe-summary">{safeEndpointSummary(node.endpoint, t)}</small></span>
+          <span className="nodes-preview-name"><strong>{node.name}</strong><small>{localizeKnownSystemText(node.sourceName, locale)}</small></span>
+          <span className="nodes-preview-protocol"><code>{protocolName(node.protocol)}</code></span>
+          <span className="nodes-preview-region">{node.endpoint?.metadata?.region?.code ?? 'UNKNOWN'}<small>{t('nodesPreview.hint', { source: node.endpoint?.metadata?.region?.source ?? '—' })}</small></span>
+          <span className="nodes-preview-server"><code>{node.server ? maskServer(node.server) : '—'}</code></span>
+          <span className="nodes-preview-port">{node.port ?? '—'}</span>
+          <span className="nodes-preview-security"><small className="node-safe-summary">{safeEndpointSummary(node.endpoint, t)}</small></span>
           <span className={`node-parse-status is-${node.status}`}>{node.status === 'ready' ? <CheckCircle2 size={14} /> : node.status === 'partial' ? <AlertTriangle size={14} /> : <XCircle size={14} />}{t(`nodesPreview.status.${node.status}`)}</span>
+          <span className="nodes-preview-mobile-meta"><span>{protocolName(node.protocol)} · {node.endpoint?.metadata?.region?.code ?? 'UNKNOWN'}</span><small>{safeEndpointSummary(node.endpoint, t)}</small></span>
         </div>{expandedNodeId === node.id && node.issues.length > 0 && <div className="node-issue-details">{node.issues.map((issue) => <div key={`${issue.code}-${issue.message}`}><code>{issue.code}</code><span>{localizeDiagnosticMessage(issue.code, issue.message, locale)}</span></div>)}</div>}</Fragment>)}
         {filtered.length === 0 && <div className="nodes-preview-empty">{t('nodesPreview.empty')}</div>}
       </div>

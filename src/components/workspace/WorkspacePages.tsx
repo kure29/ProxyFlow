@@ -19,6 +19,7 @@ import { localizeDiagnosticMessage, localizeNodeTitle, useI18n } from '../../i18
 import type { MessageKey } from '../../i18n'
 import { BlockIcon } from '../icons/BlockIcon'
 import { RouteInspectorPanel } from '../inspector/Inspector'
+import { WebSelect } from '../ui/WebSelect'
 
 const sourceStatusMessages = {
   healthy: 'workspace.source.status.healthy',
@@ -117,9 +118,9 @@ export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[]
     </div>
     <div className="workspace-proxy-filters" role="search">
       <label className="workspace-search-field"><span className="visually-hidden">{t('workspace.proxy.search')}</span><Search size={16} /><input type="search" value={search} placeholder={t('workspace.proxy.search')} onChange={(event) => setSearch(event.target.value)} />{search && <button type="button" aria-label={t('workspace.proxy.clearSearch')} onClick={() => setSearch('')}><X size={14} /></button>}</label>
-      <FilterSelect label={t('workspace.proxy.allSources')} value={sourceId} onChange={setSourceId} options={options.sources} />
-      <FilterSelect label={t('workspace.proxy.allAvailability')} value={sourceAvailability} onChange={setSourceAvailability} options={options.sourceAvailabilities.map((value) => ({ value, label: t(sourceStatusMessages[value]) }))} />
-      <FilterSelect label={t('workspace.proxy.allCompatibility')} value={compatibility} onChange={setCompatibility} options={options.compatibilities.map((value) => ({ value, label: t(compatibilityMessages[value]) }))} />
+      <FilterSelect label={t('workspace.proxy.sourceFilter')} value={sourceId} onChange={setSourceId} options={options.sources} />
+      <FilterSelect label={t('workspace.proxy.availabilityFilter')} value={sourceAvailability} onChange={setSourceAvailability} options={options.sourceAvailabilities.map((value) => ({ value, label: t(sourceStatusMessages[value]) }))} />
+      <FilterSelect label={t('workspace.proxy.compatibilityFilter')} value={compatibility} onChange={setCompatibility} options={options.compatibilities.map((value) => ({ value, label: t(compatibilityMessages[value]) }))} />
       {filteredState && <button type="button" className="workspace-clear-filters" onClick={() => { setSearch(''); setSourceId(''); setRegion(''); setProtocol(''); setSourceAvailability(''); setCompatibility('') }}>{t('workspace.proxy.clearFilters')}</button>}
     </div>
     <div className="workspace-table-summary">{t('workspace.proxy.results', { shown: filtered.length, total: proxies.length })}</div>
@@ -319,7 +320,7 @@ function FilterSelect({ label, value, options, onChange }: {
   options: Array<{ value: string; label: string }>
   onChange: (value: string) => void
 }) {
-  return <label className="workspace-filter-select"><span className="visually-hidden">{label}</span><select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}><option value="">{label}</option>{options.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+  return <div className="workspace-filter-select"><WebSelect label={label} value={value} onChange={onChange} options={[{ value: '', label }, ...options]} /></div>
 }
 
 function StatusBadge({ status }: { status: WorkspacePresentationStatus }) {
