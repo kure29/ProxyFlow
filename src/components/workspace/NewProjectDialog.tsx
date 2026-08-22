@@ -6,16 +6,20 @@ import { useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { AssetIcon } from '../icons/AssetIcon'
 import { sourceBlockForNewProject, type NewProjectSourceChoice } from './newProjectFlow'
+import {
+  countProjectNameGraphemes, PROJECT_NAME_MAX_GRAPHEMES, validateProjectName,
+} from '../../core/project/projectName'
 
 interface NewProjectDialogProps {
   open: boolean
   required?: boolean
+  configureExistingProject?: boolean
   onClose: () => void
   beforeCreate: () => Promise<void>
   onComplete: () => void
 }
 
-export function NewProjectDialog({ open, required = false, onClose, beforeCreate, onComplete }: NewProjectDialogProps) {
+export function NewProjectDialog({ open, required = false, configureExistingProject = false, onClose, beforeCreate, onComplete }: NewProjectDialogProps) {
   const { t } = useI18n()
   const createNewProject = useBuilderStore((state) => state.createNewProject)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
@@ -23,6 +27,7 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
   const [step, setStep] = useState<1 | 2>(1)
   const [target, setTarget] = useState<PrimaryTarget>('mihomo')
   const [source, setSource] = useState<NewProjectSourceChoice>('url')
+  const [projectName, setProjectName] = useState(() => t('project.blankName'))
   const [creating, setCreating] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
@@ -33,6 +38,7 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
   useEffect(() => {
     if (!open) return
     setStep(1)
+    setProjectName(t('project.blankName'))
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousBodyOverflow = document.body.style.overflow
     const previousRootOverflow = document.documentElement.style.overflow
@@ -68,12 +74,12 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
           previousTarget.focus()
           return
         }
-        const persistentProjectTrigger = Array.from(document.querySelectorAll<HTMLElement>('.topbar-mobile-menu, .project-switcher-toggle'))
+        const persistentProjectTrigger = Array.from(document.querySelectorAll<HTMLElement>('.project-manager header button, .brand'))
           .find((element) => element.getClientRects().length > 0)
         persistentProjectTrigger?.focus()
       })
     }
-  }, [open, required])
+  }, [open, required, t])
 
   if (!open) return null
 
@@ -86,7 +92,7 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
     setCreating(true)
     try {
       await beforeCreate()
-      createNewProject(target)
+      createNewProject(target, projectName)
       const blockType = sourceBlockForNewProject(source)
       if (blockType) addLibraryNode(blockType, { x: 80, y: 90 })
       onComplete()
@@ -99,22 +105,29 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
     <section ref={dialogRef} className="new-project-dialog" role="dialog" aria-modal="true" aria-labelledby="new-project-title">
       <header>
         <div>
-          <span>{required ? t('newProject.required') : t('newProject.step', { current: step, total: 2 })}</span>
-          <h2 id="new-project-title" ref={headingRef} tabIndex={-1}>{required ? t('newProject.chooseExistingTitle') : step === 1 ? t('newProject.chooseTargetTitle') : t('newProject.addSourceTitle')}</h2>
+          <span>{configureExistingProject ? t('newProject.required') : t('newProject.step', { current: step, total: 2 })}</span>
+          <h2 id="new-project-title" ref={headingRef} tabIndex={-1}>{configureExistingProject ? t('newProject.chooseExistingTitle') : step === 1 ? t('newProject.chooseTargetTitle') : t('newProject.addSourceTitle')}</h2>
         </div>
         {!required && <button type="button" onClick={onClose} aria-label={t('newProject.close')}><X size={18} /></button>}
       </header>
 
-      {step === 1 ? <div className="target-choice-list">
-        {PRIMARY_TARGETS.map((item) => {
-          const definition = outputDefinitions.find((output) => output.target === item)!
-          const capabilities = getTargetCapabilities(item)
-          return <button type="button" className={target === item ? 'is-selected' : ''} key={item} onClick={() => setTarget(item)} aria-pressed={target === item}>
-            <AssetIcon className="target-choice-icon" src={definition.icon} darkSrc={definition.iconDark} fallback={definition.label.slice(0, 1)} />
-            <span><strong>{definition.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small></span>
-            <i>{target === item ? t('newProject.selected') : t('newProject.select')}</i>
-          </button>
-        })}
+      {step === 1 ? <div className="new-project-target-step">
+        {!configureExistingProject && <label className="new-project-name-field" htmlFor="new-project-name">
+          <span>{t('project.name')}</span>
+          <input id="new-project-name" value={projectName} aria-invalid={validateProjectName(projectName) !== 'valid'} aria-describedby="new-project-name-help" onChange={(event) => setProjectName(event.target.value)} />
+          <small id="new-project-name-help"><span>{t('project.nameLimit', { count: PROJECT_NAME_MAX_GRAPHEMES })}</span><span>{countProjectNameGraphemes(projectName)} / {PROJECT_NAME_MAX_GRAPHEMES}</span></small>
+        </label>}
+        <div className="target-choice-list">
+          {PRIMARY_TARGETS.map((item) => {
+            const definition = outputDefinitions.find((output) => output.target === item)!
+            const capabilities = getTargetCapabilities(item)
+            return <button type="button" className={target === item ? 'is-selected' : ''} key={item} onClick={() => setTarget(item)} aria-pressed={target === item}>
+              <AssetIcon className="target-choice-icon" src={definition.icon} darkSrc={definition.iconDark} fallback={definition.label.slice(0, 1)} />
+              <span><strong>{definition.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small></span>
+              <i>{target === item ? t('newProject.selected') : t('newProject.select')}</i>
+            </button>
+          })}
+        </div>
       </div> : <div className="source-choice-list">
         <SourceChoice icon={<Link2 size={19} />} label={t('newProject.source.url')} selected={source === 'url'} onClick={() => setSource('url')} />
         <SourceChoice icon={<Plus size={19} />} label={t('newProject.source.paste')} selected={source === 'paste'} onClick={() => setSource('paste')} />
@@ -125,10 +138,10 @@ export function NewProjectDialog({ open, required = false, onClose, beforeCreate
       <footer>
         {step === 2 && <button type="button" className="secondary-action" onClick={() => setStep(1)}><ArrowLeft size={15} />{t('newProject.back')}</button>}
         <span />
-        {required
+        {configureExistingProject
           ? <button type="button" className="primary-action" onClick={finishExistingProject}>{t('newProject.useTarget')}<ArrowRight size={15} /></button>
           : step === 1
-            ? <button type="button" className="primary-action" onClick={() => setStep(2)}>{t('newProject.continue')}<ArrowRight size={15} /></button>
+            ? <button type="button" className="primary-action" disabled={validateProjectName(projectName) !== 'valid'} onClick={() => setStep(2)}>{t('newProject.continue')}<ArrowRight size={15} /></button>
             : <button type="button" className="primary-action" disabled={creating} onClick={() => void create()}>{t('newProject.create')}<ArrowRight size={15} /></button>}
       </footer>
     </section>

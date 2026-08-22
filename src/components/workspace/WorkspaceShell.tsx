@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
-  Boxes, CheckCircle2, ChevronDown, CircleAlert, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
-  Radio, RefreshCw, Route, SearchCheck, ShieldCheck, Trash2,
+  Boxes, ChevronDown, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
+  Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
 } from 'lucide-react'
 import {
   createWorkspaceProjection, orderWorkspaceProcessingNodes, processingMoveAvailability,
@@ -10,11 +10,8 @@ import {
 } from '../../core/workspace'
 import { deriveProjectRuntime } from '../../core/proxySet'
 import { getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
-import { blockDescriptionKey, blockTitleKey, localizeNodeTitle, localizeProjectName, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
-import type { MessageKey } from '../../i18n'
-import { blockByType } from '../../data/blockLibrary'
+import { localizeNodeTitle, localizeProjectName, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import { BlockIcon } from '../icons/BlockIcon'
 import type { BlockNodeData, BlockType } from '../../types/project'
 import type { ProductView, WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
@@ -22,24 +19,27 @@ import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
 import { TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
-  processingCreationOptions, strategyCreationOptions, type WorkspaceCreationOption,
+  processingCreationOptions, strategyCreationOptions,
 } from './workspaceCreation'
+import { WorkspaceAddMenu } from './WorkspaceAddMenu'
 import { RoutingWorkspace, type RoutingWorkspaceCopy } from './RoutingWorkspace'
 import { DnsWorkspace, type DnsWorkspaceCopy } from './DnsWorkspace'
 import { MobileWorkspaceNavigation } from './MobileWorkspaceNavigation'
-import type { ProjectListItem } from '../../storage/projectStorage'
+import { ProjectOverview } from './ProjectOverview'
 import {
   ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, SourcesWorkspace,
   StrategiesWorkspace,
 } from './WorkspacePages'
+import type { ProjectListItem } from '../../storage/projectStorage'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
   primaryHealth: PrimaryTargetHealth
+  lastNodeSection: WorkspaceSectionId
   projects: ProjectListItem[]
-  onProjectChange: (projectId: string) => Promise<void>
-  onProjectNameCommit: () => Promise<void>
   onNewProject: () => void
+  onSwitchProject: (projectId: string) => Promise<void>
+  onRenameProject: (projectId: string, name: string) => Promise<boolean>
   onDeleteProject: (projectId: string) => Promise<void>
 }
 
@@ -55,17 +55,9 @@ const navigation = [
   { id: 'export', icon: FileOutput, label: 'workspace.export', description: 'workspace.description.export' },
 ] as const
 
-const compatibilityMessages = {
-  supported: 'workspace.compatibility.supported',
-  partial: 'workspace.compatibility.partial',
-  unsupported: 'workspace.compatibility.unsupported',
-  'target-native': 'workspace.compatibility.targetNative',
-  unknown: 'workspace.compatibility.unknown',
-} as const satisfies Record<string, MessageKey>
-
 export function WorkspaceShell({
-  activeSection, onSectionChange, onViewChange, primaryHealth, projects,
-  onProjectChange, onProjectNameCommit, onNewProject, onDeleteProject,
+  activeSection, onSectionChange, onViewChange, primaryHealth, lastNodeSection, projects,
+  onNewProject, onSwitchProject, onRenameProject, onDeleteProject,
 }: WorkspaceShellProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
@@ -87,13 +79,11 @@ export function WorkspaceShell({
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
-  const renameProject = useBuilderStore((state) => state.renameProject)
   const refreshAllSubscriptions = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
   const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
   const [editorOpen, setEditorOpen] = useState(false)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false)
   const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
@@ -165,14 +155,16 @@ export function WorkspaceShell({
       </div>
       <MobileWorkspaceNavigation
         activeSection={activeSection}
+        lastNodeSection={lastNodeSection}
         items={navigation.map(({ id, icon, label }) => ({ id, icon, label: t(label), count: counts[id] }))}
-        open={mobileNavigationOpen}
-        openLabel={t('workspace.mobileNavigation.open')}
-        closeLabel={t('workspace.mobileNavigation.close')}
-        title={t('workspace.mobileNavigation.title')}
-        inputLabel={t('workspace.mobileNavigation.sourcesProxies')}
-        moreLabel={t('workspace.mobileNavigation.more')}
-        onOpenChange={setMobileNavigationOpen}
+        labels={{
+          title: t('workspace.mobileNavigation.title'),
+          home: t('workspace.mobileNavigation.home'),
+          nodes: t('workspace.mobileNavigation.nodes'),
+          strategies: t('workspace.mobileNavigation.strategies'),
+          routing: t('workspace.mobileNavigation.routing'),
+          more: t('workspace.mobileNavigation.more'),
+        }}
         onSectionChange={onSectionChange}
       />
     </nav>
@@ -204,10 +196,9 @@ export function WorkspaceShell({
             if (option) addNode(option.blockType, option.data)
             else setTargetDialogOpen(true)
           }}
-          onProjectChange={onProjectChange}
-          onProjectNameChange={renameProject}
-          onProjectNameCommit={onProjectNameCommit}
           onNewProject={onNewProject}
+          onSwitchProject={onSwitchProject}
+          onRenameProject={onRenameProject}
           onDeleteProject={onDeleteProject}
         />}
         {activeSection === 'sources' && <SourcesWorkspace
@@ -276,177 +267,6 @@ export function WorkspaceShell({
     </main>
     <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} onOpenWorkspaceSection={openSectionFromEditor} />
     <TargetSwitchDialog open={targetDialogOpen} current={primaryTarget} compiles={targetCompiles} onClose={closeTargetDialog} onSelect={selectTarget} />
-  </div>
-}
-
-interface ProjectOverviewProps {
-  projectName: string
-  projectId: string
-  projects: ProjectListItem[]
-  targetLabel: string
-  canExport: boolean
-  health: PrimaryTargetHealth
-  proxyCount: number
-  strategyCount: number
-  routingCount: number
-  dnsEnabled: boolean
-  onOpenSection: (section: WorkspaceSectionId) => void
-  onAddSubscription: () => void
-  onAddStrategy: () => void
-  onProjectChange: (projectId: string) => Promise<void>
-  onProjectNameChange: (name: string) => boolean
-  onProjectNameCommit: () => Promise<void>
-  onNewProject: () => void
-  onDeleteProject: (projectId: string) => Promise<void>
-}
-
-function ProjectOverview({
-  projectName, projectId, projects, targetLabel, canExport, health, proxyCount, strategyCount, routingCount, dnsEnabled,
-  onOpenSection, onAddSubscription, onAddStrategy, onProjectChange, onProjectNameChange,
-  onProjectNameCommit, onNewProject, onDeleteProject,
-}: ProjectOverviewProps) {
-  const { locale, t } = useI18n()
-  const [nameDraft, setNameDraft] = useState(projectName)
-  const editStartName = useRef(projectName)
-  const cancelRename = useRef(false)
-  useEffect(() => setNameDraft(projectName), [projectId, projectName])
-  const errorCount = health.diagnostics.filter(({ severity }) => severity === 'error').length
-  const warningCount = health.diagnostics.filter(({ severity }) => severity === 'warning').length
-  const facts = [
-    { label: t('workspace.overview.target'), value: targetLabel },
-    { label: t('workspace.overview.exportable'), value: canExport ? t('workspace.overview.yes') : t('workspace.overview.no'), status: canExport ? 'ready' : 'blocked' },
-    { label: t('workspace.overview.nodes'), value: String(proxyCount) },
-    { label: t('workspace.overview.strategies'), value: String(strategyCount) },
-    { label: t('workspace.overview.routing'), value: String(routingCount) },
-    { label: t('workspace.overview.dns'), value: dnsEnabled ? t('workspace.overview.enabled') : t('workspace.overview.disabled') },
-  ]
-
-  const commitProjectName = (value: string) => {
-    if (!onProjectNameChange(value)) {
-      setNameDraft(projectName)
-      return
-    }
-    void onProjectNameCommit()
-  }
-
-  return <div className="project-overview">
-    <section className="project-overview-summary" aria-labelledby="project-overview-name">
-      <div>
-        <span>{t('workspace.overview.project')}</span>
-        <input
-          id="project-overview-name"
-          className="project-overview-name-input"
-          aria-label={t('top.projectName')}
-          value={nameDraft}
-          onFocus={() => { editStartName.current = projectName; cancelRename.current = false }}
-          onChange={(event) => { setNameDraft(event.target.value); onProjectNameChange(event.target.value) }}
-          onBlur={(event) => {
-            if (cancelRename.current) { cancelRename.current = false; return }
-            commitProjectName(event.currentTarget.value)
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              cancelRename.current = true
-              onProjectNameChange(editStartName.current)
-              setNameDraft(editStartName.current)
-              event.currentTarget.blur()
-            }
-          }}
-        />
-        <div className="project-overview-project-actions">
-          <select aria-label={t('top.recentProjects')} value={projectId} onChange={(event) => { void onProjectChange(event.target.value) }}>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.id === projectId ? projectName : localizeProjectName(project.name, locale)}</option>)}
-          </select>
-          <button type="button" className="secondary-action" onClick={onNewProject}><Plus size={15} /><span>{t('top.newProject')}</span></button>
-          <button
-            type="button"
-            className="secondary-action project-delete-action"
-            disabled={projects.length <= 1}
-            title={projects.length <= 1 ? t('workspace.overview.keepOneProject') : t('workspace.overview.deleteProject')}
-            onClick={() => {
-              if (window.confirm(t('workspace.overview.deleteProjectConfirm', { project: projectName }))) void onDeleteProject(projectId)
-            }}
-          ><Trash2 size={15} /><span>{t('workspace.overview.deleteProject')}</span></button>
-        </div>
-      </div>
-      <div className="project-overview-health" data-ready={errorCount === 0 || undefined}>
-        {errorCount === 0 ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}
-        <span><strong>{errorCount === 0 ? t('workspace.overview.clear') : t('workspace.overview.needsAttention')}</strong><small>{t('workspace.overview.issueSummary', { errors: errorCount, warnings: warningCount })}</small></span>
-      </div>
-    </section>
-    <dl className="project-overview-facts">
-      {facts.map(({ label, value, status }) => <div key={label} data-status={status}><dt>{label}</dt><dd>{value}</dd></div>)}
-      <div><dt>{t('workspace.overview.errors')}</dt><dd><button type="button" onClick={() => onOpenSection('inspect')}>{errorCount}</button></dd></div>
-      <div><dt>{t('workspace.overview.warnings')}</dt><dd><button type="button" onClick={() => onOpenSection('inspect')}>{warningCount}</button></dd></div>
-    </dl>
-    <section className="project-overview-shortcuts" aria-labelledby="project-overview-shortcuts">
-      <h3 id="project-overview-shortcuts">{t('workspace.overview.shortcuts')}</h3>
-      <div>
-        <button type="button" className="secondary-action" onClick={() => onOpenSection('inspect')}><SearchCheck size={16} />{t('workspace.inspect')}</button>
-        <button type="button" className="primary-action" onClick={() => onOpenSection('export')}><FileOutput size={16} />{t('workspace.export')}</button>
-        <button type="button" className="secondary-action" onClick={onAddSubscription}><Plus size={16} />{t('workspace.addSubscription')}</button>
-        <button type="button" className="secondary-action" onClick={onAddStrategy}><Plus size={16} />{t('workspace.addStrategy')}</button>
-      </div>
-    </section>
-  </div>
-}
-
-function WorkspaceAddMenu({ label, options, onCreate }: { label: string; options: WorkspaceCreationOption[]; onCreate: (type: BlockType, data?: Partial<BlockNodeData>) => void }) {
-  const { t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const focusFrame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus())
-    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      setOpen(false)
-      triggerRef.current?.focus()
-    }
-    window.addEventListener('pointerdown', close)
-    window.addEventListener('keydown', closeOnEscape)
-    return () => {
-      window.cancelAnimationFrame(focusFrame)
-      window.removeEventListener('pointerdown', close)
-      window.removeEventListener('keydown', closeOnEscape)
-    }
-  }, [open])
-  const navigateMenu = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'))
-    if (!items.length) return
-    event.preventDefault()
-    const current = items.indexOf(document.activeElement as HTMLButtonElement)
-    const next = event.key === 'Home' ? 0
-      : event.key === 'End' ? items.length - 1
-        : event.key === 'ArrowUp' ? (current <= 0 ? items.length - 1 : current - 1)
-          : (current + 1) % items.length
-    items[next]?.focus()
-  }
-  const closeMenu = () => {
-    setOpen(false)
-    window.requestAnimationFrame(() => triggerRef.current?.focus())
-  }
-  return <div className="workspace-add-menu" ref={rootRef} onBlur={(event) => {
-    if (open && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
-  }}>
-    <button ref={triggerRef} type="button" className="primary-action" aria-haspopup="menu" aria-controls={open ? 'workspace-add-options' : undefined} aria-expanded={open} onKeyDown={(event) => {
-      if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true) }
-    }} onClick={() => open ? closeMenu() : setOpen(true)}><Plus size={15} />{label}<ChevronDown size={14} /></button>
-    {open && <div ref={menuRef} id="workspace-add-options" className="workspace-add-options" role="menu" onKeyDown={navigateMenu}>{options.map((option) => {
-      const item = blockByType.get(option.blockType)
-      const optionLabel = option.id === 'service' ? t('inspector.matcher.service') : option.id === 'domain' ? t('inspector.matcher.domainSuffix') : option.id === 'cidr' ? t('inspector.matcher.ipCidr') : option.id === 'port' ? t('inspector.matcher.port') : t(blockTitleKey(option.blockType))
-      const status = option.status ? t(compatibilityMessages[option.status]) : option.advanced ? t('workspace.advanced') : t(blockDescriptionKey(option.blockType))
-      return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => { onCreate(option.blockType, option.data); closeMenu() }}>
-        <BlockIcon name={item?.icon ?? 'plus'} size={17} /><span><strong>{optionLabel}</strong><small>{status}</small></span>{option.advanced && <i>{t('workspace.advanced')}</i>}
-      </button>
-    })}</div>}
   </div>
 }
 

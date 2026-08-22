@@ -178,12 +178,12 @@ export function RoutingWorkspace({
   const createServiceRule = (service: ServiceDefinition) => {
     onCreate('service-rule', createServiceRuleData(service))
     setServiceQuery('')
-    closeAddPopover()
+    closeAddPopover(false)
   }
 
   const createCustomRule = (matcher: CustomRouteMatcherKind) => {
     onCreate('custom-rule', createCustomRuleData(matcher, copy.customRule))
-    closeAddPopover()
+    closeAddPopover(false)
   }
 
   const dropAt = (event: DragEvent<HTMLElement>, targetIndex: number) => {
@@ -200,13 +200,11 @@ export function RoutingWorkspace({
 
   return <section className="routing-workspace" aria-label={copy.rulesLabel}>
     <header className="routing-workspace-heading">
-      <div className="routing-add" ref={addRootRef} onBlur={(event) => {
-        if (stage !== 'closed' && !event.currentTarget.contains(event.relatedTarget as Node | null)) setStage('closed')
-      }}>
+      <div className="routing-add" ref={addRootRef}>
         <button ref={addButtonRef} type="button" className="primary-action" aria-haspopup="dialog" aria-controls={stage === 'closed' ? undefined : 'routing-add-popover'} aria-expanded={stage !== 'closed'} onClick={() => stage === 'closed' ? setStage('kind') : closeAddPopover()}>
           <Plus size={16} />{copy.addRule}
         </button>
-        {stage !== 'closed' && <div className="routing-add-sheet-backdrop" onMouseDown={() => closeAddPopover()} />}
+        {stage !== 'closed' && <div className="routing-add-sheet-backdrop" onPointerDown={() => closeAddPopover()} />}
         {stage !== 'closed' && <div ref={addPopoverRef} id="routing-add-popover" className="routing-add-popover" role="dialog" aria-label={stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}>
           <header>
             {stage !== 'kind' && <button type="button" className="icon-button" aria-label={copy.back} title={copy.back} onClick={() => setStage('kind')}><ChevronLeft size={17} /></button>}
