@@ -118,4 +118,21 @@ describe('ProjectStorage', () => {
       expect.objectContaining({ id: active.id, name: 'Healthy Project', active: true }),
     ])
   })
+
+  it('deletes only the requested project and selects a valid remaining active project', async () => {
+    const storage = new MemoryProjectStorage()
+    const first = createBlankProject('mihomo')
+    const second = createBlankProject('sing-box')
+    await storage.save(first)
+    await storage.save(second)
+    await storage.activate(second.id)
+
+    await storage.clear(first.id)
+    expect((await storage.load())?.id).toBe(second.id)
+    expect((await storage.list()).map(({ id }) => id)).toEqual([second.id])
+
+    await storage.clear(second.id)
+    expect(await storage.load()).toBeNull()
+    expect(await storage.list()).toEqual([])
+  })
 })

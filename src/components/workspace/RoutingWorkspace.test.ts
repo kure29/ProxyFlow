@@ -27,6 +27,8 @@ describe('Routing Workspace helpers', () => {
     expect(createCustomRuleData('domain-suffix', 'Custom Rule')).toEqual(expect.objectContaining({
       title: 'Custom Rule', routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom',
     }))
+    expect(createCustomRuleData('ip-cidr', 'Custom Rule')).toEqual(expect.objectContaining({ routeMatcherKind: 'ip-cidr', routeMatcherValue: '' }))
+    expect(createCustomRuleData('port', 'Custom Rule')).toEqual(expect.objectContaining({ routeMatcherKind: 'port', routeMatcherValue: undefined, routeMatcherPort: undefined }))
   })
 
   it('marks retained matchers unsupported by the selected target without deleting them', () => {
