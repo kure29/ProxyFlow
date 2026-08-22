@@ -59,6 +59,25 @@ describe('ProxySet materialization', () => {
     expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['UNKNOWN'])
   })
 
+  it('applies one or multiple selected regions to the materialized ProxySet', () => {
+    const content = [
+      'http://demo:pass@hk1.example.com:8080#HK%2001',
+      'http://demo:pass@hk2.example.com:8080#HK%2002',
+      'http://demo:pass@jp1.example.com:8080#JP%2001',
+      'http://demo:pass@jp2.example.com:8080#JP%2002',
+      'http://demo:pass@sg1.example.com:8080#SG%2001',
+    ].join('\n')
+    const filter: TransformIR = {
+      kind: 'filter', id: 'filter', name: 'Filter', input: { kind: 'source', id: 'source' }, include: [], exclude: [],
+      criterion: { mode: 'region', operation: 'include', regions: ['HK'] },
+    }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).outputCount).toBe(2)
+    filter.criterion = { mode: 'region', operation: 'include', regions: ['HK', 'JP'] }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).outputCount).toBe(4)
+    filter.criterion = { mode: 'region', operation: 'exclude', regions: ['HK', 'JP'] }
+    expect(materializeProxySet(irWith([filter], content), { kind: 'transform', id: 'filter' }).proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['SG'])
+  })
+
   it('supports include/exclude regex and fails closed for invalid patterns without keyword fallback', () => {
     const content = [
       'http://demo:pass@hk.example.com:8080#HK%20IEPL',

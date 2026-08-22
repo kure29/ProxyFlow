@@ -6,6 +6,7 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import type { GraphNode } from '../../types/project'
 import { Inspector } from '../inspector/Inspector'
 import { resolveShellMode, type ShellMode } from '../layout/shellState'
+import { WebSelect } from '../ui/WebSelect'
 
 interface WorkspaceNodeEditorProps {
   open: boolean
@@ -105,6 +106,6 @@ function WorkspaceInputEditor({ node }: { node: GraphNode }) {
       ? <span>{t('workspace.noInputCandidates')}</span>
       : multiple
         ? <div className="workspace-input-options">{candidates.map((candidate) => <label key={candidate.id}><input type="checkbox" checked={selectedIds.includes(candidate.id)} onChange={(event) => setInputs(node.id, event.target.checked ? [...selectedIds, candidate.id] : selectedIds.filter((id) => id !== candidate.id))} /><span>{localizeNodeTitle(candidate, locale)}</span></label>)}</div>
-        : <select aria-label={t('workspace.inputSource')} value={selectedIds[0] ?? ''} onChange={(event) => setInputs(node.id, event.target.value ? [event.target.value] : [])}><option value="">{t('workspace.inputNone')}</option>{candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{localizeNodeTitle(candidate, locale)}</option>)}</select>}
+        : <WebSelect label={t('workspace.inputSource')} value={selectedIds[0] ?? ''} onChange={(value) => setInputs(node.id, value ? [value] : [])} options={[{ value: '', label: t('workspace.inputNone') }, ...candidates.map((candidate) => ({ value: candidate.id, label: localizeNodeTitle(candidate, locale) }))]} />}
   </section>
 }
