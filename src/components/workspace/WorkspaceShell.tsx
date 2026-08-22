@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   Boxes, CheckCircle2, ChevronDown, CircleAlert, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
-  Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
+  Radio, RefreshCw, Route, SearchCheck, ShieldCheck, Trash2,
 } from 'lucide-react'
 import {
   createWorkspaceProjection, orderWorkspaceProcessingNodes, processingMoveAvailability,
@@ -27,6 +27,7 @@ import {
 import { RoutingWorkspace, type RoutingWorkspaceCopy } from './RoutingWorkspace'
 import { DnsWorkspace, type DnsWorkspaceCopy } from './DnsWorkspace'
 import { MobileWorkspaceNavigation } from './MobileWorkspaceNavigation'
+import type { ProjectListItem } from '../../storage/projectStorage'
 import {
   ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, SourcesWorkspace,
   StrategiesWorkspace,
@@ -35,6 +36,11 @@ import {
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
   primaryHealth: PrimaryTargetHealth
+  projects: ProjectListItem[]
+  onProjectChange: (projectId: string) => Promise<void>
+  onProjectNameCommit: () => Promise<void>
+  onNewProject: () => void
+  onDeleteProject: (projectId: string) => Promise<void>
 }
 
 const navigation = [
@@ -57,7 +63,10 @@ const compatibilityMessages = {
   unknown: 'workspace.compatibility.unknown',
 } as const satisfies Record<string, MessageKey>
 
-export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, primaryHealth }: WorkspaceShellProps) {
+export function WorkspaceShell({
+  activeSection, onSectionChange, onViewChange, primaryHealth, projects,
+  onProjectChange, onProjectNameCommit, onNewProject, onDeleteProject,
+}: WorkspaceShellProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
@@ -78,6 +87,7 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
   const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
+  const renameProject = useBuilderStore((state) => state.renameProject)
   const refreshAllSubscriptions = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
   const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
@@ -178,6 +188,8 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
       <section className="workspace-section-body" data-section={activeSection}>
         {activeSection === 'overview' && <ProjectOverview
           projectName={localizeProjectName(projectName, locale)}
+          projectId={projectId}
+          projects={projects}
           targetLabel={targetLabel}
           canExport={primaryHealth.status === 'ready'}
           health={primaryHealth}
@@ -192,6 +204,11 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
             if (option) addNode(option.blockType, option.data)
             else setTargetDialogOpen(true)
           }}
+          onProjectChange={onProjectChange}
+          onProjectNameChange={renameProject}
+          onProjectNameCommit={onProjectNameCommit}
+          onNewProject={onNewProject}
+          onDeleteProject={onDeleteProject}
         />}
         {activeSection === 'sources' && <SourcesWorkspace
           items={projection.sources}
@@ -264,6 +281,8 @@ export function WorkspaceShell({ activeSection, onSectionChange, onViewChange, p
 
 interface ProjectOverviewProps {
   projectName: string
+  projectId: string
+  projects: ProjectListItem[]
   targetLabel: string
   canExport: boolean
   health: PrimaryTargetHealth
@@ -274,13 +293,23 @@ interface ProjectOverviewProps {
   onOpenSection: (section: WorkspaceSectionId) => void
   onAddSubscription: () => void
   onAddStrategy: () => void
+  onProjectChange: (projectId: string) => Promise<void>
+  onProjectNameChange: (name: string) => boolean
+  onProjectNameCommit: () => Promise<void>
+  onNewProject: () => void
+  onDeleteProject: (projectId: string) => Promise<void>
 }
 
 function ProjectOverview({
-  projectName, targetLabel, canExport, health, proxyCount, strategyCount, routingCount, dnsEnabled,
-  onOpenSection, onAddSubscription, onAddStrategy,
+  projectName, projectId, projects, targetLabel, canExport, health, proxyCount, strategyCount, routingCount, dnsEnabled,
+  onOpenSection, onAddSubscription, onAddStrategy, onProjectChange, onProjectNameChange,
+  onProjectNameCommit, onNewProject, onDeleteProject,
 }: ProjectOverviewProps) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
+  const [nameDraft, setNameDraft] = useState(projectName)
+  const editStartName = useRef(projectName)
+  const cancelRename = useRef(false)
+  useEffect(() => setNameDraft(projectName), [projectId, projectName])
   const errorCount = health.diagnostics.filter(({ severity }) => severity === 'error').length
   const warningCount = health.diagnostics.filter(({ severity }) => severity === 'warning').length
   const facts = [
@@ -292,11 +321,55 @@ function ProjectOverview({
     { label: t('workspace.overview.dns'), value: dnsEnabled ? t('workspace.overview.enabled') : t('workspace.overview.disabled') },
   ]
 
+  const commitProjectName = (value: string) => {
+    if (!onProjectNameChange(value)) {
+      setNameDraft(projectName)
+      return
+    }
+    void onProjectNameCommit()
+  }
+
   return <div className="project-overview">
     <section className="project-overview-summary" aria-labelledby="project-overview-name">
       <div>
         <span>{t('workspace.overview.project')}</span>
-        <h2 id="project-overview-name">{projectName}</h2>
+        <input
+          id="project-overview-name"
+          className="project-overview-name-input"
+          aria-label={t('top.projectName')}
+          value={nameDraft}
+          onFocus={() => { editStartName.current = projectName; cancelRename.current = false }}
+          onChange={(event) => { setNameDraft(event.target.value); onProjectNameChange(event.target.value) }}
+          onBlur={(event) => {
+            if (cancelRename.current) { cancelRename.current = false; return }
+            commitProjectName(event.currentTarget.value)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              cancelRename.current = true
+              onProjectNameChange(editStartName.current)
+              setNameDraft(editStartName.current)
+              event.currentTarget.blur()
+            }
+          }}
+        />
+        <div className="project-overview-project-actions">
+          <select aria-label={t('top.recentProjects')} value={projectId} onChange={(event) => { void onProjectChange(event.target.value) }}>
+            {projects.map((project) => <option key={project.id} value={project.id}>{project.id === projectId ? projectName : localizeProjectName(project.name, locale)}</option>)}
+          </select>
+          <button type="button" className="secondary-action" onClick={onNewProject}><Plus size={15} /><span>{t('top.newProject')}</span></button>
+          <button
+            type="button"
+            className="secondary-action project-delete-action"
+            disabled={projects.length <= 1}
+            title={projects.length <= 1 ? t('workspace.overview.keepOneProject') : t('workspace.overview.deleteProject')}
+            onClick={() => {
+              if (window.confirm(t('workspace.overview.deleteProjectConfirm', { project: projectName }))) void onDeleteProject(projectId)
+            }}
+          ><Trash2 size={15} /><span>{t('workspace.overview.deleteProject')}</span></button>
+        </div>
       </div>
       <div className="project-overview-health" data-ready={errorCount === 0 || undefined}>
         {errorCount === 0 ? <CheckCircle2 size={20} /> : <CircleAlert size={20} />}

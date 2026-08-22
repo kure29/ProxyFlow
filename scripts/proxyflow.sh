@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROXYFLOW_SCRIPT_VERSION='1.0.0-rc.2'
-readonly DEFAULT_IMAGE='ghcr.io/kure29/proxyflow:1.0.0-rc.2'
+readonly PROXYFLOW_SCRIPT_VERSION='1.0.0-rc.3'
+readonly IMAGE_REPOSITORY='ghcr.io/kure29/proxyflow'
+readonly DEFAULT_UPDATE_CHANNEL='rc'
 readonly DEFAULT_PORT='17870'
 readonly DEFAULT_BIND_ADDRESS='127.0.0.1'
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,6 +27,7 @@ PORT=''
 BIND_ADDRESS=''
 IMAGE=''
 IMAGE_MANAGED='true'
+UPDATE_CHANNEL=''
 RUNTIME_TOKEN=''
 CONTAINER_UID=''
 CONTAINER_GID=''
@@ -55,10 +57,19 @@ Optional environment overrides:
   PROXYFLOW_BIND_ADDRESS  Host bind address (default: 127.0.0.1)
   PROXYFLOW_HOME          Installation directory (default: ~/.proxyflow)
   PROXYFLOW_DATA_DIR      Persistent Runtime data directory
-  PROXYFLOW_IMAGE         Versioned container image
+  PROXYFLOW_IMAGE         Pinned container image (disables managed updates)
+  PROXYFLOW_UPDATE_CHANNEL  Managed channel: rc (default) or stable
 
 Local Mode does not require this script, Docker, or a Runtime Service.
 EOF
+}
+
+managed_image_for_channel() {
+  case "$1" in
+    rc) printf '%s:rc' "${IMAGE_REPOSITORY}" ;;
+    stable) printf '%s:latest' "${IMAGE_REPOSITORY}" ;;
+    *) die 'PROXYFLOW_UPDATE_CHANNEL must be rc or stable.' 64 ;;
+  esac
 }
 
 read_config_value() {
@@ -77,13 +88,15 @@ read_config_value() {
 }
 
 resolve_settings() {
-  local saved saved_managed
+  local saved saved_managed saved_channel
   saved="$(read_config_value PROXYFLOW_PORT || true)"
   PORT="${PROXYFLOW_PORT:-${saved:-${DEFAULT_PORT}}}"
   saved="$(read_config_value PROXYFLOW_BIND_ADDRESS || true)"
   BIND_ADDRESS="${PROXYFLOW_BIND_ADDRESS:-${saved:-${DEFAULT_BIND_ADDRESS}}}"
   saved="$(read_config_value PROXYFLOW_IMAGE || true)"
   saved_managed="$(read_config_value PROXYFLOW_IMAGE_MANAGED || true)"
+  saved_channel="$(read_config_value PROXYFLOW_UPDATE_CHANNEL || true)"
+  UPDATE_CHANNEL="${PROXYFLOW_UPDATE_CHANNEL:-${saved_channel:-${DEFAULT_UPDATE_CHANNEL}}}"
   if [[ "${IMAGE_OVERRIDE_SET}" == 'true' ]]; then
     IMAGE="${IMAGE_OVERRIDE_VALUE}"
     IMAGE_MANAGED='false'
@@ -91,7 +104,7 @@ resolve_settings() {
     IMAGE="${saved}"
     IMAGE_MANAGED='false'
   else
-    IMAGE="${DEFAULT_IMAGE}"
+    IMAGE="$(managed_image_for_channel "${UPDATE_CHANNEL}")"
     IMAGE_MANAGED='true'
   fi
   saved="$(read_config_value PROXYFLOW_DATA_DIR || true)"
@@ -118,6 +131,7 @@ validate_settings() {
   [[ "${PORT}" =~ ^[0-9]+$ ]] && (( PORT >= 1 && PORT <= 65535 )) || die 'PROXYFLOW_PORT must be an integer from 1 to 65535.' 64
   [[ "${BIND_ADDRESS}" =~ ^[A-Za-z0-9.:_-]+$ ]] || die 'PROXYFLOW_BIND_ADDRESS contains unsupported characters.' 64
   [[ "${IMAGE}" =~ ^[A-Za-z0-9._/:@-]+$ ]] || die 'PROXYFLOW_IMAGE contains unsupported characters.' 64
+  [[ "${UPDATE_CHANNEL}" == 'rc' || "${UPDATE_CHANNEL}" == 'stable' ]] || die 'PROXYFLOW_UPDATE_CHANNEL must be rc or stable.' 64
   reject_multiline PROXYFLOW_HOME "${INSTALL_HOME}"
   reject_multiline PROXYFLOW_DATA_DIR "${DATA_DIR}"
 }
@@ -156,6 +170,7 @@ write_environment() {
   {
     printf 'PROXYFLOW_IMAGE=%s\n' "${IMAGE}"
     printf 'PROXYFLOW_IMAGE_MANAGED=%s\n' "${IMAGE_MANAGED}"
+    printf 'PROXYFLOW_UPDATE_CHANNEL=%s\n' "${UPDATE_CHANNEL}"
     printf 'PROXYFLOW_PORT=%s\n' "${PORT}"
     printf 'PROXYFLOW_BIND_ADDRESS=%s\n' "${BIND_ADDRESS}"
     printf 'PROXYFLOW_DATA_DIR=%s\n' "${DATA_DIR}"
@@ -178,7 +193,7 @@ name: proxyflow
 
 services:
   proxyflow:
-    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.2}
+    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.3}
     restart: unless-stopped
     init: true
     user: "${PROXYFLOW_UID:-1000}:${PROXYFLOW_GID:-1000}"
@@ -244,6 +259,14 @@ wait_for_health() {
   return 1
 }
 
+running_version() {
+  local body version
+  body="$(health_body 2>/dev/null)" || return 1
+  version="$(printf '%s' "${body}" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+  [[ -n "${version}" ]] || return 1
+  printf '%s' "${version}"
+}
+
 access_url() {
   printf 'http://127.0.0.1:%s' "${PORT}"
 }
@@ -258,7 +281,7 @@ install_proxyflow() {
   write_environment
   write_compose
   say "Pulling ${IMAGE}..."
-  compose pull proxyflow || die 'The versioned ProxyFlow image could not be pulled. Existing data was not changed.'
+  compose pull proxyflow || die 'The ProxyFlow image could not be pulled. Existing data was not changed.'
   compose up -d --remove-orphans proxyflow
   if ! wait_for_health; then
     compose logs --tail 80 proxyflow >&2 || true
@@ -303,9 +326,19 @@ update_proxyflow() {
   resolve_settings
   require_installation
   require_docker
+  local previous_version current_version update_label
+  previous_version="$(running_version || true)"
+  previous_version="${previous_version:-Unknown}"
+  if [[ "${IMAGE_MANAGED}" == 'true' ]]; then
+    update_label="${UPDATE_CHANNEL}"
+  else
+    update_label='manual pin'
+  fi
+  say "Current version: ${previous_version}"
+  say "Update channel: ${update_label}"
+  say "Pulling: ${IMAGE}"
   backup_data
   write_compose
-  say "Pulling ${IMAGE}..."
   compose pull proxyflow || die 'Update pull failed. The previous service remains available and the backup was preserved.'
   compose up -d --remove-orphans proxyflow
   if ! wait_for_health; then
@@ -313,8 +346,14 @@ update_proxyflow() {
     die 'The updated service is not healthy. Data and the pre-update backup were preserved; use the recorded image tag to restore the previous container.'
   fi
   write_environment
+  current_version="$(running_version || true)"
+  current_version="${current_version:-Unknown}"
   say 'ProxyFlow update completed.'
-  status_proxyflow
+  say "Previous version: ${previous_version}"
+  say "Current version: ${current_version}"
+  if [[ "${IMAGE_MANAGED}" == 'true' && "${previous_version}" != 'Unknown' && "${previous_version}" == "${current_version}" ]]; then
+    say "Already running the latest available ${UPDATE_CHANNEL} release."
+  fi
 }
 
 start_proxyflow() {
