@@ -1,5 +1,6 @@
 import { SubscriptionFetchError } from './errors'
 import { DEFAULT_MAX_SUBSCRIPTION_BYTES } from './parseSubscription'
+import type { SubscriptionRequestProfile } from './types'
 
 export interface SourceFetcher {
   fetch(url: string, options?: SourceFetchOptions): Promise<SourceFetchResult>
@@ -9,6 +10,7 @@ export interface SourceFetchOptions {
   signal?: AbortSignal
   timeoutMs?: number
   maxBytes?: number
+  requestProfile?: SubscriptionRequestProfile
 }
 
 export interface SourceFetchResult {

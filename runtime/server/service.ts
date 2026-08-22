@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
 import { RefreshCoordinator, commitCandidate } from '../../src/core/subscription/refreshCoordinator'
 import { sourceConfigFingerprint } from '../../src/core/subscription/hash'
+import { isSubscriptionRequestProfile, normalizeSubscriptionRequestProfile } from '../../src/core/subscription/requestProfile'
 import type { SourceFetcher } from '../../src/core/subscription/sourceFetcher'
 import type { SubscriptionRefreshError, SubscriptionSnapshot } from '../../src/core/subscription/types'
 import { ServerSourceFetcher } from './sourceFetcher'
@@ -167,15 +168,21 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
     const sourceId = String(body.sourceId ?? '')
     const sourceName = String(body.sourceName ?? sourceId)
     const sourceUrl = String(body.url ?? '').trim()
+    const rawRequestProfile = body.requestProfile
+    if (rawRequestProfile !== undefined && !isSubscriptionRequestProfile(rawRequestProfile)) {
+      respond(response, 400, { error: 'SUBSCRIPTION_REQUEST_PROFILE_INVALID', message: 'Subscription request profile must be auto, mihomo, sing-box, or generic.' }, options.allowedOrigin)
+      return
+    }
+    const requestProfile = normalizeSubscriptionRequestProfile(rawRequestProfile)
     if (!validId(projectId) || !validId(sourceId) || !sourceName || sourceName.length > 256 || !sourceUrl || sourceUrl.length > 8192) {
       respond(response, 400, { error: 'RUNTIME_INVALID_REQUEST', message: 'Project, source, name, and URL are required.' }, options.allowedOrigin)
       return
     }
-    const fingerprint = await sourceConfigFingerprint('url', sourceUrl)
+    const fingerprint = await sourceConfigFingerprint('url', sourceUrl, requestProfile)
     const activeSnapshot = await repository.readActive({ projectId, sourceId, sourceConfigFingerprint: fingerprint })
     let fetchedText = ''
     let cacheError: SubscriptionRefreshError | undefined
-    const result = await coordinator.refresh({ projectId, sourceId, sourceName, url: sourceUrl, activeSnapshot, onFetched: (fetched) => { fetchedText = fetched.text } }, {
+    const result = await coordinator.refresh({ projectId, sourceId, sourceName, url: sourceUrl, requestProfile, activeSnapshot, onFetched: (fetched) => { fetchedText = fetched.text } }, {
       onStart: () => undefined,
       onCommit: () => undefined,
       onEmptyConfirmation: () => undefined,
@@ -220,13 +227,19 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
     const body = await readJson(request)
     const sourceName = String(body.sourceName ?? sourceId)
     const sourceUrl = String(body.url ?? '').trim()
+    const rawRequestProfile = body.requestProfile
+    if (rawRequestProfile !== undefined && !isSubscriptionRequestProfile(rawRequestProfile)) {
+      respond(response, 400, { error: 'SUBSCRIPTION_REQUEST_PROFILE_INVALID', message: 'Subscription request profile must be auto, mihomo, sing-box, or generic.' }, options.allowedOrigin)
+      return
+    }
+    const requestProfile = normalizeSubscriptionRequestProfile(rawRequestProfile)
     const intervalSeconds = Number(body.intervalSeconds)
     const enabled = body.enabled !== false
     if (!sourceUrl || sourceUrl.length > 8192 || !Number.isInteger(intervalSeconds) || intervalSeconds < 60 || intervalSeconds > 30 * 24 * 60 * 60) {
       respond(response, 400, { error: 'RUNTIME_INVALID_SCHEDULE', message: 'Schedule URL and an interval from 60 seconds to 30 days are required.' }, options.allowedOrigin)
       return
     }
-    const schedule: RuntimeSchedule = { projectId, sourceId, sourceName, url: sourceUrl, intervalSeconds, enabled, nextRunAt: new Date(now().getTime() + intervalSeconds * 1000).toISOString() }
+    const schedule: RuntimeSchedule = { projectId, sourceId, sourceName, url: sourceUrl, requestProfile, intervalSeconds, enabled, nextRunAt: new Date(now().getTime() + intervalSeconds * 1000).toISOString() }
     await repository.upsertSchedule(schedule)
     respond(response, 200, { schedule }, options.allowedOrigin)
   }
@@ -241,9 +254,9 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
     const current = now()
     const due = await repository.dueSchedules(current.toISOString())
     for (const schedule of due) {
-      const fingerprint = await sourceConfigFingerprint('url', schedule.url)
+      const fingerprint = await sourceConfigFingerprint('url', schedule.url, schedule.requestProfile)
       const activeSnapshot = await repository.readActive({ projectId: schedule.projectId, sourceId: schedule.sourceId, sourceConfigFingerprint: fingerprint })
-      const result = await coordinator.refresh({ projectId: schedule.projectId, sourceId: schedule.sourceId, sourceName: schedule.sourceName, url: schedule.url, activeSnapshot }, {
+      const result = await coordinator.refresh({ projectId: schedule.projectId, sourceId: schedule.sourceId, sourceName: schedule.sourceName, url: schedule.url, requestProfile: schedule.requestProfile, activeSnapshot }, {
         onStart: () => undefined, onCommit: () => undefined, onEmptyConfirmation: () => undefined, onFailure: () => undefined, onCacheError: () => undefined,
       })
       if (result.outcome === 'empty-confirmation-required') await repository.savePendingEmpty(schedule.projectId, schedule.sourceId, { candidate: result.candidate, diff: result.diff })
@@ -273,6 +286,7 @@ export function createRuntimeService(options: RuntimeServiceOptions): RuntimeSer
 const runtimeGatewayErrorCodes = new Set<SubscriptionRefreshError['code']>([
   'SUBSCRIPTION_INVALID_URL', 'SUBSCRIPTION_HTTP_ERROR', 'SUBSCRIPTION_NETWORK_ERROR', 'SUBSCRIPTION_TIMEOUT',
   'SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'SUBSCRIPTION_TLS_ERROR',
+  'SUBSCRIPTION_REQUEST_PROFILE_INVALID', 'SUBSCRIPTION_CONTENT_ENCODING_ERROR',
   'SUBSCRIPTION_TOO_LARGE', 'SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED',
   'SUBSCRIPTION_NO_USABLE_NODES', 'SUBSCRIPTION_EMPTY_CONFIRMATION_REQUIRED', 'SUBSCRIPTION_REFRESH_SUPERSEDED',
   'SUBSCRIPTION_CACHE_READ_FAILED', 'SUBSCRIPTION_CACHE_WRITE_FAILED', 'SUBSCRIPTION_SNAPSHOT_COMMIT_FAILED',
@@ -297,6 +311,8 @@ function safeRuntimeGatewayMessage(code: SubscriptionRefreshError['code'], httpS
   if (code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return 'The Runtime Service is unavailable.'
   if (code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'
   if (code === 'SUBSCRIPTION_TLS_ERROR') return 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'
+  if (code === 'SUBSCRIPTION_REQUEST_PROFILE_INVALID') return 'The subscription request profile is invalid.'
+  if (code === 'SUBSCRIPTION_CONTENT_ENCODING_ERROR') return 'The subscription server returned an unsupported or invalid content encoding.'
   if (code === 'SUBSCRIPTION_TOO_LARGE') return 'The subscription exceeds the Runtime Service size limit.'
   if (code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT') return 'The subscription format is not supported.'
   if (code === 'SUBSCRIPTION_PARSE_FAILED') return 'The subscription could not be parsed.'

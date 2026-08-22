@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { SubscriptionFetchError } from '../../src/core/subscription/errors'
 import { parseSubscription } from '../../src/core/subscription/parseSubscription'
 import { createSnapshotCandidate } from '../../src/core/subscription/snapshot'
@@ -111,16 +112,17 @@ describe('Runtime Service', () => {
     const fetcher = sequenceFetcher(yamlBody('Scheduled', '198.51.100.12'), new SubscriptionFetchError('SUBSCRIPTION_NETWORK_ERROR', 'fictional scheduler failure'))
     const repository = new SqliteRuntimeRepository(':memory:')
     const service = createRuntimeService({ token, allowedOrigin: origin, fetcher, repository, now: () => now, schedulerIntervalMs: 60_000 })
-    await repository.upsertSchedule({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Scheduled', url: 'https://example.com/sub', intervalSeconds: 60, enabled: true, nextRunAt: '2026-08-16T23:59:00.000Z' })
+    await repository.upsertSchedule({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Scheduled', url: 'https://example.com/sub', requestProfile: 'mihomo', intervalSeconds: 60, enabled: true, nextRunAt: '2026-08-16T23:59:00.000Z' })
     await service.runDueSchedules()
     expect(fetcher.fetch).toHaveBeenCalledTimes(1)
+    expect(fetcher.fetch).toHaveBeenCalledWith('https://example.com/sub', expect.objectContaining({ requestProfile: 'mihomo' }))
     expect((await repository.listHistory('project-a', 'source-a'))).toHaveLength(1)
     expect((await repository.getSchedule('project-a', 'source-a'))?.lastRunAt).toBe(now.toISOString())
-    const beforeFailure = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })
+    const beforeFailure = await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub', 'mihomo') })
     now = new Date('2026-08-17T00:01:00.000Z')
     await service.runDueSchedules()
     expect(fetcher.fetch).toHaveBeenCalledTimes(2)
-    expect(await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub') })).toEqual(beforeFailure)
+    expect(await service.repository.readActive({ projectId: 'project-a', sourceId: 'source-a', sourceConfigFingerprint: await fingerprint('https://example.com/sub', 'mihomo') })).toEqual(beforeFailure)
     await service.close()
   })
 
@@ -145,15 +147,64 @@ describe('Runtime Service', () => {
     await service.listen(0)
     const base = address(service)
     const path = `${base}/api/v1/projects/project-a/sources/source-a/schedule`
-    const saved = await fetch(path, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ sourceName: 'Source', url: 'https://example.com/sub?token=fictional-secret', intervalSeconds: 300, enabled: true }) })
+    const saved = await fetch(path, { method: 'PUT', headers: authHeaders(), body: JSON.stringify({ sourceName: 'Source', url: 'https://example.com/sub?token=fictional-secret', requestProfile: 'sing-box', intervalSeconds: 300, enabled: true }) })
     expect(saved.status).toBe(200)
     const savedBody = await saved.json() as { schedule: { url: string; intervalSeconds: number } }
-    expect(savedBody.schedule).toEqual(expect.objectContaining({ intervalSeconds: 300, url: 'https://example.com/sub?token=fictional-secret' }))
+    expect(savedBody.schedule).toEqual(expect.objectContaining({ intervalSeconds: 300, requestProfile: 'sing-box', url: 'https://example.com/sub?token=fictional-secret' }))
     const read = await fetch(path, { headers: authHeaders() })
     expect((await read.json()).schedule.enabled).toBe(true)
     await fetch(path, { method: 'DELETE', headers: authHeaders() })
     expect((await (await fetch(path, { headers: authHeaders() })).json()).schedule).toBeNull()
     await service.close()
+  })
+
+  it('migrates existing schedules to the Auto request profile without changing their timing', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'proxyflow-runtime-schedule-'))
+    const databasePath = join(directory, 'runtime.sqlite')
+    const legacy = new DatabaseSync(databasePath)
+    legacy.exec(`CREATE TABLE schedules (
+      project_id TEXT NOT NULL, source_id TEXT NOT NULL, source_name TEXT NOT NULL, url TEXT NOT NULL,
+      interval_seconds INTEGER NOT NULL, enabled INTEGER NOT NULL, next_run_at TEXT NOT NULL, last_run_at TEXT,
+      PRIMARY KEY (project_id, source_id)
+    )`)
+    legacy.prepare('INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+      'project-a', 'source-a', 'Legacy', 'https://example.com/sub', 300, 1, '2026-08-17T00:05:00.000Z', null,
+    )
+    legacy.close()
+    const repository = new SqliteRuntimeRepository(databasePath)
+    try {
+      await expect(repository.getSchedule('project-a', 'source-a')).resolves.toEqual(expect.objectContaining({
+        requestProfile: 'auto', intervalSeconds: 300, nextRunAt: '2026-08-17T00:05:00.000Z',
+      }))
+    } finally {
+      repository.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('validates request profiles at the Runtime API boundary and defaults missing values to Auto', async () => {
+    const fetcher = sequenceFetcher(yamlBody('Ready', '198.51.100.10'))
+    const service = createTestService(fetcher)
+    await service.listen(0)
+    try {
+      const base = address(service)
+      const invalid = await fetch(`${base}/api/v1/subscriptions/fetch`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Source', url: 'https://example.com/sub', requestProfile: 'Clash.Meta\r\nX-Fictional: injected' }),
+      })
+      expect(invalid.status).toBe(400)
+      await expect(invalid.json()).resolves.toEqual(expect.objectContaining({ error: 'SUBSCRIPTION_REQUEST_PROFILE_INVALID' }))
+      expect(fetcher.fetch).not.toHaveBeenCalled()
+
+      const valid = await fetch(`${base}/api/v1/subscriptions/fetch`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ projectId: 'project-a', sourceId: 'source-a', sourceName: 'Source', url: 'https://example.com/sub' }),
+      })
+      expect(valid.status).toBe(200)
+      expect(fetcher.fetch).toHaveBeenCalledWith('https://example.com/sub', expect.objectContaining({ requestProfile: 'auto' }))
+    } finally {
+      await service.close()
+    }
   })
 
   it('rejects disallowed browser origins and private destination addresses', async () => {
@@ -252,7 +303,7 @@ function address(service: ReturnType<typeof createRuntimeService>) {
   return `http://127.0.0.1:${value.port}`
 }
 
-async function fingerprint(url: string) {
+async function fingerprint(url: string, requestProfile?: import('../../src/core/subscription/types').SubscriptionRequestProfile) {
   const { sourceConfigFingerprint } = await import('../../src/core/subscription/hash')
-  return sourceConfigFingerprint('url', url)
+  return sourceConfigFingerprint('url', url, requestProfile)
 }

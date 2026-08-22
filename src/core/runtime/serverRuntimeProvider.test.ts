@@ -5,11 +5,20 @@ describe('ServerRuntimeProvider', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('uses the Runtime Service fetch gateway and returns shared parser input', async () => {
-    const fetch = vi.fn(async () => new Response(JSON.stringify({ outcome: 'success', text: 'proxies: []' }), { status: 200 }))
+    const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({ outcome: 'success', text: 'proxies: []' }), { status: 200 }))
     vi.stubGlobal('fetch', fetch)
     const provider = new ServerRuntimeProvider({ baseUrl: 'http://runtime.example/', token: 'fictional-runtime-token' }, { projectId: 'project', sourceId: 'source', sourceName: 'Source' })
     await expect(provider.fetch('https://example.com/sub')).resolves.toEqual(expect.objectContaining({ text: 'proxies: []', status: 200 }))
     expect(fetch).toHaveBeenCalledWith('http://runtime.example/api/v1/subscriptions/fetch', expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ Authorization: 'Bearer fictional-runtime-token' }) }))
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({ requestProfile: 'auto' }))
+  })
+
+  it('passes only a validated request profile through the Runtime gateway payload', async () => {
+    const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({ outcome: 'success', text: 'proxies: []' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetch)
+    const provider = new ServerRuntimeProvider({ baseUrl: 'http://runtime.example', token: 'fictional-runtime-token' }, { projectId: 'project', sourceId: 'source', sourceName: 'Source' })
+    await provider.fetch('https://example.com/sub', { requestProfile: 'sing-box' })
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({ requestProfile: 'sing-box' }))
   })
 
   it('maps service errors without exposing request credentials', async () => {
@@ -23,6 +32,8 @@ describe('ServerRuntimeProvider', () => {
     ['SUBSCRIPTION_TIMEOUT', 'The subscription request timed out in the Runtime Service.'],
     ['SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'],
     ['SUBSCRIPTION_TLS_ERROR', 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'],
+    ['SUBSCRIPTION_REQUEST_PROFILE_INVALID', 'The Runtime Service rejected the subscription request profile.'],
+    ['SUBSCRIPTION_CONTENT_ENCODING_ERROR', 'The subscription server returned an unsupported or invalid content encoding.'],
     ['SUBSCRIPTION_UNSUPPORTED_FORMAT', 'The subscription format is not supported.'],
     ['SUBSCRIPTION_PARSE_FAILED', 'The subscription could not be parsed.'],
     ['SUBSCRIPTION_NO_USABLE_NODES', 'The subscription contains no usable nodes; the previous snapshot was retained.'],

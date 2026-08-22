@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import type { SubscriptionCacheScope, SubscriptionRuntimeRepository } from '../../src/core/subscription/runtimeRepository'
-import type { SubscriptionDiff, SubscriptionSnapshot, SubscriptionSnapshotCandidate } from '../../src/core/subscription/types'
+import { normalizeSubscriptionRequestProfile } from '../../src/core/subscription/requestProfile'
+import type { SubscriptionDiff, SubscriptionRequestProfile, SubscriptionSnapshot, SubscriptionSnapshotCandidate } from '../../src/core/subscription/types'
 
 export interface RuntimeHistoryEntry {
   snapshotId: string
@@ -15,6 +16,7 @@ export interface RuntimeSchedule {
   sourceId: string
   sourceName: string
   url: string
+  requestProfile: SubscriptionRequestProfile
   intervalSeconds: number
   enabled: boolean
   nextRunAt: string
@@ -61,6 +63,7 @@ export class SqliteRuntimeRepository implements SubscriptionRuntimeRepository {
         source_id TEXT NOT NULL,
         source_name TEXT NOT NULL,
         url TEXT NOT NULL,
+        request_profile TEXT NOT NULL DEFAULT 'auto',
         interval_seconds INTEGER NOT NULL,
         enabled INTEGER NOT NULL,
         next_run_at TEXT NOT NULL,
@@ -68,6 +71,10 @@ export class SqliteRuntimeRepository implements SubscriptionRuntimeRepository {
         PRIMARY KEY (project_id, source_id)
       );
     `)
+    const scheduleColumns = this.database.prepare('PRAGMA table_info(schedules)').all() as Array<{ name: string }>
+    if (!scheduleColumns.some(({ name }) => name === 'request_profile')) {
+      this.database.exec("ALTER TABLE schedules ADD COLUMN request_profile TEXT NOT NULL DEFAULT 'auto'")
+    }
   }
 
   async readActive(scope: SubscriptionCacheScope) {
@@ -146,15 +153,16 @@ export class SqliteRuntimeRepository implements SubscriptionRuntimeRepository {
   }
 
   async upsertSchedule(schedule: RuntimeSchedule) {
-    this.database.prepare(`INSERT INTO schedules (project_id, source_id, source_name, url, interval_seconds, enabled, next_run_at, last_run_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    this.database.prepare(`INSERT INTO schedules (project_id, source_id, source_name, url, request_profile, interval_seconds, enabled, next_run_at, last_run_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(project_id, source_id) DO UPDATE SET source_name = excluded.source_name, url = excluded.url,
+      request_profile = excluded.request_profile,
       interval_seconds = excluded.interval_seconds, enabled = excluded.enabled, next_run_at = excluded.next_run_at,
-      last_run_at = excluded.last_run_at`).run(schedule.projectId, schedule.sourceId, schedule.sourceName, schedule.url, schedule.intervalSeconds, schedule.enabled ? 1 : 0, schedule.nextRunAt, schedule.lastRunAt ?? null)
+      last_run_at = excluded.last_run_at`).run(schedule.projectId, schedule.sourceId, schedule.sourceName, schedule.url, schedule.requestProfile, schedule.intervalSeconds, schedule.enabled ? 1 : 0, schedule.nextRunAt, schedule.lastRunAt ?? null)
   }
 
   async getSchedule(projectId: string, sourceId: string) {
-    const row = this.database.prepare('SELECT project_id, source_id, source_name, url, interval_seconds, enabled, next_run_at, last_run_at FROM schedules WHERE project_id = ? AND source_id = ?').get(projectId, sourceId) as Record<string, unknown> | undefined
+    const row = this.database.prepare('SELECT project_id, source_id, source_name, url, request_profile, interval_seconds, enabled, next_run_at, last_run_at FROM schedules WHERE project_id = ? AND source_id = ?').get(projectId, sourceId) as Record<string, unknown> | undefined
     return row ? rowToSchedule(row) : undefined
   }
 
@@ -163,7 +171,7 @@ export class SqliteRuntimeRepository implements SubscriptionRuntimeRepository {
   }
 
   async dueSchedules(now: string) {
-    const rows = this.database.prepare('SELECT project_id, source_id, source_name, url, interval_seconds, enabled, next_run_at, last_run_at FROM schedules WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at ASC').all(now) as Array<Record<string, unknown>>
+    const rows = this.database.prepare('SELECT project_id, source_id, source_name, url, request_profile, interval_seconds, enabled, next_run_at, last_run_at FROM schedules WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at ASC').all(now) as Array<Record<string, unknown>>
     return rows.map(rowToSchedule)
   }
 
@@ -177,6 +185,7 @@ export class SqliteRuntimeRepository implements SubscriptionRuntimeRepository {
 function rowToSchedule(row: Record<string, unknown>): RuntimeSchedule {
   return {
     projectId: String(row.project_id), sourceId: String(row.source_id), sourceName: String(row.source_name), url: String(row.url),
+    requestProfile: normalizeSubscriptionRequestProfile(row.request_profile),
     intervalSeconds: Number(row.interval_seconds), enabled: Number(row.enabled) === 1, nextRunAt: String(row.next_run_at),
     ...(row.last_run_at ? { lastRunAt: String(row.last_run_at) } : {}),
   }

@@ -2,12 +2,13 @@ import { SubscriptionFetchError } from './errors'
 import { diffSubscriptionSnapshots } from './diff'
 import { sourceConfigFingerprint } from './hash'
 import { parseSubscription } from './parseSubscription'
+import { normalizeSubscriptionRequestProfile } from './requestProfile'
 import { createSnapshotCandidate } from './snapshot'
 import { BrowserSourceFetcher, type SourceFetcher } from './sourceFetcher'
 import type { SubscriptionCacheScope, SubscriptionRuntimeRepository } from './runtimeRepository'
 import { subscriptionRuntimeRepository } from './runtimeRepository'
 import type {
-  SubscriptionDiff, SubscriptionRefreshError, SubscriptionRefreshErrorCode, SubscriptionSnapshot, SubscriptionSnapshotCandidate,
+  SubscriptionDiff, SubscriptionRefreshError, SubscriptionRefreshErrorCode, SubscriptionRequestProfile, SubscriptionSnapshot, SubscriptionSnapshotCandidate,
 } from './types'
 
 export interface RefreshRequest {
@@ -15,6 +16,7 @@ export interface RefreshRequest {
   sourceId: string
   sourceName: string
   url: string
+  requestProfile?: SubscriptionRequestProfile
   activeSnapshot?: SubscriptionSnapshot
   fetcher?: SourceFetcher
   onFetched?: (result: Awaited<ReturnType<SourceFetcher['fetch']>>) => void
@@ -58,12 +60,13 @@ export class RefreshCoordinator {
     this.generations.set(key, generation)
     this.activeRequests.set(key, { generation, controller })
     const attemptedAt = this.now().toISOString()
-    const fingerprint = await sourceConfigFingerprint('url', request.url)
+    const requestProfile = normalizeSubscriptionRequestProfile(request.requestProfile)
+    const fingerprint = await sourceConfigFingerprint('url', request.url, requestProfile)
     if (!this.isCurrent(key, generation)) return { outcome: 'superseded' }
     handlers.onStart(generation, attemptedAt, fingerprint)
 
     try {
-      const fetched = await (request.fetcher ?? this.fetcher).fetch(request.url, { signal: controller.signal })
+      const fetched = await (request.fetcher ?? this.fetcher).fetch(request.url, { signal: controller.signal, requestProfile })
       request.onFetched?.(fetched)
       if (!this.isCurrent(key, generation)) return { outcome: 'superseded' }
       const fetchedAt = this.now().toISOString()

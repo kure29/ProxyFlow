@@ -1,6 +1,7 @@
 import { SubscriptionFetchError } from '../subscription/errors'
 import type { SourceFetcher, SourceFetchOptions, SourceFetchResult } from '../subscription/sourceFetcher'
-import type { SubscriptionSnapshot } from '../subscription/types'
+import { normalizeSubscriptionRequestProfile } from '../subscription/requestProfile'
+import type { SubscriptionRequestProfile, SubscriptionSnapshot } from '../subscription/types'
 
 export interface RuntimeServiceConfig {
   baseUrl: string
@@ -33,6 +34,7 @@ export interface RuntimeSchedule {
   sourceId: string
   sourceName: string
   url: string
+  requestProfile: SubscriptionRequestProfile
   intervalSeconds: number
   enabled: boolean
   nextRunAt: string
@@ -48,10 +50,11 @@ export class ServerRuntimeProvider implements SourceFetcher {
     const abort = () => controller.abort(options.signal?.reason)
     options.signal?.addEventListener('abort', abort, { once: true })
     try {
-      let response = await this.fetchGateway(url, controller.signal)
+      const requestProfile = normalizeSubscriptionRequestProfile(options.requestProfile)
+      let response = await this.fetchGateway(url, requestProfile, controller.signal)
       if (response.status === 401 && this.config.sameOrigin) {
         const refreshed = await detectSameOriginRuntime(globalThis.fetch, controller.signal)
-        if (refreshed) response = await this.fetchGateway(url, controller.signal)
+        if (refreshed) response = await this.fetchGateway(url, requestProfile, controller.signal)
       }
       const payload = await response.json().catch(() => ({})) as Record<string, unknown>
       if (!response.ok) {
@@ -77,11 +80,11 @@ export class ServerRuntimeProvider implements SourceFetcher {
     }
   }
 
-  private fetchGateway(url: string, signal: AbortSignal) {
+  private fetchGateway(url: string, requestProfile: SubscriptionRequestProfile, signal: AbortSignal) {
     return fetch(`${normalizeBaseUrl(this.config.baseUrl)}/api/v1/subscriptions/fetch`, {
       method: 'POST',
       headers: runtimeHeaders(this.config, true),
-      body: JSON.stringify({ projectId: this.source.projectId, sourceId: this.source.sourceId, sourceName: this.source.sourceName, url }),
+      body: JSON.stringify({ projectId: this.source.projectId, sourceId: this.source.sourceId, sourceName: this.source.sourceName, url, requestProfile }),
       signal,
       credentials: runtimeCredentials(this.config),
     })
@@ -125,10 +128,10 @@ export class ServerRuntimeProvider implements SourceFetcher {
     return payload.schedule ?? null
   }
 
-  async saveSchedule(url: string, intervalSeconds: number, enabled = true): Promise<RuntimeSchedule> {
+  async saveSchedule(url: string, intervalSeconds: number, enabled = true, requestProfile: SubscriptionRequestProfile = 'auto'): Promise<RuntimeSchedule> {
     const response = await fetch(this.sourceUrl('schedule'), {
       method: 'PUT', headers: runtimeHeaders(this.config, true), credentials: runtimeCredentials(this.config),
-      body: JSON.stringify({ sourceName: this.source.sourceName, url, intervalSeconds, enabled }),
+      body: JSON.stringify({ sourceName: this.source.sourceName, url, intervalSeconds, enabled, requestProfile }),
     })
     if (!response.ok) throw new Error('Runtime Service schedule update failed.')
     const payload = await response.json() as { schedule?: RuntimeSchedule }
@@ -215,6 +218,7 @@ type FetchErrorCode = ConstructorParameters<typeof SubscriptionFetchError>[0]
 const gatewayErrorCodes = new Set<FetchErrorCode>([
   'SUBSCRIPTION_INVALID_URL', 'SUBSCRIPTION_HTTP_ERROR', 'SUBSCRIPTION_NETWORK_ERROR', 'SUBSCRIPTION_TIMEOUT',
   'SUBSCRIPTION_RUNTIME_UNAVAILABLE', 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED', 'SUBSCRIPTION_TLS_ERROR',
+  'SUBSCRIPTION_REQUEST_PROFILE_INVALID', 'SUBSCRIPTION_CONTENT_ENCODING_ERROR',
   'SUBSCRIPTION_TOO_LARGE', 'SUBSCRIPTION_UNSUPPORTED_FORMAT', 'SUBSCRIPTION_PARSE_FAILED',
   'SUBSCRIPTION_NO_USABLE_NODES', 'SUBSCRIPTION_REFRESH_SUPERSEDED',
 ])
@@ -242,6 +246,8 @@ function safeGatewayMessage(code: FetchErrorCode, httpStatus?: number) {
   if (code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return 'The Runtime Service is unavailable or rejected the request.'
   if (code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.'
   if (code === 'SUBSCRIPTION_TLS_ERROR') return 'The Runtime Service could not establish a trusted TLS connection to the subscription server.'
+  if (code === 'SUBSCRIPTION_REQUEST_PROFILE_INVALID') return 'The Runtime Service rejected the subscription request profile.'
+  if (code === 'SUBSCRIPTION_CONTENT_ENCODING_ERROR') return 'The subscription server returned an unsupported or invalid content encoding.'
   if (code === 'SUBSCRIPTION_TOO_LARGE') return 'The subscription exceeds the Runtime Service size limit.'
   if (code === 'SUBSCRIPTION_UNSUPPORTED_FORMAT') return 'The subscription format is not supported.'
   if (code === 'SUBSCRIPTION_PARSE_FAILED') return 'The subscription could not be parsed.'

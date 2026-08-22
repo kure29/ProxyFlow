@@ -534,6 +534,17 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().subscriptionSnapshots[sourceId]).toBeUndefined()
   })
 
+  it('defaults URL sources to Auto and persists profile changes without refreshing in the background', () => {
+    useBuilderStore.getState().createNewProject()
+    const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionRequestProfile).toBe('auto')
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionRequestProfile: 'generic' })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(useBuilderStore.getState().toProject().graph.nodes.find((node) => node.id === sourceId)?.data.subscriptionRequestProfile).toBe('generic')
+  })
+
   it('keeps the last successful URL result when a later browser fetch fails', async () => {
     useBuilderStore.getState().createNewProject()
     const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
@@ -566,14 +577,17 @@ describe('builder store', () => {
   it('keeps the recorded Runtime fetch path after the service is disconnected', async () => {
     useBuilderStore.getState().createNewProject()
     const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
-    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://runtime-path.example.invalid/list' })
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionUrl: 'https://runtime-path.example.invalid/list', subscriptionRequestProfile: 'mihomo' })
     useBuilderStore.getState().setRuntimeServiceConfig({ baseUrl: 'https://runtime.example.invalid', token: 'fictional-runtime-token' })
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+    const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({
       text: 'socks5://runtime:fictional@runtime-node.example.invalid:1080#Runtime',
-    }), { headers: { 'content-type': 'application/json' } })))
+    }), { headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetch)
 
     await useBuilderStore.getState().refreshSubscription(sourceId)
     expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual(expect.objectContaining({ requestProfile: 'mihomo' }))
+    expect(useBuilderStore.getState().toProject().graph.nodes.find((node) => node.id === sourceId)?.data.subscriptionRequestProfile).toBe('mihomo')
     useBuilderStore.getState().disconnectRuntimeService()
     expect(useBuilderStore.getState().subscriptionRuntimes[sourceId].latestFetchPath).toBe('runtime')
   })

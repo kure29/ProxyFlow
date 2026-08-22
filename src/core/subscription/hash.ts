@@ -1,3 +1,6 @@
+import { normalizeSubscriptionRequestProfile } from './requestProfile'
+import type { SubscriptionRequestProfile } from './types'
+
 function bytesToHex(bytes: Uint8Array) {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
@@ -8,9 +11,15 @@ export async function sha256(value: string): Promise<string> {
   return bytesToHex(new Uint8Array(digest))
 }
 
-export async function sourceConfigFingerprint(inputKind: 'url' | 'paste' | 'file', value: string): Promise<string> {
+export async function sourceConfigFingerprint(
+  inputKind: 'url' | 'paste' | 'file',
+  value: string,
+  requestProfile?: SubscriptionRequestProfile,
+): Promise<string> {
   const normalized = inputKind === 'url' ? normalizeUrl(value) : value
-  return sha256(JSON.stringify({ version: 1, inputKind, value: normalized }))
+  return inputKind === 'url'
+    ? sha256(JSON.stringify({ version: 2, inputKind, value: normalized, requestProfile: normalizeSubscriptionRequestProfile(requestProfile) }))
+    : sha256(JSON.stringify({ version: 1, inputKind, value: normalized }))
 }
 
 function normalizeUrl(value: string) {
