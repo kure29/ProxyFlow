@@ -22,5 +22,9 @@ describe('Workspace creation options', () => {
     expect(mihomo.find((option) => option.id === 'load-balance')).toEqual(expect.objectContaining({ advanced: true, disabled: false, status: 'target-native' }))
     expect(singBox.find((option) => option.id === 'failover')).toEqual(expect.objectContaining({ disabled: true, status: 'unsupported' }))
     expect(singBox.find((option) => option.id === 'load-balance')).toEqual(expect.objectContaining({ advanced: true, disabled: true, status: 'unsupported' }))
+    expect(mihomo.map((option) => option.blockType)).toEqual([
+      'manual-select', 'auto-select', 'fallback', 'load-balance', 'proxy-chain',
+    ])
+    expect(mihomo.find((option) => option.id === 'chain')).toEqual(expect.objectContaining({ blockType: 'proxy-chain', advanced: true, disabled: false }))
   })
 })

@@ -34,6 +34,7 @@ export function strategyCreationOptions(target: PrimaryTarget | null): Workspace
     strategyOption('auto', 'auto-select', declarations.auto.status),
     strategyOption('failover', 'fallback', declarations.failover.status),
     strategyOption('load-balance', 'load-balance', declarations['load-balance'].status, true),
+    strategyOption('chain', 'proxy-chain', declarations.chain.status, true),
   ]
 }
 

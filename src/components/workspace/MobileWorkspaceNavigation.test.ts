@@ -1,54 +1,43 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { Boxes, FileOutput, Globe2, Radio } from 'lucide-react'
-import { describe, expect, it, vi } from 'vitest'
+import { Boxes, FileOutput, GitBranch, Globe2, Radio, Route } from 'lucide-react'
+import { describe, expect, it } from 'vitest'
 import { MobileWorkspaceNavigation, type MobileWorkspaceNavigationItem } from './MobileWorkspaceNavigation'
 import { activateMobileWorkspaceSection } from './mobileWorkspaceNavigationModel'
 
 const items: MobileWorkspaceNavigationItem[] = [
   { id: 'sources', icon: Radio, label: 'Sources', count: 2 },
   { id: 'proxies', icon: Boxes, label: 'Proxies', count: 18 },
+  { id: 'processing', icon: GitBranch, label: 'Processing', count: 3 },
+  { id: 'strategies', icon: GitBranch, label: 'Strategies', count: 4 },
+  { id: 'routing', icon: Route, label: 'Routing', count: 2 },
   { id: 'dns', icon: Globe2, label: 'DNS / Advanced', count: 1 },
   { id: 'export', icon: FileOutput, label: 'Export', count: 2 },
 ]
 
 describe('Mobile Workspace navigation', () => {
-  it('renders a web-controlled drawer with active state, counts and accessible dialog state', () => {
+  it('renders the stable five-entry navigation and active More state', () => {
     const html = renderToStaticMarkup(createElement(MobileWorkspaceNavigation, {
       activeSection: 'dns',
+      lastNodeSection: 'proxies',
       items,
-      open: true,
-      openLabel: 'Open Project navigation',
-      closeLabel: 'Close Project navigation',
-      title: 'Project navigation',
-      inputLabel: 'Sources / Proxies',
-      moreLabel: 'More',
-      onOpenChange: () => undefined,
+      labels: { title: 'Project navigation', home: 'Home', nodes: 'Nodes', strategies: 'Strategies', routing: 'Routing', more: 'More' },
       onSectionChange: () => undefined,
     }))
 
-    expect(html).not.toContain('<select')
-    expect(html).toContain('Sources / Proxies')
+    expect(html).toContain('Home')
+    expect(html).toContain('Nodes')
+    expect(html).toContain('Strategies')
+    expect(html).toContain('Routing')
     expect(html).toContain('More')
-    expect(html).toContain('aria-haspopup="dialog"')
-    expect(html).toContain('aria-expanded="true"')
-    expect(html).toContain('role="dialog"')
-    expect(html).toContain('aria-modal="true"')
-    expect(html).toContain('aria-current="page"')
-    expect(html).toContain('DNS / Advanced: 1')
-    expect(html).toContain('Export: 2')
-    expect(html).toContain('aria-label="Close Project navigation"')
+    expect((html.match(/aria-current="page"/g) ?? [])).toHaveLength(1)
+    expect(html).toContain('aria-haspopup="menu"')
+    expect(html).not.toContain('Blueprint')
   })
 
-  it('changes section before closing the drawer', () => {
+  it('changes section before closing a creation-style navigation action', () => {
     const sequence: string[] = []
-    const onSectionChange = vi.fn((section: string) => sequence.push(`section:${section}`))
-    const onClose = vi.fn(() => sequence.push('close'))
-
-    activateMobileWorkspaceSection('export', onSectionChange, onClose)
-
-    expect(onSectionChange).toHaveBeenCalledWith('export')
-    expect(onClose).toHaveBeenCalledOnce()
+    activateMobileWorkspaceSection('export', (section) => sequence.push(`section:${section}`), () => sequence.push('close'))
     expect(sequence).toEqual(['section:export', 'close'])
   })
 })
