@@ -80,13 +80,16 @@ if [[ "${joined}" == *' ps --status running -q proxyflow '* ]]; then
   exit
 fi
 if [[ "${joined}" == *' pull proxyflow '* && "${MOCK_PULL_FAIL:-0}" == '1' ]]; then exit 1; fi
+if [[ "${joined}" == *' pull proxyflow '* && -n "${MOCK_PULLED_MARKER:-}" ]]; then touch "${MOCK_PULLED_MARKER}"; fi
 if [[ "${joined}" == *' logs '* ]]; then printf '%s\n' 'fictional log line'; fi
 EOF
   cat > "${bin_dir}/curl" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 [[ "${MOCK_HEALTH_FAIL:-0}" != '1' ]] || exit 22
-printf '%s\n' '{"ok":true,"service":"proxyflow-runtime","version":"1.0.0-rc.2","web":"ready","backend":"ready","scheduler":"ready"}'
+version="${MOCK_HEALTH_VERSION_BEFORE:-1.0.0-rc.3}"
+if [[ -n "${MOCK_PULLED_MARKER:-}" && -f "${MOCK_PULLED_MARKER}" ]]; then version="${MOCK_HEALTH_VERSION_AFTER:-${version}}"; fi
+printf '{"ok":true,"service":"proxyflow-runtime","version":"%s","web":"ready","backend":"ready","scheduler":"ready"}\n' "${version}"
 EOF
   cat > "${bin_dir}/sleep" <<'EOF'
 #!/usr/bin/env bash
@@ -116,6 +119,7 @@ pass 'Bash syntax and executable bits are valid'
 run_script "${SCRIPT}"
 assert_status 0 'No-argument help succeeds'
 assert_output 'default: 17870' 'Help documents the uncommon default port'
+assert_output 'Managed channel: rc (default) or stable' 'Help documents bounded update channels'
 assert_output 'Local Mode does not require this script' 'Help preserves Local Mode'
 pass 'No arguments show deployment help'
 
@@ -185,7 +189,11 @@ pass 'Backup archives persistent Runtime data with a timestamp'
 run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${INSTALL_HOME}" PROXYFLOW_SKIP_PORT_CHECK=1 "${SCRIPT}" update
 assert_status 0 'Update succeeds'
 assert_output 'ProxyFlow update completed' 'Update reports completion after backup and health check'
-pass 'Update backs up and recreates the managed service'
+assert_output 'Update channel: manual pin' 'Explicit image update reports the manual pin'
+assert_output 'Pulling: ghcr.io/example/proxyflow:fictional' 'Explicit image update pulls the pinned image'
+assert_file_contains "${INSTALL_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/example/proxyflow:fictional' 'Update preserves an explicit image pin'
+assert_file_contains "${INSTALL_HOME}/.env" 'PROXYFLOW_IMAGE_MANAGED=false' 'Update keeps the explicit image unmanaged'
+pass 'Update backs up the service and preserves an explicit image pin'
 
 run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${INSTALL_HOME}" PROXYFLOW_SKIP_PORT_CHECK=1 "${SCRIPT}" uninstall extra argument
 assert_status 64 'Uninstall rejects extra arguments'
@@ -203,6 +211,11 @@ assert_status 64 'Invalid port is rejected before Docker checks'
 assert_output 'PROXYFLOW_PORT must be an integer from 1 to 65535' 'Invalid port has a bounded validation message'
 pass 'Invalid ports fail closed'
 
+run_script env PROXYFLOW_UPDATE_CHANNEL=nightly PROXYFLOW_HOME="${TEMP_ROOT}/invalid-channel-home" PROXYFLOW_DATA_DIR="${TEMP_ROOT}/invalid-channel-data" "${SCRIPT}" install
+assert_status 64 'Unknown update channels are rejected before Docker checks'
+assert_output 'PROXYFLOW_UPDATE_CHANNEL must be rc or stable' 'Unknown update channels fail closed'
+pass 'Managed update channels are allow-listed'
+
 STANDALONE_DIR="${TEMP_ROOT}/standalone"
 mkdir -p "${STANDALONE_DIR}"
 cp "${SCRIPT}" "${STANDALONE_DIR}/proxyflow.sh"
@@ -213,14 +226,31 @@ assert_status 0 'Standalone install succeeds without repository files'
 cmp "${REPOSITORY_COMPOSE}" "${STANDALONE_HOME}/compose.yaml" >/dev/null || fail 'Embedded Compose must match repository Compose semantics'
 pass 'Standalone script embeds the same Compose contract'
 
+assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:rc' 'Default install uses the RC channel image'
 assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE_MANAGED=true' 'Default install marks the image as script-managed'
-sed 's/1\.0\.0-rc\.2/1.0.0-rc.3/g' "${STANDALONE_DIR}/proxyflow.sh" > "${STANDALONE_DIR}/proxyflow-next.sh"
-chmod +x "${STANDALONE_DIR}/proxyflow-next.sh"
-run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${STANDALONE_HOME}" PROXYFLOW_SKIP_PORT_CHECK=1 "${STANDALONE_DIR}/proxyflow-next.sh" update
-assert_status 0 'A future manager can update a managed image'
-assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:1.0.0-rc.3' 'Managed image follows the future manager version'
+assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_UPDATE_CHANNEL=rc' 'Default install persists the RC update channel'
+sed -e 's#^PROXYFLOW_IMAGE=.*#PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:1.0.0-rc.2#' -e '/^PROXYFLOW_UPDATE_CHANNEL=/d' "${STANDALONE_HOME}/.env" > "${STANDALONE_HOME}/.env.rc2"
+mv "${STANDALONE_HOME}/.env.rc2" "${STANDALONE_HOME}/.env"
+LEGACY_PULL_MARKER="${TEMP_ROOT}/legacy-pulled"
+run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" MOCK_PULLED_MARKER="${LEGACY_PULL_MARKER}" MOCK_HEALTH_VERSION_BEFORE=1.0.0-rc.2 MOCK_HEALTH_VERSION_AFTER=1.0.0-rc.3 PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${STANDALONE_HOME}" PROXYFLOW_SKIP_PORT_CHECK=1 "${STANDALONE_DIR}/proxyflow.sh" update
+assert_status 0 'The RC3 manager updates an RC2 managed installation'
+assert_output 'Current version: 1.0.0-rc.2' 'Legacy managed update reads its previous version from health'
+assert_output 'Update channel: rc' 'Legacy managed update reports the RC channel'
+assert_output 'Pulling: ghcr.io/kure29/proxyflow:rc' 'Legacy managed update pulls the moving RC channel'
+assert_output 'Previous version: 1.0.0-rc.2' 'Legacy managed update reports the previous release'
+assert_output 'Current version: 1.0.0-rc.3' 'Legacy managed update reports the new release after health succeeds'
+assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:rc' 'Legacy managed image migrates from the RC2 pin to the RC channel'
 assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE_MANAGED=true' 'Managed image remains managed after update'
-pass 'Managed images advance while explicit image pins remain stable'
+assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_UPDATE_CHANNEL=rc' 'Legacy managed update persists its channel'
+pass 'RC2 managed installs migrate to the RC channel'
+
+STABLE_HOME="${TEMP_ROOT}/stable home"
+run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${STABLE_HOME}" PROXYFLOW_DATA_DIR="${TEMP_ROOT}/stable data" PROXYFLOW_UPDATE_CHANNEL=stable PROXYFLOW_SKIP_PORT_CHECK=1 "${STANDALONE_DIR}/proxyflow.sh" install
+assert_status 0 'Stable channel install succeeds with mocked Docker'
+assert_file_contains "${STABLE_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:latest' 'Stable channel maps to latest'
+assert_file_contains "${STABLE_HOME}/.env" 'PROXYFLOW_IMAGE_MANAGED=true' 'Stable channel remains manager-owned'
+assert_file_contains "${STABLE_HOME}/.env" 'PROXYFLOW_UPDATE_CHANNEL=stable' 'Stable channel is persisted'
+pass 'Future stable managed installs use latest without touching rc'
 
 FAIL_BIN="${TEMP_ROOT}/fail bin"
 mkdir -p "${FAIL_BIN}"

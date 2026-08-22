@@ -1,6 +1,6 @@
 # ProxyFlow Runtime Service MVP
 
-Status: V0.10 core with V1.0 RC2 deployment hardening
+Status: V0.10 core with V1.0 RC3 deployment hardening
 
 Runtime Service is an optional, self-hosted, single-user companion for
 browser-limited subscription runtime work. Local Mode remains the default:
@@ -19,11 +19,11 @@ uses one host port and one persistent data directory.
 
 ## Self-hosted Manager
 
-Download and inspect the RC2 manager before running it:
+Download and inspect the RC3 manager before running it:
 
 ```bash
 curl -fL --output proxyflow.sh \
-  https://raw.githubusercontent.com/kure29/ProxyFlow/autopilot/v1.0-rc/scripts/proxyflow.sh
+  https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
 less proxyflow.sh
 chmod +x proxyflow.sh
 ./proxyflow.sh install
@@ -34,12 +34,15 @@ only to the host loopback interface. The browser discovers the same-instance
 backend automatically and does not ask for a Runtime URL or API token.
 
 The manager supports `install`, `update`, `start`, `stop`, `restart`, `status`,
-`logs`, `backup`, `uninstall`, and `help`. It uses the versioned image
-`ghcr.io/kure29/proxyflow:1.0.0-rc.2`, not `latest`. `PROXYFLOW_PORT`,
+`logs`, `backup`, `uninstall`, and `help`. Direct Compose usage defaults to the
+immutable image `ghcr.io/kure29/proxyflow:1.0.0-rc.3`. Managed installs use
+the `rc` channel, which maps to `ghcr.io/kure29/proxyflow:rc`.
+`PROXYFLOW_PORT`,
 `PROXYFLOW_HOME`, `PROXYFLOW_DATA_DIR`, `PROXYFLOW_BIND_ADDRESS`, and
-`PROXYFLOW_IMAGE` are available for advanced deployments. Script-managed
-default images follow a newer downloaded manager during `update`; an explicitly
-configured image remains pinned.
+`PROXYFLOW_IMAGE` are available for advanced deployments. The allow-listed
+`PROXYFLOW_UPDATE_CHANNEL` values are `rc` and `stable`; `stable` maps to
+`:latest`. An explicitly configured image remains pinned and is never replaced
+by a managed channel.
 
 The default paths are:
 
@@ -55,6 +58,30 @@ the service. A normal `uninstall` removes the container and preserves data.
 Browser-local Projects are not stored in the server data directory. Export
 them separately from ProxyFlow. A Runtime backup covers SQLite snapshots,
 schedules, and other server Runtime state only.
+
+### One-time upgrade from the RC2 manager
+
+Existing RC2 servers need one manager-script replacement so the saved
+`PROXYFLOW_IMAGE_MANAGED=true` installation can move from the old immutable pin
+to the `rc` channel. Run these commands as root only after the RC3 container
+workflow has published both `:1.0.0-rc.3` and `:rc`:
+
+```bash
+manager_tmp="$(mktemp /tmp/proxyflow-manager.XXXXXX)"
+curl -fL --output "${manager_tmp}" \
+  https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
+bash -n "${manager_tmp}"
+install -m 0755 /root/proxyflow.sh /root/proxyflow.sh.rc.2.bak
+install -m 0755 "${manager_tmp}" /root/proxyflow.sh
+rm -f "${manager_tmp}"
+/root/proxyflow.sh update
+/root/proxyflow.sh status
+```
+
+The update creates the existing Runtime backup before pulling `:rc`, waits for
+the new container health check, and then persists the managed channel. Later RC
+images can be installed with `/root/proxyflow.sh update` alone. A saved
+`PROXYFLOW_IMAGE_MANAGED=false` pin remains unchanged.
 
 ## 1Panel And Public Domains
 

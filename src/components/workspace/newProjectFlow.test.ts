@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NEW_PROJECT_SOURCE_CHOICES, sourceBlockForNewProject } from './newProjectFlow'
 
 describe('client-first new project flow', () => {
-  it('offers only bounded RC2 source starts', () => {
+  it('offers only bounded RC3 source starts', () => {
     expect(NEW_PROJECT_SOURCE_CHOICES).toEqual(['url', 'paste', 'file', 'empty'])
   })
 

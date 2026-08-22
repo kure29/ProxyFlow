@@ -143,6 +143,19 @@ export function App() {
     if (useBuilderStore.getState().projectId === project.id) setSaveStatus('saved')
   }
 
+  const deleteProject = async (projectIdToDelete: string) => {
+    const nextProject = projects.find((project) => project.id !== projectIdToDelete)
+    if (!nextProject) return
+    await persistCurrentProject()
+    const project = await projectStorage.activate(nextProject.id)
+    if (!project) return
+    await projectStorage.clear(projectIdToDelete)
+    hydrate(project)
+    setWorkspaceSection('overview')
+    setView('workspace')
+    await refreshProjectList()
+  }
+
   const openWorkspaceSection = useCallback((section: WorkspaceSectionId) => {
     setWorkspaceSection(section)
     setView('workspace')
@@ -161,7 +174,17 @@ export function App() {
       primaryHealth={primaryHealth}
     />
     {view === 'workspace'
-      ? <WorkspaceShell activeSection={workspaceSection} onSectionChange={setWorkspaceSection} onViewChange={setView} primaryHealth={primaryHealth} />
+      ? <WorkspaceShell
+        activeSection={workspaceSection}
+        onSectionChange={setWorkspaceSection}
+        onViewChange={setView}
+        primaryHealth={primaryHealth}
+        projects={projects}
+        onProjectChange={switchProject}
+        onProjectNameCommit={persistCurrentProject}
+        onNewProject={() => setNewProjectOpen(true)}
+        onDeleteProject={deleteProject}
+      />
       : <Suspense fallback={<div className="visual-flow-loading" role="status"><Route size={22} /><span>{t('app.loading')}</span></div>}><VisualFlowWorkspace onOpenWorkspaceSection={openWorkspaceSection} /></Suspense>}
     <StatusBar view={view} health={primaryHealth} />
     {previewOpen && <Suspense fallback={null}><PreviewModal /></Suspense>}

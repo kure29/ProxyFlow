@@ -1,12 +1,12 @@
 # ProxyFlow Autonomous Development Status
 
-Updated: 2026-08-20
+Updated: 2026-08-22
 
 ## Stable Main
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `0d3cc3c4bb4784ddd8dc710df29363a1af52d3f4`
+- `origin/main`: `5c7e7eb` (PR #15, UI 2.1 focused polish)
 - Product Direction PR #9 is merged.
 
 ## Responsive Layout Refactor
@@ -282,14 +282,18 @@ Updated: 2026-08-20
 
 ## Current Slice
 
-- Accepted UI 2.0 source HEAD
-  `51a15c20cb2d24d28783eea6ac10d30b74e559b6`, including the Mobile Workspace
-  Drawer and DNS touch interaction fix, is being integrated into
-  `autopilot/v1.0-rc` through an ordinary two-parent merge.
-- The integration must pass the full automated and build gates, then publish
-  the existing `1.0.0-rc.2` container for physical server/device UAT.
-- Draft PR #14 remains unchanged and must not be merged by this branch work;
-  no additional UI 2.0 implementation slice is open.
+- RC3 finalization branch: `release/1.0.0-rc.3-topbar-polish`, based on current
+  `main` at `5c7e7eb`.
+- Scope is limited to the final responsive TopBar composition and the
+  Self-hosted managed update channel. Project, Graph, IR, compiler, export,
+  routing, and subscription semantics remain unchanged.
+- Package and immutable Compose defaults advance to `1.0.0-rc.3`; managed
+  installs use the `rc` channel, explicit image pins remain fixed, and the
+  container tag workflow maps RC releases to `:rc` and stable releases to
+  `:latest`.
+- Local automated, build, Compose, deployment, and browser validation passed.
+  PR review and CI remain pending; no tag or container publication has occurred
+  yet.
 
 ## Remaining UI 2.0 Slices
 
@@ -301,13 +305,36 @@ Updated: 2026-08-20
 
 ## Next
 
-1. Complete the UI 2.0 Mobile polish merge and run the RC test/build/diff gates.
-2. Push `autopilot/v1.0-rc`, wait for Container verify/publish, and confirm the
-   new `1.0.0-rc.2` digest and provenance match the RC integration HEAD.
-3. Hand the published image to physical server/device UAT. Keep PR #14
-   unchanged and do not merge `main`, tag `v1.0.0`, or create a GitHub Release.
+1. Complete RC3 automated and browser validation at desktop plus 375, 390, and
+   430px mobile widths.
+2. Open the RC3 PR to `main` and wait for all CI checks.
+3. After an authorized merge, tag `v1.0.0-rc.3`, confirm both immutable and
+   `rc` channel tags resolve to one digest, then hand the update command to
+   Self-hosted users.
 
 ## Latest Validation
+
+### V1.0 RC3 finalization
+
+- `npm test` passed 549/549 tests across 61 files. The expected Node 22
+  experimental SQLite notice was the only test warning.
+- Web and Runtime production builds passed; the largest Web chunk is
+  `475.79 kB`, and `runtime-dist/server.js` is `214.41 kB`.
+- Deployment manager tests passed 18/18, including default `:rc`, legacy RC2
+  managed migration, explicit manual pin preservation, `stable -> :latest`,
+  invalid-channel rejection, update version reporting, backup, and health gates.
+- `npx tsc -b`, Bash syntax, fictional Compose config, and `git diff --check`
+  passed.
+- Browser QA passed in Chinese and English at 375, 390, 430, 768, 1023, 1024,
+  and 1440px. The Config / Blueprint switch center delta is exactly `0px` at
+  every measured viewport, mobile TopBar controls are `44px`, document overflow
+  is `0px`, and mobile cold reload produced no console warning or error.
+- Desktop shows `Current project · name` on one baseline. Mobile and tablet show
+  only `ProxyFlow`, keep Project management on Project Overview, and expose only
+  Export plus the distinct global overflow on the right.
+- The Impeccable mechanical detector reported only the pre-existing,
+  specification-required `3px` active Workspace navigation indicator; no new
+  TopBar or Project Overview finding was reported.
 
 ### V1.0 pre-release integration
 

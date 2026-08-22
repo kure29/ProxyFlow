@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Download, Eye, Globe2, Network, PanelsTopLeft } from 'lucide-react'
+import { Check, ChevronDown, Download, Eye, Globe2, MoreHorizontal, Network, PanelsTopLeft } from 'lucide-react'
 import proxyFlowLogo from '../../assets/brand/proxyflow-logo.png'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
@@ -26,7 +26,7 @@ interface TopBarProps {
 
 export function TopBar({ view, projects, onViewChange, onProjectChange, onProjectNameCommit, onNewProject, onOpenWorkspaceSection, primaryHealth }: TopBarProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
-  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
+  const [globalMenuOpen, setGlobalMenuOpen] = useState(false)
   const { locale, setLocale, t } = useI18n()
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
@@ -45,8 +45,8 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
   useEffect(() => setProjectNameDraft(visibleProjectName), [projectId, visibleProjectName])
 
   useEffect(() => {
-    if (!projectMenuOpen && !languageMenuOpen) return
-    const close = () => { setProjectMenuOpen(false); setLanguageMenuOpen(false) }
+    if (!projectMenuOpen && !globalMenuOpen) return
+    const close = () => { setProjectMenuOpen(false); setGlobalMenuOpen(false) }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') close()
     }
@@ -56,7 +56,7 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
       window.removeEventListener('click', close)
       window.removeEventListener('keydown', closeOnEscape)
     }
-  }, [languageMenuOpen, projectMenuOpen])
+  }, [globalMenuOpen, projectMenuOpen])
 
   const commitProjectName = (value: string) => {
     if (!renameProject(value)) {
@@ -75,7 +75,9 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
       </button>
       <div className="project-switcher-wrap">
         <div className="project-switcher">
-          <span>
+          <span className="current-project-label">{t('top.currentProject')}</span>
+          <span className="current-project-separator" aria-hidden="true">·</span>
+          <span className="project-name-field">
             <input
               className="project-name-input"
               aria-label={t('top.projectName')}
@@ -148,14 +150,16 @@ export function TopBar({ view, projects, onViewChange, onProjectChange, onProjec
           <button
             type="button"
             className="topbar-language-trigger"
-            aria-label={t('top.chooseLanguage')}
-            title={t('top.chooseLanguage')}
-            aria-expanded={languageMenuOpen}
-            onClick={(event) => { event.stopPropagation(); setLanguageMenuOpen((open) => !open) }}
-          ><Globe2 size={17} /><span>{locale === 'zh-CN' ? '中文' : 'English'}</span><ChevronDown size={13} /></button>
-          {languageMenuOpen && <div className="language-menu topbar-language-menu" role="menu" aria-label={t('top.language')} onClick={(event) => event.stopPropagation()}>
-            <button type="button" role="menuitem" className={locale === 'zh-CN' ? 'is-active' : ''} onClick={() => { setLocale('zh-CN'); setLanguageMenuOpen(false) }}><span>简体中文</span>{locale === 'zh-CN' && <Check size={13} />}</button>
-            <button type="button" role="menuitem" className={locale === 'en-US' ? 'is-active' : ''} onClick={() => { setLocale('en-US'); setLanguageMenuOpen(false) }}><span>English</span>{locale === 'en-US' && <Check size={13} />}</button>
+            aria-label={t('top.globalActions')}
+            title={t('top.globalActions')}
+            aria-haspopup="menu"
+            aria-expanded={globalMenuOpen}
+            onClick={(event) => { event.stopPropagation(); setGlobalMenuOpen((open) => !open) }}
+          ><Globe2 className="topbar-language-icon" size={17} /><MoreHorizontal className="topbar-more-icon" size={20} /><span>{locale === 'zh-CN' ? '中文' : 'English'}</span><ChevronDown size={13} /></button>
+          {globalMenuOpen && <div className="language-menu topbar-language-menu" role="menu" aria-label={t('top.globalActions')} onClick={(event) => event.stopPropagation()}>
+            <span className="topbar-menu-heading">{t('top.language')}</span>
+            <button type="button" role="menuitem" className={locale === 'zh-CN' ? 'is-active' : ''} onClick={() => { setLocale('zh-CN'); setGlobalMenuOpen(false) }}><span>简体中文</span>{locale === 'zh-CN' && <Check size={13} />}</button>
+            <button type="button" role="menuitem" className={locale === 'en-US' ? 'is-active' : ''} onClick={() => { setLocale('en-US'); setGlobalMenuOpen(false) }}><span>English</span>{locale === 'en-US' && <Check size={13} />}</button>
           </div>}
         </div>
       </nav>
