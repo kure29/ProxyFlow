@@ -50,7 +50,7 @@ one-shot subscription converter.
 - Unsupported semantics fail closed and are never silently dropped or changed.
 - Project, parser, processing, routing, validation, IR, and compiler engines are
   shared by Workspace and Visual Flow.
-- Mihomo and sing-box are the only production targets in RC3. Surge is a future
+- Mihomo and sing-box are the only production targets in RC4. Surge is a future
   architecture case, not an implemented compiler.
 - Project export must not contain runtime credentials or cached subscription
   credentials.
@@ -61,13 +61,13 @@ one-shot subscription converter.
 - Product terms: Primary Target, Target Compatibility, Workspace, Visual Flow,
   Strategy, Routing, Inspect, Export, Advanced, and Target-native.
 - The incumbent quiet, utilitarian visual system remains the design authority
-  for RC3. Client-first changes information architecture, not brand identity.
+  for RC4. Client-first changes information architecture, not brand identity.
 
 ## Evidence on Hand
 
 - Accepted product direction: `docs/product-direction.md`.
 - Current implementation and validation status: `docs/current-status.md`.
-- RC3 remains within the approved Client-first RC acceptance scope.
+- RC4 remains within the approved Client-first RC acceptance scope.
 - Existing fictional fixtures and representative Mihomo/sing-box binary
   validation are the only capability proof; no unsupported marketing claims are
   permitted.
