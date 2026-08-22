@@ -8,7 +8,7 @@ ProxyFlow 是一个 Local-first、可选 Runtime Service 的代理配置编排�
 
 当前稳定版本是 ProxyFlow v0.7.0 Subscription Lifecycle。ProxyFlow 可以在浏览器本地读取 Subscription URL、粘贴内容或文件，处理真实代理节点，并由同一份 Project 生成 Mihomo YAML 或 sing-box JSON。
 
-当前候选版本是 ProxyFlow 1.0.0-rc.3，尚未正式发布。完整交互仍以
+当前候选版本是 ProxyFlow 1.0.0-rc.4，尚未正式发布。完整交互仍以
 [V1.0 User Acceptance](docs/v1-user-acceptance.md) 的实机结果为准。
 
 订阅输入格式与配置导出目标是两件不同的事：ProxyFlow 可以识别多种订阅生产格式，但当前正式导出目标只有 Mihomo 和 sing-box。v0.7.0 提供 Manual Refresh、Refresh All、Last Known Good、IndexedDB runtime snapshot、订阅 diff、竞态保护与空结果保护；runtime snapshot 和远程凭据不会进入 Project Export。
@@ -24,7 +24,7 @@ Mode 不需要后台、账号、Docker 或数据库；Project、浏览器快照�
 ### Self-hosted
 
 需要服务器抓取订阅、定时刷新和有限快照历史时，推荐使用官方管理脚本。
-RC3 脚本可以独立下载和检查，不需要在服务器上构建前端或后台：
+RC4 脚本可以独立下载和检查，不需要在服务器上构建前端或后台：
 
 ```bash
 curl -fL --output proxyflow.sh \
@@ -65,7 +65,7 @@ PROXYFLOW_DATA_DIR=/srv/proxyflow-data \
 ```
 
 底层 [Compose 配置](compose.yaml) 默认固定为可复现的
-`ghcr.io/kure29/proxyflow:1.0.0-rc.3`。管理脚本的新安装与受管理更新默认使用
+`ghcr.io/kure29/proxyflow:1.0.0-rc.4`。管理脚本的新安装与受管理更新默认使用
 `ghcr.io/kure29/proxyflow:rc`；未来稳定通道可通过
 `PROXYFLOW_UPDATE_CHANNEL=stable` 使用 `:latest`。显式设置 `PROXYFLOW_IMAGE`
 会关闭 managed update 并持续保留用户指定的固定镜像。
@@ -163,7 +163,7 @@ ProxyFlow 的固定用户流程是：
 输入 → 处理 → 策略 → 分流 → 检查 → 导出
 ```
 
-RC3 采用 Client-first、Capability-driven、Hybrid Workspace 产品模型。新 Project 先选择 Mihomo 或 sing-box 作为 Primary Target；Primary Target 决定默认可创建能力和默认导出，但不删除其它 Target 暂时无法表达的数据。Workspace 是默认入口，Visual Flow 是同一 Project 的拓扑与高级编辑视图，Secondary Target 的失败不会阻止可用的 Primary Target 导出。
+RC4 采用 Client-first、Capability-driven、Hybrid Workspace 产品模型。新 Project 先选择 Mihomo 或 sing-box 作为 Primary Target；Primary Target 决定默认可创建能力和默认导出，但不删除其它 Target 暂时无法表达的数据。Workspace 是默认入口，Visual Flow 是同一 Project 的拓扑与高级编辑视图，Secondary Target 的失败不会阻止可用的 Primary Target 导出。
 
 - [Product Direction](docs/product-direction.md)：长期定位、Local Mode、Runtime Service、Basic / Advanced 与功能准入边界。
 - [Product Surface Design](DESIGN.md)：UI 2.0 Token、组件、响应式与无障碍约束。

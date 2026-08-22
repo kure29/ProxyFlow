@@ -1,8 +1,8 @@
-# ProxyFlow V1.0 RC3 / UI 2.0 User Acceptance
+# ProxyFlow V1.0 RC4 / UI 2.0 User Acceptance
 
-Candidate: `1.0.0-rc.3` on `release/1.0.0-rc.3-topbar-polish`
+Candidate: `1.0.0-rc.4` on `release/1.0.0-rc.4`
 
-Status: UI 2.0 user acceptance and RC3 focused validation passed; not a formal
+Status: UI 2.0 user acceptance and RC4 focused validation pending; not a formal
 release.
 
 This checklist validates the ordinary Client-first workflow and the UI 2.0
@@ -352,4 +352,4 @@ Runtime Service prerequisite and is not a browser warning.
   until they can be represented without semantic loss.
 - Dark Mode is not part of the UI 2.0 Light Mode acceptance gate.
 - There is no third Target, cloud sync, multi-user account system, public
-  backend, plugin marketplace, or AI configuration generation in RC3.
+  backend, plugin marketplace, or AI configuration generation in RC4.
