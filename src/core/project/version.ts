@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
+import { isSubscriptionExportMode } from '../subscription'
 
 export const PROJECT_SCHEMA_VERSION = 2 as const
 
@@ -100,6 +101,11 @@ function normalizeCurrentDefaults(project: ProxyFlowProject) {
   const normalized = structuredClone(project)
   let changed = false
   for (const node of normalized.graph.nodes) {
+    if (node.data.blockType === 'subscription' && (node.data.subscriptionInputKind ?? 'url') === 'url'
+      && !isSubscriptionExportMode(node.data.subscriptionExportMode)) {
+      node.data.subscriptionExportMode = 'materialized'
+      changed = true
+    }
     if (node.data.blockType === 'limit') {
       const raw = node.data.limit as unknown
       if (raw === undefined || raw === null || raw === '') {

@@ -10,7 +10,8 @@ export interface MihomoProxyProvider {
   url: string
   path: string
   interval: number
-  'health-check': MihomoHealthCheck
+  header?: Record<string, string[]>
+  'health-check'?: MihomoHealthCheck
   override?: {
     'dialer-proxy'?: string
     'proxy-name'?: Array<{ pattern: string; target: string }>

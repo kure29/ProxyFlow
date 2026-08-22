@@ -5,6 +5,7 @@ export type SubscriptionFormat =
   | 'sub-store-json' | 'surge' | 'surfboard' | 'loon' | 'quantumult-x' | 'egern' | 'stash' | 'unsupported'
 export type SubscriptionInputKind = 'url' | 'paste' | 'file'
 export type SubscriptionRequestProfile = 'auto' | 'mihomo' | 'sing-box' | 'generic'
+export type SubscriptionExportMode = 'auto' | 'remote' | 'materialized'
 export type ParsedNodeStatus = 'ready' | 'partial' | 'unsupported'
 export type SubscriptionRefreshStatus = 'idle' | 'loading' | 'succeeded' | 'failed'
 export type SubscriptionActiveState = 'none' | 'usable' | 'empty'

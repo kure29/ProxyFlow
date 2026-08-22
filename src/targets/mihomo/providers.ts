@@ -1,16 +1,16 @@
 import type { Hysteria2HopIntervalIR, Hysteria2PortIR, ProxySetRef, ProxyTlsIR, ResolvedProxyEndpointIR } from '../../core/ir'
-import { materializeProxySet } from '../../core/proxySet'
+import { materializeProxySet, planRemoteProxySource, type RemoteSourceConsumer } from '../../core/proxySet'
 import type { MihomoCompileContext, ResolvedProxySet } from './context'
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
 import type { MihomoProxy } from './model'
 import { safePathSegment } from './naming'
+import { mihomoRemoteProxySourceAdapter } from './remoteSourceAdapter'
 
 export function compileMihomoProviders(context: MihomoCompileContext) {
   for (const source of context.ir.sources) {
-    if (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies) continue
-    if (source.kind !== 'subscription' && source.kind !== 'provider') continue
-    const url = source.kind === 'subscription' ? source.url : source.reference
+    if (source.kind !== 'provider') continue
+    const url = source.reference
     if (!url) continue
     const name = context.sourceNames.get(source.id)!
     context.providers.set(name, {
@@ -20,13 +20,21 @@ export function compileMihomoProviders(context: MihomoCompileContext) {
   }
 }
 
-export function resolveProxySet(ref: ProxySetRef, context: MihomoCompileContext): ResolvedProxySet {
+export function resolveProxySet(ref: ProxySetRef, context: MihomoCompileContext, consumer: RemoteSourceConsumer): ResolvedProxySet {
   if (ref.kind === 'source') {
     const source = context.ir.sources.find((item) => item.id === ref.id)
-    if ((source?.kind === 'subscription' && !source.proxies) || source?.kind === 'provider') {
+    if (source?.kind === 'provider') {
       const providerName = context.sourceNames.get(source.id)
       return { providers: providerName && context.providers.has(providerName) ? [providerName] : [], proxyNames: [], include: [], exclude: [] }
     }
+  }
+
+  const remotePlan = planAndReportRemoteProxySet(ref, context, consumer)
+  if (remotePlan.decision === 'unsupported') return { providers: [], proxyNames: [], include: [], exclude: [] }
+  if (remotePlan.decision === 'native-remote' && remotePlan.source) {
+    const lowered = mihomoRemoteProxySourceAdapter.lower(remotePlan.source)
+    if (!context.providers.has(lowered.key)) context.providers.set(lowered.key, lowered.provider)
+    return { providers: [lowered.key], proxyNames: [], include: [], exclude: [] }
   }
 
   const materialized = materializeProxySet(context.ir, ref, context.materialization)
@@ -38,6 +46,23 @@ export function resolveProxySet(ref: ProxySetRef, context: MihomoCompileContext)
   }
   const proxyNames = materialized.proxies.map((proxy) => registerMihomoEndpoint(proxy, context))
   return { providers: [], proxyNames: unique(proxyNames), include: [], exclude: [] }
+}
+
+export function planAndReportRemoteProxySet(ref: ProxySetRef, context: MihomoCompileContext, consumer: RemoteSourceConsumer) {
+  const remotePlan = planRemoteProxySource(
+    context.ir,
+    ref,
+    mihomoRemoteProxySourceAdapter.capabilities,
+    consumer,
+  )
+  for (const diagnostic of remotePlan.diagnostics) context.issues.push(mihomoIssue(
+    diagnostic.code,
+    diagnostic.severity,
+    'remote-source',
+    diagnostic.message,
+    diagnostic.sourceId ?? ref.id,
+  ))
+  return remotePlan
 }
 
 export function filtersForProxySet(resolved: ResolvedProxySet) {

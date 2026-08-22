@@ -33,6 +33,18 @@ describe('compileGraph', () => {
     expect(result.ir?.sources[0]).toEqual(expect.objectContaining({ kind: 'subscription', id: 'subscription' }))
     expect(result.ir?.transforms[0]).toEqual(expect.objectContaining({ kind: 'filter', input: { kind: 'source', id: 'subscription' } }))
     expect(result.ir?.strategies[0]).toEqual(expect.objectContaining({ kind: 'auto-select', source: { kind: 'transform', id: 'filter' } }))
+    expect(result.ir?.sources[0]).toEqual(expect.objectContaining({
+      remote: expect.objectContaining({
+        kind: 'remote-subscription', id: 'subscription', requestProfile: 'auto', exportMode: 'auto',
+      }),
+    }))
+  })
+
+  it('treats a missing persisted URL export mode as materialized', () => {
+    const legacy = structuredClone(subscriptionFilterAutoFixture)
+    delete legacy.graph.nodes.find((node) => node.id === 'subscription')!.data.subscriptionExportMode
+    const source = compileGraph(legacy).ir?.sources.find((item) => item.id === 'subscription')
+    expect(source?.kind === 'subscription' ? source.remote?.exportMode : undefined).toBe('materialized')
   })
 
   it('compiles a deterministic processing chain', () => {

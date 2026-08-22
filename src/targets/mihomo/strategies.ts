@@ -3,12 +3,18 @@ import type { CompiledGroupTemplate, MihomoCompileContext, ResolvedProxySet } fr
 import { MIHOMO_DEFAULTS } from './defaults'
 import { mihomoIssue } from './errors'
 import type { MihomoProxyGroup } from './model'
-import { filtersForProxySet, registerMihomoEndpoint, resolveProxySet } from './providers'
+import { filtersForProxySet, planAndReportRemoteProxySet, registerMihomoEndpoint, resolveProxySet } from './providers'
 
 export function compileMihomoStrategies(context: MihomoCompileContext) {
   for (const strategy of context.ir.strategies) {
     if (strategy.kind === 'chain') continue
     if (strategy.kind === 'fixed') {
+      const endpointSource = strategy.proxyId ? context.ir.sources.find((source) => (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies)
+        && (source.proxies ?? []).some((proxy) => proxy.id === strategy.proxyId)) : undefined
+      if (endpointSource?.kind === 'subscription' && endpointSource.remote) {
+        const plan = planAndReportRemoteProxySet({ kind: 'source', id: endpointSource.id }, context, 'fixed')
+        if (plan.decision === 'unsupported') continue
+      }
       const endpoint = strategy.proxyId ? context.ir.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies
         ? (source.proxies ?? []).filter((proxy): proxy is ResolvedProxyEndpointIR => !isUnmodeledProxy(proxy) && proxy.metadata?.compatibility?.status !== 'partial') : []).find((proxy) => proxy.id === strategy.proxyId) : undefined
       const proxyName = endpoint ? registerMihomoEndpoint(endpoint, context) : undefined
@@ -38,7 +44,7 @@ function compileStrategy(
   const name = context.strategyNames.get(strategy.id)!
 
   if (strategy.kind === 'auto-select' || strategy.kind === 'load-balance') {
-    const resolved = resolveProxySet(strategy.source, context)
+    const resolved = resolveProxySet(strategy.source, context, consumerFor(strategy, context))
     if (!ensureMembers(resolved, strategy, context)) return undefined
     const group: MihomoProxyGroup = {
       name,
@@ -57,7 +63,7 @@ function compileStrategy(
     return { group, providerNames: resolved.providers, proxyNames: resolved.proxyNames }
   }
 
-  const candidates = compileCandidates(strategy.candidates, strategy.id, context)
+  const candidates = compileCandidates(strategy.candidates, strategy, context)
   if (!candidates) return undefined
   const group: MihomoProxyGroup = {
     name,
@@ -70,20 +76,20 @@ function compileStrategy(
   return { group, providerNames: candidates.providerNames, proxyNames: candidates.proxyNames }
 }
 
-function compileCandidates(candidates: StrategyCandidateRef[], ownerId: string, context: MihomoCompileContext) {
+function compileCandidates(candidates: StrategyCandidateRef[], owner: Exclude<StrategyIR, { kind: 'chain' | 'fixed' }>, context: MihomoCompileContext) {
   const proxyNames: string[] = []
   const resolvedSets: ResolvedProxySet[] = []
   for (const candidate of candidates) {
     if (candidate.kind === 'strategy') {
       const name = context.strategyNames.get(candidate.id)
       if (name) proxyNames.push(name)
-    } else resolvedSets.push(resolveProxySet(candidate, context))
+    } else resolvedSets.push(resolveProxySet(candidate, context, consumerFor(owner, context)))
   }
   const signatures = new Set(resolvedSets.map((set) => JSON.stringify([set.include, set.exclude])))
   if (signatures.size > 1 && resolvedSets.some((set) => set.include.length > 0 || set.exclude.length > 0)) {
     context.issues.push(mihomoIssue(
       'MIHOMO_FILTER_SCOPE_UNSUPPORTED', 'error', 'transform',
-      '一个策略中的多个 Provider 使用了不同 Filter，Mihomo group filter 无法保持各自作用域。', ownerId,
+      '一个策略中的多个 Provider 使用了不同 Filter，Mihomo group filter 无法保持各自作用域。', owner.id,
     ))
     return undefined
   }
@@ -95,7 +101,7 @@ function compileCandidates(candidates: StrategyCandidateRef[], ownerId: string, 
   }), { providers: [], proxyNames: [], include: [], exclude: [] })
   proxyNames.push(...combined.proxyNames)
   if (combined.providers.length === 0 && proxyNames.length === 0) {
-    context.issues.push(mihomoIssue('MIHOMO_STRATEGY_EMPTY', 'error', 'strategy', '策略没有可生成的 Provider 或 Proxy Group reference。', ownerId))
+    context.issues.push(mihomoIssue('MIHOMO_STRATEGY_EMPTY', 'error', 'strategy', '策略没有可生成的 Provider 或 Proxy Group reference。', owner.id))
     return undefined
   }
   return {
@@ -103,6 +109,10 @@ function compileCandidates(candidates: StrategyCandidateRef[], ownerId: string, 
     proxyNames: [...new Set(proxyNames)],
     filters: filtersForProxySet(combined),
   }
+}
+
+function consumerFor(strategy: Exclude<StrategyIR, { kind: 'chain' | 'fixed' }>, context: MihomoCompileContext) {
+  return context.chainHopStrategyIds.has(strategy.id) ? 'chain-hop' as const : strategy.kind
 }
 
 function ensureMembers(resolved: ResolvedProxySet, strategy: StrategyIR, context: MihomoCompileContext) {

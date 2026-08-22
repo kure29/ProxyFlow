@@ -1,6 +1,6 @@
 import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
 import { getTargetCapabilities, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
-import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
+import { createMaterializationContext, materializeProxySet, planRemoteProxySource } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
 import { isSafeHttpUrl, isValidServer } from './security'
@@ -69,6 +69,17 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
   }
 
   for (const strategy of ir.strategies) {
+    for (const ref of strategyProxySetRefs(strategy, ir)) {
+      const consumer = strategy.kind === 'chain' ? 'chain-hop' as const : strategy.kind
+      const plan = planRemoteProxySource(ir, ref, singBoxCapabilities.remoteProxySource, consumer)
+      for (const diagnostic of plan.diagnostics) issues.push(singBoxIssue(
+        diagnostic.code,
+        diagnostic.severity,
+        'remote-source',
+        diagnostic.message,
+        diagnostic.sourceId ?? ref.id,
+      ))
+    }
     const capabilityKind: StrategyCapability | undefined = strategy.kind === 'fallback'
       ? 'failover'
       : strategy.kind === 'load-balance'
@@ -146,6 +157,17 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
     'ProxyFlow 只生成 routing/outbound 配置；运行时 Inbound Profile 仍由部署环境提供。',
   ))
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+function strategyProxySetRefs(strategy: StrategyIR, ir: ProxyFlowIR): ProxySetRef[] {
+  if (strategy.kind === 'auto-select' || strategy.kind === 'load-balance') return [strategy.source]
+  if (strategy.kind === 'select' || strategy.kind === 'fallback') return strategy.candidates.filter((candidate): candidate is ProxySetRef => candidate.kind !== 'strategy')
+  if (strategy.kind === 'fixed') {
+    const source = ir.sources.find((item) => (item.kind === 'manual-proxy' || item.kind === 'subscription' && item.proxies)
+      && (item.proxies ?? []).some((proxy) => proxy.id === strategy.proxyId))
+    return source ? [{ kind: 'source', id: source.id }] : []
+  }
+  return []
 }
 
 export function isSingBoxRuleSource(source: { format?: string }) {

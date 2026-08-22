@@ -22,6 +22,23 @@ Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
     Mihomo YAML    sing-box JSON
 ```
 
+URL Subscription 会同时保留两种互补事实：
+
+```text
+Remote source identity + Current materialized snapshot
+                    │
+                    ▼
+       ProxySetRef / Transform source lineage
+                    │
+                    ▼
+       Remote Source Lowering Planner
+            │ target capability
+            ├──────── native remote adapter
+            └──────── materialized ProxySet
+```
+
+`RemoteProxySourceIR` 是 Universal IR 的 additive、target-neutral metadata；其中没有 `proxy-providers`、`use` 或任何客户端语法。`analyzeProxySetLineage()` 沿 `ProxySetRef` 追踪稳定 Source ID 与 Transform operation，`planRemoteProxySource()` 按每个 consumer path 生成唯一决策。Target compiler 不从 endpoint 的显示 `sourceName` 反推 lineage。
+
 - Graph / Project 是编辑器和持久化的唯一事实来源。
 - Paste 原文属于 Project 输入；Local File 原文、Fetch response、ParseResult 与 ProxySet cache 都是运行时数据，不写入 Project。
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
@@ -38,7 +55,7 @@ Project Schema Version 与 IR Schema Version 是两个独立版本：
 
 所有核心实体使用 discriminated union：
 
-- `SourceIR`: subscription、manual-proxy（可含基础与现代显式标准 endpoint）、provider、imported-config
+- `SourceIR`: subscription（可同时包含 remote descriptor 与 snapshot endpoints）、manual-proxy（可含基础与现代显式标准 endpoint）、legacy provider、imported-config
 - `TransformIR`: filter、rename、sort、deduplicate、merge、limit
 - `StrategyIR`: fixed、select、auto-select、fallback、load-balance、chain
 - `TrafficMatcherIR`: service、domain、domain-suffix、domain-keyword、IP CIDR、port、ASN、GeoIP、GeoSite、rule-set
@@ -176,7 +193,19 @@ Issue 使用稳定 `code`，UI、CLI、测试和未来本地化不依赖错误�
 
 Partial variant 仍留在 Parser result 与 Import Summary 中，但在 Source materialization 时以 `PROXY_VARIANT_EXCLUDED` warning 排除。这样 Strategy candidate count 与 Target 输出都只包含可安全生成的节点，同时 UI 仍能解释 detected 与 usable 的差异。
 
-Target Compiler 不读取 URL、不访问 Store，也不再次解析订阅。未处理的安全 HTTP(S) URL 只有 Mihomo 可以保留 remote provider 语义；sing-box 必须得到 materialized endpoint。
+Target Compiler 不访问网络、Store 或 Parser。URL Source 即使选择 remote export，也必须先拥有当前解析 snapshot；该 snapshot 继续用于预览、兼容性分析、处理和不支持 remote target 的回退。
+
+URL Subscription 的 `exportMode` 是客户端无关的用户意图：
+
+- `auto`: capability、request profile 与当前 consumer lineage 都可无损 lowering 时使用 native remote，否则 materialize。
+- `remote`: 必须使用 native remote；不支持时返回 semantic error，禁止静默 materialize。
+- `materialized`: 始终导出当前 snapshot。
+
+Planner 的决策是 per ProxySet / per consumer path。同一 Source 的直接分支可以 native remote，而经过 Filter 的另一分支仍 materialize；同一 target 输出中两者可以并存。第一阶段只有未经过 Transform 的 URL Source 可走 native path；Filter、Rename、Sort、Dedupe、Merge、Limit、manual merge、Fixed identity 与 Proxy Chain hop 都保守 materialize。
+
+Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 继续生成 explicit outbounds，`remote` 失败闭合。未来 Surge、Loon、Quantumult X、Shadowrocket 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics。
+
+为避免旧 Project 输出静默改变，缺少 `exportMode` 的持久化 URL Source 在 V2 additive migration 中规范为 `materialized`；新建 URL Source 默认 `auto`。Project Schema 与 IR major version 均保持 V2。
 
 ## Non-goals for V0.6
 

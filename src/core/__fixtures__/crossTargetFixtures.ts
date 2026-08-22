@@ -89,7 +89,7 @@ export function chainIR(hops: 2 | 3): ProxyFlowIR {
 
 export function unresolvedSubscriptionIR(): ProxyFlowIR {
   const ir = explicitProxyIR()
-  ir.sources = [{ kind: 'subscription', id: 'remote', name: 'Remote', url: 'https://example.com/provider.yaml', enabled: true }]
+  ir.sources = [{ kind: 'provider', id: 'remote', name: 'Remote', reference: 'https://example.com/provider.yaml', enabled: true }]
   ir.strategies = [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'remote' } }]
   ir.routes = []
   ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }

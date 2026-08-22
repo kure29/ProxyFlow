@@ -41,8 +41,8 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 
 | Universal feature | Mihomo mapping | Compatibility |
 | --- | --- | --- |
-| Unresolved URL Subscription / Provider | HTTP `proxy-providers` | Supported when consumed directly |
-| Materialized Subscription | explicit `proxies` | Supported |
+| URL Subscription / Auto or Remote | HTTP `proxy-providers` | Supported only with current snapshot, direct lineage, and portable Request Profile |
+| URL Subscription / Materialized | explicit `proxies` | Supported |
 | Filter | local ProxySet filtering before target lowering | Supported for materialized input |
 | Rename | local regex replacement before target lowering | Supported for materialized input |
 | Sort / Deduplicate / Limit | locally materialized deterministic list | Supported |
@@ -109,7 +109,7 @@ override:
   dialer-proxy: Previous Hop Group
 ```
 
-二跳与三跳按 Universal IR `hops` 数组顺序逐层 lowering。远程 Provider chain 使用派生 Provider；materialized endpoint chain 使用目标层 `dialer-proxy`。实际 UDP 和 transport 兼容性取决于节点组合，因此不会宣称所有扩展协议都完全等价。
+二跳与三跳按 Universal IR `hops` 数组顺序逐层 lowering。Universal Remote Subscription 在 Proxy Chain hop 中保守 materialize；已有 legacy Provider source 仍可使用派生 Provider。materialized endpoint chain 使用目标层 `dialer-proxy`。实际 UDP 和 transport 兼容性取决于节点组合，因此不会宣称所有扩展协议都完全等价。
 
 ## Failure behavior
 
@@ -123,7 +123,9 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 
 ## Known limitations
 
-- Target Compiler 本身不解析 Subscription；它只消费已经 materialized 的 IR，或保留无需本地处理的 remote provider URL
+- Target Compiler 本身不解析 Subscription；它消费同时包含 current snapshot 与 target-neutral remote descriptor 的 IR，并服从统一 Remote Source Planner
+- Native adapter 仅为 Auto / Mihomo Request Profile 生成 allowlisted `User-Agent: Clash.Meta` header；不支持任意 header 注入
+- Provider key 由稳定 Source ID 生成并 dedupe，不随显示名称变化
 - 支持基础协议、Reality/Vision、结构化 Hysteria2 port hopping、TUIC security flags 与现代 transport；未知 security/flow、pin/ECH、证书指纹或缺失必需字段仍为 Partial
 - Universal endpoint semantic error 会在 `validateIR()` 阶段停止；合法但 Mihomo schema 无法表达的 non-TUIC disable-SNI 或 QUIC client fingerprint 会在 target compatibility 阶段停止，绝不 omit 后继续
 - AnyTLS 不会降级成 Trojan/VLESS。Parser Partial 节点从 ProxySet 排除；direct AnyTLS + Reality 或 TLS invariant 错误由 `validateIR()` 阻止

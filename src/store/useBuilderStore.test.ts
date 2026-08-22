@@ -538,11 +538,13 @@ describe('builder store', () => {
     useBuilderStore.getState().createNewProject()
     const sourceId = useBuilderStore.getState().addNode('subscription', { x: 120, y: 120 })!
     expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionRequestProfile).toBe('auto')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === sourceId)?.data.subscriptionExportMode).toBe('auto')
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
-    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionRequestProfile: 'generic' })
+    useBuilderStore.getState().updateNodeData(sourceId, { subscriptionRequestProfile: 'generic', subscriptionExportMode: 'remote' })
     expect(fetch).not.toHaveBeenCalled()
     expect(useBuilderStore.getState().toProject().graph.nodes.find((node) => node.id === sourceId)?.data.subscriptionRequestProfile).toBe('generic')
+    expect(useBuilderStore.getState().toProject().graph.nodes.find((node) => node.id === sourceId)?.data.subscriptionExportMode).toBe('remote')
   })
 
   it('keeps the last successful URL result when a later browser fetch fails', async () => {

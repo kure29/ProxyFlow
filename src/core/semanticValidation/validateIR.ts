@@ -2,6 +2,7 @@ import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCa
 import { findRuleSourceMatches, isUnmodeledProxy, semanticIssue, validateMatcherIR } from '../ir'
 import { isSupportedShadowsocksMethod, validateProxyEndpointSemantics } from '../proxy'
 import { detectChainCycles } from './detectChainCycles'
+import { isSubscriptionExportMode, isSubscriptionRequestProfile } from '../subscription'
 
 const knownTargets = new Set(['mihomo', 'sing-box', 'surge', 'loon', 'quantumult-x', 'shadowrocket', 'stash'])
 
@@ -38,6 +39,18 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
     if (source.kind === 'subscription' && !source.url && !source.proxies?.length) add(entityIssue(
       'SUBSCRIPTION_URL_MISSING', 'warning', `Subscription "${source.name}" has no URL.`, 'source', source.id,
     ))
+    if (source.kind === 'subscription' && source.remote) {
+      if (source.remote.id !== source.id || source.remote.kind !== 'remote-subscription' || !source.remote.url.trim()
+        || Boolean(source.url && source.url !== source.remote.url)) add(entityIssue(
+        'REMOTE_SOURCE_INVALID', 'error', `Subscription "${source.name}" has invalid remote source metadata.`, 'source', source.id,
+      ))
+      if (!isSubscriptionRequestProfile(source.remote.requestProfile)) add(entityIssue(
+        'REMOTE_SOURCE_REQUEST_PROFILE_INVALID', 'error', `Subscription "${source.name}" has an invalid remote request profile.`, 'source', source.id,
+      ))
+      if (!isSubscriptionExportMode(source.remote.exportMode)) add(entityIssue(
+        'REMOTE_SOURCE_EXPORT_MODE_INVALID', 'error', `Subscription "${source.name}" has an invalid remote export mode.`, 'source', source.id,
+      ))
+    }
     if (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies) for (const proxy of source.proxies ?? []) {
       if (isUnmodeledProxy(proxy)) continue
       if (!proxy.name.trim() || !proxy.server.trim() || !Number.isInteger(proxy.port) || proxy.port < 1 || proxy.port > 65_535) add(entityIssue(

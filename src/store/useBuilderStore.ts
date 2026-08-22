@@ -111,7 +111,7 @@ const cloneSnapshot = (primaryTarget: PrimaryTarget | null, nodes: GraphNode[], 
 const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now()}`
 
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
-  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
+  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', subscriptionExportMode: 'auto', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
   if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
   if (type === 'filter') return {
     include: [], exclude: [], filterMode: 'keyword', filterOperation: 'include', filterKeyword: '', filterRegexIgnoreCase: true,

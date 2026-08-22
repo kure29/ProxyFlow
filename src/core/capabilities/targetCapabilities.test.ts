@@ -39,4 +39,19 @@ describe('target capability registry', () => {
     }))
     expect(getTargetCapabilities('mihomo').ruleSources['sing-box-binary'].status).toBe('unsupported')
   })
+
+  it('declares remote proxy sources as an independently extensible target capability', () => {
+    const mihomo = getTargetCapabilities('mihomo').remoteProxySource
+    const singBox = getTargetCapabilities('sing-box').remoteProxySource
+    expect(mihomo).toEqual(expect.objectContaining({
+      source: expect.objectContaining({ status: 'target-native' }),
+      refresh: expect.objectContaining({ status: 'supported' }),
+      multipleSourcesInGroup: expect.objectContaining({ status: 'supported' }),
+      mixedWithExplicitMembers: expect.objectContaining({ status: 'supported' }),
+      requestProfiles: ['auto', 'mihomo'],
+    }))
+    expect(mihomo.filtering.status).toBe('unsupported')
+    expect(singBox.source).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'REMOTE_SOURCE_TARGET_UNSUPPORTED' }))
+    expect(singBox.requestProfiles).toEqual([])
+  })
 })

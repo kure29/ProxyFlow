@@ -23,6 +23,21 @@ describe('project schema version', () => {
     expect(result.project?.graph.nodes.find((node) => node.id === 'limit-string')?.data.limit).toBe(20)
   })
 
+  it('keeps legacy URL subscriptions materialized while preserving explicit modes', () => {
+    const project = structuredClone(demoProject)
+    project.graph.nodes.push({
+      id: 'legacy-url', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'subscription', category: 'source', title: 'Legacy URL', subtitle: 'Legacy', icon: 'radio', subscriptionInputKind: 'url', subscriptionUrl: 'https://example.com/sub' },
+    }, {
+      id: 'new-url', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'subscription', category: 'source', title: 'New URL', subtitle: 'New', icon: 'radio', subscriptionInputKind: 'url', subscriptionUrl: 'https://example.com/new', subscriptionExportMode: 'auto' },
+    })
+    const result = migrateProject(project)
+    expect(result).toEqual(expect.objectContaining({ success: true, migrated: true }))
+    expect(result.project?.graph.nodes.find((node) => node.id === 'legacy-url')?.data.subscriptionExportMode).toBe('materialized')
+    expect(result.project?.graph.nodes.find((node) => node.id === 'new-url')?.data.subscriptionExportMode).toBe('auto')
+  })
+
   it('repairs the legacy Final → Output semantic', () => {
     const legacy = structuredClone(demoProject)
     legacy.version = 1

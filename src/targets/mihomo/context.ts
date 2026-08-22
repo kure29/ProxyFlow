@@ -32,6 +32,7 @@ export interface MihomoCompileContext {
   groupTemplates: Map<string, CompiledGroupTemplate>
   ruleProviders: Map<string, MihomoRuleProvider>
   derivedProviderNames: Map<string, string>
+  chainHopStrategyIds: Set<string>
   materialization: MaterializationContext
 }
 
@@ -59,6 +60,9 @@ export function createMihomoContext(ir: ProxyFlowIR, issues: CompatibilityIssue[
     groupTemplates: new Map(),
     ruleProviders: new Map(),
     derivedProviderNames: new Map(),
+    chainHopStrategyIds: new Set(ir.strategies
+      .filter((strategy) => strategy.kind === 'chain')
+      .flatMap((strategy) => strategy.hops.map((hop) => hop.id))),
     materialization: createMaterializationContext(),
   }
 }

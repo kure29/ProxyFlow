@@ -1,5 +1,6 @@
 import type { ProxyTransportIR, SourceIR } from '../ir'
 import { detectRegion } from '../proxy'
+import { normalizePersistedSubscriptionExportMode, normalizeSubscriptionRequestProfile } from '../subscription'
 import type { GraphCompileContext } from './context'
 
 export function compileSources(context: GraphCompileContext): SourceIR[] {
@@ -80,9 +81,24 @@ function compileSubscription(
 ): Extract<SourceIR, { kind: 'subscription' }> {
   const snapshot = context.subscriptionSnapshots[id]
   const result = snapshot?.result
+  const inputKind = data.subscriptionInputKind ?? 'url'
+  const url = data.subscriptionUrl?.trim()
   return {
-    id, name, kind: 'subscription', url: data.subscriptionUrl || undefined, enabled: data.enabled ?? true,
+    id, name, kind: 'subscription', url: url || undefined, enabled: data.enabled ?? true,
     ...(result ? { proxies: result.proxies } : {}),
+    ...(inputKind === 'url' && url ? { remote: {
+      kind: 'remote-subscription' as const,
+      id,
+      name,
+      url,
+      requestProfile: normalizeSubscriptionRequestProfile(data.subscriptionRequestProfile),
+      exportMode: normalizePersistedSubscriptionExportMode(data.subscriptionExportMode),
+      ...(snapshot ? { snapshot: {
+        id: snapshot.snapshotId,
+        contentHash: snapshot.contentHash,
+        fetchedAt: snapshot.fetchedAt,
+      } } : {}),
+    } } : {}),
     materialization: {
       status: snapshot ? 'ready' : 'unavailable',
     },

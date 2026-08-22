@@ -1,5 +1,20 @@
 import type { SourceId } from './references'
 import type { ResolvedProxyEndpointIR } from '../proxy'
+import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../subscription'
+
+export interface RemoteProxySourceIR {
+  kind: 'remote-subscription'
+  id: SourceId
+  name: string
+  url: string
+  requestProfile: SubscriptionRequestProfile
+  exportMode: SubscriptionExportMode
+  snapshot?: {
+    id: string
+    contentHash: string
+    fetchedAt: string
+  }
+}
 
 export type {
   HttpProxyIR, ProxyEndpointMetadata, ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR,
@@ -13,6 +28,8 @@ export interface SubscriptionSourceIR {
   url?: string
   enabled: boolean
   proxies?: ResolvedProxyEndpointIR[]
+  /** Target-neutral remote identity retained alongside the current materialized snapshot. */
+  remote?: RemoteProxySourceIR
   materialization?: {
     status: 'ready' | 'stale' | 'error' | 'unavailable'
     issueCode?: string

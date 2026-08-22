@@ -19,7 +19,8 @@ import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
 import {
-  normalizeSubscriptionRequestProfile, snapshotFreshness, type SubscriptionFreshness, type SubscriptionRefreshError,
+  normalizePersistedSubscriptionExportMode, normalizeSubscriptionRequestProfile, snapshotFreshness,
+  type SubscriptionExportMode, type SubscriptionFreshness, type SubscriptionRefreshError,
   type SubscriptionRequestProfile, type SubscriptionRuntimeRecord,
 } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
@@ -86,6 +87,10 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const [serviceMessage, setServiceMessage] = useState<string | null>(null)
   const inputKind = node.data.subscriptionInputKind ?? 'url'
   const requestProfile = normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile)
+  const exportMode = normalizePersistedSubscriptionExportMode(node.data.subscriptionExportMode)
+  const exportModeHint = exportMode === 'remote'
+    ? t('inspector.exportMode.remoteHint')
+    : exportMode === 'materialized' ? t('inspector.exportMode.materializedHint') : t('inspector.exportMode.autoHint')
   useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
   useEffect(() => {
     if (inputKind === 'paste') setPaste(node.data.subscriptionContent ?? '')
@@ -133,6 +138,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     <TextField node={node} field="title" label={t('inspector.name')} />
     {inputKind === 'url' && <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />}
     {inputKind === 'url' && <Field label={t('inspector.requestProfile')} hint={runtimeService ? t('inspector.requestProfileHint') : t('inspector.requestProfileLocalHint')}><WebSelect label={t('inspector.requestProfile')} value={requestProfile} onChange={(value) => update(node.id, { subscriptionRequestProfile: value as SubscriptionRequestProfile })} options={[{ value: 'auto', label: t('inspector.requestProfile.auto') }, { value: 'mihomo', label: t('inspector.requestProfile.mihomo') }, { value: 'sing-box', label: t('inspector.requestProfile.singBox') }, { value: 'generic', label: t('inspector.requestProfile.generic') }]} /></Field>}
+    {inputKind === 'url' && <><Field label={t('inspector.exportMode')} hint={exportModeHint}><WebSelect label={t('inspector.exportMode')} value={exportMode} onChange={(value) => update(node.id, { subscriptionExportMode: value as SubscriptionExportMode })} options={[{ value: 'auto', label: t('inspector.exportMode.auto') }, { value: 'remote', label: t('inspector.exportMode.remote') }, { value: 'materialized', label: t('inspector.exportMode.materialized') }]} /></Field><p className="source-export-capability-hint">{t('inspector.exportMode.capabilities')}</p></>}
     {inputKind === 'paste' && <div className="source-input-panel"><Field label={t('inspector.nodeLinks')} hint={t('inspector.nodeLinksHint')}><textarea className="node-links-input" value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /></Field><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => void parseInput(node.id, paste, 'paste')}><ClipboardPaste size={15} /> {t('inspector.parseImport')}</button></div>}
     {inputKind === 'file' && <button type="button" className="config-file-picker" onClick={() => fileRef.current?.click()}><FileUp size={20} /><span><strong>{node.data.subscriptionFileName ?? t('inspector.noFileSelected')}</strong><small>{node.data.subscriptionFileName ? t('inspector.replaceConfigFile') : t('inspector.chooseConfigFile')}</small></span></button>}
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
