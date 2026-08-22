@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Check, Route, X } from 'lucide-react'
 import proxyFlowLogo from '../assets/brand/proxyflow-logo.png'
 import { TopBar } from '../components/layout/TopBar'
@@ -9,9 +9,13 @@ import { localizeKnownSystemText, useI18n } from '../i18n'
 import { SubscriptionEmptyConfirmation } from '../components/subscription/SubscriptionEmptyConfirmation'
 import { WorkspaceShell } from '../components/workspace/WorkspaceShell'
 import { NewProjectDialog } from '../components/workspace/NewProjectDialog'
-import type { ProductView } from '../components/workspace/types'
 import type { WorkspaceSectionId } from '../core/workspace'
 import { summarizePrimaryTargetHealth, useProjectCompiles } from '../components/compiler/useProjectCompiles'
+import {
+  initialProductNavigationState, productNavigationReducer,
+} from '../components/workspace/productNavigationModel'
+import { deleteStoredProject } from '../components/workspace/projectManagement'
+import { normalizeValidProjectName } from '../core/project/projectName'
 
 const VisualFlowWorkspace = lazy(() => import('../components/workspace/VisualFlowWorkspace'))
 const PreviewModal = lazy(() => import('../components/preview/PreviewModal').then(({ PreviewModal: Component }) => ({ default: Component })))
@@ -44,9 +48,12 @@ export function App() {
   const primaryHealth = summarizePrimaryTargetHealth(primaryCompiles, primaryTarget)
   const loadStarted = useRef(false)
   const saveQueue = useRef<Promise<void>>(Promise.resolve())
-  const [view, setView] = useState<ProductView>('workspace')
-  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSectionId>('overview')
+  const storagePausedRef = useRef(false)
+  const [navigationState, dispatchNavigation] = useReducer(productNavigationReducer, initialProductNavigationState)
+  const { view, workspaceSection, lastNodeSection } = navigationState
   const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [projectCreationRequired, setProjectCreationRequired] = useState(false)
+  const [storagePaused, setStoragePaused] = useState(false)
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const projectSaveKey = useMemo(() => JSON.stringify({
     projectId,
@@ -59,6 +66,7 @@ export function App() {
     setProjects(await projectStorage.list())
   }, [])
   const persistProject = useCallback((project = toProject()) => {
+    if (storagePausedRef.current) return Promise.resolve()
     const save = saveQueue.current
       .catch(() => undefined)
       .then(() => projectStorage.save(project, {
@@ -68,6 +76,10 @@ export function App() {
     saveQueue.current = save
     return save
   }, [refreshProjectList, toProject])
+  const pauseStorage = useCallback((paused: boolean) => {
+    storagePausedRef.current = paused
+    setStoragePaused(paused)
+  }, [])
 
   useEffect(() => {
     if (loadStarted.current) return
@@ -78,22 +90,25 @@ export function App() {
         void refreshProjectList().catch(() => setProjects([]))
       })
       .catch(() => { hydrate(undefined); setProjects([]) })
-  }, [hydrate, refreshProjectList])
+  }, [hydrate, pauseStorage, refreshProjectList])
 
   useEffect(() => {
-    if (!hydrated || recoveryRequired) return
+    if (!hydrated || recoveryRequired || storagePaused) return
     setSaveStatus('saving')
     const timer = window.setTimeout(async () => {
+      if (storagePausedRef.current) return
       const savedProjectId = projectId
       await persistProject(toProject())
       if (useBuilderStore.getState().projectId === savedProjectId) setSaveStatus('saved')
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [hydrated, persistProject, projectId, projectSaveKey, recoveryRequired, setSaveStatus, toProject])
+  }, [hydrated, persistProject, projectId, projectSaveKey, recoveryRequired, setSaveStatus, storagePaused, toProject])
 
   useEffect(() => {
     if (!hydrated || recoveryRequired) return
-    const flush = () => { void projectStorage.save(useBuilderStore.getState().toProject(), { activate: true }).catch(() => undefined) }
+    const flush = () => {
+      if (!storagePausedRef.current) void projectStorage.save(useBuilderStore.getState().toProject(), { activate: true }).catch(() => undefined)
+    }
     window.addEventListener('pagehide', flush)
     window.addEventListener('beforeunload', flush)
     return () => {
@@ -129,7 +144,7 @@ export function App() {
   }, [deleteSelected, persistProject, redo, setSaveStatus, setToast, t, toProject, undo])
 
   const switchProject = async (nextProjectId: string) => {
-    if (nextProjectId === projectId) return
+    if (nextProjectId === projectId || storagePausedRef.current) return
     await persistProject(toProject())
     const project = await projectStorage.activate(nextProjectId)
     if (!project) return
@@ -138,52 +153,81 @@ export function App() {
   }
 
   const persistCurrentProject = async () => {
+    if (storagePausedRef.current) return
     const project = useBuilderStore.getState().toProject()
     await persistProject(project)
     if (useBuilderStore.getState().projectId === project.id) setSaveStatus('saved')
   }
 
-  const deleteProject = async (projectIdToDelete: string) => {
-    const nextProject = projects.find((project) => project.id !== projectIdToDelete)
-    if (!nextProject) return
-    await persistCurrentProject()
-    const project = await projectStorage.activate(nextProject.id)
-    if (!project) return
-    await projectStorage.clear(projectIdToDelete)
-    hydrate(project)
-    setWorkspaceSection('overview')
-    setView('workspace')
+  const openWorkspaceSection = useCallback((section: WorkspaceSectionId) => {
+    dispatchNavigation({ type: 'open-section', section })
+  }, [])
+
+  const renameStoredProject = async (renamedProjectId: string, name: string) => {
+    const normalized = normalizeValidProjectName(name)
+    if (!normalized) return false
+    if (renamedProjectId === projectId) {
+      if (!useBuilderStore.getState().renameProject(normalized)) return false
+      await persistCurrentProject()
+      return true
+    }
+    const project = await projectStorage.load(renamedProjectId)
+    if (!project) return false
+    await projectStorage.save({ ...project, name: normalized, updatedAt: new Date().toISOString() }, { activate: false })
     await refreshProjectList()
+    return true
   }
 
-  const openWorkspaceSection = useCallback((section: WorkspaceSectionId) => {
-    setWorkspaceSection(section)
-    setView('workspace')
-  }, [])
+  const deleteProject = async (deletedProjectId: string) => {
+    const deletingCurrent = deletedProjectId === projectId
+    if (deletingCurrent) {
+      pauseStorage(true)
+      await saveQueue.current.catch(() => undefined)
+    }
+    const result = await deleteStoredProject(projectStorage, deletedProjectId, projectId)
+    setProjects(result.projects)
+    if (!deletingCurrent) return
+    if (result.nextProject) {
+      hydrate(result.nextProject)
+      setProjectCreationRequired(false)
+      pauseStorage(false)
+      return
+    }
+    hydrate(null)
+    setProjectCreationRequired(true)
+    setNewProjectOpen(true)
+    dispatchNavigation({ type: 'open-section', section: 'overview' })
+  }
+
+  const completeProjectFlow = () => {
+    const project = useBuilderStore.getState().toProject()
+    setNewProjectOpen(false)
+    setProjectCreationRequired(false)
+    pauseStorage(false)
+    dispatchNavigation({ type: 'open-section', section: 'overview' })
+    void persistProject(project).then(() => setSaveStatus('saved'))
+  }
 
   return <div className="app-shell">
     <a href={view === 'workspace' ? '#workspace-main' : '#canvas'} className="skip-link">{view === 'workspace' ? t('app.skipToWorkspace') : t('app.skipToCanvas')}</a>
     <TopBar
       view={view}
-      projects={projects}
-      onViewChange={setView}
-      onProjectChange={switchProject}
-      onProjectNameCommit={persistCurrentProject}
-      onNewProject={() => setNewProjectOpen(true)}
+      onViewChange={(nextView) => dispatchNavigation({ type: 'set-view', view: nextView })}
       onOpenWorkspaceSection={openWorkspaceSection}
       primaryHealth={primaryHealth}
     />
     {view === 'workspace'
       ? <WorkspaceShell
         activeSection={workspaceSection}
-        onSectionChange={setWorkspaceSection}
-        onViewChange={setView}
-        primaryHealth={primaryHealth}
+        lastNodeSection={lastNodeSection}
         projects={projects}
-        onProjectChange={switchProject}
-        onProjectNameCommit={persistCurrentProject}
+        onSectionChange={openWorkspaceSection}
+        onViewChange={(nextView) => dispatchNavigation({ type: 'set-view', view: nextView })}
         onNewProject={() => setNewProjectOpen(true)}
+        onSwitchProject={switchProject}
+        onRenameProject={renameStoredProject}
         onDeleteProject={deleteProject}
+        primaryHealth={primaryHealth}
       />
       : <Suspense fallback={<div className="visual-flow-loading" role="status"><Route size={22} /><span>{t('app.loading')}</span></div>}><VisualFlowWorkspace onOpenWorkspaceSection={openWorkspaceSection} /></Suspense>}
     <StatusBar view={view} health={primaryHealth} />
@@ -196,11 +240,12 @@ export function App() {
     {!hydrated && <div className="loading-screen"><img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" /><strong>ProxyFlow</strong><small>{t('app.loading')}</small></div>}
     {toast && <div className="toast" role="status"><span><Check size={12} /></span>{toast}</div>}
     <NewProjectDialog
-      open={newProjectOpen || Boolean(hydrated && primaryTarget === null && view === 'workspace')}
-      required={!newProjectOpen && Boolean(hydrated && primaryTarget === null && view === 'workspace')}
+      open={newProjectOpen || projectCreationRequired || Boolean(hydrated && primaryTarget === null && view === 'workspace')}
+      required={projectCreationRequired || (!newProjectOpen && Boolean(hydrated && primaryTarget === null && view === 'workspace'))}
+      configureExistingProject={!projectCreationRequired && Boolean(hydrated && primaryTarget === null && view === 'workspace')}
       onClose={() => setNewProjectOpen(false)}
       beforeCreate={persistCurrentProject}
-      onComplete={() => { setNewProjectOpen(false); setView('workspace'); setWorkspaceSection('overview') }}
+      onComplete={completeProjectFlow}
     />
   </div>
 }

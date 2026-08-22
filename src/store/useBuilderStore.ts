@@ -24,6 +24,7 @@ import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../
 import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
+import { normalizeValidProjectName } from '../core/project/projectName'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -86,7 +87,7 @@ interface BuilderState {
   disconnectRuntimeService: () => void
   hydrate: (project: ProxyFlowProject | null | undefined) => void
   resetToDemo: () => void
-  createNewProject: (primaryTarget?: PrimaryTarget) => void
+  createNewProject: (primaryTarget?: PrimaryTarget, name?: string) => void
   renameProject: (name: string) => boolean
   dismissRecoveryNotice: () => void
   parseSubscriptionInput: (id: string, content: string, inputKind: Extract<SubscriptionInputKind, 'paste' | 'file'>, fileName?: string) => Promise<void>
@@ -996,14 +997,15 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       })
       trackHydration(demoProject.id, rehydrateEmbeddedSubscriptions(demoProject.graph.nodes, get().parseSubscriptionInput))
     },
-    createNewProject: (primaryTarget = 'mihomo') => {
+    createNewProject: (primaryTarget = 'mihomo', name) => {
       const previous = get()
       for (const source of previous.nodes.filter((node) => node.data.blockType === 'subscription')) {
         cancelSubscriptionSource(previous.projectId, source.id)
       }
       const value = createBlankProject(primaryTarget)
+      const projectName = normalizeValidProjectName(name ?? value.name) ?? value.name
       set({
-        projectId: value.id, projectName: value.name, primaryTarget,
+        projectId: value.id, projectName, primaryTarget,
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
@@ -1014,7 +1016,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       hydrationBarrier = Promise.resolve()
     },
     renameProject: (name) => {
-      const normalized = name.trim()
+      const normalized = normalizeValidProjectName(name)
       if (!normalized) return false
       if (normalized !== get().projectName) set({ projectName: normalized, saveStatus: 'saving' })
       return true

@@ -30,6 +30,29 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount)
   })
 
+  it('creates every Strategy menu option as the expected graph block', () => {
+    const types = ['manual-select', 'auto-select', 'fallback', 'load-balance', 'proxy-chain'] as const
+    const ids = types.map((type, index) => useBuilderStore.getState().addNode(type, { x: 120 + index * 30, y: 120 })!)
+    expect(ids.every(Boolean)).toBe(true)
+    expect(ids.map((id) => useBuilderStore.getState().nodes.find((node) => node.id === id)?.data.blockType)).toEqual([...types])
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === ids[4])?.data.hopIds).toEqual([])
+  })
+
+  it('creates Service, Domain, CIDR and Port routing nodes with their matcher state', () => {
+    const service = useBuilderStore.getState().addNode('service-rule', { x: 120, y: 120 }, { routeMatcherKind: 'service', services: ['openai'] })!
+    const domain = useBuilderStore.getState().addNode('custom-rule', { x: 160, y: 120 }, { routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com' })!
+    const cidr = useBuilderStore.getState().addNode('custom-rule', { x: 200, y: 120 }, { routeMatcherKind: 'ip-cidr', routeMatcherValue: '192.0.2.0/24' })!
+    const port = useBuilderStore.getState().addNode('custom-rule', { x: 240, y: 120 }, { routeMatcherKind: 'port', routeMatcherPort: 443 })!
+    expect(useBuilderStore.getState().nodes.filter(({ id }) => [service, domain, cidr, port].includes(id)).map(({ data }) => ({
+      blockType: data.blockType, routeMatcherKind: data.routeMatcherKind, routeMatcherValue: data.routeMatcherValue, routeMatcherPort: data.routeMatcherPort,
+    }))).toEqual([
+      { blockType: 'service-rule', routeMatcherKind: 'service', routeMatcherValue: undefined, routeMatcherPort: undefined },
+      { blockType: 'custom-rule', routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com', routeMatcherPort: undefined },
+      { blockType: 'custom-rule', routeMatcherKind: 'ip-cidr', routeMatcherValue: '192.0.2.0/24', routeMatcherPort: undefined },
+      { blockType: 'custom-rule', routeMatcherKind: 'port', routeMatcherValue: '', routeMatcherPort: 443 },
+    ])
+  })
+
   it('creates pasted-link and configuration-file library actions as subscription sources', () => {
     const pastedId = useBuilderStore.getState().addLibraryNode('manual-proxy', { x: 120, y: 120 })!
     const fileId = useBuilderStore.getState().addLibraryNode('import-config', { x: 240, y: 120 })!
