@@ -111,6 +111,7 @@ UI 2.0 不改变 Project / Graph / Compiler 架构，而是把同一份 Project 
 - 14 节点的完整 Demo Blueprint
 - Source、Processing、Strategy、Chain、Routing、DNS、Output 节点视觉体系
 - Subscription、Filter、Strategy、Proxy Chain、Routing、DNS、Output 专属 Inspector
+- Target-neutral Remote Proxy Source：Mihomo 可原生 proxy-provider，sing-box 安全回退为当前 snapshot
 - URL、Paste Content 与本地 `.txt/.yaml/.yml` Subscription 输入
 - 分享链接、Base64 列表与 Clash YAML `proxies` 的内容优先格式识别
 - HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS、Hysteria2、TUIC v5 的标准化代理模型

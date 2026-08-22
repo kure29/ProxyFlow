@@ -32,6 +32,20 @@ Auto 是 provider compatibility 策略，不会根据当前 Mihomo / sing-box �
 
 浏览器原生 `fetch` 不能可靠覆盖 `User-Agent`。因此 Local Mode 会保存该字段，但浏览器直接刷新不会应用请求兼容模式；需要 provider negotiation 的 URL 应通过 Self-hosted Runtime 刷新。
 
+### Remote Source Export Mode
+
+URL Subscription 另有一个 target-neutral 导出方式；Paste、Local File 与 Manual Proxy 始终 materialized：
+
+| Mode | Semantics |
+| --- | --- |
+| Auto | 目标 capability、Request Profile 与当前处理路径可无损表达时保留远程订阅，否则导出当前 snapshot |
+| Remote | 强制目标客户端直接加载远程订阅；目标或路径不支持时编译失败，不会静默固化 |
+| Materialized | 始终导出当前已解析节点，用于固定当前节点版本 |
+
+旧 Project 中没有该字段的 URL Source 会迁移为 Materialized，保持历史输出不变；新建 URL Source 默认 Auto。切换 Primary Target 不会修改 Source 的导出方式。
+
+Remote export 不跳过 fetch 或 parse。ProxyFlow 仍保留当前 snapshot 用于 Nodes Preview、地区与兼容性分析、processing preview、semantic validation，以及不支持 native remote 的目标回退。目标客户端之后自行刷新时，运行时节点可能与当前 snapshot 不同，Compiler 会产生 `REMOTE_SOURCE_RUNTIME_DRIFT` info。
+
 ## Supported Protocols
 
 下表表示当前 v0.7.0 沿用的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
@@ -110,10 +124,11 @@ Filter 的 persistent model 使用可选字段，不提升 Project Schema V2：K
 
 ## Target Compilation
 
-Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的标准代理注入 Universal IR。Target Compiler 只消费 IR：
+Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的标准代理与 target-neutral remote descriptor 一并注入 Universal IR。Target Compiler 只消费 IR：
 
-- Mihomo：没有本地处理需求的未解析 URL 仍可保留为 remote `proxy-provider`；Paste、File、已刷新 URL 或任何需要本地处理的集合生成 explicit `proxies`。
-- sing-box：Subscription 必须先 materialize，再生成 explicit outbound；未解析 URL 返回 `SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES`。
+- Mihomo：有当前 snapshot、未经过 processing、Request Profile 为 Auto 或 Mihomo / Clash.Meta 的 URL Source 可降低为 HTTP `proxy-provider`；策略组以 `use` 引用稳定 provider key。Auto 使用 `Clash.Meta` 作为目标原生请求标识，但目标无法复现 Runtime 的多 UA fallback chain，因此产生 `REMOTE_REQUEST_FALLBACK_NOT_PORTABLE` info。
+- Mihomo：sing-box / Generic Request Profile、所有 Transform、Fixed identity 与 Proxy Chain hop 在 Auto 下 materialize；Remote 模式下返回稳定 error。Provider 使用 target 的确定性 refresh interval，不复用 Runtime scheduler interval。
+- sing-box：当前未声明 native remote proxy source capability；Auto / Materialized 生成 explicit outbound，Remote 返回 `REMOTE_SOURCE_TARGET_UNSUPPORTED` 与 `REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED`。
 - 两个目标都从同一规范化节点集合生成基础协议、Reality/Vision、Hysteria2、TUIC 与可靠的现代 transport。Hysteria2 端口范围由 target lowering 分别写成 Mihomo `start-end` 与 sing-box `start:end`。
 - sing-box 1.13.14 的 HTTP V2Ray transport 由 TLS 状态决定 HTTP/1.1 或 HTTP/2：仅 HTTP+无 TLS 与 H2+TLS 能保留当前 IR intent；HTTP+TLS 返回 `SINGBOX_TRANSPORT_HTTP_TLS_VARIANT_UNSUPPORTED`，H2+无 TLS 返回 `SINGBOX_TRANSPORT_H2_REQUIRES_TLS`。
 - XHTTP 只 lowering 到 Mihomo；sing-box 1.13.14 返回 `SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED` 并失败闭合。
@@ -133,3 +148,4 @@ Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的�
 - AnyTLS URI 的 `keepalive` 尚无经过验证的跨目标 portable semantic mapping，因此不会生成猜测的 IR 或 lowering；它继续以 `PROXY_PARAMS_UNRECOGNIZED` warning 可见。
 - 地区识别来自名称 hint，不检查 IP、ASN 或 GeoIP。
 - Project Schema 保持 V2：新增项目字段均为可选，派生结果不进入 Project；Universal IR 仍保持 V2，因为此次扩展不破坏既有实体语义。
+- Remote export 会把 URL（通常含 credential）写入用户主动导出的目标配置；URL 不会进入 diagnostic message 或日志。ProxyFlow 不开放 custom header，Mihomo header 只由白名单 Request Profile adapter 生成。

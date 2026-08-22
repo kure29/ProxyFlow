@@ -1,4 +1,6 @@
 export * from './materialize'
+export * from './lineage'
+export * from './remoteSourcePlanner'
 export * from './limitValue'
 export * from './processingExplanation'
 export * from './projectRuntime'

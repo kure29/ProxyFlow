@@ -3,7 +3,7 @@ import type { TargetClient, OutputDefinition, MihomoOutputProfile } from './outp
 import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
-import type { SubscriptionRequestProfile } from '../core/subscription/types'
+import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -76,6 +76,7 @@ export interface BlockNodeData extends Record<string, unknown> {
   subscriptionUrl?: string
   subscriptionInputKind?: 'url' | 'paste' | 'file'
   subscriptionRequestProfile?: SubscriptionRequestProfile
+  subscriptionExportMode?: SubscriptionExportMode
   subscriptionContent?: string
   subscriptionFileName?: string
   proxyProtocol?: SupportedProxyProtocol | 'socks'

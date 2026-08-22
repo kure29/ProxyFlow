@@ -37,8 +37,9 @@ Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不�
 
 | Universal feature | Mihomo | sing-box 1.13.14 | Notes |
 | --- | --- | --- | --- |
-| Unresolved Subscription URL | HTTP proxy-provider | Error | sing-box 需要 materialized outbound；返回 `SINGBOX_SOURCE_REQUIRES_RESOLVED_PROXIES` |
-| Materialized Subscription | explicit proxies | explicit outbounds | Supported |
+| URL Subscription / Auto | HTTP proxy-provider | explicit outbounds | Remote capability unsupported，使用当前 snapshot |
+| URL Subscription / Remote | HTTP proxy-provider | Error | 返回 `REMOTE_SOURCE_TARGET_UNSUPPORTED` / `REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED` |
+| URL Subscription / Materialized | explicit proxies | explicit outbounds | Supported |
 | Provider URL | HTTP proxy-provider | Error | 不伪造不存在的 provider outbound |
 | Manual SOCKS5 | `socks5` proxy | `socks` outbound | Supported |
 | Manual HTTP | `http` proxy | `http` outbound | Supported |

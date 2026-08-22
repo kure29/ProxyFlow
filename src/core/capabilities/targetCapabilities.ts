@@ -1,6 +1,7 @@
 import type { SupportedProxyProtocol } from '../proxy'
 import type { BlockType, RouteMatcherKind } from '../../types/project'
 import type { RuleSource } from '../../types/services'
+import type { SubscriptionRequestProfile } from '../subscription'
 
 export const PRIMARY_TARGETS = ['mihomo', 'sing-box'] as const
 
@@ -18,6 +19,19 @@ export interface CapabilityDeclaration {
   notes?: string
 }
 
+export interface RemoteProxySourceCapabilities {
+  source: CapabilityDeclaration
+  refresh: CapabilityDeclaration
+  requestHeaders: CapabilityDeclaration
+  filtering: CapabilityDeclaration
+  rename: CapabilityDeclaration
+  exclude: CapabilityDeclaration
+  override: CapabilityDeclaration
+  multipleSourcesInGroup: CapabilityDeclaration
+  mixedWithExplicitMembers: CapabilityDeclaration
+  requestProfiles: readonly SubscriptionRequestProfile[]
+}
+
 export interface TargetCapabilityProfile {
   target: PrimaryTarget
   label: string
@@ -29,6 +43,7 @@ export interface TargetCapabilityProfile {
   ruleSources: Record<RuleSourceFormat, CapabilityDeclaration>
   dns: Record<DnsCapability, CapabilityDeclaration>
   chains: Record<ChainCapability, CapabilityDeclaration>
+  remoteProxySource: RemoteProxySourceCapabilities
   native: Record<string, CapabilityDeclaration>
 }
 
@@ -106,6 +121,18 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'multi-hop': partial('MIHOMO_CHAIN_PROTOCOL_LIMITATION'),
       'provider-hop': partial('MIHOMO_CHAIN_PROTOCOL_LIMITATION'),
     },
+    remoteProxySource: {
+      source: targetNative('HTTP proxy-provider lowering.'),
+      refresh: supported('Mihomo refreshes HTTP proxy providers by interval.'),
+      requestHeaders: targetNative('Only allowlisted headers derived from Request Profile are emitted.'),
+      filtering: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      rename: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      exclude: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      override: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      multipleSourcesInGroup: supported(),
+      mixedWithExplicitMembers: supported(),
+      requestProfiles: ['auto', 'mihomo'],
+    },
     native: {
       'desktop-tun': targetNative('Mihomo-only listener, TUN, DNS, and sniffer output profile.'),
       'domain-sniffer': targetNative('Mihomo HTTP, TLS, and QUIC sniffing configuration.'),
@@ -172,6 +199,18 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'single-hop': supported(),
       'multi-hop': partial('SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND'),
       'provider-hop': unsupported('SINGBOX_CHAIN_REQUIRES_RESOLVED_OUTBOUND'),
+    },
+    remoteProxySource: {
+      source: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      refresh: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      requestHeaders: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      filtering: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      rename: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      exclude: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      override: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      multipleSourcesInGroup: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      mixedWithExplicitMembers: unsupported('REMOTE_SOURCE_TARGET_UNSUPPORTED'),
+      requestProfiles: [],
     },
     native: {
       'runtime-inbound': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),

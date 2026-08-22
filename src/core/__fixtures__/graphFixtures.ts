@@ -39,7 +39,9 @@ const project = (id: string, nodes: GraphNode[], edges: GraphEdge[]): ProxyFlowP
   updatedAt: '2026-08-15T00:00:00.000Z',
 })
 
-const subscription = (id: string) => node(id, 'subscription', 'source', { subscriptionUrl: `https://example.com/${id}`, enabled: true })
+const subscription = (id: string) => node(id, 'subscription', 'source', {
+  subscriptionUrl: `https://example.com/${id}`, subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', subscriptionExportMode: 'auto', enabled: true,
+})
 const output = () => node('output', 'output', 'output', { client: 'mihomo' })
 const final = (targetId: string) => node('final', 'final', 'routing', { targetId, targetLabel: targetId })
 const validTail = (targetId: string) => ({
@@ -177,7 +179,9 @@ export const hkUsChainFixture = chainFixture('hk-us-chain', ['hk-auto', 'us-auto
 export const hkJpUsChainFixture = chainFixture('hk-jp-us-chain', ['hk-auto', 'jp-auto', 'us-auto'])
 
 function chainFixture(id: string, hopIds: string[]) {
-  const sourceNodes = hopIds.map((hopId) => subscription(`${hopId}-source`))
+  const sourceNodes = hopIds.map((hopId) => node(`${hopId}-source`, 'provider', 'source', {
+    subscriptionUrl: `https://example.com/${hopId}-source`, enabled: true,
+  }))
   const strategyNodes = hopIds.map((hopId) => node(hopId, 'auto-select', 'strategy'))
   const tail = validTail('chain')
   return project(id, [
@@ -197,21 +201,24 @@ function chainFixture(id: string, hopIds: string[]) {
 export const manualSelectFixture = strategyFixture(
   'manual-select',
   node('strategy', 'manual-select', 'strategy'),
-  [subscription('source')],
+  [node('source', 'provider', 'source', { subscriptionUrl: 'https://example.com/source', enabled: true })],
   [edge('e-source-strategy', 'source', 'strategy', 'data')],
 )
 
 export const fallbackFixture = strategyFixture(
   'fallback',
   node('strategy', 'fallback', 'strategy'),
-  [subscription('source-a'), subscription('source-b')],
+  [
+    node('source-a', 'provider', 'source', { subscriptionUrl: 'https://example.com/source-a', enabled: true }),
+    node('source-b', 'provider', 'source', { subscriptionUrl: 'https://example.com/source-b', enabled: true }),
+  ],
   [edge('e-a-strategy', 'source-a', 'strategy', 'data'), edge('e-b-strategy', 'source-b', 'strategy', 'data')],
 )
 
 export const loadBalanceFixture = strategyFixture(
   'load-balance',
   node('strategy', 'load-balance', 'strategy', { loadBalanceMode: 'consistent-hash' }),
-  [subscription('source')],
+  [node('source', 'provider', 'source', { subscriptionUrl: 'https://example.com/source', enabled: true })],
   [edge('e-source-strategy', 'source', 'strategy', 'data')],
 )
 

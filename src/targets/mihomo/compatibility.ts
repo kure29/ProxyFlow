@@ -14,7 +14,7 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
   const materialization = createMaterializationContext()
 
   for (const source of ir.sources) {
-    if (source.kind === 'subscription' && !source.proxies && !isSafeRemoteUrl(source.url)) issues.push(mihomoIssue(
+    if (source.kind === 'subscription' && source.remote && (!isSafeRemoteUrl(source.remote.url) || !isSafeRemoteUrl(source.url))) issues.push(mihomoIssue(
       'MIHOMO_INVALID_PROVIDER_URL', 'error', 'source', `Subscription “${source.name}” 必须使用 http/https URL。`, source.id,
     ))
     if (source.kind === 'provider' && !isSafeRemoteUrl(source.reference)) issues.push(mihomoIssue(
@@ -52,8 +52,8 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
   }
 
   for (const strategy of ir.strategies) {
-    if (strategy.kind === 'fixed' && !ir.sources.some((source) => source.kind === 'manual-proxy'
-      && source.proxies.some((proxy) => proxy.id === strategy.proxyId && !isUnmodeledProxy(proxy)))) issues.push(mihomoIssue(
+    if (strategy.kind === 'fixed' && !ir.sources.some((source) => (source.kind === 'manual-proxy' || source.kind === 'subscription' && source.proxies)
+      && (source.proxies ?? []).some((proxy) => proxy.id === strategy.proxyId && !isUnmodeledProxy(proxy)))) issues.push(mihomoIssue(
       'MIHOMO_FIXED_PROXY_UNRESOLVED', 'error', 'strategy',
       `Fixed strategy “${strategy.name}” 没有可解析的 HTTP/SOCKS endpoint。`, strategy.id,
     ))

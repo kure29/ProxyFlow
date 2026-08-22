@@ -45,7 +45,14 @@ function baseIR(): ProxyFlowIR {
   return {
     version: PROXYFLOW_IR_VERSION,
     metadata: { projectId: 'mihomo-test', projectName: 'Mihomo Test', projectSchemaVersion: 2 },
-    sources: [{ kind: 'subscription', id: 'source', name: 'Provider', url: 'https://example.com/provider.yaml', enabled: true }],
+    sources: [{
+      kind: 'subscription', id: 'source', name: 'Provider', url: 'https://example.com/provider.yaml', enabled: true,
+      proxies: [{ kind: 'socks', protocol: 'socks5', version: '5', id: 'source-proxy', name: 'Source Proxy', server: 'proxy.example.com', port: 1080 }],
+      remote: {
+        kind: 'remote-subscription', id: 'source', name: 'Provider', url: 'https://example.com/provider.yaml', requestProfile: 'auto', exportMode: 'auto',
+        snapshot: { id: 'source-snapshot', contentHash: 'fictional-hash', fetchedAt: '2026-08-22T00:00:00.000Z' },
+      },
+    }],
     transforms: [],
     strategies: [{ kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' } }],
     services: [{
@@ -300,7 +307,9 @@ describe('MihomoCompiler', () => {
     const fallback = parseConfig(compileGraph(fallbackFixture).ir!).config['proxy-groups']?.[0]
     const balance = parseConfig(compileGraph(loadBalanceFixture).ir!).config['proxy-groups']?.[0]
     expect(select).toEqual(expect.objectContaining({ type: 'select', use: ['source'] }))
-    expect(fallback).toEqual(expect.objectContaining({ type: 'fallback', use: ['source-a', 'source-b'] }))
+    expect(fallback).toEqual(expect.objectContaining({
+      type: 'fallback', use: ['source-a', 'source-b'],
+    }))
     expect(balance).toEqual(expect.objectContaining({ type: 'load-balance', strategy: 'consistent-hashing' }))
   })
 
@@ -359,7 +368,7 @@ describe('MihomoCompiler', () => {
 
   it('resolves group name collisions and updates route references', () => {
     const ir = baseIR()
-    ir.sources.push({ kind: 'subscription', id: 'source-2', name: 'Provider 2', url: 'https://example.com/2.yaml', enabled: true })
+    ir.sources.push({ kind: 'provider', id: 'source-2', name: 'Provider 2', reference: 'https://example.com/2.yaml', enabled: true })
     ir.strategies[0].name = 'Duplicate'
     ir.strategies.push({ kind: 'auto-select', id: 'auto-2', name: 'Duplicate', source: { kind: 'source', id: 'source-2' } })
     ir.finalRoute = { target: { kind: 'strategy', id: 'auto-2' } }
@@ -380,7 +389,7 @@ describe('MihomoCompiler', () => {
     unsupported.strategies[0] = { kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'transform', id: 'sort' } }
     const transformResult = compileMihomo(unsupported, { now: fixedNow })
     expect(transformResult.success).toBe(false)
-    expect(transformResult.issues.map((issue) => issue.code)).toContain('MIHOMO_SOURCE_UNAVAILABLE')
+    expect(transformResult.issues.map((issue) => issue.code)).toContain('MIHOMO_SPEED_TEST_REQUIRED')
   })
 
   it('fails closed for an unresolved Fixed proxy independently of the selected output', () => {
