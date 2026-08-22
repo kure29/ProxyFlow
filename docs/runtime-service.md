@@ -1,6 +1,6 @@
 # ProxyFlow Runtime Service MVP
 
-Status: V0.10 core with V1.0 RC4 deployment hardening
+Status: V0.10 core with V1.0 RC5 deployment hardening
 
 Runtime Service is an optional, self-hosted, single-user companion for
 browser-limited subscription runtime work. Local Mode remains the default:
@@ -19,7 +19,7 @@ uses one host port and one persistent data directory.
 
 ## Self-hosted Manager
 
-Download and inspect the RC4 manager before running it:
+Download and inspect the RC5 manager before running it:
 
 ```bash
 curl -fL --output proxyflow.sh \
@@ -35,7 +35,7 @@ backend automatically and does not ask for a Runtime URL or API token.
 
 The manager supports `install`, `update`, `start`, `stop`, `restart`, `status`,
 `logs`, `backup`, `uninstall`, and `help`. Direct Compose usage defaults to the
-immutable image `ghcr.io/kure29/proxyflow:1.0.0-rc.4`. Managed installs use
+immutable image `ghcr.io/kure29/proxyflow:1.0.0-rc.5`. Managed installs use
 the `rc` channel, which maps to `ghcr.io/kure29/proxyflow:rc`.
 `PROXYFLOW_PORT`,
 `PROXYFLOW_HOME`, `PROXYFLOW_DATA_DIR`, `PROXYFLOW_BIND_ADDRESS`, and
@@ -63,8 +63,8 @@ schedules, and other server Runtime state only.
 
 Existing RC2 servers need one manager-script replacement so the saved
 `PROXYFLOW_IMAGE_MANAGED=true` installation can move from the old immutable pin
-to the `rc` channel. Run these commands as root only after the RC4 container
-workflow has published both `:1.0.0-rc.4` and `:rc`:
+to the `rc` channel. Run these commands as root only after the RC5 container
+workflow has published both `:1.0.0-rc.5` and `:rc`:
 
 ```bash
 manager_tmp="$(mktemp /tmp/proxyflow-manager.XXXXXX)"
