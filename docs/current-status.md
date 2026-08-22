@@ -6,7 +6,7 @@ Updated: 2026-08-22
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `75de6b8` (PR #18, restored navigation and mobile header polish)
+- `origin/main`: `39f8b06` (PR #20, subscription provider compatibility)
 - Product Direction PR #9 is merged.
 
 ## Responsive Layout Refactor
@@ -282,18 +282,21 @@ Updated: 2026-08-22
 
 ## Current Slice
 
-- RC4 release branch: `release/1.0.0-rc.4`, based on current `main` at
-  `75de6b8` after PR #18 restored the accepted post-PR15 UI work.
+- RC5 release branch: `release/1.0.0-rc.5`, based on current `main` at
+  `39f8b06` after PR #20 added the accepted subscription compatibility work.
 - Scope is limited to the release version advance and its deployment,
   Runtime-version, and documentation expectations. Project, Graph, IR,
   compiler, export, routing, UI, and subscription semantics remain unchanged.
-- Package and immutable Compose defaults advance to `1.0.0-rc.4`; managed
+- Package and immutable Compose defaults advance to `1.0.0-rc.5`; managed
   installs use the `rc` channel, explicit image pins remain fixed, and the
   container tag workflow maps RC releases to `:rc` and stable releases to
   `:latest`.
-- Local automated, Web/Runtime build, deployment, TypeScript, and diff checks
-  passed. PR review and CI remain pending; no tag or container publication has
-  occurred.
+- RC5 carries the already-merged URL Subscription Request Profiles, bounded
+  provider User-Agent negotiation, compatible AnyTLS URI normalization, and
+  bounded gzip/deflate/Brotli Runtime decoding. SSRF policy remains unchanged.
+- Local automated, Web/Runtime build, deployment, TypeScript, Compose, and diff
+  checks passed. PR review and CI remain pending; no tag or container
+  publication has occurred.
 
 ## Remaining UI 2.0 Slices
 
@@ -305,13 +308,25 @@ Updated: 2026-08-22
 
 ## Next
 
-1. Open the RC4 release-only PR to `main`.
+1. Open the RC5 release-only PR to `main`.
 2. Wait for all CI checks and authorized review without merging autonomously.
-3. After an authorized merge, tag `v1.0.0-rc.4`, confirm both immutable and
+3. After an authorized merge, tag `v1.0.0-rc.5`, confirm both immutable and
    `rc` channel tags resolve to one digest, then hand the update command to
    Self-hosted users.
 
 ## Latest Validation
+
+### V1.0 RC5 release preparation
+
+- `npm test -- --run` passed 606/606 tests across 67 files. The expected Node
+  22 experimental SQLite notice was the only test warning.
+- Web and Runtime production builds passed; the largest Web chunk is
+  `481.06 kB`, and `runtime-dist/server.js` is `222.36 kB`.
+- Deployment manager tests passed 20/20, including RC2 and RC3 migration,
+  RC4-to-RC5 managed update through `:rc`, RC4 manual pin preservation,
+  `rc -> :rc`, and `stable -> :latest`.
+- `npx tsc -b`, fictional `docker compose config --quiet`, and
+  `git diff --check` passed.
 
 ### V1.0 RC4 release preparation
 

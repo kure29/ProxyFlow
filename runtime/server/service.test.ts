@@ -227,7 +227,7 @@ describe('Runtime Service', () => {
     await writeFile(join(webRoot, 'index.html'), '<!doctype html><title>ProxyFlow</title>')
     await writeFile(join(webRoot, 'assets', 'app.js'), 'export {}')
     const service = createRuntimeService({
-      token, sameOrigin: true, staticDirectory: webRoot, version: '1.0.0-rc.4',
+      token, sameOrigin: true, staticDirectory: webRoot, version: '1.0.0-rc.5',
       fetcher: sequenceFetcher(yamlBody('Ready', '198.51.100.10')),
       repository: new SqliteRuntimeRepository(':memory:'), schedulerIntervalMs: 60_000,
     })
@@ -245,7 +245,7 @@ describe('Runtime Service', () => {
       expect((await fetch(`${base}/%2e%2e/package.json`)).status).toBe(404)
 
       const health = await fetch(`${base}/health`).then((response) => response.json())
-      expect(health).toEqual(expect.objectContaining({ version: '1.0.0-rc.4', web: 'ready', backend: 'ready', scheduler: 'ready' }))
+      expect(health).toEqual(expect.objectContaining({ version: '1.0.0-rc.5', web: 'ready', backend: 'ready', scheduler: 'ready' }))
 
       const discovered = await fetch(`${base}/api/v1/self-hosted`, { headers: { Origin: base } })
       expect(discovered.status).toBe(200)
