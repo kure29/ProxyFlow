@@ -5,17 +5,21 @@ import {
 } from '../utils'
 
 const KNOWN_PARAMS = new Set([
-  'sni', 'insecure', 'fp', 'client-fingerprint', 'alpn',
+  'sni', 'security', 'type', 'insecure', 'allowInsecure', 'allow_insecure', 'allow-insecure',
+  'fp', 'client-fingerprint', 'alpn',
   'idle-session-check-interval', 'idle-session-timeout', 'min-idle-session',
 ])
+const KNOWN_PARAM_NAMES = new Set([...KNOWN_PARAMS].map((value) => value.toLocaleLowerCase()))
 const CRITICAL_UNSUPPORTED_PARAMS = new Set([
-  'security', 'flow', 'type', 'network', 'transport', 'reality', 'pbk', 'sid', 'ech', 'pinsha256',
+  'flow', 'network', 'transport', 'reality', 'pbk', 'sid', 'ech', 'pinsha256',
   'certificate-fingerprint', 'fingerprint', 'disable-sni', 'disable_sni', 'servername', 'server-name',
-  'allow_insecure', 'allow-insecure', 'skip-cert-verify', 'udp', 'client-metadata',
+  'skip-cert-verify', 'udp', 'client-metadata',
 ])
+const INSECURE_PARAM_NAMES = ['insecure', 'allowInsecure', 'allow_insecure', 'allow-insecure']
 const CRITICAL_PARAM_GROUPS = [
   { feature: 'sni', names: ['sni'] },
-  { feature: 'allow-insecure', names: ['insecure'], caseInsensitive: true },
+  { feature: 'security', names: ['security'], caseInsensitive: true },
+  { feature: 'transport', names: ['type'], caseInsensitive: true },
   { feature: 'client-fingerprint', names: ['fp', 'client-fingerprint'], caseInsensitive: true },
   { feature: 'alpn', names: ['alpn'] },
   { feature: 'idle-session-check-interval', names: ['idle-session-check-interval'] },
@@ -35,11 +39,19 @@ export function parseAnyTlsLink(input: string, context: ProtocolParseContext): P
     const unsupportedFeatures: string[] = []
     const duplicateParams = duplicateParamNames(params)
     const conflictingParams = conflictingParamGroups(params, CRITICAL_PARAM_GROUPS)
+    const insecureValues = INSECURE_PARAM_NAMES.flatMap((key) => params.getAll(key))
+    const parsedInsecureValues = insecureValues.map((value) => booleanValue(value))
+    const invalidInsecure = parsedInsecureValues.some((value) => value === undefined)
+    const insecureConflict = new Set(parsedInsecureValues.filter((value): value is boolean => value !== undefined)).size > 1
+    if (insecureConflict) conflictingParams.push('allow-insecure')
     unsupportedFeatures.push(...conflictingParams.map((feature) => `conflicting-param:${feature}`))
 
-    const insecureValue = params.get('insecure')
-    const allowInsecure = booleanValue(insecureValue)
-    if (insecureValue !== null && allowInsecure === undefined) unsupportedFeatures.push('tls:invalid-allow-insecure')
+    const allowInsecure = !invalidInsecure && !insecureConflict ? parsedInsecureValues[0] : undefined
+    if (invalidInsecure) unsupportedFeatures.push('tls:invalid-allow-insecure')
+    const invalidSecurity = params.getAll('security').some((value) => value.trim().toLocaleLowerCase() !== 'tls')
+    const invalidTransport = params.getAll('type').some((value) => value.trim().toLocaleLowerCase() !== 'tcp')
+    if (invalidSecurity) unsupportedFeatures.push('security:security')
+    if (invalidTransport) unsupportedFeatures.push('transport:type')
     const sniValue = params.get('sni')
     if (sniValue !== null && !sniValue.trim()) unsupportedFeatures.push('tls:invalid-server-name')
     const alpnValue = params.get('alpn')
@@ -55,17 +67,17 @@ export function parseAnyTlsLink(input: string, context: ProtocolParseContext): P
     if (params.has('idle-session-timeout') && idleSessionTimeoutSeconds === undefined) unsupportedFeatures.push('anytls:invalid-idle-session-timeout')
     if (params.has('min-idle-session') && minIdleSession === undefined) unsupportedFeatures.push('anytls:invalid-min-idle-session')
 
-    const unknownParams = [...new Set([...params.keys()].filter((key) => !KNOWN_PARAMS.has(key.toLocaleLowerCase()) && !CRITICAL_UNSUPPORTED_PARAMS.has(key.toLocaleLowerCase())))].sort()
+    const unknownParams = [...new Set([...params.keys()].filter((key) => !KNOWN_PARAMS.has(key) && !KNOWN_PARAM_NAMES.has(key.toLocaleLowerCase()) && !CRITICAL_UNSUPPORTED_PARAMS.has(key.toLocaleLowerCase())))].sort()
     const unsupportedSecurityParams = [...new Set([...params.keys()].filter((key) => {
       const normalized = key.toLocaleLowerCase()
-      return CRITICAL_UNSUPPORTED_PARAMS.has(normalized) || KNOWN_PARAMS.has(normalized) && key !== normalized
+      return CRITICAL_UNSUPPORTED_PARAMS.has(normalized) || KNOWN_PARAM_NAMES.has(normalized) && !KNOWN_PARAMS.has(key)
     }))].sort()
     unsupportedFeatures.push(...unsupportedSecurityParams.map((key) => `security:${key}`))
 
     if (duplicateParams.length) issues.push(subscriptionIssue('DUPLICATE_QUERY_PARAM', 'warning', `AnyTLS endpoint contains duplicate parameters: ${duplicateParams.join(', ')}.`, { nodeName: name, line: context.line }))
     if (conflictingParams.length) issues.push(subscriptionIssue('PROXY_PARAMS_CONFLICT', 'warning', 'AnyTLS endpoint contains conflicting connection-critical parameters.', { nodeName: name, line: context.line }))
     if (unknownParams.length) issues.push(subscriptionIssue('PROXY_PARAMS_UNRECOGNIZED', 'warning', `AnyTLS endpoint contains unrecognized parameters: ${unknownParams.join(', ')}.`, { nodeName: name, line: context.line }))
-    if (unsupportedSecurityParams.length) issues.push(subscriptionIssue('PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED', 'warning', 'AnyTLS endpoint contains unsupported connection-critical semantics and was blocked.', { nodeName: name, line: context.line }))
+    if (unsupportedSecurityParams.length || invalidSecurity || invalidTransport || invalidInsecure) issues.push(subscriptionIssue('PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED', 'warning', 'AnyTLS endpoint contains unsupported connection-critical semantics and was blocked.', { nodeName: name, line: context.line }))
     if (unsupportedFeatures.some((feature) => feature.startsWith('anytls:invalid-'))) issues.push(subscriptionIssue('PROXY_ANYTLS_IDLE_SESSION_INVALID', 'warning', 'AnyTLS endpoint contains invalid idle-session settings.', { nodeName: name, line: context.line }))
     if (unsupportedFeatures.length) issues.push(subscriptionIssue('PROXY_VARIANT_PARTIAL', 'warning', 'AnyTLS endpoint contains semantics that cannot be lowered reliably.', { nodeName: name, line: context.line }))
 
@@ -81,7 +93,9 @@ export function parseAnyTlsLink(input: string, context: ProtocolParseContext): P
       ...(idleSessionCheckIntervalSeconds !== undefined ? { idleSessionCheckIntervalSeconds } : {}),
       ...(idleSessionTimeoutSeconds !== undefined ? { idleSessionTimeoutSeconds } : {}),
       ...(minIdleSession !== undefined ? { minIdleSession } : {}),
-    }, context, issues, unsupportedFeatures.length ? { status: 'partial', unsupportedFeatures } : undefined)
+    }, context, issues, unsupportedFeatures.length
+      ? { status: 'partial', unsupportedFeatures, ...(unknownParams.length ? { unrecognizedParams: unknownParams } : {}) }
+      : unknownParams.length ? { status: 'ready', unrecognizedParams: unknownParams } : undefined)
   } catch {
     const issue = subscriptionIssue('PROXY_LINK_MALFORMED', 'error', 'AnyTLS endpoint is missing a valid password, server, or port.', { line: context.line })
     return unsupportedNode('anytls', 'Malformed AnyTLS node', context, issue)

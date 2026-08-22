@@ -251,6 +251,8 @@ const issueCopy: Record<string, Record<Locale, string>> = {
   SUBSCRIPTION_RUNTIME_UNAVAILABLE: { 'en-US': 'The Runtime Service is unavailable or could not authenticate the request.', 'zh-CN': 'Runtime Service 不可用或无法完成请求认证。' },
   SUBSCRIPTION_RUNTIME_POLICY_BLOCKED: { 'en-US': 'The Runtime Service resolved the destination or redirect to a private or non-public address and blocked it.', 'zh-CN': 'Runtime Service 将订阅目标或重定向解析为私有或非公网地址，因此已阻止请求。' },
   SUBSCRIPTION_TLS_ERROR: { 'en-US': 'The Runtime Service could not establish a trusted TLS connection.', 'zh-CN': 'Runtime Service 无法建立可信的 TLS 连接。' },
+  SUBSCRIPTION_REQUEST_PROFILE_INVALID: { 'en-US': 'The subscription request profile is invalid.', 'zh-CN': '订阅请求兼容模式无效。' },
+  SUBSCRIPTION_CONTENT_ENCODING_ERROR: { 'en-US': 'The subscription response uses an unsupported or invalid content encoding.', 'zh-CN': '订阅响应使用了不支持或无效的内容编码。' },
   SUBSCRIPTION_TOO_LARGE: { 'en-US': 'The subscription exceeds the browser size limit.', 'zh-CN': '订阅内容超过浏览器大小限制。' },
   SUBSCRIPTION_UNSUPPORTED_FORMAT: { 'en-US': 'The subscription format is not supported.', 'zh-CN': '不支持该订阅格式。' },
   SUBSCRIPTION_PARSE_FAILED: { 'en-US': 'The subscription could not be parsed.', 'zh-CN': '订阅内容无法解析。' },

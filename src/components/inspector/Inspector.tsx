@@ -17,7 +17,8 @@ import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
 import { proxyProtocolLabel, REGION_CATALOG, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
 import {
-  snapshotFreshness, type SubscriptionFreshness, type SubscriptionRefreshError, type SubscriptionRuntimeRecord,
+  normalizeSubscriptionRequestProfile, snapshotFreshness, type SubscriptionFreshness, type SubscriptionRefreshError,
+  type SubscriptionRequestProfile, type SubscriptionRuntimeRecord,
 } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeOrder } from '../../core/routing/routeProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
@@ -82,6 +83,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
   const [scheduleInterval, setScheduleInterval] = useState(900)
   const [serviceMessage, setServiceMessage] = useState<string | null>(null)
   const inputKind = node.data.subscriptionInputKind ?? 'url'
+  const requestProfile = normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile)
   useEffect(() => { if (clearConfirmOpen) clearCancelRef.current?.focus() }, [clearConfirmOpen])
   useEffect(() => {
     if (inputKind === 'paste') setPaste(node.data.subscriptionContent ?? '')
@@ -109,7 +111,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
     if (!runtimeProvider) return
     try {
       if (schedule?.enabled) { await runtimeProvider.clearSchedule(); setSchedule(null) }
-      else { const next = await runtimeProvider.saveSchedule(node.data.subscriptionUrl ?? '', scheduleInterval, true); setSchedule(next) }
+      else { const next = await runtimeProvider.saveSchedule(node.data.subscriptionUrl ?? '', scheduleInterval, true, requestProfile); setSchedule(next) }
       setServiceMessage(null)
     } catch { setServiceMessage(t('runtime.sourceUnavailable')) }
   }
@@ -128,6 +130,7 @@ function SubscriptionInspector({ node }: InspectorProps) {
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     {inputKind === 'url' && <TextField node={node} field="subscriptionUrl" label={t('inspector.subscriptionUrl')} placeholder="https://…" />}
+    {inputKind === 'url' && <Field label={t('inspector.requestProfile')} hint={runtimeService ? t('inspector.requestProfileHint') : t('inspector.requestProfileLocalHint')}><select value={requestProfile} onChange={(event) => update(node.id, { subscriptionRequestProfile: event.target.value as SubscriptionRequestProfile })}><option value="auto">{t('inspector.requestProfile.auto')}</option><option value="mihomo">{t('inspector.requestProfile.mihomo')}</option><option value="sing-box">{t('inspector.requestProfile.singBox')}</option><option value="generic">{t('inspector.requestProfile.generic')}</option></select></Field>}
     {inputKind === 'paste' && <div className="source-input-panel"><Field label={t('inspector.nodeLinks')} hint={t('inspector.nodeLinksHint')}><textarea className="node-links-input" value={paste} onChange={(event) => setPaste(event.target.value)} placeholder={'vmess://…\nvless://…\nss://…'} /></Field><button className="inspector-primary-button" disabled={!paste.trim()} onClick={() => void parseInput(node.id, paste, 'paste')}><ClipboardPaste size={15} /> {t('inspector.parseImport')}</button></div>}
     {inputKind === 'file' && <button type="button" className="config-file-picker" onClick={() => fileRef.current?.click()}><FileUp size={20} /><span><strong>{node.data.subscriptionFileName ?? t('inspector.noFileSelected')}</strong><small>{node.data.subscriptionFileName ? t('inspector.replaceConfigFile') : t('inspector.chooseConfigFile')}</small></span></button>}
     <label className="toggle-row"><span><strong>{t('inspector.enableSubscription')}</strong><small>{t('inspector.enableSubscriptionHint')}</small></span><input type="checkbox" checked={node.data.enabled ?? false} onChange={(event) => update(node.id, { enabled: event.target.checked })} /></label>
@@ -199,6 +202,7 @@ function sourceErrorMessage(
   if (error.code === 'SUBSCRIPTION_RUNTIME_UNAVAILABLE') return t('inspector.sourceError.runtimeUnavailable')
   if (error.code === 'SUBSCRIPTION_RUNTIME_POLICY_BLOCKED') return t('inspector.sourceError.runtimePolicyBlocked')
   if (error.code === 'SUBSCRIPTION_TLS_ERROR') return t('inspector.sourceError.tls')
+  if (error.code === 'SUBSCRIPTION_CONTENT_ENCODING_ERROR') return t('inspector.sourceError.contentEncoding')
   if (error.code === 'SUBSCRIPTION_TIMEOUT') return t('inspector.sourceError.timeout')
   if (error.code === 'SUBSCRIPTION_HTTP_ERROR') {
     const status = localizeDiagnosticMessage(error.code, error.message, locale)

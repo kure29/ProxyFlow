@@ -13,7 +13,7 @@ import {
 } from '../core/runtime'
 import {
   commitCandidate, createSnapshotCandidate, diffSubscriptionSnapshots, mapWithConcurrency, parseSubscription, RefreshCoordinator,
-  snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
+  normalizeSubscriptionRequestProfile, snapshotFreshness, sourceConfigFingerprint, subscriptionRuntimeRepository,
   type RefreshAllSummary, type RefreshHandlers, type SubscriptionFetchPath, type SubscriptionInputKind, type SubscriptionRefreshError,
   type SubscriptionRuntimeRecord, type SubscriptionSnapshot,
 } from '../core/subscription'
@@ -110,7 +110,7 @@ const cloneSnapshot = (primaryTarget: PrimaryTarget | null, nodes: GraphNode[], 
 const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now()}`
 
 const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
-  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
+  if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
   if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
   if (type === 'filter') return {
     include: [], exclude: [], filterMode: 'keyword', filterOperation: 'include', filterKeyword: '', filterRegexIgnoreCase: true,
@@ -436,8 +436,12 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const urlChanged = node?.data.blockType === 'subscription'
         && patch.subscriptionUrl !== undefined
         && patch.subscriptionUrl !== node.data.subscriptionUrl
+      const requestProfileChanged = node?.data.blockType === 'subscription'
+        && patch.subscriptionRequestProfile !== undefined
+        && normalizeSubscriptionRequestProfile(patch.subscriptionRequestProfile) !== normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile)
+      const sourceConfigChanged = urlChanged || requestProfileChanged
       record()
-      if (urlChanged) {
+      if (sourceConfigChanged) {
         nextInputGeneration(current.projectId, id)
         void subscriptionRefreshCoordinator.deleteSource(current.projectId, id).catch(() => undefined)
       }
@@ -447,9 +451,9 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         ? (isPrimaryTarget(patch.client) ? patch.client : null)
         : undefined
       set((state) => ({
-        nodes: updateWorkspaceNodeData(state.nodes, id, { ...patch, ...(urlChanged ? { nodeCount: 0 } : {}) }),
+        nodes: updateWorkspaceNodeData(state.nodes, id, { ...patch, ...(sourceConfigChanged ? { nodeCount: 0 } : {}) }),
         ...(soleOutputTarget !== undefined ? { primaryTarget: soleOutputTarget } : {}),
-        ...(urlChanged ? {
+        ...(sourceConfigChanged ? {
           subscriptionSnapshots: withoutKey(state.subscriptionSnapshots, id),
           subscriptionRuntimes: withoutKey(state.subscriptionRuntimes, id),
         } : {}),
@@ -741,6 +745,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       nextInputGeneration(projectId, id)
       const state = get()
+      const requestProfile = normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile)
       const fetchPath: SubscriptionFetchPath = state.runtimeService ? 'runtime' : 'browser'
       const runtimeFetcher = state.runtimeService
         ? new ServerRuntimeProvider(state.runtimeService, {
@@ -751,7 +756,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       await subscriptionRefreshCoordinator.refresh({
         projectId: state.projectId, sourceId: id,
         sourceName: localizeDataValue(node.data.title, node.data.titleKey, getCurrentLocale()),
-        url, activeSnapshot: state.subscriptionSnapshots[id], fetcher: runtimeFetcher,
+        url, requestProfile, activeSnapshot: state.subscriptionSnapshots[id], fetcher: runtimeFetcher,
       }, refreshHandlers(id, fetchPath))
     },
     refreshAllSubscriptions: async () => {
@@ -853,7 +858,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const clearGeneration = nextInputGeneration(projectId, id)
       subscriptionRefreshCoordinator.cancel(state.projectId, id)
       const fingerprint = state.subscriptionRuntimes[id]?.sourceConfigFingerprint
-        || await sourceConfigFingerprint('url', node.data.subscriptionUrl ?? '')
+        || await sourceConfigFingerprint('url', node.data.subscriptionUrl ?? '', normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile))
       let cacheError: SubscriptionRefreshError | undefined
       try {
         await subscriptionRefreshCoordinator.clearPersistedSnapshot(
@@ -885,15 +890,17 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const sources = initial.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.subscriptionInputKind === 'url')
       await Promise.all(sources.map(async (node) => {
         const url = node.data.subscriptionUrl ?? ''
+        const requestProfile = normalizeSubscriptionRequestProfile(node.data.subscriptionRequestProfile)
         const hydrationGeneration = inputGenerations.get(`${projectId}\u0000${node.id}`) ?? 0
-        const fingerprint = await sourceConfigFingerprint('url', url)
+        const fingerprint = await sourceConfigFingerprint('url', url, requestProfile)
         try {
           const snapshot = await subscriptionRuntimeRepository.readActive({ projectId, sourceId: node.id, sourceConfigFingerprint: fingerprint })
           const current = get()
           const currentNode = current.nodes.find((item) => item.id === node.id)
           if (!isCurrentInput(projectId, node.id, hydrationGeneration)
             || current.projectId !== projectId
-            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl) return
+            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl
+            || normalizeSubscriptionRequestProfile(currentNode?.data.subscriptionRequestProfile) !== requestProfile) return
           set((state) => ({
             ...(snapshot ? { subscriptionSnapshots: { ...state.subscriptionSnapshots, [node.id]: snapshot } } : {}),
             subscriptionRuntimes: {
@@ -912,7 +919,8 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           const currentNode = current.nodes.find((item) => item.id === node.id)
           if (!isCurrentInput(projectId, node.id, hydrationGeneration)
             || current.projectId !== projectId
-            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl) return
+            || currentNode?.data.subscriptionUrl !== node.data.subscriptionUrl
+            || normalizeSubscriptionRequestProfile(currentNode?.data.subscriptionRequestProfile) !== requestProfile) return
           set((state) => ({
             subscriptionRuntimes: {
               ...state.subscriptionRuntimes,

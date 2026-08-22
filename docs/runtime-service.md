@@ -156,6 +156,29 @@ diff, and Last Known Good semantics. Invalid or failed refreshes preserve the
 active snapshot. A valid empty result requires explicit confirmation. Restoring
 history creates a new active snapshot and leaves the historical row unchanged.
 
+### Subscription request compatibility
+
+URL sources can select one allow-listed request profile. The profile is provider
+compatibility metadata and is independent of the Project's Primary Target:
+
+| Profile | User-Agent |
+| --- | --- |
+| Auto | `Clash.Meta`, with bounded fallback to `mihomo`, `sing-box`, then `ProxyFlow-Runtime/1.0` only after HTTP 403 or 406 |
+| Mihomo / Clash.Meta | `Clash.Meta` |
+| sing-box | `sing-box` |
+| Generic | `ProxyFlow-Runtime/1.0` |
+
+The Runtime API validates this enum again before fetching. It does not accept
+custom User-Agent values or arbitrary headers. Auto does not retry after a
+successful response and does not switch identity for authentication failures,
+rate limits, other HTTP failures, TLS or network errors, SSRF blocks, timeouts,
+or cancellation. All fallback attempts share the original overall deadline and
+the existing URL, DNS, redirect, and SSRF checks.
+
+Local Mode stores the selected profile with the URL source, but browser-native
+fetch cannot reliably set `User-Agent`; the profile is applied by Runtime
+Service refreshes and schedules only.
+
 ## Security Boundary
 
 The gateway accepts only HTTP and HTTPS. Before every request and redirect it
@@ -164,6 +187,12 @@ unspecified, documentation, and cloud metadata address ranges. It also
 enforces redirect, response-size, timeout, concurrent-request, and per-token
 rate limits. URLs, Authorization headers, tokens, and response bodies are not
 logged.
+
+The fetch transport advertises and decodes `gzip`, `deflate`, and Brotli (`br`)
+using Node's built-in streaming zlib implementation. Both compressed wire bytes
+and decoded bytes are independently bounded by the Subscription size limit.
+Unknown or corrupt content encodings fail with a stable transport error instead
+of reaching the subscription parser.
 
 External Runtime connections keep Bearer-token authentication and an exact
 allowed browser origin. Same-instance Self-hosted uses an HttpOnly,

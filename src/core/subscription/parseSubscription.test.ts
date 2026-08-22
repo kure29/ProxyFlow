@@ -417,6 +417,52 @@ describe('subscription parser', () => {
     expect(defaultPort.proxies[0]).toEqual(expect.objectContaining({ port: 443, tls: expect.objectContaining({ enabled: true }) }))
   })
 
+  it.each([
+    ['security=tls&type=tcp', false],
+    ['security=TLS&type=TCP', false],
+    ['allowInsecure=true', true],
+    ['allowInsecure=1', true],
+    ['insecure=true&allowInsecure=true', true],
+    ['insecure=false&allow_insecure=false&allow-insecure=false', false],
+  ])('normalizes compatible AnyTLS URI parameters: %s', (query, expectedAllowInsecure) => {
+    const result = parseSubscription(`anytls://fixture-password@example.com:443?${query}#Compatible`, options)
+    expect([result.readyCount, result.partialCount]).toEqual([1, 0])
+    const proxy = result.proxies[0]
+    expect(proxy?.kind).toBe('anytls')
+    if (proxy?.kind !== 'anytls') throw new Error('Expected an AnyTLS fixture endpoint.')
+    expect(proxy.tls.allowInsecure ?? false).toBe(expectedAllowInsecure)
+  })
+
+  it.each([
+    ['insecure=false&allowInsecure=true', 'PROXY_PARAMS_CONFLICT'],
+    ['security=reality', 'PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED'],
+    ['type=ws', 'PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED'],
+    ['allowInsecure=garbage', 'PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED'],
+  ])('keeps unsupported or conflicting AnyTLS URI semantics Partial: %s', (query, issueCode) => {
+    const result = parseSubscription(`anytls://fixture-password@example.com:443?${query}#Partial`, options)
+    expect([result.readyCount, result.partialCount]).toEqual([0, 1])
+    expect(result.issues.map((issue) => issue.code)).toContain(issueCode)
+    expect(result.issues.map((issue) => issue.code)).toContain('PROXY_VARIANT_PARTIAL')
+  })
+
+  it('keeps AnyTLS keepalive visible as unrecognized without inventing portable semantics', () => {
+    const result = parseSubscription('anytls://fixture-password@example.com:443?security=tls&type=tcp&keepalive=30#Keepalive', options)
+    expect([result.readyCount, result.partialCount]).toEqual([1, 0])
+    expect(result.issues.map((issue) => issue.code)).toContain('PROXY_PARAMS_UNRECOGNIZED')
+    expect(result.proxies[0]?.metadata?.compatibility?.unrecognizedParams).toContain('keepalive')
+  })
+
+  it('normalizes a 64-node Base64 AnyTLS subscription with real-world-compatible aliases', () => {
+    const links = Array.from({ length: 64 }, (_, index) => {
+      const name = `Synthetic ${index + 1}`
+      return `anytls://fixture-password-${index + 1}@node-${index + 1}.example.com:443?security=tls&type=tcp&allowInsecure=true&sni=edge-${index + 1}.example.com&keepalive=30#${encodeURIComponent(name)}`
+    }).join('\n')
+    const result = parseSubscription(encodeBase64Text(links), options)
+    expect(result.format).toBe('base64')
+    expect([result.detectedCount, result.readyCount, result.partialCount, result.unsupportedCount]).toEqual([64, 64, 0, 0])
+    expect(result.issues.filter((issue) => issue.code === 'PROXY_PARAMS_UNRECOGNIZED')).toHaveLength(64)
+  })
+
   it('parses Clash AnyTLS into the same target-neutral endpoint model', () => {
     const result = parseSubscription(anytlsClash, options)
     expect([result.readyCount, result.partialCount, result.unsupportedCount]).toEqual([1, 0, 0])
@@ -455,9 +501,6 @@ describe('subscription parser', () => {
     expect(publicText).not.toContain('super-secret-value')
     expect(publicText).not.toContain('not-logged')
 
-    const unsafeAlias = parseSubscription('anytls://fixture-password@anytls.example.com:443/?allow_insecure=true#UnsafeAlias', options)
-    expect(unsafeAlias.partialCount).toBe(1)
-    expect(unsafeAlias.issues.map((issue) => issue.code)).toContain('PROXY_ANYTLS_CRITICAL_PARAMETER_UNSUPPORTED')
   })
 
   it('handles duplicate AnyTLS critical parameters deterministically and blocks conflicts', () => {
