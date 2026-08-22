@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROXYFLOW_SCRIPT_VERSION='1.0.0-rc.5'
+readonly PROXYFLOW_SCRIPT_VERSION='1.0.0-rc.6'
 readonly IMAGE_REPOSITORY='ghcr.io/kure29/proxyflow'
 readonly DEFAULT_UPDATE_CHANNEL='rc'
 readonly DEFAULT_PORT='17870'
@@ -193,7 +193,7 @@ name: proxyflow
 
 services:
   proxyflow:
-    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.5}
+    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.6}
     restart: unless-stopped
     init: true
     user: "${PROXYFLOW_UID:-1000}:${PROXYFLOW_GID:-1000}"

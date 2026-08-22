@@ -282,18 +282,18 @@ Updated: 2026-08-22
 
 ## Current Slice
 
-- RC5 release branch: `release/1.0.0-rc.5`, based on current `main` at
-  `39f8b06` after PR #20 added the accepted subscription compatibility work.
+- RC6 release branch: `release/1.0.0-rc.6`, based on current `main` at
+  `ee58742` after PR #24 simplified the project README.
 - Scope is limited to the release version advance and its deployment,
   Runtime-version, and documentation expectations. Project, Graph, IR,
   compiler, export, routing, UI, and subscription semantics remain unchanged.
-- Package and immutable Compose defaults advance to `1.0.0-rc.5`; managed
+- Package and immutable Compose defaults advance to `1.0.0-rc.6`; managed
   installs use the `rc` channel, explicit image pins remain fixed, and the
   container tag workflow maps RC releases to `:rc` and stable releases to
   `:latest`.
-- RC5 carries the already-merged URL Subscription Request Profiles, bounded
-  provider User-Agent negotiation, compatible AnyTLS URI normalization, and
-  bounded gzip/deflate/Brotli Runtime decoding. SSRF policy remains unchanged.
+- RC6 carries the already-merged mobile interaction polish and Universal Remote
+  Proxy Sources, including Mihomo native proxy-provider lowering and sing-box
+  materialized fallback. The streamlined README is also included.
 - Local automated, Web/Runtime build, deployment, TypeScript, Compose, and diff
   checks passed. PR review and CI remain pending; no tag or container
   publication has occurred.
@@ -308,13 +308,25 @@ Updated: 2026-08-22
 
 ## Next
 
-1. Open the RC5 release-only PR to `main`.
+1. Open the RC6 release-only PR to `main`.
 2. Wait for all CI checks and authorized review without merging autonomously.
-3. After an authorized merge, tag `v1.0.0-rc.5`, confirm both immutable and
+3. After an authorized merge, tag `v1.0.0-rc.6`, confirm both immutable and
    `rc` channel tags resolve to one digest, then hand the update command to
    Self-hosted users.
 
 ## Latest Validation
+
+### V1.0 RC6 release preparation
+
+- `npm test -- --run` passed 642/642 tests across 72 files. The expected Node
+  22 experimental SQLite notice was the only test warning.
+- Web and Runtime production builds passed; `runtime-dist/server.js` is
+  `222.36 kB`.
+- Deployment manager tests passed 21/21, preserving RC2, RC3, and RC4 migration,
+  adding RC5-to-RC6 managed update through `:rc`, preserving an RC5 manual pin,
+  and keeping `rc -> :rc` and `stable -> :latest`.
+- `npx tsc -b`, fictional `docker compose config --quiet`, and
+  `git diff --check` passed.
 
 ### V1.0 RC5 release preparation
 
