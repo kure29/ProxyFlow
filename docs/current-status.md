@@ -1,13 +1,38 @@
 # ProxyFlow Autonomous Development Status
 
-Updated: 2026-08-22
+Updated: 2026-08-23
 
 ## Stable Main
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `39f8b06` (PR #20, subscription provider compatibility)
+- `origin/main`: `ee2b96f` (PR #26, RC6 workflow stabilization)
 - Product Direction PR #9 is merged.
+
+## RC6 Target Experience Cleanup
+
+- Branch `fix/rc6-target-cleanup` makes Mihomo the only supported product
+  Target. sing-box official export is paused and hidden from new Project,
+  target switching, compatibility, Preview, Output, and Export choices.
+- Historical sing-box Projects continue to load and round-trip without data
+  loss, show one explicit paused product state, and can switch to Mihomo. The
+  sing-box compiler, parser, validator, capability registry, tests, and IR
+  support remain registered.
+- Subscription Request Profile remains independent from Export Target and still
+  includes Auto, Mihomo, sing-box, and Generic.
+- Routing Inspector no longer repeats the route relationship summary. Strategy
+  creation uses a compact separator instead of an Advanced heading.
+- Add Routing Rule and the Routing Service Picker use viewport-aware portals,
+  fixed headers/search controls, independent scroll regions, overscroll
+  containment, keyboard navigation, and focus restoration.
+- Three consecutive full test runs passed `75/75` files and `659/659` tests.
+  Web and Runtime builds, 21 deployment tests, standalone TypeScript, diff
+  check, and Docker Compose validation with required fictional environment
+  values passed.
+- Browser QA passed in Chinese and English at `375x812`, `390x844`,
+  `768x1024`, `1024x768`, `1365x768`, `1440x900`, `1536x864`, and
+  `1920x1080`: no horizontal overflow, clipped popovers, inaccessible final
+  options, console application errors, or console warnings.
 
 ## Responsive Layout Refactor
 

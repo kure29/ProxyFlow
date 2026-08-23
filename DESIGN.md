@@ -156,18 +156,22 @@ name, protocol, endpoint, role, and enabled state. Presets are System,
 Cloudflare, Google, Quad9, AliDNS, DNSPod, and AdGuard DNS. Roles are Default,
 Direct, and Fallback.
 
-Controls reflect the Primary Target capability registry. Mihomo and sing-box
-differences must be visible; unsupported roles or protocols are disabled or
-reported as blockers, never approximated silently.
+Controls reflect the active supported Primary Target capability registry.
+Mihomo differences remain explicit; unsupported roles or protocols are
+disabled or reported as blockers, never approximated silently. Historical
+sing-box Projects show a paused state and retain their data until the user
+switches to Mihomo.
 
 ### Export
 
 Export is a full Workspace page with Target, Target Configuration,
-Compatibility, and final Preview / Export actions. Mihomo and sing-box are the
-only production targets. Future targets are not presented as ready actions.
+Compatibility, and final Preview / Export actions. Mihomo is the only
+production target. sing-box is paused, and future targets are not presented as
+ready actions.
 
-Each target compiles independently. A secondary-target blocker must remain
-visible but must not disable a valid Primary Target export.
+The production surface validates and compiles the active supported target.
+Cross-target capability and compiler registries remain available internally
+without lowering Mihomo compatibility to a hidden target's common subset.
 
 ## Visual Flow
 

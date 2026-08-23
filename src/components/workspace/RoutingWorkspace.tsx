@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronLeft, CircleOff,
   GripVertical, Plus, Search, X,
@@ -13,6 +14,9 @@ import type { WorkspaceNodeItem, WorkspaceRoutingItem } from '../../core/workspa
 import type { BlockNodeData, BlockType, GraphNode, RouteMatcherKind, ServiceDefinition } from '../../types/project'
 import { AssetIcon } from '../icons/AssetIcon'
 import { WorkspaceItemMenu } from './WorkspaceItemMenu'
+import {
+  positionViewportPopover, readPopoverViewport, type ViewportPopoverPosition,
+} from '../ui/viewportPopover'
 
 type AddStage = 'closed' | 'kind' | 'service' | 'custom'
 export type RoutingCapabilityMap = Partial<Record<RouteMatcherKind, CapabilityDeclaration>>
@@ -90,10 +94,16 @@ export function RoutingWorkspace({
   const addRootRef = useRef<HTMLDivElement>(null)
   const addButtonRef = useRef<HTMLButtonElement>(null)
   const addPopoverRef = useRef<HTMLDivElement>(null)
+  const [popoverPosition, setPopoverPosition] = useState<ViewportPopoverPosition | null>(null)
   const visibleServices = useMemo(
     () => filterRoutingServices(services, serviceQuery),
     [serviceQuery, services],
   )
+
+  const closeAddPopover = useCallback((returnFocus = true) => {
+    setStage('closed')
+    if (returnFocus) window.requestAnimationFrame(() => addButtonRef.current?.focus())
+  }, [])
 
   useEffect(() => {
     if (stage === 'closed') return
@@ -103,7 +113,17 @@ export function RoutingWorkspace({
     if (mobileSheet) {
       document.body.style.overflow = 'hidden'
       document.documentElement.style.overflow = 'hidden'
+      setPopoverPosition(null)
     }
+    const updatePosition = () => {
+      if (mobileSheet || !addButtonRef.current) return
+      setPopoverPosition(positionViewportPopover(
+        addButtonRef.current.getBoundingClientRect(),
+        readPopoverViewport(),
+        { preferredWidth: 360, maxHeight: 520, minPreferredHeight: 260, align: 'end' },
+      ))
+    }
+    updatePosition()
     const focusFrame = window.requestAnimationFrame(() => {
       const selector = stage === 'service'
         ? 'input:not(:disabled)'
@@ -111,13 +131,13 @@ export function RoutingWorkspace({
       addPopoverRef.current?.querySelector<HTMLElement>(selector)?.focus()
     })
     const close = (event: PointerEvent) => {
-      if (!addRootRef.current?.contains(event.target as Node)) setStage('closed')
+      const target = event.target as Node
+      if (!addRootRef.current?.contains(target) && !addPopoverRef.current?.contains(target)) closeAddPopover(true)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      setStage('closed')
-      addButtonRef.current?.focus()
+      closeAddPopover(true)
     }
     const trapFocus = (event: KeyboardEvent) => {
       if (!mobileSheet || event.key !== 'Tab') return
@@ -131,22 +151,25 @@ export function RoutingWorkspace({
     window.addEventListener('pointerdown', close)
     window.addEventListener('keydown', closeOnEscape)
     window.addEventListener('keydown', trapFocus)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('scroll', updatePosition)
     return () => {
       window.cancelAnimationFrame(focusFrame)
       window.removeEventListener('pointerdown', close)
       window.removeEventListener('keydown', closeOnEscape)
       window.removeEventListener('keydown', trapFocus)
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('scroll', updatePosition)
       if (mobileSheet) {
         document.body.style.overflow = previousBodyOverflow
         document.documentElement.style.overflow = previousRootOverflow
       }
     }
-  }, [stage])
-
-  const closeAddPopover = (returnFocus = true) => {
-    setStage('closed')
-    if (returnFocus) window.requestAnimationFrame(() => addButtonRef.current?.focus())
-  }
+  }, [closeAddPopover, stage])
 
   const createServiceRule = (service: ServiceDefinition) => {
     onCreate('service-rule', createServiceRuleData(service))
@@ -165,25 +188,46 @@ export function RoutingWorkspace({
     if (nodeId && items.some((item) => item.node.id === nodeId)) onMoveToIndex(nodeId, targetIndex)
     setDraggingId(null)
   }
+  const popoverStyle: CSSProperties | undefined = popoverPosition ? {
+    top: popoverPosition.top,
+    bottom: popoverPosition.bottom,
+    left: popoverPosition.left,
+    width: popoverPosition.width,
+    maxHeight: popoverPosition.maxHeight,
+  } : undefined
+  const addLayer = stage !== 'closed' && createPortal(<>
+    <div className="routing-add-sheet-backdrop" onPointerDown={() => closeAddPopover()} />
+    <div
+      ref={addPopoverRef}
+      id="routing-add-popover"
+      className="routing-add-popover"
+      data-placement={popoverPosition?.placement}
+      style={popoverStyle}
+      role="dialog"
+      aria-label={stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}
+    >
+      <header>
+        {stage !== 'kind' && <button type="button" className="icon-button" aria-label={copy.back} title={copy.back} onClick={() => setStage('kind')}><ChevronLeft size={17} /></button>}
+        <strong>{stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}</strong>
+        <button type="button" className="icon-button" aria-label={copy.close} title={copy.close} onClick={() => closeAddPopover()}><X size={17} /></button>
+      </header>
+      <div className={`routing-add-content is-${stage}`}>
+        {stage === 'kind' && <RuleKindChoices capabilities={capabilities} copy={copy} onSelect={setStage} />}
+        {stage === 'service' && <ServiceChoices services={visibleServices} query={serviceQuery} capability={capabilities.service} copy={copy} onQueryChange={setServiceQuery} onSelect={createServiceRule} />}
+        {stage === 'custom' && <CustomMatcherChoices capabilities={capabilities} copy={copy} onSelect={createCustomRule} />}
+      </div>
+    </div>
+  </>, document.body)
+
   return <section className="routing-workspace" aria-label={copy.rulesLabel}>
     <header className="routing-workspace-heading">
       <div className="routing-add" ref={addRootRef}>
         <button ref={addButtonRef} type="button" className="primary-action" aria-haspopup="dialog" aria-controls={stage === 'closed' ? undefined : 'routing-add-popover'} aria-expanded={stage !== 'closed'} onClick={() => stage === 'closed' ? setStage('kind') : closeAddPopover()}>
           <Plus size={16} />{copy.addRule}
         </button>
-        {stage !== 'closed' && <div className="routing-add-sheet-backdrop" onPointerDown={() => closeAddPopover()} />}
-        {stage !== 'closed' && <div ref={addPopoverRef} id="routing-add-popover" className="routing-add-popover" role="dialog" aria-label={stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}>
-          <header>
-            {stage !== 'kind' && <button type="button" className="icon-button" aria-label={copy.back} title={copy.back} onClick={() => setStage('kind')}><ChevronLeft size={17} /></button>}
-            <strong>{stage === 'kind' ? copy.chooseRuleKind : stage === 'service' ? copy.chooseService : copy.chooseMatcher}</strong>
-            <button type="button" className="icon-button" aria-label={copy.close} title={copy.close} onClick={() => closeAddPopover()}><X size={17} /></button>
-          </header>
-          {stage === 'kind' && <RuleKindChoices capabilities={capabilities} copy={copy} onSelect={setStage} />}
-          {stage === 'service' && <ServiceChoices services={visibleServices} query={serviceQuery} capability={capabilities.service} copy={copy} onQueryChange={setServiceQuery} onSelect={createServiceRule} />}
-          {stage === 'custom' && <CustomMatcherChoices capabilities={capabilities} copy={copy} onSelect={createCustomRule} />}
-        </div>}
       </div>
     </header>
+    {addLayer}
 
     <div className="routing-rule-list" role="list">
       {items.map((item, index) => {

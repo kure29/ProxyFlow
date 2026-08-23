@@ -41,10 +41,7 @@ export function App() {
   const resetToDemo = useBuilderStore((state) => state.resetToDemo)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const dismissRecoveryNotice = useBuilderStore((state) => state.dismissRecoveryNotice)
-  const primaryCompiles = useProjectCompiles(Boolean(primaryTarget), {
-    mihomo: primaryTarget === 'mihomo',
-    singBox: primaryTarget === 'sing-box',
-  })
+  const primaryCompiles = useProjectCompiles(Boolean(primaryTarget))
   const primaryHealth = summarizePrimaryTargetHealth(primaryCompiles, primaryTarget)
   const loadStarted = useRef(false)
   const saveQueue = useRef<Promise<void>>(Promise.resolve())

@@ -4,7 +4,9 @@ import { deduplicateDiagnostics, type StructuredDiagnostic } from '../../core/co
 import { localizeSubscriptionSnapshots, translateCurrent, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { GraphNode } from '../../types/project'
-import type { PrimaryTarget } from '../../core/capabilities'
+import {
+  getTargetCapabilities, resolveActiveProductTarget, type PrimaryTarget,
+} from '../../core/capabilities'
 import { useTargetCompile, type TargetCompileState } from './useTargetCompile'
 
 export interface ProjectCompileSelection {
@@ -12,25 +14,41 @@ export interface ProjectCompileSelection {
   singBox?: boolean
 }
 
+export function resolveProjectCompileSelection(
+  primaryTarget: PrimaryTarget | null,
+  selection: ProjectCompileSelection = {},
+) {
+  const activeProductTarget = resolveActiveProductTarget(primaryTarget)
+  return {
+    activeProductTarget,
+    mihomo: selection.mihomo ?? activeProductTarget === 'mihomo',
+    singBox: selection.singBox ?? activeProductTarget === 'sing-box',
+  }
+}
+
 export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSelection = {}) {
   const { locale } = useI18n()
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const toProject = useBuilderStore((state) => state.toProject)
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
+  const resolvedSelection = resolveProjectCompileSelection(primaryTarget, selection)
+  const activeProductTarget = resolvedSelection.activeProductTarget
   const graphResult = useMemo(() => compileGraph(toProject(), {
     subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale),
-  }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
+    validationTarget: activeProductTarget,
+  }), [activeProductTarget, edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
   const mihomoOutput = useMemo(() => resolveMihomoProfileOutput(nodes), [nodes])
   const mihomoOptions = useMemo(() => ({
     outputNodeId: mihomoOutput?.id,
     targetProfile: mihomoOutput?.data.mihomoProfile,
   }), [mihomoOutput])
   const compileEnabled = enabled && graphResult.success
-  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && selection.mihomo !== false, mihomoOptions)
-  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && selection.singBox !== false)
+  const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
+  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox)
   return { graphResult, mihomoState, singBoxState }
 }
 
@@ -42,6 +60,15 @@ export interface PrimaryTargetHealth {
 }
 
 export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: PrimaryTarget | null): PrimaryTargetHealth {
+  if (target && getTargetCapabilities(target).productStatus === 'paused') return {
+    status: 'blocked',
+    diagnostics: [{
+      code: 'TARGET_PRODUCT_SUPPORT_PAUSED',
+      severity: 'error',
+      message: `${getTargetCapabilities(target).label} official export is temporarily paused. Switch the Project to Mihomo to continue.`,
+    }],
+  }
+
   const graphDiagnostics: StructuredDiagnostic[] = compiles.graphResult.issues
   if (!compiles.graphResult.success || !target) return {
     status: graphDiagnostics.some((issue) => issue.severity === 'error') ? 'blocked' : 'checking',

@@ -6,6 +6,7 @@ import type { SubscriptionRequestProfile } from '../subscription'
 export const PRIMARY_TARGETS = ['mihomo', 'sing-box'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
+export type TargetProductStatus = 'supported' | 'paused'
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
 export type TransportCapability = 'tcp' | 'ws' | 'http' | 'h2' | 'grpc' | 'httpupgrade' | 'xhttp'
@@ -36,6 +37,7 @@ export interface TargetCapabilityProfile {
   target: PrimaryTarget
   label: string
   baselineVersion: string
+  productStatus: TargetProductStatus
   protocols: Record<SupportedProxyProtocol, CapabilityDeclaration>
   transports: Record<TransportCapability, CapabilityDeclaration>
   strategies: Record<StrategyCapability, CapabilityDeclaration>
@@ -72,6 +74,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     target: 'mihomo',
     label: 'Mihomo',
     baselineVersion: 'v1.19.30',
+    productStatus: 'supported',
     protocols: sharedProtocols(),
     transports: {
       tcp: supported(), ws: supported(), http: supported(), h2: supported(), grpc: supported(),
@@ -149,6 +152,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     target: 'sing-box',
     label: 'sing-box',
     baselineVersion: 'v1.13.18',
+    productStatus: 'paused',
     protocols: sharedProtocols(),
     transports: {
       tcp: supported(),
@@ -227,12 +231,31 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
   },
 }
 
+/**
+ * Targets offered by ordinary product creation, switching, compatibility, and
+ * export surfaces. Registered paused targets remain valid project/compiler
+ * targets so historical Projects can round-trip without data loss.
+ */
+export const PRODUCT_TARGETS = PRIMARY_TARGETS.filter(
+  (target) => targetCapabilityRegistry[target].productStatus === 'supported',
+)
+
+export const DEFAULT_PRODUCT_TARGET = PRODUCT_TARGETS[0]
+
 export function isPrimaryTarget(value: unknown): value is PrimaryTarget {
   return typeof value === 'string' && (PRIMARY_TARGETS as readonly string[]).includes(value)
 }
 
 export function getTargetCapabilities(target: PrimaryTarget) {
   return targetCapabilityRegistry[target]
+}
+
+export function isProductTarget(target: PrimaryTarget | null | undefined): target is PrimaryTarget {
+  return Boolean(target && getTargetCapabilities(target).productStatus === 'supported')
+}
+
+export function resolveActiveProductTarget(target: PrimaryTarget | null | undefined): PrimaryTarget {
+  return isProductTarget(target) ? target : DEFAULT_PRODUCT_TARGET
 }
 
 export function capabilityIsAvailable(capability: CapabilityDeclaration) {

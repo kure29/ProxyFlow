@@ -1,9 +1,12 @@
 import type { GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
 import type { SemanticIssue } from '../ir'
 import type { SubscriptionSnapshot } from '../subscription'
+import type { PrimaryTarget } from '../capabilities'
 
 export interface GraphCompileOptions {
   subscriptionSnapshots?: Record<string, SubscriptionSnapshot>
+  /** Overrides Project metadata for target-specific authoring validation only. */
+  validationTarget?: PrimaryTarget | null
   /** Inspector/runtime diagnostics only. Target compilers must never consume an invalid retained draft. */
   retainDraftOnErrorForDiagnostics?: boolean
 }

@@ -9,7 +9,7 @@ import {
   type WorkspaceNodeItem, type WorkspaceSectionId,
 } from '../../core/workspace'
 import { deriveProjectRuntime } from '../../core/proxySet'
-import { getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
+import { getTargetCapabilities, resolveActiveProductTarget, type PrimaryTarget } from '../../core/capabilities'
 import { localizeNodeTitle, localizeProjectName, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, BlockType } from '../../types/project'
@@ -17,7 +17,7 @@ import type { ProductView, WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
-import { TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
+import { stateForTarget, TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
   processingCreationOptions, strategyCreationOptions,
 } from './workspaceCreation'
@@ -87,14 +87,15 @@ export function WorkspaceShell({
   const previousSectionRef = useRef(activeSection)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
   const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
+  const activeProductTarget = resolveActiveProductTarget(primaryTarget)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
   const sourceAvailability = useMemo(() => Object.fromEntries(nodes
     .filter((node) => node.data.category === 'source')
     .map((node) => [node.id, summarizeWorkspaceSource(node, runtimes[node.id]).status])), [nodes, runtimes])
   const projection = useMemo(
-    () => createWorkspaceProjection(project, { subscriptionSnapshots: snapshots, sourceAvailability }),
-    [project, snapshots, sourceAvailability],
+    () => createWorkspaceProjection(project, { subscriptionSnapshots: snapshots, sourceAvailability, validationTarget: activeProductTarget }),
+    [activeProductTarget, project, snapshots, sourceAvailability],
   )
   const pipelineRuntime = useMemo(
     () => deriveProjectRuntime(project, localizeSubscriptionSnapshots(snapshots, locale)),
@@ -104,10 +105,13 @@ export function WorkspaceShell({
     const itemById = new Map(projection.processing.map((item) => [item.node.id, item]))
     return orderWorkspaceProcessingNodes(nodes, edges).map((node) => itemById.get(node.id)!).filter(Boolean)
   }, [edges, nodes, projection.processing])
-  const compatibilityDiagnostics = useMemo(() => [
-    ...(targetCompiles.mihomoState.result?.issues ?? []),
-    ...(targetCompiles.singBoxState.result?.issues ?? []),
-  ], [targetCompiles.mihomoState.result, targetCompiles.singBoxState.result])
+  const compatibilityDiagnostics = useMemo(
+    () => stateForTarget(targetCompiles, activeProductTarget).result?.issues ?? [],
+    [activeProductTarget, targetCompiles],
+  )
+  const productStatusDiagnostics = primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused'
+    ? primaryHealth.diagnostics
+    : []
   const counts: Record<WorkspaceSectionId, number | undefined> = {
     overview: undefined,
     sources: projection.sources.length,
@@ -189,7 +193,7 @@ export function WorkspaceShell({
         <div><h1>{t(activeNavigation.label)}</h1><p>{t(activeNavigation.description)}</p><button type="button" className="workspace-target-context" onClick={() => setTargetDialogOpen(true)}>{t('workspace.targetContext', { target: targetLabel })}<ChevronDown size={12} /></button></div>
         {activeSection === 'sources' && <div><button className="secondary-action" disabled={refreshableCount === 0 || refreshingCount > 0} onClick={() => void refreshAllSubscriptions()}><RefreshCw className={refreshingCount > 0 ? 'spin' : ''} size={15} />{t('workspace.refreshAll')}</button><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
         {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
-        {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(primaryTarget)} onCreate={addNode} />}
+        {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(activeProductTarget)} onCreate={addNode} />}
       </header>
 
       <section className="workspace-section-body" data-section={activeSection}>
@@ -207,7 +211,7 @@ export function WorkspaceShell({
           onOpenSection={onSectionChange}
           onAddSubscription={() => addNode('subscription')}
           onAddStrategy={() => {
-            const option = strategyCreationOptions(primaryTarget).find(({ disabled }) => !disabled)
+            const option = strategyCreationOptions(activeProductTarget).find(({ disabled }) => !disabled)
             if (option) addNode(option.blockType, option.data)
             else setTargetDialogOpen(true)
           }}
@@ -239,7 +243,7 @@ export function WorkspaceShell({
         />}
         {activeSection === 'strategies' && <StrategiesWorkspace
           items={[...projection.strategies, ...projection.chains]}
-          target={primaryTarget}
+          target={activeProductTarget}
           runtime={pipelineRuntime}
           issues={projection.compileIssues}
           onEdit={editInWorkspace}
@@ -252,8 +256,8 @@ export function WorkspaceShell({
           finals={projection.finalRoutes}
           services={project.services}
           issues={projection.compileIssues}
-          capabilities={primaryTarget ? getTargetCapabilities(primaryTarget).routingMatchers : {}}
-          copy={routingWorkspaceCopy(t, primaryTarget)}
+          capabilities={getTargetCapabilities(activeProductTarget).routingMatchers}
+          copy={routingWorkspaceCopy(t, activeProductTarget)}
           onCreate={addNode}
           onMove={moveRule}
           onMoveToIndex={moveRuleToIndex}
@@ -268,14 +272,14 @@ export function WorkspaceShell({
         />}
         {activeSection === 'dns' && <DnsWorkspace
           node={projection.dns[0] ? { id: projection.dns[0].node.id, resolver: projection.dns[0].node.data.resolver, dnsResolvers: projection.dns[0].node.data.dnsResolvers } : undefined}
-          target={primaryTarget}
+          target={activeProductTarget}
           copy={dnsWorkspaceCopy(t)}
           onCreateDns={() => addNode('dns', undefined, false)}
           onChange={(resolvers) => projection.dns[0] && updateNodeData(projection.dns[0].node.id, { dnsResolvers: resolvers, resolver: undefined })}
         />}
         {activeSection === 'inspect' && <ProjectHealthWorkspace
           nodes={nodes}
-          diagnostics={projection.compileIssues}
+          diagnostics={[...projection.compileIssues, ...productStatusDiagnostics]}
           compatibilityDiagnostics={compatibilityDiagnostics}
           onOpenNode={openNodeInWorkspace}
         />}

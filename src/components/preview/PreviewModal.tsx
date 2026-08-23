@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { AlertTriangle, Braces, Check, Clipboard, Clock3, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
+import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import type { TargetClient } from '../../types/project'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
 import { safeFilename } from '../compiler/exportFile'
 
-type PreviewMode = 'mihomo' | 'sing-box' | 'ir'
+type PreviewMode = 'mihomo' | 'ir'
 type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
   mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
-  'sing-box': { label: 'sing-box', icon: '/third-party/sing-box/icon.svg', descriptionKey: 'preview.jsonCompiler' as const, extension: 'json' },
 } as const
 
 export function PreviewModal() {
@@ -35,11 +33,11 @@ export function PreviewModal() {
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const { fitView } = useReactFlow()
   const targetCompileEnabled = open && mode !== 'ir'
-  const { graphResult, mihomoState, singBoxState } = useProjectCompiles(targetCompileEnabled)
-  const activeTarget: TargetClient | undefined = mode === 'ir' ? undefined : mode
-  const targetState = activeTarget === 'sing-box' ? singBoxState : mihomoState
+  const { graphResult, mihomoState } = useProjectCompiles(targetCompileEnabled, { mihomo: mode === 'mihomo', singBox: false })
+  const targetState = mihomoState
   useEffect(() => {
-    if (open) setMode(previewTarget ?? primaryTarget ?? 'mihomo')
+    const requestedTarget = previewTarget ?? primaryTarget
+    if (open) setMode(isPreviewTarget(requestedTarget) ? requestedTarget : 'mihomo')
   }, [open, previewTarget, primaryTarget])
   useEffect(() => {
     if (!open) return
@@ -141,8 +139,7 @@ export function PreviewModal() {
           {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
-          <button disabled><b><Clock3 size={17} /></b><div><strong>Surge</strong><small>{t('preview.notImplemented')}</small></div></button>
-          {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} singBox={singBoxState} />}
+          {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} />}
           <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t(warnings.length === 1 ? 'preview.warning' : 'preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
@@ -159,11 +156,14 @@ export function PreviewModal() {
   </div>
 }
 
-function CompatibilitySummary({ mihomo, singBox }: { mihomo: TargetCompileState; singBox: TargetCompileState }) {
+function isPreviewTarget(value: unknown): value is Exclude<PreviewMode, 'ir'> {
+  return typeof value === 'string' && Object.hasOwn(targetMeta, value)
+}
+
+function CompatibilitySummary({ mihomo }: { mihomo: TargetCompileState }) {
   return <div className="preview-compatibility-summary">
     <span><CompatibilitySummaryLabel /></span>
     <CompatibilityRow label="Mihomo" state={mihomo} />
-    <CompatibilityRow label="sing-box" state={singBox} />
   </div>
 }
 

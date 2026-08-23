@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createBlankProject } from '../../data/newProject'
 import { compileGraph } from '../../core/graphCompiler'
-import { resolveMihomoProfileOutput, summarizePrimaryTargetHealth, type ProjectCompiles } from './useProjectCompiles'
+import { resolveMihomoProfileOutput, resolveProjectCompileSelection, summarizePrimaryTargetHealth, type ProjectCompiles } from './useProjectCompiles'
 import type { CompileResult } from '../../core/compiler'
 
 describe('Project target compile selection', () => {
@@ -24,7 +24,7 @@ describe('Project target compile selection', () => {
     expect(resolveMihomoProfileOutput(project.graph.nodes, 'second-output')?.id).toBe('first-output')
   })
 
-  it('reports only the current Primary Target compiler blockers as Project Health', () => {
+  it('reports only the supported product target and replaces historical sing-box noise with one paused state', () => {
     const graphResult = compileGraph(createBlankProject('mihomo'))
     expect(graphResult.success).toBe(true)
     const result = (target: 'mihomo' | 'sing-box', success: boolean): CompileResult => ({
@@ -43,7 +43,13 @@ describe('Project target compile selection', () => {
     expect(summarizePrimaryTargetHealth(compiles, 'mihomo')).toEqual({ status: 'ready', diagnostics: [] })
     expect(summarizePrimaryTargetHealth(compiles, 'sing-box')).toEqual(expect.objectContaining({
       status: 'blocked',
-      diagnostics: [expect.objectContaining({ code: 'SING-BOX_BLOCKED', severity: 'error' })],
+      diagnostics: [expect.objectContaining({ code: 'TARGET_PRODUCT_SUPPORT_PAUSED', severity: 'error' })],
     }))
+  })
+
+  it('does not schedule hidden sing-box compilation for ordinary or historical Projects', () => {
+    expect(resolveProjectCompileSelection('mihomo')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, singBox: false })
+    expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, singBox: false })
+    expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, singBox: true })
   })
 })

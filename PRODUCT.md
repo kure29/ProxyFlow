@@ -31,7 +31,7 @@ one-shot subscription converter.
 
 ## Operating Context
 
-- New Projects begin by choosing a Primary Target: Mihomo or sing-box.
+- New Projects use Mihomo as the supported Primary Target.
 - The Workspace is the default editing experience across desktop and mobile.
 - Visual Flow remains available for topology, advanced editing, and diagnosis.
 - Other targets are compatibility and optional export paths, not a lowest-common-
@@ -50,8 +50,10 @@ one-shot subscription converter.
 - Unsupported semantics fail closed and are never silently dropped or changed.
 - Project, parser, processing, routing, validation, IR, and compiler engines are
   shared by Workspace and Visual Flow.
-- Mihomo and sing-box are the only production targets in RC6. Surge is a future
-  architecture case, not an implemented compiler.
+- Mihomo is the only production target in RC6. sing-box official export is
+  paused while its compiler, capability, validator, parser, tests, and existing
+  Project data remain intact. Surge and Loon are planned architecture cases,
+  not implemented compilers.
 - Project export must not contain runtime credentials or cached subscription
   credentials.
 

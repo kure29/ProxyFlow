@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { PRIMARY_TARGETS, capabilityIsAvailable, getTargetCapabilities, strategyCapabilityForBlockType } from './targetCapabilities'
+import { PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapabilities, resolveActiveProductTarget, strategyCapabilityForBlockType } from './targetCapabilities'
 import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
-  it('declares the two production targets and their validated baselines', () => {
+  it('keeps both compiler targets registered while exposing only supported product targets', () => {
     expect(PRIMARY_TARGETS).toEqual(['mihomo', 'sing-box'])
+    expect(PRODUCT_TARGETS).toEqual(['mihomo'])
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
     expect(getTargetCapabilities('sing-box').baselineVersion).toBe('v1.13.18')
+    expect(getTargetCapabilities('mihomo').productStatus).toBe('supported')
+    expect(getTargetCapabilities('sing-box').productStatus).toBe('paused')
+    expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
   })
 
   it('keeps target-specific strategy differences explicit', () => {

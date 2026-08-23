@@ -33,7 +33,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
         ))
         return []
       }
-      if (project.primaryTarget) for (const issue of validateCustomRuleSourceForTarget(source, project.primaryTarget)) context.addIssue(semanticIssue(
+      const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
+      if (validationTarget) for (const issue of validateCustomRuleSourceForTarget(source, validationTarget)) context.addIssue(semanticIssue(
         issue.code, issue.severity, 'compile', issue.message,
         { nodeId: node.id, entity: { type: 'rule-set', id: source.id } },
       ))
