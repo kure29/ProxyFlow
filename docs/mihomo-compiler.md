@@ -1,6 +1,6 @@
 # Mihomo Compiler
 
-ProxyFlow 1.0 的真实编译链路：
+ProxyFlow 1.1 的真实编译链路：
 
 ```text
 ProxyFlowIR
@@ -61,7 +61,7 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 | Hysteria2 port hopping | `ports: 443,5000-6000` | Supported；由结构化 IR 序列化 |
 | Hysteria2 fixed / random hop interval | `hop-interval: 30` / `15-30` | Supported |
 | TUIC allow-insecure / disable-SNI | `skip-cert-verify` / `disable-sni` | Supported |
-| Hysteria2 pin / ECH、Clash certificate fingerprint | — | Partial；从可用集合排除 |
+| Hysteria2 pin / ECH、Clash certificate fingerprint | — | Partial；由 target compatibility 判断，不静默降级 |
 | non-TUIC disable-SNI | — | Error；`MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED` |
 | Hysteria2 / TUIC client fingerprint | — | Error；`MIHOMO_QUIC_TLS_FINGERPRINT_UNSUPPORTED` |
 | HTTP proxy client fingerprint | — | Error；不误映射为 certificate `fingerprint` |
@@ -128,7 +128,7 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 - Provider key 由稳定 Source ID 生成并 dedupe，不随显示名称变化
 - 支持基础协议、Reality/Vision、结构化 Hysteria2 port hopping、TUIC security flags 与现代 transport；未知 security/flow、pin/ECH、证书指纹或缺失必需字段仍为 Partial
 - Universal endpoint semantic error 会在 `validateIR()` 阶段停止；合法但 Mihomo schema 无法表达的 non-TUIC disable-SNI 或 QUIC client fingerprint 会在 target compatibility 阶段停止，绝不 omit 后继续
-- AnyTLS 不会降级成 Trojan/VLESS。Parser Partial 节点从 ProxySet 排除；direct AnyTLS + Reality 或 TLS invariant 错误由 `validateIR()` 阻止
+- AnyTLS 不会降级成 Trojan/VLESS。Parser Partial 节点保留在 target-neutral ProxySet；direct AnyTLS + Reality 或 TLS invariant 错误由 `validateIR()` 阻止
 - Imported Config source 仍未实现
 - 不执行网络请求或验证 Remote Rule 可达性
 - Latency Sort 需要真实测速，因此返回 `SPEED_TEST_REQUIRED`
@@ -136,4 +136,4 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 - Desktop TUN 只生成跨平台安全的基础字段，不猜测设备名、接口、UID、路由表或本地路径
 - Mihomo 运行设置保存在 Output 节点，不进入 Universal IR；sing-box 不消费这些字段
 - Chain 不保证所有 UDP/传输协议组合均可工作
-- Surge、Loon、Quantumult X 等其他 Target 尚未实现；sing-box 由独立 Compiler 处理
+- Surge 与 sing-box 由独立 Compiler 处理；Loon、Stash、Shadowrocket、Quantumult X 等其他 Target 尚未实现

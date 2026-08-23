@@ -2,10 +2,10 @@
 
 ProxyFlow detects subscription content from its wire format and normalizes supported proxy entries into the existing target-neutral endpoint model. Every entry still passes the same semantic firewall and can be `Ready`, `Partial`, or `Unsupported` independently. A control section or one unsupported protocol does not discard other usable proxy entries.
 
-The matrix below records the ProxyFlow 1.0 implementation. These are input
-formats, not Export Target claims. Mihomo is the supported official Export
-Target; sing-box compiler infrastructure is retained while official export is
-paused. `Supported` means the format has a stable detector and the common
+The matrix below records the ProxyFlow 1.1 implementation. These are input
+formats, not Export Target claims. Mihomo and Surge are supported production
+Export Targets; sing-box compiler infrastructure is retained while official
+export is paused. `Supported` means the format has a stable detector and the common
 supported endpoint subset imports end to end. `Partially Supported` means the
 format is detected and useful proxy definitions import, but some dialect fields
 or protocols are intentionally rejected. `Not Supported` means there is no safe

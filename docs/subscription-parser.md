@@ -1,6 +1,6 @@
 # Subscription Parser and Proxy Processing
 
-ProxyFlow 1.0 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
+ProxyFlow 1.1 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
 
 ## Supported Input Formats
 
@@ -48,7 +48,7 @@ Remote export 不跳过 fetch 或 parse。ProxyFlow 仍保留当前 snapshot 用
 
 ## Supported Protocols
 
-下表表示 ProxyFlow 1.0 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
+下表表示 ProxyFlow 1.1 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
 
 | Protocol | Parser | Mihomo | sing-box |
 | --- | --- | --- | --- |
@@ -69,9 +69,9 @@ HTTP、SOCKS5 支持基础认证；Shadowsocks 支持 method、password 与可�
 
 未知 VLESS security / XTLS flow、冲突的 Reality/Vision 安全字段、非法 VMess TLS/aid/TCP header、TLS disabled 时出现 TLS-only 字段、非法 WS early-data、无可靠目标映射的 gRPC authority、未知 transport、显式非法 Hysteria2 bandwidth、Hysteria2 `pinSHA256` / ECH、Clash TLS certificate fingerprint，以及 AnyTLS 的未知连接关键参数或 Reality intent 不会被猜测。Parser 将此类节点标记为 `Partial`，保留节点名称、协议和问题原因；Import Summary 仍计入 detected / warnings，Node Preview 也继续展示它们。
 
-重复参数按语义分类：普通 metadata warning 与相同值重复可以保持 Ready；SNI/serverName、security、flow、encryption、ALPN、client fingerprint、Reality public key / short ID、transport、Host/path、gRPC service name、early-data 与 XHTTP mode 等连接关键字段若出现不同值，返回 `PROXY_PARAMS_CONFLICT` 并标为 Partial。选择第一个值只用于保留可检查的规范化记录，不会让该节点进入可编译 ProxySet。
+重复参数按语义分类：普通 metadata warning 与相同值重复可以保持 Ready；SNI/serverName、security、flow、encryption、ALPN、client fingerprint、Reality public key / short ID、transport、Host/path、gRPC service name、early-data 与 XHTTP mode 等连接关键字段若出现不同值，返回 `PROXY_PARAMS_CONFLICT` 并标为 Partial。选择第一个值只用于保留可检查的规范化记录；target-neutral ProxySet 保留该节点，具体 Target 再按语义决定是否可编译。
 
-Partial 节点不会进入可用 ProxySet。处理器返回 `PROXY_VARIANT_EXCLUDED`，目标兼容性检查返回带目标前缀的 warning，其余 ready 节点仍可正常编译。如果集合里只有 Partial 节点，消费它的 Strategy 会因没有可安全生成的成员而失败闭合。
+Partial 节点会保留在 target-neutral ProxySet，并由目标兼容性检查返回带目标前缀的 warning、跳过可替换候选，或对显式不兼容 intent 失败闭合。其余 ready 节点仍可正常编译；如果某个目标的集合里没有可安全生成的成员，消费它的 Strategy 会失败闭合。
 
 ## Unsupported Protocols
 
@@ -79,7 +79,7 @@ Hysteria v1、WireGuard、Snell、SSH 等尚未进入协议模型。损坏的 An
 
 ## CORS Limitations
 
-ProxyFlow 1.0 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
+ProxyFlow 1.1 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
 
 - 订阅服务器允许跨域时，可以直接刷新。
 - CORS 或网络失败显示为 `CORS blocked`，不会误报为 Parser Error。
@@ -128,19 +128,20 @@ Graph Compiler 可接收当前会话的 Subscription Snapshot，将解析后的�
 
 - Mihomo：有当前 snapshot、未经过 processing、Request Profile 为 Auto 或 Mihomo / Clash.Meta 的 URL Source 可降低为 HTTP `proxy-provider`；策略组以 `use` 引用稳定 provider key。Auto 使用 `Clash.Meta` 作为目标原生请求标识，但目标无法复现 Runtime 的多 UA fallback chain，因此产生 `REMOTE_REQUEST_FALLBACK_NOT_PORTABLE` info。
 - Mihomo：sing-box / Generic Request Profile、所有 Transform、Fixed identity 与 Proxy Chain hop 在 Auto 下 materialize；Remote 模式下返回稳定 error。Provider 使用 target 的确定性 refresh interval，不复用 Runtime scheduler interval。
+- Surge：Auto / Materialized 使用当前 snapshot，并只投影 active strategy path 中可由 Surge 无损表示的节点；可替换的不兼容候选被跳过并聚合 warning，显式不兼容的 Fixed intent 与强制 Remote 继续失败闭合。
 - sing-box：当前未声明 native remote proxy source capability；Auto / Materialized 生成 explicit outbound，Remote 返回 `REMOTE_SOURCE_TARGET_UNSUPPORTED` 与 `REMOTE_SOURCE_FORCED_BUT_UNSUPPORTED`。
-- 两个目标都从同一规范化节点集合生成基础协议、Reality/Vision、Hysteria2、TUIC 与可靠的现代 transport。Hysteria2 端口范围由 target lowering 分别写成 Mihomo `start-end` 与 sing-box `start:end`。
+- Mihomo 与保留的 sing-box Compiler 从同一规范化节点集合生成其文档覆盖的基础协议、Reality/Vision、Hysteria2、TUIC 与现代 transport。Hysteria2 端口范围由 target lowering 分别写成 Mihomo `start-end` 与 sing-box `start:end`；Surge 仅 lowering 其独立文档声明的受支持子集。
 - sing-box 1.13.14 的 HTTP V2Ray transport 由 TLS 状态决定 HTTP/1.1 或 HTTP/2：仅 HTTP+无 TLS 与 H2+TLS 能保留当前 IR intent；HTTP+TLS 返回 `SINGBOX_TRANSPORT_HTTP_TLS_VARIANT_UNSUPPORTED`，H2+无 TLS 返回 `SINGBOX_TRANSPORT_H2_REQUIRES_TLS`。
 - XHTTP 只 lowering 到 Mihomo；sing-box 1.13.14 返回 `SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED` 并失败闭合。
 - Hysteria2 随机 hop interval 可 lowering 到 Mihomo；sing-box 1.13.14 不支持 `hop_interval_max`，返回 `SINGBOX_HYSTERIA2_RANDOM_HOP_INTERVAL_UNSUPPORTED` 并失败闭合。
-- Partial variants 被排除并产生目标 warning；无法保持策略或链路语义时仍返回 error、空内容和 `mock: false`。
+- Partial variants 会进入各 Target 的兼容性检查并产生目标 warning；可替换候选可按目标策略跳过，无法保持策略或链路语义时仍返回 error、空内容和 `mock: false`。
 - AnyTLS 的 Mihomo lowering 支持 password、SNI、insecure、ALPN、client fingerprint、UDP 与 idle-session 字段；sing-box 1.13.14 支持对应 TLS / uTLS / idle-session 与 Dial Fields `detour`。显式 AnyTLS `udp: false` 在 sing-box 返回 `SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED`。
 
 ## Known Limitations
 
 - URL 能否刷新取决于订阅服务器 CORS policy。
 - 不支持节点延迟测速、自动更新调度或后台刷新。
-- 不实现除 Vision 外的复杂 XTLS flow、Hysteria v1 或任意第三个 Target。
+- 不实现除 Vision 外的复杂 XTLS flow、Hysteria v1 或任何额外 Target。
 - Shadowsocks plugin 与协议扩展只保留基础 metadata，不能保证所有客户端插件运行环境都存在。
 - Hysteria2 `pinSHA256`、ECH 与 Clash certificate fingerprint 当前为 Partial；不会以普通 warning 继续编译。
 - Hysteria2/TUIC 上的 client fingerprint 虽可由 Universal TLS IR 表达，但 Mihomo 与 sing-box 1.13.14 的 QUIC TLS lowering 均拒绝该组合，不会静默省略。
