@@ -1,7 +1,7 @@
 import { decodeBase64Text } from '../base64'
 import { subscriptionIssue } from '../errors'
 import { finalizeEndpoint, safeDecode, unsupportedNode, validPort, type ParsedProtocolResult, type ProtocolParseContext } from '../utils'
-import { isPortableShadowsocksPlugin, isSupportedShadowsocksMethod } from '../../proxy'
+import { isModeledShadowsocksMethod, isPortableShadowsocksPlugin } from '../../proxy'
 
 export function parseShadowsocksLink(input: string, context: ProtocolParseContext): ParsedProtocolResult {
   const raw = input.slice(input.indexOf('://') + 3)
@@ -16,8 +16,8 @@ export function parseShadowsocksLink(input: string, context: ProtocolParseContex
     const issue = subscriptionIssue('PROXY_LINK_MALFORMED', 'error', 'Shadowsocks 节点缺少有效的 method、password、server 或 port。', { line: context.line })
     return unsupportedNode('shadowsocks', name, context, issue)
   }
-  if (!isSupportedShadowsocksMethod(parsed.method)) {
-    const issue = subscriptionIssue('PROXY_CIPHER_UNSUPPORTED', 'error', `Shadowsocks cipher “${parsed.method}” 不在 Mihomo 与 sing-box 的共同支持子集中。`, { line: context.line })
+  if (!isModeledShadowsocksMethod(parsed.method)) {
+    const issue = subscriptionIssue('PROXY_CIPHER_UNSUPPORTED', 'error', `Shadowsocks cipher “${parsed.method}” 尚未由 Universal IR 建模。`, { line: context.line })
     return unsupportedNode('shadowsocks', name, context, issue)
   }
   const pluginValue = params.get('plugin')

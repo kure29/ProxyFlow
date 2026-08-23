@@ -14,6 +14,7 @@ describe('Surge capability matrix', () => {
       'Load Balance consistent-hash',
       'Proxy Chain',
       'DNS',
+      'Shadowsocks',
       'VMess',
       'VLESS',
     ])

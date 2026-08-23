@@ -16,6 +16,7 @@ const docs = {
   loadBalance: 'https://manual.nssurge.com/policy-groups/load-balance.html',
   policies: 'https://manual.nssurge.com/policies/overview.html',
   policyParameters: 'https://manual.nssurge.com/policies/parameters.html',
+  shadowsocks: 'https://manual.nssurge.com/policies/shadowsocks.html',
   dnsOverview: 'https://manual.nssurge.com/dns/overview.html',
   dnsServers: 'https://manual.nssurge.com/dns/dns-server.html',
   encryptedDns: 'https://manual.nssurge.com/dns/encrypted-dns.html',
@@ -65,6 +66,11 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     feature: 'DNS', status: 'conditional',
     reason: 'Automatic DNS, system/IPv4 UDP defaults, and pure DoH/DoT default resolver sets are exact; role-specific, mixed traditional/encrypted, malformed, ambiguous duplicate, and traditional IPv6-upstream intent fails closed.',
     officialReference: docs.dnsOverview, diagnostic: 'SURGE_DNS_MIXED_TRANSPORT_SEMANTICS_UNSUPPORTED',
+  },
+  {
+    feature: 'Shadowsocks', status: 'conditional',
+    reason: 'The official cipher list and exact simple-obfs http/tls, host, and HTTP URI fields lower natively; other plugin or option semantics fail closed.',
+    officialReference: docs.shadowsocks, diagnostic: 'SURGE_SHADOWSOCKS_PLUGIN_UNSUPPORTED',
   },
   {
     feature: 'VMess', status: 'unsupported', reason: 'Universal IR does not retain explicit vmess-aead intent.',

@@ -4,7 +4,11 @@
 
 The ProxyFlow compiler, compatibility checks, deterministic `.conf` export, and release-candidate fixtures are covered by automated tests.
 
-**REAL SURGE IMPORT: PENDING USER ACCEPTANCE**
+**REAL SURGE IMPORT: RETEST REQUIRED**
+
+The first real-world Project acceptance attempt was blocked. The failure is part of the acceptance record below and must not be reclassified as passed: a roughly 142-endpoint mixed subscription produced roughly 224 blocking diagnostics and could not be exported. The identified causes were source-wide compatibility over-validation and missing target lowering for Shadowsocks `simple-obfs`.
+
+The corrective implementation projects only endpoints materialized by active Surge strategies, skips replaceable incompatible pool members with an aggregated warning, and retains blocking errors for explicit or irreplaceable intent. A real subscription must now be retested in the product before this acceptance can pass.
 
 The checked-in fixture uses only fake `.invalid` endpoints and fixture credentials. It can validate profile parsing and structure in a real Surge client, but it cannot validate successful proxy connectivity. Replace endpoints only in a private local copy; never commit real servers, credentials, subscription URLs, or certificates.
 
@@ -14,6 +18,26 @@ Minimum client versions for the complete fixture are Surge iOS 5.22+ and Surge M
 
 - `fixtures/surge/release-candidate.project.json` — importable ProxyFlow Project with manual and validated-snapshot proxies, filter, URL Test, fixed strategy, two-hop chain, service and ordinary domain routing, DoH, and FINAL.
 - `fixtures/surge/release-candidate.conf` — byte-stable expected output with LF line endings and all four required sections.
+- `fixtures/subscriptions/surge-mixed-realistic.yaml` — synthetic 30-endpoint mixed subscription with 18 Surge-compatible and 12 intentionally incompatible candidates; every host and credential is fictional.
+
+For the complete mixed pool, the expected product summary is `18 / 30` compatible, `12` skipped, and `0` blocking. Its HK filter subset is `7 / 10` compatible, `3` skipped, and `0` blocking.
+
+## Real-world acceptance history
+
+| Attempt | Result | Evidence / cause | Next action |
+| --- | --- | --- | --- |
+| First mixed-subscription Project, 2026-08-23 | **BLOCKED** | About 142 endpoints produced about 224 blockers. Unused and filtered endpoints were validated source-wide, and `simple-obfs` Shadowsocks was falsely rejected. | Preserve this result; do not merge based on release-candidate-only coverage. |
+| Projection and `simple-obfs` correction | **RETEST REQUIRED** | Synthetic A–E scenarios cover partial pools, post-filter pools, unused VLESS inventory, explicit Fixed VLESS, and fully incompatible pools. | Repeat the real Project export and record compatible, skipped, and blocking totals plus Surge Mac/iOS import results. |
+
+Expected projection behavior for the retest:
+
+| Project intent | Surge result |
+| --- | --- |
+| Unsupported endpoint unused by any active strategy | Ignored; it does not block or appear in the profile. |
+| Unsupported endpoint in a replaceable candidate pool | Skipped and included in one aggregated warning. |
+| Partially compatible pool | Export succeeds when at least one compatible member remains. |
+| Fully unsupported pool | Blocked with `SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS`. |
+| Explicit Fixed endpoint that Surge cannot express | Blocked; ProxyFlow never substitutes another endpoint. |
 
 ## Level 1 — ProxyFlow product workflow
 
@@ -65,9 +89,9 @@ Expected result: routing and chain behavior match the Project intent, with no hi
 
 | Level | Platform and version | Result | Evidence / notes |
 | --- | --- | --- | --- |
-| 1 | ProxyFlow automated + browser QA | Passed 2026-08-23 | 832 full-suite tests, 84 focused tests, and responsive browser QA at 1365×768, 1440×900, 1920×1080, 375×812, 390×844, and 430×932; no console warnings or errors. |
+| 1 | ProxyFlow automated + browser QA | Synthetic mixed workflow passed; real subscription retest required | 89 test files / 860 tests and 151 Surge tests pass. Browser QA at 1440×900 and 390×844 confirmed `18 / 30` compatible, `12` skipped, `0` blocking, one expandable warning, enabled Copy/Export, no horizontal overflow, and no console warnings/errors. A VLESS-only filtered pool confirmed `0 / 3`, `3` skipped, `1` blocking, `SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS`, and disabled Copy/Export. Exact Fixed VLESS remains covered by automated scenario D. |
 | 2 | Surge Mac 6.9+ | Pending user acceptance | — |
 | 3 | Surge iOS 5.22+ | Pending user acceptance | — |
 | 4 | Private endpoint runtime | Optional / pending | — |
 
-Do not mark real import complete until Levels 2 and 3 have been performed in actual Surge clients and their results are recorded here.
+Do not mark real acceptance complete until the mixed-subscription product retest and Levels 2 and 3 have been performed, and their results are recorded here.

@@ -97,7 +97,18 @@ describe('Workspace target status', () => {
     const project = createBlankProject('surge')
     project.name = 'Release / Candidate'
     useBuilderStore.getState().hydrate(structuredClone(project))
-    const surgeResult = { ...successResult, content: '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\nFINAL,DIRECT\n' }
+    const surgeResult = {
+      ...successResult,
+      content: '[General]\n\n[Proxy]\n\n[Proxy Group]\n\n[Rule]\nFINAL,DIRECT\n',
+      stats: {
+        proxyCount: 18, endpointCount: 18, candidateCount: 30, compatibleEndpointCount: 18,
+        skippedEndpointCount: 12, blockingIssueCount: 0,
+      },
+      issues: [{
+        target: 'surge' as const, code: 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED', severity: 'warning' as const,
+        feature: 'proxy', message: 'Surge can use 18 of 30 candidates. 12 endpoints were skipped.',
+      }],
+    }
     const compiles = {
       graphResult: compileGraph(project, { validationTarget: 'surge' }),
       mihomoState: { status: 'idle' },
@@ -111,6 +122,10 @@ describe('Workspace target status', () => {
     expect(html).toContain('我的代理配置-surge.conf')
     expect(html).toContain('[General]')
     expect(html).toContain('iOS 5.22+ / Mac 6.9+')
+    expect(html).toContain('<dt>Compatible</dt><dd>18 <span>/ 30</span></dd>')
+    expect(html).toContain('<dt>Skipped</dt><dd>12</dd>')
+    expect(html).toContain('<dt>Blocking</dt><dd>0</dd>')
+    expect(html).toContain('Skipped endpoint details · 1 warning')
     expect(html).not.toContain('disabled=""')
   })
 })

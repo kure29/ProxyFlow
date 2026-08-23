@@ -15,6 +15,7 @@ import type { MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTun
 import { buildTargetExportArtifact, safeFilename, targetFileMeta, type TargetExportFormat } from '../compiler/exportFile'
 import { countEnabledDnsResolvers } from '../../core/dns/resolverProfiles'
 import { WebSelect } from '../ui/WebSelect'
+import { SurgeProjectionSummary } from '../preview/SurgeProjectionSummary'
 
 export type ProjectCompiles = ReturnType<typeof useProjectCompiles>
 
@@ -155,6 +156,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
 
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
+          {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} />}
           <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
         </section>
 

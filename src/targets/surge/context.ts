@@ -1,8 +1,8 @@
 import type { ProxyFlowIR, ResolvedProxyEndpointIR } from '../../core/ir'
-import { createMaterializationContext, type MaterializationContext } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import type { SurgePolicyEntry } from './model'
 import { SurgeNameRegistry } from './naming'
+import { createSurgeProjectionContext, type SurgeProjectionContext } from './projection'
 import { compileSurgeProxy } from './proxies'
 
 export interface SurgeStrategyTemplate {
@@ -21,16 +21,16 @@ export interface SurgeCompileContext {
   compiledStrategyIds: Set<string>
   registeredProxyIds: Set<string>
   policyNames: SurgeNameRegistry
-  materialization: MaterializationContext
+  projection: SurgeProjectionContext
 }
 
-export function createSurgeContext(ir: ProxyFlowIR, issues: CompatibilityIssue[]): SurgeCompileContext {
+export function createSurgeContext(
+  ir: ProxyFlowIR,
+  issues: CompatibilityIssue[],
+  projection = createSurgeProjectionContext(),
+): SurgeCompileContext {
   const policyNames = new SurgeNameRegistry()
   for (const strategy of ir.strategies) policyNames.reserve(strategy.name)
-  for (const source of ir.sources) {
-    if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
-    for (const proxy of source.proxies ?? []) policyNames.reserve(proxy.name)
-  }
   return {
     ir,
     issues,
@@ -41,7 +41,7 @@ export function createSurgeContext(ir: ProxyFlowIR, issues: CompatibilityIssue[]
     compiledStrategyIds: new Set(),
     registeredProxyIds: new Set(),
     policyNames,
-    materialization: createMaterializationContext(),
+    projection,
   }
 }
 
@@ -51,6 +51,7 @@ export function registerSurgeProxy(endpoint: ResolvedProxyEndpointIR, context: S
     if (compiled) {
       context.proxies.push(compiled)
       context.registeredProxyIds.add(endpoint.id)
+      context.policyNames.reserve(endpoint.name)
     }
   }
   return endpoint.name

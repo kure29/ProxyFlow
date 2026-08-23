@@ -83,7 +83,7 @@ describe('target capability registry', () => {
     }
     expect(proxyCompatibilityForTarget(endpoint, 'mihomo').status).toBe('target-native')
     expect(proxyCompatibilityForTarget(endpoint, 'sing-box')).toEqual({ status: 'partial', unsupportedFeatures: ['plugin:obfs'] })
-    expect(proxyCompatibilityForTarget(endpoint, 'surge')).toEqual({ status: 'partial', unsupportedFeatures: ['plugin:obfs'] })
+    expect(proxyCompatibilityForTarget(endpoint, 'surge')).toEqual({ status: 'partial', unsupportedFeatures: [] })
   })
 
   it('marks VLESS unsupported for Surge before export', () => {

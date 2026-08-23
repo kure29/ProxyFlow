@@ -9,6 +9,7 @@ import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
 import { buildTargetExportArtifact, safeFilename } from '../compiler/exportFile'
 import { outputDefinitions } from '../../data/demoProject'
+import { SurgeProjectionSummary } from './SurgeProjectionSummary'
 
 type PreviewMode = 'mihomo' | 'surge' | 'ir'
 type DisplayIssue = StructuredDiagnostic
@@ -132,13 +133,16 @@ export function PreviewModal() {
         <span className="preview-mock-pill">{mode === 'ir' ? 'IR V2' : APP_VERSION_LABEL}</span>
         <button ref={closeRef} onClick={() => setOpen(false)} aria-label={t('preview.closeAria')}><X size={18} /></button>
       </header>
-      <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>
-        {loading ? <LoaderCircle className="spin" size={15} /> : !compileSuccess ? <AlertTriangle size={15} /> : <Info size={15} />}
-        {loading
-          ? <span><strong>{t('preview.loadingTitle')}</strong> {t('preview.loadingDescription', { target: targetLabel })}</span>
-          : compileSuccess
-            ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t(warnings.length === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warnings.length })}`}</span>
-            : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
+      <div className="preview-status-region">
+        <div className={`preview-notice${!compileSuccess && !loading ? ' is-error' : ''}`}>
+          {loading ? <LoaderCircle className="spin" size={15} /> : !compileSuccess ? <AlertTriangle size={15} /> : <Info size={15} />}
+          {loading
+            ? <span><strong>{t('preview.loadingTitle')}</strong> {t('preview.loadingDescription', { target: targetLabel })}</span>
+            : compileSuccess
+              ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t(warnings.length === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warnings.length })}`}</span>
+              : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
+        </div>
+        {mode === 'surge' && !loading && <SurgeProjectionSummary result={targetState.result} />}
       </div>
       <div className="preview-body">
         <aside>

@@ -1,9 +1,15 @@
-import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type ResolvedProxyEndpointIR, type StrategyIR } from '../../core/ir'
-import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
+import type { ProxyFlowIR, ProxySetRef, StrategyIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
-import { checkSurgeProxy } from './proxies'
+import {
+  createSurgeProjectionContext,
+  projectSurgeFixedEndpoint,
+  projectSurgeProxySet,
+  surgeProxySetProjectionIssues,
+  surgeStrategyNoMemberIssue,
+  type SurgeProjectionContext,
+} from './projection'
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 
@@ -17,10 +23,11 @@ const BUILT_IN_POLICIES = new Set([
   'cellular', 'cellular-only', 'hybrid', 'no-hybrid',
 ])
 
-export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResult {
+export function checkSurgeCompatibility(
+  ir: ProxyFlowIR,
+  projection = createSurgeProjectionContext(),
+): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
-  const materialization = createMaterializationContext()
-  const endpointIds = new Set<string>()
   const policyOwners = new Map<string, string>()
 
   for (const source of ir.sources) {
@@ -37,52 +44,35 @@ export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResu
       'SURGE_REMOTE_PROXY_SOURCE_MATERIALIZED', 'info', 'remote-source',
       `Source “${source.name}” is materialized from its validated snapshot because its remote format is not proven Surge-compatible.`, source.id,
     ))
-    if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
-    for (const proxy of source.proxies ?? []) {
-      if (endpointIds.has(proxy.id)) issues.push(surgeIssue(
-        'SURGE_PROXY_ID_DUPLICATE', 'error', 'proxy', `Proxy endpoint id “${proxy.id}” occurs more than once and cannot be referenced deterministically.`, source.id,
-      ))
-      endpointIds.add(proxy.id)
-      if (isUnmodeledProxy(proxy)) issues.push(surgeIssue(
-        'SURGE_PROXY_PROTOCOL_UNSUPPORTED', 'error', 'proxy',
-        `Proxy “${proxy.name}” has no modeled protocol that can be compiled to Surge.`, source.id,
-      ))
-      else issues.push(...checkSurgeProxy(proxy, source.id))
-    }
-  }
-
-  for (const transform of ir.transforms) {
-    const result = materializeProxySet(ir, { kind: 'transform', id: transform.id }, materialization)
-    for (const issue of result.issues) issues.push(surgeIssue(
-      `SURGE_${issue.code}`, issue.severity, 'transform', issue.message, issue.entityId ?? transform.id,
-    ))
   }
 
   for (const strategy of ir.strategies) {
     registerPolicyName(strategy.name, `strategy:${strategy.id}`, strategy.id, policyOwners, issues)
     validateStrategy(strategy, issues)
     let materializedMemberCount = 0
+    const projections = []
     for (const ref of strategyProxySetRefs(strategy)) {
-      const result = materializeProxySet(ir, ref, materialization)
-      for (const issue of result.issues) issues.push(surgeIssue(
-        `SURGE_${issue.code}`, issue.severity, 'strategy', issue.message, issue.entityId ?? strategy.id,
-      ))
+      const result = projectSurgeProxySet(ir, ref, projection)
+      projections.push(result)
       materializedMemberCount += result.proxies.length
       for (const proxy of result.proxies) registerPolicyName(proxy.name, `proxy:${proxy.id}`, strategy.id, policyOwners, issues)
     }
+    issues.push(...surgeProxySetProjectionIssues(projections, strategy))
     const nestedMemberCount = strategy.kind === 'select' || strategy.kind === 'fallback'
       ? strategy.candidates.filter((candidate) => candidate.kind === 'strategy').length
       : 0
     if (strategy.kind === 'fixed') {
-      const endpoint = findFixedEndpoint(ir, strategy.proxyId)
-      if (endpoint) registerPolicyName(endpoint.name, `proxy:${endpoint.id}`, strategy.id, policyOwners, issues)
+      const fixed = projectSurgeFixedEndpoint(ir, strategy, projection)
+      issues.push(...fixed.issues)
+      if (fixed.endpoint) registerPolicyName(fixed.endpoint.name, `proxy:${fixed.endpoint.id}`, strategy.id, policyOwners, issues)
     }
     if (strategy.kind !== 'fixed' && strategy.kind !== 'chain'
-      && materializedMemberCount + nestedMemberCount === 0) issues.push(surgeIssue(
-      'SURGE_STRATEGY_EMPTY', 'error', 'strategy', `Strategy “${strategy.name}” has no materialized policy members.`, strategy.id,
-    ))
+      && materializedMemberCount + nestedMemberCount === 0) {
+      const emptyIssue = surgeStrategyNoMemberIssue(strategy, projections)
+      if (emptyIssue) issues.push(emptyIssue)
+    }
   }
-  validateChainStrategies(ir, materialization, issues)
+  validateChainStrategies(ir, projection, issues)
   validateHealthCheckScope(ir.strategies, issues)
   validateStrategyCycles(ir.strategies, issues)
 
@@ -202,7 +192,7 @@ function validateHealthCheckScope(strategies: StrategyIR[], issues: Compatibilit
 
 function validateChainStrategies(
   ir: ProxyFlowIR,
-  materialization: ReturnType<typeof createMaterializationContext>,
+  projection: SurgeProjectionContext,
   issues: CompatibilityIssue[],
 ) {
   const strategies = new Map(ir.strategies.map((strategy) => [strategy.id, strategy]))
@@ -226,7 +216,7 @@ function validateChainStrategies(
         ))
         continue
       }
-      if (resolvedStrategyProxies(ir, hop, materialization).some((proxy) => proxy.protocol === 'hysteria2' && proxy.serverPorts?.length)) issues.push(surgeIssue(
+      if (resolvedStrategyProxies(ir, hop, projection).some((proxy) => proxy.protocol === 'hysteria2' && proxy.serverPorts?.length)) issues.push(surgeIssue(
         'SURGE_PROXY_CHAIN_PORT_HOPPING_UNSUPPORTED', 'error', 'chain',
         `Proxy Chain “${chain.name}” applies an underlying policy to Hysteria 2 port hopping in hop ${index + 1}, a combination Surge explicitly forbids.`, chain.id,
       ))
@@ -243,26 +233,16 @@ function hasDirectPolicyMembers(strategy: StrategyIR) {
 function resolvedStrategyProxies(
   ir: ProxyFlowIR,
   strategy: StrategyIR,
-  materialization: ReturnType<typeof createMaterializationContext>,
+  projection: SurgeProjectionContext,
 ) {
   if (strategy.kind === 'fixed') {
-    const endpoint = findFixedEndpoint(ir, strategy.proxyId)
-    return endpoint ? [endpoint] : []
+    const fixed = projectSurgeFixedEndpoint(ir, strategy, projection)
+    return fixed.endpoint ? [fixed.endpoint] : []
   }
   return strategyProxySetRefs(strategy).flatMap((ref) => {
-    const result = materializeProxySet(ir, ref, materialization)
+    const result = projectSurgeProxySet(ir, ref, projection)
     return result.status === 'ready' ? result.proxies : []
   })
-}
-
-function findFixedEndpoint(ir: ProxyFlowIR, proxyId?: string): ResolvedProxyEndpointIR | undefined {
-  if (!proxyId) return undefined
-  for (const source of ir.sources) {
-    if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
-    const endpoint = (source.proxies ?? []).find((proxy) => proxy.id === proxyId)
-    if (endpoint && !isUnmodeledProxy(endpoint)) return endpoint
-  }
-  return undefined
 }
 
 function isSafeHttpUrl(value: string) {

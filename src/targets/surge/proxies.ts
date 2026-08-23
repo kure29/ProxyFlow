@@ -11,6 +11,7 @@ const SURGE_SHADOWSOCKS_METHODS = new Set([
   'aes-256-gcm',
   'chacha20-ietf-poly1305',
   'xchacha20-ietf-poly1305',
+  'rc4',
   'rc4-md5',
   'aes-128-cfb',
   'aes-192-cfb',
@@ -18,18 +19,30 @@ const SURGE_SHADOWSOCKS_METHODS = new Set([
   'aes-128-ctr',
   'aes-192-ctr',
   'aes-256-ctr',
+  'salsa20',
+  'chacha20',
   'chacha20-ietf',
   'none',
 ])
+
+const SIMPLE_OBFS_PLUGIN_NAMES = new Set(['simple-obfs', 'obfs-local', 'obfs'])
 
 export function checkSurgeProxy(endpoint: ResolvedProxyEndpointIR, sourceId: string) {
   const issues: CompatibilityIssue[] = []
   const add = (code: string, message: string) => issues.push(surgeIssue(code, 'error', 'proxy', message, sourceId))
   const partial = endpoint.metadata?.compatibility
-  if (partial?.status === 'partial' || partial?.unsupportedFeatures?.length || partial?.unrecognizedParams?.length) add(
+  const handledFeatures = endpoint.protocol === 'shadowsocks' && endpoint.plugin
+    ? new Set([`plugin:${endpoint.plugin.name.toLocaleLowerCase()}`])
+    : new Set<string>()
+  const unsupportedFeatures = (partial?.unsupportedFeatures ?? [])
+    .filter((feature) => !handledFeatures.has(feature.trim().toLocaleLowerCase()))
+  const unrecognizedParams = partial?.unrecognizedParams ?? []
+  const opaquePartial = partial?.status === 'partial'
+    && !(partial.unsupportedFeatures?.length || partial.unrecognizedParams?.length)
+  if (opaquePartial || unsupportedFeatures.length || unrecognizedParams.length) add(
     'SURGE_PROXY_VARIANT_UNSUPPORTED',
     `Proxy “${endpoint.name}” contains endpoint semantics that the Surge compiler cannot prove lossless: ${[
-      ...(partial?.unsupportedFeatures ?? []), ...(partial?.unrecognizedParams ?? []),
+      ...unsupportedFeatures, ...unrecognizedParams,
     ].join(', ') || 'partial endpoint metadata'}.`,
   )
   if (!isSafeServer(endpoint.server)) add('SURGE_PROXY_SERVER_INVALID', `Proxy “${endpoint.name}” has a server value that is unsafe or invalid in a Surge profile.`)
@@ -51,10 +64,10 @@ export function checkSurgeProxy(endpoint: ResolvedProxyEndpointIR, sourceId: str
         'SURGE_SHADOWSOCKS_METHOD_NONCANONICAL',
         `Proxy “${endpoint.name}” uses non-canonical Shadowsocks method spelling “${endpoint.method}”; current Surge documents lowercase method tokens only.`,
       )
-      if (endpoint.plugin) add(
-        'SURGE_SHADOWSOCKS_PLUGIN_UNSUPPORTED',
-        `Proxy “${endpoint.name}” uses a Shadowsocks plugin that cannot be mapped to Surge without changing its semantics.`,
-      )
+      {
+        const plugin = lowerShadowsocksPlugin(endpoint.plugin)
+        if (plugin.error) add('SURGE_SHADOWSOCKS_PLUGIN_UNSUPPORTED', `Proxy “${endpoint.name}” ${plugin.error}`)
+      }
       checkRequiredValue(endpoint.name, 'password', endpoint.password, add)
       checkShadowsocks2022Key(endpoint.name, endpoint.method, endpoint.password, add)
       break
@@ -144,6 +157,7 @@ export function compileSurgeProxy(endpoint: ResolvedProxyEndpointIR): SurgePolic
         parameter('encrypt-method', endpoint.method),
         parameter('password', endpoint.password),
         parameter('udp-relay', true),
+        ...lowerShadowsocksPlugin(endpoint.plugin).parameters,
       ],
     }
     case 'trojan': return {
@@ -216,6 +230,74 @@ function decodedBase64Length(value: string) {
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) return -1
   const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
   return value.length / 4 * 3 - padding
+}
+
+function lowerShadowsocksPlugin(
+  plugin: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }>['plugin'],
+): { parameters: SurgeParameter[]; error?: string } {
+  if (!plugin) return { parameters: [] }
+  const pluginName = plugin.name.trim().toLocaleLowerCase()
+  if (!SIMPLE_OBFS_PLUGIN_NAMES.has(pluginName)) return {
+    parameters: [],
+    error: `uses Shadowsocks plugin “${plugin.name}”, which has no portable native mapping in Surge iOS and Surge Mac.`,
+  }
+
+  const parsed = parseSimpleObfsOptions(plugin.options)
+  if ('error' in parsed) return {
+    parameters: [],
+    error: `uses ${plugin.name} options that cannot be mapped losslessly to Surge: ${parsed.error}.`,
+  }
+  if (parsed.mode !== 'http' && parsed.mode !== 'tls') return {
+    parameters: [],
+    error: `uses ${plugin.name} without an explicit lowercase http or tls obfuscation mode.`,
+  }
+  if (parsed.host !== undefined && !isSafeObfsHost(parsed.host)) return {
+    parameters: [],
+    error: `uses ${plugin.name} with an unsafe or invalid obfs host.`,
+  }
+  if (parsed.uri !== undefined && (parsed.mode !== 'http' || !parsed.uri.startsWith('/') || !isSafeValue(parsed.uri))) return {
+    parameters: [],
+    error: `uses ${plugin.name} with an obfs URI that is not a safe HTTP request URI.`,
+  }
+  return {
+    parameters: [
+      parameter('obfs', parsed.mode),
+      ...(parsed.host !== undefined ? [parameter('obfs-host', parsed.host)] : []),
+      ...(parsed.uri !== undefined ? [parameter('obfs-uri', parsed.uri)] : []),
+    ],
+  }
+}
+
+function parseSimpleObfsOptions(
+  options: NonNullable<Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }>['plugin']>['options'],
+): { mode?: string; host?: string; uri?: string } | { error: string } {
+  const entries: Array<[string, string | number | boolean]> = []
+  if (typeof options === 'string') {
+    for (const token of options.split(';')) {
+      if (!token) continue
+      const separator = token.indexOf('=')
+      if (separator <= 0) return { error: `option “${token}” is not a key=value pair` }
+      entries.push([token.slice(0, separator).trim(), token.slice(separator + 1)])
+    }
+  } else if (options) entries.push(...Object.entries(options))
+
+  const result: { mode?: string; host?: string; uri?: string } = {}
+  for (const [rawKey, rawValue] of entries) {
+    const key = rawKey.trim().toLocaleLowerCase()
+    const field = key === 'mode' || key === 'obfs'
+      ? 'mode'
+      : key === 'host' || key === 'obfs-host'
+        ? 'host'
+        : key === 'uri' || key === 'path' || key === 'obfs-uri'
+          ? 'uri'
+          : undefined
+    if (!field) return { error: `option “${rawKey}” is not documented by Surge simple-obfs` }
+    if (typeof rawValue !== 'string') return { error: `option “${rawKey}” is not a string` }
+    if (result[field] !== undefined) return { error: `option “${rawKey}” duplicates ${field} intent` }
+    if (!rawValue) return { error: `option “${rawKey}” is empty` }
+    result[field] = rawValue
+  }
+  return result
 }
 
 function transportParameters(transport?: ProxyTransportIR): SurgeParameter[] {
@@ -296,4 +378,8 @@ function isSafeValue(value: string) {
 
 function isSafeServer(value: string) {
   return Boolean(value) && value === value.trim() && !/[\s,=\r\n\u0000-\u001f\u007f]/.test(value)
+}
+
+function isSafeObfsHost(value: string) {
+  return isSafeServer(value) && !/[;/\\?#]/.test(value)
 }

@@ -91,7 +91,14 @@ describe('SurgeCompiler', () => {
     const ir = baseIR()
     const result = compileSuccessfully(ir)
     expect(result.content).toBe(minimalProfile)
-    expect(result.stats).toEqual({ proxyCount: 1, endpointCount: 1 })
+    expect(result.stats).toEqual({
+      proxyCount: 1,
+      endpointCount: 1,
+      candidateCount: 1,
+      compatibleEndpointCount: 1,
+      skippedEndpointCount: 0,
+      blockingIssueCount: 0,
+    })
     expect(sectionLines(result.content, 'General')).toEqual([])
     expect(result.content.match(/^\[(?:General|Proxy|Proxy Group|Rule)\]$/gm)).toHaveLength(4)
     for (const excluded of ['MITM', 'Script', 'Rewrite', 'Host', 'Ponte', 'WireGuard', 'Tailscale', 'DHCP', 'Snell Server']) {
@@ -269,6 +276,8 @@ describe('SurgeCompiler', () => {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss-2022', name: 'SS 2022',
       server: 'ss.example.com', port: 8388, method: '2022-blake3-aes-256-gcm', password: 'too-short',
     })
+    invalid.strategies = [{ kind: 'fixed', id: 'fixed', name: 'Fixed SS 2022', proxyId: 'ss-2022' }]
+    invalid.finalRoute = { target: { kind: 'strategy', id: 'fixed' } }
     compileFailure(invalid, 'SURGE_SHADOWSOCKS_2022_KEY_INVALID')
   })
 
@@ -290,7 +299,10 @@ describe('SurgeCompiler', () => {
       },
     },
   ] satisfies Array<{ protocol: string; endpoint: ResolvedProxyEndpointIR }>)('fails closed for unsupported $protocol instead of approximating it', ({ endpoint }) => {
-    compileFailure(baseIR(endpoint), 'SURGE_PROXY_PROTOCOL_UNSUPPORTED')
+    const ir = baseIR(endpoint)
+    ir.strategies = [{ kind: 'fixed', id: 'fixed', name: `Fixed ${endpoint.name}`, proxyId: endpoint.id }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'fixed' } }
+    compileFailure(ir, 'SURGE_PROXY_PROTOCOL_UNSUPPORTED')
   })
 
   it.each(serviceRuleCases)('maps the $name service id to its exact first-party Surge asset', ({ id, filename }) => {

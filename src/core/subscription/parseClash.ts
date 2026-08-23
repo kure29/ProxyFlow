@@ -1,5 +1,5 @@
 import { parseDocument } from 'yaml'
-import { detectRegion, isPortableShadowsocksPlugin, isSupportedShadowsocksMethod, makeProxyId, stableOpaqueHash, type Hysteria2HopIntervalIR, type Hysteria2PortIR, type ProxyCompatibilityHint, type ProxyTlsIR, type ProxyTransportIR, type ResolvedProxyEndpointIR } from '../proxy'
+import { detectRegion, isModeledShadowsocksMethod, isPortableShadowsocksPlugin, makeProxyId, stableOpaqueHash, type Hysteria2HopIntervalIR, type Hysteria2PortIR, type ProxyCompatibilityHint, type ProxyTlsIR, type ProxyTransportIR, type ResolvedProxyEndpointIR } from '../proxy'
 import { subscriptionIssue } from './errors'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, ProxyEndpointDraft, SubscriptionIssue } from './types'
 import { booleanValue, isValidUuid, mergeEndpointSemanticCompatibility, stringValue, validPort } from './utils'
@@ -74,7 +74,7 @@ function parseClashNode(raw: unknown, sourceId: string, sourceName: string, inde
       const method = stringValue(record.cipher)
       const password = stringValue(record.password)
       if (!method || !password) return fail('PROXY_NODE_INVALID', `${name} 缺少 Shadowsocks cipher 或 password。`)
-      if (!isSupportedShadowsocksMethod(method)) return fail('PROXY_CIPHER_UNSUPPORTED', `${name} 使用了 Mihomo 与 sing-box 共同子集不支持的 Shadowsocks cipher “${method}”。`)
+      if (!isModeledShadowsocksMethod(method)) return fail('PROXY_CIPHER_UNSUPPORTED', `${name} 使用了 Universal IR 尚未建模的 Shadowsocks cipher “${method}”。`)
       const plugin = stringValue(record.plugin)
       if (plugin && !isPortableShadowsocksPlugin(plugin)) compatibility = compatibilityFor([`plugin:${plugin}`], nodeIssues, name)
       draft = {

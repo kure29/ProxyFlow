@@ -1,5 +1,6 @@
 import { isUnmodeledProxy, type ProxyFlowIR } from '../../core/ir'
 import { proxyCompatibilityForTarget } from '../../core/capabilities'
+import { isPortableShadowsocksMethod } from '../../core/proxy'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { mihomoIssue } from './errors'
@@ -33,6 +34,10 @@ export function checkMihomoCompatibility(ir: ProxyFlowIR): TargetCompatibilityRe
       if (targetCompatibility.status === 'partial') issues.push(mihomoIssue(
         'MIHOMO_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
         `Proxy “${proxy.name}” 包含 Mihomo 映射尚未可靠支持的特性：${targetCompatibility.unsupportedFeatures.join(', ') || proxy.metadata?.compatibility?.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
+      ))
+      if (proxy.protocol === 'shadowsocks' && !isPortableShadowsocksMethod(proxy.method)) issues.push(mihomoIssue(
+        'MIHOMO_SHADOWSOCKS_METHOD_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 Shadowsocks cipher “${proxy.method}” 不在当前 Mihomo 无损支持列表中。`, source.id,
       ))
       if ('tls' in proxy && proxy.tls?.disableSni && proxy.protocol !== 'tuic') issues.push(mihomoIssue(
         'MIHOMO_TLS_DISABLE_SNI_UNSUPPORTED', 'error', 'source',

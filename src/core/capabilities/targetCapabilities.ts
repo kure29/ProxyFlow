@@ -156,7 +156,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     protocols: {
       http: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'HTTP and HTTPS are supported inside the compiler\'s validated authentication and TLS subset.'),
       socks5: supported(),
-      shadowsocks: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'Only the documented cipher allowlist is supported; plugins fail closed.'),
+      shadowsocks: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'The documented cipher allowlist and exact simple-obfs http/tls options are supported; other plugins fail closed.'),
       trojan: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'TCP and validated WebSocket transport are supported.'),
       vmess: unsupported('SURGE_PROXY_PROTOCOL_UNSUPPORTED'),
       vless: unsupported('SURGE_PROXY_PROTOCOL_UNSUPPORTED'),
@@ -233,7 +233,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       requestProfiles: [],
     },
     proxyVariants: {
-      shadowsocksPlugins: [],
+      shadowsocksPlugins: ['simple-obfs', 'obfs-local', 'obfs'],
     },
     native: {
       'surge-profile': targetNative('Exports a compatibility-checked Surge profile in INI-style syntax.'),
