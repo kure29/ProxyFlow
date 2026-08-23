@@ -41,8 +41,10 @@ describe('SurgeProjectionSummary', () => {
     expect(html).toContain('<dt>Compatible</dt><dd>18 <span>/ 30</span></dd>')
     expect(html).toContain('<dt>Skipped</dt><dd>12</dd>')
     expect(html).toContain('<dt>Blocking</dt><dd>0</dd>')
-    expect(html).toContain('<details>')
-    expect(html).toContain('Skipped endpoint details · 1 warning')
+    expect(html).toContain('<details class="diagnostic-technical">')
+    expect(html).toContain('Skipped 12 incompatible nodes')
+    expect(html).toContain('The current configuration can still be exported.')
+    expect(html).toContain('Technical details · 1')
     expect(html).toContain('SURGE_PROXY_SET_ENDPOINTS_SKIPPED')
   })
 

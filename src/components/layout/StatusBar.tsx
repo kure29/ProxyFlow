@@ -1,22 +1,29 @@
-import { CheckCircle2, CircleAlert, LoaderCircle, MousePointer2 } from 'lucide-react'
+import { CheckCircle2, CircleAlert, LoaderCircle, MousePointer2, TriangleAlert } from 'lucide-react'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import { localizeDiagnosticMessage, useI18n } from '../../i18n'
+import { useI18n } from '../../i18n'
 import type { ProductView } from '../workspace/types'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
+import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 
 export function StatusBar({ view, health }: { view: ProductView; health: PrimaryTargetHealth }) {
-  const { locale, t } = useI18n()
+  const { t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const issues = health.diagnostics
-  const issueTitle = issues.map((issue) => localizeDiagnosticMessage(issue.code, issue.message, locale)).join('\n')
   const checking = health.status === 'checking'
+  const summary = summarizeDiagnosticCounts(issues)
+  const hasIssueBadge = summary.badgeKind !== 'none'
+  const statusText = summary.badgeKind === 'error'
+    ? t(summary.badgeCount === 1 ? 'status.oneBlocker' : 'status.blockers', { count: summary.badgeCount ?? 0 })
+    : summary.badgeKind === 'warning'
+      ? t(summary.badgeCount === 1 ? 'status.oneWarning' : 'status.warnings', { count: summary.badgeCount ?? 0 })
+      : t('status.ok')
 
   return (
     <footer className="statusbar" data-view={view}>
-      <span className={issues.length ? 'status-issues' : 'status-ok'} title={issueTitle} role="status">
-        {checking ? <LoaderCircle className="spin" size={13} /> : issues.length ? <CircleAlert size={13} /> : <CheckCircle2 size={13} />}
-        {checking ? t('workspace.targetChecking') : issues.length ? t('status.issueCount', { count: issues.length }) : t('status.ok')}
+      <span className={hasIssueBadge ? 'status-issues' : 'status-ok'} title={checking ? t('workspace.targetChecking') : statusText} role="status">
+        {checking ? <LoaderCircle className="spin" size={13} /> : summary.badgeKind === 'error' ? <CircleAlert size={13} /> : summary.badgeKind === 'warning' ? <TriangleAlert size={13} /> : <CheckCircle2 size={13} />}
+        {checking ? t('workspace.targetChecking') : statusText}
       </span>
       {view === 'visual-flow' && <><span className="status-separator" />
         <span>{t('status.nodes', { count: nodes.length })}</span><span>{t('status.connections', { count: edges.length })}</span>

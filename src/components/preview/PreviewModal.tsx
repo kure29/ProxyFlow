@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
-import { diagnosticNodeId, groupDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
+import { deduplicateDiagnostics, diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
-import { localizeDiagnosticMessage, useI18n } from '../../i18n'
+import { localizeNodeTitle, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
 import { buildTargetExportArtifact, safeFilename } from '../compiler/exportFile'
 import { outputDefinitions } from '../../data/demoProject'
 import { SurgeProjectionSummary } from './SurgeProjectionSummary'
+import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
+import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 
 type PreviewMode = 'mihomo' | 'surge' | 'ir'
 type DisplayIssue = StructuredDiagnostic
@@ -78,12 +80,18 @@ export function PreviewModal() {
   }, [open, setOpen])
   if (!open) return null
 
-  const graphIssues: DisplayIssue[] = graphResult.issues.map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
-  const targetIssues: DisplayIssue[] = (targetState.result?.issues ?? []).map((issue) => ({ ...issue, message: localizeDiagnosticMessage(issue.code, issue.message, locale) }))
+  const graphIssues: DisplayIssue[] = graphResult.issues
+  const targetIssues: DisplayIssue[] = targetState.result?.issues ?? []
   const loading = mode !== 'ir' && targetState.status === 'loading'
-  const activeIssues = mode === 'ir' || !graphResult.success ? graphIssues : targetIssues
+  const activeIssues = mode === 'ir' || !graphResult.success
+    ? graphIssues
+    : deduplicateDiagnostics([...graphIssues, ...targetIssues])
   const errors = activeIssues.filter((issue) => issue.severity === 'error')
-  const warnings = activeIssues.filter((issue) => issue.severity === 'warning')
+  const warningCount = summarizeDiagnosticCounts(activeIssues).warningGroupCount
+  const hasSurgeProjectionSummary = mode !== 'surge' || targetState.result?.stats?.candidateCount !== undefined
+  const displayedSuccessIssues = mode === 'surge' && hasSurgeProjectionSummary
+    ? activeIssues.filter((issue) => issue.code !== 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED')
+    : activeIssues
   const compileSuccess = mode === 'ir' ? graphResult.success : graphResult.success && targetState.status === 'success'
   const targetLabel = mode === 'ir' ? 'Universal IR' : targetMeta[mode].label
   const content = mode === 'ir'
@@ -113,9 +121,10 @@ export function PreviewModal() {
   }
 
   const failedTitle = !graphResult.success ? t('preview.irFailed') : t('preview.targetFailed', { target: targetLabel })
-  const loadError = targetState.error ? [{ code: 'TARGET_COMPILER_LOAD_FAILED', severity: 'error' as const, message: localizeDiagnosticMessage('TARGET_COMPILER_LOAD_FAILED', targetState.error, locale) }] : []
+  const loadError = targetState.error ? [{ code: 'TARGET_COMPILER_LOAD_FAILED', severity: 'error' as const, message: targetState.error }] : []
   const shownIssues = activeIssues.length > 0 ? activeIssues : loadError
   const availableNodeIds = new Set(nodes.map((node) => node.id))
+  const entityNames = new Map(nodes.map((node) => [node.id, localizeNodeTitle(node, locale)]))
   const locateIssue = (issue: DisplayIssue) => {
     const nodeId = diagnosticNodeId(issue, availableNodeIds)
     if (!nodeId) return
@@ -139,10 +148,11 @@ export function PreviewModal() {
           {loading
             ? <span><strong>{t('preview.loadingTitle')}</strong> {t('preview.loadingDescription', { target: targetLabel })}</span>
             : compileSuccess
-              ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warnings.length > 0 && ` ${t(warnings.length === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warnings.length })}`}</span>
+              ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warningCount > 0 && ` ${t(warningCount === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warningCount })}`}</span>
               : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
         </div>
         {mode === 'surge' && !loading && <SurgeProjectionSummary result={targetState.result} />}
+        {compileSuccess && displayedSuccessIssues.length > 0 && <div className="preview-diagnostics"><DiagnosticPresentationList issues={displayedSuccessIssues} exportable entityNames={entityNames} compact /></div>}
       </div>
       <div className="preview-body">
         <aside>
@@ -150,15 +160,15 @@ export function PreviewModal() {
           {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
-          {targetCompileEnabled && graphResult.success && <CompatibilitySummary label={targetLabel} state={targetState} />}
-          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t(warnings.length === 1 ? 'preview.warning' : 'preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
+          {targetCompileEnabled && graphResult.success && <CompatibilitySummary label={targetLabel} state={targetState} warningCount={warningCount} />}
+          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warningCount > 0 ? `⚠ ${t(warningCount === 1 ? 'preview.warning' : 'preview.warnings', { count: warningCount })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
           <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : artifact?.filename : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>
           {loading
             ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>{t('preview.loadingTitle')}</h3><p>{t('preview.loadingPanel')}</p></div>
             : !compileSuccess
-              ? <IssuePanel title={failedTitle} issues={shownIssues} availableNodeIds={availableNodeIds} onLocate={locateIssue} />
+              ? <IssuePanel title={failedTitle} issues={shownIssues} entityNames={entityNames} availableNodeIds={availableNodeIds} onLocate={locateIssue} />
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
@@ -171,10 +181,10 @@ function isPreviewTarget(value: unknown): value is Exclude<PreviewMode, 'ir'> {
   return typeof value === 'string' && Object.hasOwn(targetMeta, value)
 }
 
-function CompatibilitySummary({ label, state }: { label: string; state: TargetCompileState }) {
+function CompatibilitySummary({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {
   return <div className="preview-compatibility-summary">
     <span><CompatibilitySummaryLabel /></span>
-    <CompatibilityRow label={label} state={state} />
+    <CompatibilityRow label={label} state={state} warningCount={warningCount} />
   </div>
 }
 
@@ -183,18 +193,9 @@ function CompatibilitySummaryLabel() {
   return <>{t('preview.compatibilitySummary')}</>
 }
 
-function CompatibilityRow({ label, state }: { label: string; state: TargetCompileState }) {
+function CompatibilityRow({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {
   const { t } = useI18n()
-  const warningCount = state.result?.issues.filter((issue: CompileResult['issues'][number]) => issue.severity === 'warning').length ?? 0
-  const status = state.status === 'success' && warningCount === 0
-    ? 'supported'
-    : state.status === 'success'
-      ? 'warning'
-      : state.status === 'loading'
-        ? 'loading'
-        : state.status === 'unavailable'
-          ? 'unavailable'
-          : 'blocked'
+  const status = resolvePreviewCompatibilityStatus(state.status, warningCount)
   const statusText = status === 'supported'
     ? t('preview.compatibility.supported')
     : status === 'warning'
@@ -207,13 +208,27 @@ function CompatibilityRow({ label, state }: { label: string; state: TargetCompil
   return <div className="preview-compatibility-row"><strong>{label}</strong><span className={`compatibility-status is-${status}`}>{statusText}</span></div>
 }
 
-function IssuePanel({ title, issues, availableNodeIds, onLocate }: { title: string; issues: DisplayIssue[]; availableNodeIds: ReadonlySet<string>; onLocate: (issue: DisplayIssue) => void }) {
+export function resolvePreviewCompatibilityStatus(status: TargetCompileState['status'], warningCount: number) {
+  return status === 'success' && warningCount === 0
+    ? 'supported'
+    : status === 'success'
+      ? 'warning'
+      : status === 'loading'
+        ? 'loading'
+        : status === 'unavailable'
+          ? 'unavailable'
+          : 'blocked'
+}
+
+function IssuePanel({ title, issues, entityNames, availableNodeIds, onLocate }: {
+  title: string
+  issues: DisplayIssue[]
+  entityNames: ReadonlyMap<string, string>
+  availableNodeIds: ReadonlySet<string>
+  onLocate: (issue: DisplayIssue) => void
+}) {
   const { t } = useI18n()
-  const grouped = groupDiagnostics(issues)
-  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><div>{grouped.map(({ issue, count }, index) => {
-    const locatable = Boolean(diagnosticNodeId(issue, availableNodeIds))
-    return <article key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? index}`}><span>{t(`issue.severity.${issue.severity}`)}{count > 1 && <em>× {count}</em>}</span><code>{issue.code}</code><p>{issue.message}</p>{locatable && <button type="button" onClick={() => onLocate(issue)}>{t('preview.locateNode')}</button>}</article>
-  })}</div></div>
+  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><DiagnosticPresentationList issues={issues} exportable={false} entityNames={entityNames} availableNodeIds={availableNodeIds} onLocate={onLocate} /></div>
 }
 
 function issueLog(issues: DisplayIssue[]) {

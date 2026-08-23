@@ -3,11 +3,13 @@ import { AlertTriangle, Check, Clipboard, Download, Eye, Laptop, LoaderCircle, N
 import {
   getTargetCapabilities, PRODUCT_TARGETS, resolveActiveProductTarget, type PrimaryTarget,
 } from '../../core/capabilities'
-import { groupDiagnostics, type StructuredDiagnostic } from '../../core/compiler'
+import { deduplicateDiagnostics, type StructuredDiagnostic } from '../../core/compiler'
 import { outputDefinitions } from '../../data/demoProject'
-import { localizeDiagnosticMessage, useI18n } from '../../i18n'
+import { localizeNodeTitle, useI18n } from '../../i18n'
 import type { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
+import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
+import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 import { AssetIcon } from '../icons/AssetIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { createMihomoOutputProfile, resolveMihomoOutputProfile } from '../../targets/mihomo/profile'
@@ -70,6 +72,7 @@ export function TargetSwitchDialog({ open, current, compiles, onClose, onSelect 
     }
   }, [current, onClose, open])
   if (!open) return null
+  const activeTarget = resolveActiveProductTarget(current)
 
   return <div className="target-switch-backdrop" role="presentation" onMouseDown={onClose}>
     <section ref={panelRef} className="target-switch-dialog" role="dialog" aria-modal="true" aria-labelledby="target-switch-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -78,7 +81,7 @@ export function TargetSwitchDialog({ open, current, compiles, onClose, onSelect 
       {current && getTargetCapabilities(current).productStatus === 'paused' && <aside className="target-product-paused" role="status"><AlertTriangle size={16} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(current).label })}</strong>{t('workspace.targetPausedDescription')}</span></aside>}
       <div className="target-switch-options">{PRODUCT_TARGETS.map((target) => <button type="button" className={candidate === target ? 'is-selected' : ''} aria-pressed={candidate === target} key={target} onClick={() => setCandidate(target)}>
         <TargetArtwork target={target} />
-        <TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={target === resolveActiveProductTarget(current) ? compiles.graphResult.issues : []} />
+        <TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} />
         <i>{candidate === target ? t('newProject.selected') : t('newProject.select')}</i>
       </button>)}</div>
       <aside><ShieldCheck size={16} /><span>{t('workspace.switchTargetPreserves')}</span></aside>
@@ -106,11 +109,12 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
   const dnsResolverCount = nodes.filter((node) => node.data.blockType === 'dns' && !node.data.disabled)
     .reduce((count, node) => count + countEnabledDnsResolvers(node.data.dnsResolvers, node.data.resolver), 0)
   const state = stateForTarget(compiles, activeTarget)
-  const status = targetStatus(state, compiles.graphResult.issues)
-  const groupedIssues = groupDiagnostics(status.issues.map((issue) => ({
-    ...issue,
-    message: localizeDiagnosticMessage(issue.code, issue.message, locale),
-  })))
+  const status = targetStatus(state, compiles.graphResult.issues, true)
+  const hasSurgeProjectionSummary = activeTarget !== 'surge' || state.result?.stats?.candidateCount !== undefined
+  const displayedIssues = activeTarget === 'surge' && hasSurgeProjectionSummary
+    ? status.issues.filter((issue) => issue.code !== 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED')
+    : status.issues
+  const entityNames = new Map(nodes.map((node) => [node.id, localizeNodeTitle(node, locale)]))
   const artifact = buildTargetExportArtifact(projectName, activeTarget, state.result)
   const fileMeta = targetFileMeta[activeTarget]
   const setMihomoProfile = (patch: Partial<MihomoOutputProfile>) => {
@@ -148,7 +152,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
             const targetState = stateForTarget(compiles, target)
             return <button type="button" className={primary ? 'is-primary' : ''} aria-pressed={primary} key={target} onClick={() => onSelectTarget?.(target)}>
               <TargetArtwork target={target} />
-              <TargetStatus target={target} state={targetState} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} />
+              <TargetStatus target={target} state={targetState} active={primary} graphIssues={primary ? compiles.graphResult.issues : []} />
               <span>{primary ? t('workspace.export.primary') : t('workspace.export.selectTarget', { target: getTargetCapabilities(target).label })}</span>
             </button>
           })}</div>
@@ -157,7 +161,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
           {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} />}
-          <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
+          <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
         </section>
 
         <section className="workspace-export-actions" aria-labelledby="export-actions-title"><div><h2 id="export-actions-title">{t('workspace.export.actionsSection')}</h2><span className={`is-${status.kind}`}>{status.kind === 'ready' ? t('workspace.exportReady') : t('workspace.export.blocked')}</span></div><div><button type="button" className="secondary-action workspace-export-open-preview" onClick={() => onPreview(activeTarget)}><Eye size={16} />{t('workspace.export.preview')}</button><button type="button" className="primary-action workspace-export-mobile-download" disabled={!artifact} onClick={download}><Download size={16} />{t('workspace.export.download')}</button></div></section>
@@ -184,8 +188,8 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
       <section className="workspace-export-preview" aria-labelledby="export-inline-preview-title">
         <header><div><span>{fileMeta.format.toUpperCase()}</span><h2 id="export-inline-preview-title">{t('workspace.export.preview')}</h2></div><div><button type="button" className="secondary-action" disabled={!artifact} onClick={() => void copy()}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? t('preview.copied') : t('preview.copy')}</button><button type="button" className="primary-action" disabled={!artifact} onClick={download}><Download size={15} />{t('workspace.export.download')}</button></div></header>
         <div className="workspace-export-code-toolbar"><code>{artifact?.filename ?? `${safeFilename(projectName)}-${activeTarget}.${fileMeta.extension}`}</code><span>{getTargetCapabilities(activeTarget).label}</span></div>
-        <div className={`workspace-export-preview-body${groupedIssues.length ? ' has-issues' : ''}`}>
-          {groupedIssues.length > 0 && <div className="workspace-export-diagnostics" role="status">{groupedIssues.map(({ issue, count }, index) => <article data-severity={issue.severity} key={`${issue.code}-${issue.entityId ?? index}`}><span>{t(`issue.severity.${issue.severity}`)}{count > 1 && <em>× {count}</em>}</span><code>{issue.code}</code><p>{issue.message}</p></article>)}</div>}
+        <div className={`workspace-export-preview-body${displayedIssues.length ? ' has-issues' : ''}`}>
+          {displayedIssues.length > 0 && <div className="workspace-export-diagnostics" role="status"><DiagnosticPresentationList issues={displayedIssues} exportable={Boolean(artifact)} entityNames={entityNames} compact /></div>}
           {artifact
             ? <ConfigCodePreview content={artifact.content} format={fileMeta.format} label={t('workspace.export.configAria', { format: fileMeta.format.toUpperCase() })} />
             : <div className="workspace-export-preview-blocked"><AlertTriangle size={22} /><strong>{t('workspace.export.blocked')}</strong></div>}
@@ -221,21 +225,26 @@ function TargetArtwork({ target }: { target: PrimaryTarget }) {
   return <AssetIcon className="workspace-target-icon" src={definition.icon} darkSrc={definition.iconDark} fallback={definition.label.slice(0, 1)} />
 }
 
-function TargetStatus({ target, state, graphIssues }: { target: PrimaryTarget; state: TargetCompileState; graphIssues: StructuredDiagnostic[] }) {
+function TargetStatus({ target, state, active, graphIssues }: { target: PrimaryTarget; state: TargetCompileState; active: boolean; graphIssues: StructuredDiagnostic[] }) {
   const { t } = useI18n()
   const capabilities = getTargetCapabilities(target)
-  const status = targetStatus(state, graphIssues)
+  const status = targetStatus(state, graphIssues, active)
+  const compatibleNodeCount = target === 'surge'
+    ? state.result?.stats?.compatibleEndpointCount ?? state.result?.stats?.endpointCount ?? state.result?.stats?.proxyCount
+    : state.result?.stats?.endpointCount ?? state.result?.stats?.proxyCount
   const label = status.kind === 'ready'
     ? t('workspace.targetReady')
     : status.kind === 'loading'
       ? t('workspace.targetChecking')
-      : t('workspace.targetBlockers', { count: status.errorCount || 1 })
+      : status.kind === 'available'
+        ? t('workspace.targetAvailable')
+        : t('workspace.targetBlockers', { count: status.errorCount || 1 })
   return <div className="workspace-target-status">
     <span><strong>{capabilities.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small>{target === 'surge' && <small>{t('newProject.targetDescription.surge')}</small>}</span>
-    <b className={`is-${status.kind}`}>{status.kind === 'loading' ? <LoaderCircle className="spin" size={13} /> : status.kind === 'ready' ? <Check size={13} /> : <AlertTriangle size={13} />}{label}</b>
-    {state.result?.stats && <small>{t('workspace.export.nodes', { count: state.result.stats.endpointCount ?? state.result.stats.proxyCount })}</small>}
+    <b className={`is-${status.kind}`}>{status.kind === 'loading' ? <LoaderCircle className="spin" size={13} /> : status.kind === 'ready' ? <Check size={13} /> : status.kind === 'blocked' ? <AlertTriangle size={13} /> : null}{label}</b>
+    {status.kind === 'available' && <small>{t('workspace.targetCheckAfterSwitching')}</small>}
+    {status.kind !== 'available' && compatibleNodeCount !== undefined && <small>{t('workspace.export.nodes', { count: compatibleNodeCount })}</small>}
     {status.warningCount > 0 && <small>{t(status.warningCount === 1 ? 'workspace.targetWarning' : 'workspace.targetWarnings', { count: status.warningCount })}</small>}
-    {status.codes.length > 0 && <div>{status.codes.map((code) => <code key={code}>{code}</code>)}</div>}
   </div>
 }
 
@@ -245,25 +254,30 @@ export function stateForTarget(compiles: ProjectCompiles, target: PrimaryTarget)
     : target === 'surge' ? compiles.surgeState : compiles.singBoxState
 }
 
-export function targetStatus(state: TargetCompileState, graphIssues: StructuredDiagnostic[]) {
+export function targetStatus(state: TargetCompileState, graphIssues: StructuredDiagnostic[], active: boolean) {
+  if (!active) return {
+    kind: 'available' as const,
+    errorCount: 0,
+    warningCount: 0,
+    issues: [] as StructuredDiagnostic[],
+  }
   const graphErrors = graphIssues.filter((issue) => issue.severity === 'error')
-  const issues = graphErrors.length ? graphIssues : state.result?.issues ?? []
+  const issues = graphErrors.length
+    ? graphIssues
+    : deduplicateDiagnostics([...graphIssues, ...(state.result?.issues ?? [])])
   const errors = issues.filter((issue) => issue.severity === 'error')
-  const warnings = issues.filter((issue) => issue.severity === 'warning')
-  const codes = [...new Set(errors.map((issue) => issue.code))].slice(0, 3)
+  const warningCount = summarizeDiagnosticCounts(issues).warningGroupCount
   if (graphErrors.length || state.status === 'error' || state.status === 'unavailable') return {
     kind: 'blocked' as const,
     errorCount: errors.length,
-    warningCount: warnings.length,
-    codes,
+    warningCount,
     issues,
   }
   if (state.status === 'success') return {
     kind: 'ready' as const,
     errorCount: 0,
-    warningCount: warnings.length,
-    codes: [] as string[],
+    warningCount,
     issues,
   }
-  return { kind: 'loading' as const, errorCount: 0, warningCount: 0, codes: [] as string[], issues }
+  return { kind: 'loading' as const, errorCount: 0, warningCount: 0, issues }
 }

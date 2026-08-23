@@ -7,20 +7,22 @@ import {
 import {
   filterWorkspaceProxies, groupProjectHealthDiagnostics, summarizeWorkspaceProcessing,
   summarizeWorkspaceSource, summarizeWorkspaceStrategy, type ProcessingMoveAvailability,
+  type WorkspaceHealthEntry,
   type WorkspaceNodeItem, type WorkspaceProxySummary,
   type WorkspacePresentationStatus, type WorkspaceSourceRuntimeLike, type WorkspaceSourceStatus,
   type WorkspaceStrategyKind,
 } from '../../core/workspace'
 import type { PipelineNodeRuntime } from '../../core/proxySet'
-import type { StructuredDiagnostic } from '../../core/compiler'
+import { diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
 import type { PrimaryTarget } from '../../core/capabilities'
 import type { CompatibilityIssue, GraphNode } from '../../types/project'
-import { localizeDiagnosticMessage, localizeNodeTitle, useI18n } from '../../i18n'
+import { localizeNodeTitle, useI18n } from '../../i18n'
 import type { MessageKey } from '../../i18n'
 import { BlockIcon } from '../icons/BlockIcon'
 import { RouteInspectorPanel } from '../inspector/Inspector'
 import { WebSelect } from '../ui/WebSelect'
 import { WorkspaceItemMenu } from './WorkspaceItemMenu'
+import { presentDiagnostics } from '../compiler/diagnosticPresentation'
 
 const sourceStatusMessages = {
   healthy: 'workspace.source.status.healthy',
@@ -207,18 +209,22 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
   const { locale, t } = useI18n()
   const nodeIds = useMemo(() => new Set(nodes.map((node) => node.id)), [nodes])
   const groups = useMemo(() => groupProjectHealthDiagnostics(diagnostics, compatibilityDiagnostics, nodeIds), [compatibilityDiagnostics, diagnostics, nodeIds])
+  const errors = [...groups.errors, ...groups.compatibility.filter((issue) => issue.severity === 'error')]
   const warnings = groups.warnings.filter((issue) => issue.severity === 'warning')
-  const suggestions = groups.warnings.filter((issue) => issue.severity === 'info')
-  const allClear = groups.errors.length + warnings.length + groups.compatibility.length + suggestions.length === 0
+  const compatibility = groups.compatibility.filter((issue) => issue.severity === 'warning')
+  const suggestions = [...groups.warnings.filter((issue) => issue.severity === 'info'), ...groups.compatibility.filter((issue) => issue.severity === 'info')]
+  const allClear = errors.length + warnings.length + compatibility.length + suggestions.length === 0
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const entityNames = new Map(nodes.map((node) => [node.id, localizeNodeTitle(node, locale)]))
+  const exportable = errors.length === 0
   return <div className="workspace-inspect-page">
     <RouteInspectorPanel />
     {allClear
       ? <div className="workspace-health-ready"><ShieldCheck size={28} /><div><strong>{t('workspace.health.ready')}</strong><p>{t('workspace.health.readyDescription')}</p></div></div>
       : <div className="workspace-health-page">
-        <HealthSection id="health-errors" title={t('workspace.health.errors')} icon={<CircleAlert size={18} />} severity="error" entries={groups.errors} />
+        <HealthSection id="health-errors" title={t('workspace.health.errors')} icon={<CircleAlert size={18} />} severity="error" entries={errors} />
         <HealthSection id="health-warnings" title={t('workspace.health.warnings')} icon={<TriangleAlert size={18} />} severity="warning" entries={warnings} />
-        <HealthSection id="health-compatibility" title={t('workspace.health.compatibility')} icon={<ShieldCheck size={18} />} severity="compatibility" entries={groups.compatibility} />
+        <HealthSection id="health-compatibility" title={t('workspace.health.compatibility')} icon={<ShieldCheck size={18} />} severity="compatibility" entries={compatibility} />
         <HealthSection id="health-suggestions" title={t('workspace.health.suggestions')} icon={<Info size={18} />} severity="info" entries={suggestions} />
       </div>}
   </div>
@@ -228,20 +234,55 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
     title: string
     icon: React.ReactNode
     severity: 'error' | 'warning' | 'compatibility' | 'info'
-    entries: ReturnType<typeof groupProjectHealthDiagnostics>['errors']
+    entries: WorkspaceHealthEntry[]
   }) {
+    const issues = entries.flatMap(flattenHealthEntry).map(toHealthDiagnostic)
+    const presentations = presentDiagnostics(issues, { locale, t, exportable, entityNames })
     return <section className="workspace-health-section" data-severity={severity} aria-labelledby={id}>
-      <header>{icon}<h2 id={id}>{title}</h2><span>{entries.length}</span></header>
-      {entries.length === 0
+      <header>{icon}<h2 id={id}>{title}</h2><span>{presentations.length}</span></header>
+      {presentations.length === 0
         ? <p className="workspace-health-empty">{t('workspace.health.none')}</p>
-        : <div>{entries.map((entry, index) => {
-          const location = entry.locationNodeId ? nodeById.get(entry.locationNodeId) : undefined
-          return <article key={`${entry.target ?? 'project'}-${entry.code}-${entry.locationNodeId ?? 'none'}-${index}`}>
-            <div><strong>{localizeDiagnosticMessage(entry.code, entry.message, locale)}</strong><span>{entry.target && <b>{entry.target}</b>}{location && <small>{localizeNodeTitle(location, locale)}</small>}{entry.related?.length ? <small>{t('workspace.health.related', { count: entry.related.length })}</small> : null}</span>{<details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary><code>{entry.code}</code>{entry.related?.map((related, relatedIndex) => <div key={`${related.code}-${relatedIndex}`}><code>{related.code}</code><small>{localizeDiagnosticMessage(related.code, related.message, locale)}</small></div>)}</details>}</div>
-            {entry.locationNodeId && <button type="button" onClick={() => onOpenNode(entry.locationNodeId!)}>{t('workspace.health.goTo')}<ArrowRight size={14} /></button>}
+        : <div>{presentations.map((presentation) => {
+          const locationNodeId = presentation.locationIssue
+            ? diagnosticNodeId(presentation.locationIssue, nodeIds)
+            : undefined
+          const location = locationNodeId ? nodeById.get(locationNodeId) : undefined
+          const technicalCount = presentation.technicalDetails.reduce((count, detail) => count + detail.count, 0)
+          const targets = [...new Set(presentation.technicalDetails.flatMap(({ issue }) => {
+            const target = (issue as HealthDiagnostic).target
+            return target ? [target] : []
+          }))]
+          return <article data-severity={presentation.severity} key={presentation.key}>
+            <div>
+              <strong>{presentation.title}</strong>
+              <p className="workspace-health-description">{presentation.description}</p>
+              {presentation.reasonSummaries.length > 0 && <ul className="workspace-health-reasons">{presentation.reasonSummaries.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+              <small className="workspace-health-impact">{presentation.impact}</small>
+              {presentation.action && <small className="workspace-health-action">{presentation.action}</small>}
+              <span>{targets.map((target) => <b key={target}>{target}</b>)}{location && <small>{localizeNodeTitle(location, locale)}</small>}{technicalCount > 1 ? <small>{t('workspace.health.related', { count: technicalCount - 1 })}</small> : null}</span>
+              <details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary>{presentation.technicalDetails.map(({ issue, count }, detailIndex) => <div key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? 'none'}-${detailIndex}`}><code>{issue.code}</code><small>{issue.message}{count > 1 ? ` × ${count}` : ''}</small></div>)}</details>
+            </div>
+            {locationNodeId && <button type="button" onClick={() => onOpenNode(locationNodeId)}>{t('workspace.health.goTo')}<ArrowRight size={14} /></button>}
           </article>
         })}</div>}
     </section>
+  }
+}
+
+type HealthDiagnostic = StructuredDiagnostic & Pick<WorkspaceHealthEntry, 'target' | 'feature'>
+
+function flattenHealthEntry(entry: WorkspaceHealthEntry): WorkspaceHealthEntry[] {
+  return [entry, ...(entry.related ?? []).flatMap(flattenHealthEntry)]
+}
+
+function toHealthDiagnostic(entry: WorkspaceHealthEntry): HealthDiagnostic {
+  return {
+    code: entry.code,
+    severity: entry.severity,
+    message: entry.message,
+    ...(entry.locationNodeId ? { entityId: entry.locationNodeId, nodeId: entry.locationNodeId } : {}),
+    ...(entry.target ? { target: entry.target } : {}),
+    ...(entry.feature ? { feature: entry.feature } : {}),
   }
 }
 

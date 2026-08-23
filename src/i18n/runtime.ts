@@ -184,6 +184,10 @@ export function localizeDiagnosticMessage(code: string, message: string, locale:
   return translate(locale, 'issue.generic', { code })
 }
 
+export function hasLocalizedDiagnosticMessage(code: string) {
+  return Object.hasOwn(issueCopy, code)
+}
+
 export function regionLabel(code: string, locale: Locale) {
   return regionLabelForLocale(code, locale)
 }

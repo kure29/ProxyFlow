@@ -55,4 +55,20 @@ describe('Project target compile selection', () => {
     expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false })
     expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: true })
   })
+
+  it('synthesizes a blocker when the active compiler is unavailable without a result', () => {
+    const graphResult = compileGraph(createBlankProject('mihomo'))
+    const compiles: ProjectCompiles = {
+      graphResult,
+      mihomoState: { status: 'unavailable', error: 'Compiler module missing.' },
+      surgeState: { status: 'idle' },
+      singBoxState: { status: 'idle' },
+    }
+    expect(summarizePrimaryTargetHealth(compiles, 'mihomo')).toEqual({
+      status: 'blocked',
+      diagnostics: [{
+        code: 'TARGET_COMPILER_UNAVAILABLE', severity: 'error', message: 'Compiler module missing.',
+      }],
+    })
+  })
 })
