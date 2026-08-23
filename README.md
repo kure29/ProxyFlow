@@ -48,10 +48,10 @@ Local Mode 不需要账号、Docker 或 Runtime Service，Project 保存在当�
 curl -fL --output proxyflow.sh \
   https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
 chmod +x proxyflow.sh
-./proxyflow.sh install
+./proxyflow.sh
 ```
 
-服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.0.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
+交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.0.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
 
 ## Development
 

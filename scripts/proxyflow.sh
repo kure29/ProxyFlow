@@ -31,6 +31,15 @@ UPDATE_CHANNEL=''
 RUNTIME_TOKEN=''
 CONTAINER_UID=''
 CONTAINER_GID=''
+MENU_ACTION_RUNNING='false'
+MENU_ACTION_INTERRUPTED='false'
+MENU_EXIT_REQUESTED='false'
+MENU_LAST_STATUS=0
+MENU_STATE='Unknown'
+MENU_VERSION='Unknown'
+MENU_CHANNEL='stable'
+MENU_PORT="${DEFAULT_PORT}"
+MENU_DOCKER='Unavailable'
 
 say() { printf '%s\n' "$*"; }
 warn() { printf 'Warning: %s\n' "$*" >&2; }
@@ -40,7 +49,13 @@ usage() {
   cat <<'EOF'
 ProxyFlow Self-hosted manager
 
-Usage:
+Interactive:
+  proxyflow.sh
+
+  Running without arguments in an interactive terminal opens the management
+  menu. Without a TTY, the manager prints this usage and exits without waiting.
+
+Commands:
   proxyflow.sh install
   proxyflow.sh update
   proxyflow.sh start
@@ -165,6 +180,10 @@ require_docker() {
 
 require_installation() {
   [[ -f "${ENV_FILE}" && -f "${COMPOSE_FILE}" ]] || die "ProxyFlow is not installed in ${INSTALL_HOME}. Run: $0 install"
+}
+
+is_installed() {
+  [[ -f "${ENV_FILE}" && -f "${COMPOSE_FILE}" ]]
 }
 
 compose() {
@@ -457,9 +476,10 @@ uninstall_proxyflow() {
     return
   fi
   if [[ "${PROXYFLOW_CONFIRM_PURGE:-}" != 'DELETE' ]]; then
-    [[ -t 0 ]] || die 'Purge requires an interactive confirmation. Re-run in a terminal.'
+    has_interactive_input || die 'Purge requires an interactive confirmation. Re-run in a terminal.'
     local answer
-    read -r -p "Delete ProxyFlow data and backups at ${INSTALL_HOME}? Type DELETE: " answer
+    printf 'Delete ProxyFlow data and backups at %s? Type DELETE: ' "${INSTALL_HOME}"
+    read -r answer
     [[ "${answer}" == 'DELETE' ]] || die 'Purge cancelled.'
   fi
   if [[ "${DATA_DIR}" != "${INSTALL_HOME}" && "${DATA_DIR}" != "${INSTALL_HOME}/"* ]]; then safe_remove_path "${DATA_DIR}"; fi
@@ -467,9 +487,260 @@ uninstall_proxyflow() {
   say 'ProxyFlow containers, Runtime data, and local backups were deleted.'
 }
 
+has_interactive_input() {
+  [[ -t 0 ]]
+}
+
+is_interactive_terminal() {
+  has_interactive_input && [[ -t 1 ]]
+}
+
+menu_config_value() {
+  read_config_value "$1" 2>/dev/null || true
+}
+
+menu_update_channel() {
+  local saved_image saved_managed saved_channel
+  saved_image="$(menu_config_value PROXYFLOW_IMAGE)"
+  saved_managed="$(menu_config_value PROXYFLOW_IMAGE_MANAGED)"
+  saved_channel="$(menu_config_value PROXYFLOW_UPDATE_CHANNEL)"
+
+  if [[ "${IMAGE_OVERRIDE_SET}" == 'true' || "${saved_managed}" == 'false' ]]; then
+    printf '%s' 'manual pin'
+    return
+  fi
+  if [[ -n "${PROXYFLOW_UPDATE_CHANNEL:-}" ]]; then
+    printf '%s' "${PROXYFLOW_UPDATE_CHANNEL}"
+    return
+  fi
+  if [[ -n "${saved_channel}" ]]; then
+    printf '%s' "${saved_channel}"
+    return
+  fi
+  case "${saved_image}" in
+    "${IMAGE_REPOSITORY}:rc"|"${IMAGE_REPOSITORY}:"*-rc.[0-9]*) printf '%s' 'rc' ;;
+    *) printf '%s' 'stable' ;;
+  esac
+}
+
+menu_health_version() {
+  local port="$1" url body version
+  [[ "${port}" =~ ^[0-9]+$ ]] || return 1
+  url="http://127.0.0.1:${port}/health"
+  if command -v curl >/dev/null 2>&1; then
+    body="$(curl --fail --silent --show-error --max-time 2 "${url}" 2>/dev/null)" || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    body="$(wget -qO- --timeout=2 "${url}" 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+  version="$(printf '%s' "${body}" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+  [[ -n "${version}" ]] || return 1
+  printf '%s' "${version}"
+}
+
+refresh_menu_status() {
+  local saved_port running installed='false'
+  if is_installed; then installed='true'; fi
+  if [[ "${installed}" == 'true' ]]; then MENU_STATE='Unavailable'; else MENU_STATE='Not installed'; fi
+  MENU_VERSION='Unknown'
+  MENU_CHANNEL="$(menu_update_channel)"
+  saved_port="$(menu_config_value PROXYFLOW_PORT)"
+  MENU_PORT="${PROXYFLOW_PORT:-${saved_port:-${DEFAULT_PORT}}}"
+  MENU_DOCKER='Unavailable'
+
+  if ! command -v "${DOCKER_BIN}" >/dev/null 2>&1; then return 0; fi
+  if ! "${DOCKER_BIN}" info >/dev/null 2>&1; then return 0; fi
+  if ! "${DOCKER_BIN}" compose version >/dev/null 2>&1; then return 0; fi
+  MENU_DOCKER='Available'
+
+  [[ "${installed}" == 'true' ]] || return 0
+  if ! running="$("${DOCKER_BIN}" compose --project-name proxyflow --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" ps --status running -q proxyflow 2>/dev/null)"; then
+    MENU_STATE='Unavailable'
+    return 0
+  fi
+  if [[ -z "${running}" ]]; then
+    MENU_STATE='Stopped'
+    return 0
+  fi
+  MENU_STATE='Running'
+  MENU_VERSION="$(menu_health_version "${MENU_PORT}" || true)"
+  MENU_VERSION="${MENU_VERSION:-Unknown}"
+}
+
+render_interactive_menu() {
+  refresh_menu_status
+  say
+  say "ProxyFlow Manager v${PROXYFLOW_SCRIPT_VERSION}"
+  say '--------------------------------'
+  say
+  say "状态：${MENU_STATE}"
+  say "版本：${MENU_VERSION}"
+  say "更新通道：${MENU_CHANNEL}"
+  say "端口：${MENU_PORT}"
+  say "Docker：${MENU_DOCKER}"
+  say
+  say '1. 安装 ProxyFlow'
+  say '2. 更新 ProxyFlow'
+  say '3. 启动 ProxyFlow'
+  say '4. 停止 ProxyFlow'
+  say '5. 重启 ProxyFlow'
+  say '6. 查看状态'
+  say '7. 查看日志'
+  say '8. 备份数据'
+  say '9. 卸载 ProxyFlow'
+  say
+  say '0. 退出'
+  say
+}
+
+menu_pause() {
+  say
+  printf '按 Enter 返回主菜单...'
+  if ! IFS= read -r _; then MENU_EXIT_REQUESTED='true'; fi
+  say
+}
+
+menu_interrupt() {
+  say
+  if [[ "${MENU_ACTION_RUNNING}" == 'true' ]]; then
+    MENU_ACTION_INTERRUPTED='true'
+  else
+    MENU_EXIT_REQUESTED='true'
+  fi
+}
+
+run_menu_action() {
+  local allow_interrupt='false' status
+  if [[ "${1:-}" == '--allow-interrupt' ]]; then
+    allow_interrupt='true'
+    shift
+  fi
+
+  MENU_ACTION_RUNNING='true'
+  MENU_ACTION_INTERRUPTED='false'
+  set +e
+  ( set -Eeuo pipefail; "$@" )
+  status=$?
+  set -e
+  MENU_ACTION_RUNNING='false'
+  MENU_LAST_STATUS="${status}"
+
+  if [[ "${allow_interrupt}" == 'true' && ( "${MENU_ACTION_INTERRUPTED}" == 'true' || "${status}" -eq 130 ) ]]; then
+    MENU_ACTION_INTERRUPTED='true'
+    say '已停止实时日志，返回管理菜单。'
+    return 0
+  fi
+  if (( status != 0 )); then
+    say "操作未完成（退出码 ${status}），请检查以上信息。"
+  fi
+  return 0
+}
+
+menu_require_installation() {
+  if is_installed; then return 0; fi
+  say
+  say 'ProxyFlow 尚未安装，请先选择“安装 ProxyFlow”。'
+  menu_pause
+  return 1
+}
+
+menu_install_summary() {
+  local data_dir saved_data
+  saved_data="$(menu_config_value PROXYFLOW_DATA_DIR)"
+  data_dir="${PROXYFLOW_DATA_DIR:-${saved_data:-${INSTALL_HOME}/data}}"
+  refresh_menu_status
+  say
+  say 'ProxyFlow 安装完成'
+  say "地址：http://127.0.0.1:${MENU_PORT}"
+  say "数据目录：${data_dir}"
+}
+
+interactive_uninstall_menu() {
+  local choice
+  while [[ "${MENU_EXIT_REQUESTED}" != 'true' ]]; do
+    say
+    say '卸载 ProxyFlow'
+    say
+    say '1. 删除容器，保留 Runtime 数据和备份'
+    say '2. 完全删除 ProxyFlow、Runtime 数据和备份'
+    say '0. 返回'
+    say
+    printf '请选择 [0-2]: '
+    if ! IFS= read -r choice; then MENU_EXIT_REQUESTED='true'; return 0; fi
+    case "${choice}" in
+      1)
+        run_menu_action uninstall_proxyflow
+        menu_pause
+        return 0
+        ;;
+      2)
+        run_menu_action uninstall_proxyflow --purge
+        menu_pause
+        return 0
+        ;;
+      0|q|Q) return 0 ;;
+      *)
+        say '无效选择，请输入 0、1 或 2。'
+        menu_pause
+        ;;
+    esac
+  done
+}
+
+interactive_menu() {
+  local choice
+  MENU_EXIT_REQUESTED='false'
+  trap menu_interrupt INT
+
+  while [[ "${MENU_EXIT_REQUESTED}" != 'true' ]]; do
+    render_interactive_menu
+    printf '请选择 [0-9]: '
+    if ! IFS= read -r choice; then break; fi
+    case "${choice}" in
+      1)
+        run_menu_action install_proxyflow
+        if (( MENU_LAST_STATUS == 0 )); then menu_install_summary; fi
+        menu_pause
+        ;;
+      2|3|4|5|6|7|8|9)
+        if ! menu_require_installation; then continue; fi
+        case "${choice}" in
+          2) run_menu_action update_proxyflow; menu_pause ;;
+          3) run_menu_action start_proxyflow; menu_pause ;;
+          4) run_menu_action stop_proxyflow; menu_pause ;;
+          5) run_menu_action restart_proxyflow; menu_pause ;;
+          6) run_menu_action status_proxyflow; menu_pause ;;
+          7)
+            say
+            say '实时日志'
+            say '按 Ctrl+C 返回菜单'
+            run_menu_action --allow-interrupt logs_proxyflow
+            if [[ "${MENU_ACTION_INTERRUPTED}" != 'true' ]]; then menu_pause; fi
+            ;;
+          8) run_menu_action backup_data; menu_pause ;;
+          9) interactive_uninstall_menu ;;
+        esac
+        ;;
+      0|q|Q) break ;;
+      *)
+        say '无效选择，请输入 0-9。'
+        menu_pause
+        ;;
+    esac
+  done
+
+  trap - INT
+}
+
 main() {
-  local command="${1:-help}"
-  shift || true
+  if (( $# == 0 )); then
+    if is_interactive_terminal; then interactive_menu; else usage; fi
+    return 0
+  fi
+
+  local command="$1"
+  shift
   case "${command}" in
     install) [[ $# -eq 0 ]] || die 'Usage: proxyflow.sh install' 64; install_proxyflow ;;
     update) [[ $# -eq 0 ]] || die 'Usage: proxyflow.sh update' 64; update_proxyflow ;;
@@ -485,4 +756,4 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi
