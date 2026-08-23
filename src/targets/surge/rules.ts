@@ -59,9 +59,8 @@ function matcherPayload(matcher: TrafficMatcherIR) {
 function targetName(target: RouteTargetIR, ownerId: string, context: SurgeCompileContext) {
   if (target.kind === 'direct') return 'DIRECT'
   if (target.kind === 'reject') return 'REJECT'
-  const strategy = context.ir.strategies.find((item) => item.id === target.id)
   const name = context.strategyNames.get(target.id)
-  if (name && strategy && strategy.kind !== 'fixed' && strategy.kind !== 'chain') return name
+  if (name && context.compiledStrategyIds.has(target.id)) return name
   context.issues.push(surgeIssue(
     'SURGE_TARGET_REFERENCE_NOT_FOUND', 'error', 'route',
     `Target strategy “${target.id}” did not compile to a Surge policy group.`, ownerId,

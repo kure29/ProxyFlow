@@ -5,6 +5,7 @@ import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { surgeIssue } from './errors'
+import { compileSurgeGeneral } from './health'
 import { compileSurgeRules } from './rules'
 import { serializeSurgeProfile } from './serializer'
 import { compileSurgeStrategies } from './strategies'
@@ -29,7 +30,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
 
   const content = serializeSurgeProfile({
-    general: [],
+    general: compileSurgeGeneral(ir),
     proxies: context.proxies,
     proxyGroups: context.proxyGroups,
     rules,
