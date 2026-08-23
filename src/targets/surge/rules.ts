@@ -1,6 +1,7 @@
 import type { RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
 import type { SurgeCompileContext } from './context'
 import { surgeIssue } from './errors'
+import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { serializeSurgeRule } from './serializer'
 
 export function compileSurgeRules(context: SurgeCompileContext) {
@@ -9,9 +10,17 @@ export function compileSurgeRules(context: SurgeCompileContext) {
     .sort((left, right) => left.route.priority - right.route.priority || left.index - right.index)
   for (const { route } of routes) {
     const target = targetName(route.target, route.id, context)
+    if (!target) continue
+    if (route.matcher.kind === 'service') {
+      for (const serviceId of route.matcher.serviceIds) {
+        const source = resolveSurgeServiceRuleSource(context.ir, serviceId, route.id, context.issues)
+        if (source) rules.push(serializeSurgeRule('RULE-SET', source.url, target))
+      }
+      continue
+    }
     const type = matcherType(route.matcher)
     const payload = matcherPayload(route.matcher)
-    if (target && type && payload !== undefined) rules.push(serializeSurgeRule(type, payload, target))
+    if (type && payload !== undefined) rules.push(serializeSurgeRule(type, payload, target))
   }
   if (context.ir.finalRoute) {
     const target = targetName(context.ir.finalRoute.target, 'final', context)

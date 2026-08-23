@@ -3,6 +3,7 @@ import { createMaterializationContext, materializeProxySet } from '../../core/pr
 import type { CompatibilityIssue } from '../../types/project'
 import { surgeIssue } from './errors'
 import { checkSurgeProxy } from './proxies'
+import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 
 export interface SurgeCompatibilityResult {
@@ -78,10 +79,9 @@ export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResu
     if (!Number.isFinite(route.priority)) issues.push(surgeIssue(
       'SURGE_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route “${route.name}” has a non-finite priority.`, route.id,
     ))
-    if (route.matcher.kind === 'service') issues.push(surgeIssue(
-      'SURGE_SERVICE_RULE_SOURCE_UNSUPPORTED', 'error', 'service-rule',
-      'Surge-compatible first-party rule source is not available yet.', route.id,
-    ))
+    if (route.matcher.kind === 'service') {
+      for (const serviceId of route.matcher.serviceIds) resolveSurgeServiceRuleSource(ir, serviceId, route.id, issues)
+    }
     else if (!['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'geo-ip'].includes(route.matcher.kind)) issues.push(surgeIssue(
       'SURGE_MATCHER_UNSUPPORTED', 'error', 'route',
       `Matcher “${route.matcher.kind}” is outside the lossless routing subset of this Surge compiler phase.`, route.id,

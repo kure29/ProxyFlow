@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { serviceCatalog } from './serviceCatalog'
 
 const firstPartyServices = {
-  openai: { filename: 'OpenAI.yaml', ruleCount: 6, matchers: ['DOMAIN-SUFFIX'] },
+  openai: { filename: 'OpenAI.yaml', ruleCount: 20, matchers: ['DOMAIN-SUFFIX'] },
   claude: { filename: 'Claude.yaml', ruleCount: 4, matchers: ['DOMAIN-SUFFIX'] },
-  google: { filename: 'Google.yaml', ruleCount: 6, matchers: ['DOMAIN'] },
+  google: { filename: 'Google.yaml', ruleCount: 5, matchers: ['DOMAIN'] },
   gemini: { filename: 'Gemini.yaml', ruleCount: 4, matchers: ['DOMAIN', 'DOMAIN-SUFFIX'] },
   youtube: { filename: 'YouTube.yaml', ruleCount: 7, matchers: ['DOMAIN', 'DOMAIN-SUFFIX'] },
   netflix: { filename: 'Netflix.yaml', ruleCount: 7, matchers: ['DOMAIN-SUFFIX'] },
   disney: { filename: 'Disney.yaml', ruleCount: 7, matchers: ['DOMAIN', 'DOMAIN-SUFFIX'] },
   telegram: { filename: 'Telegram.yaml', ruleCount: 19, matchers: ['DOMAIN-SUFFIX', 'IP-CIDR', 'IP-CIDR6'] },
   github: { filename: 'GitHub.yaml', ruleCount: 6, matchers: ['DOMAIN-SUFFIX'] },
-  steam: { filename: 'Steam.yaml', ruleCount: 8, matchers: ['DOMAIN-SUFFIX'] },
+  steam: { filename: 'Steam.yaml', ruleCount: 12, matchers: ['DOMAIN-SUFFIX'] },
 } as const
 
 describe('built-in service catalog', () => {
@@ -46,7 +46,7 @@ describe('built-in service catalog', () => {
       .flatMap((service) => service.ruleSources)
       .filter((source) => source.provider === 'remote')
     expect(remoteSources).toHaveLength(10)
-    expect(remoteSources.reduce((total, source) => total + (source.ruleCount ?? 0), 0)).toBe(74)
+    expect(remoteSources.reduce((total, source) => total + (source.ruleCount ?? 0), 0)).toBe(91)
     expect(remoteSources.every((source) => source.url?.includes('/kure29/proxyflow-rules/main/rules/mihomo/'))).toBe(true)
     expect(remoteSources.every((source) => !source.url?.includes('blackmatrix7'))).toBe(true)
   })

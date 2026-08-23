@@ -6,9 +6,25 @@ import {
   type ResolvedProxyEndpointIR,
   type TrafficMatcherIR,
 } from '../../core/ir'
+import { legacyChinaServiceDefinition } from '../../data/legacyServices'
+import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileSurge, SurgeCompiler } from './compiler'
+import { serializeSurgeRule } from './serializer'
 
 const fixedNow = () => new Date('2026-08-23T00:00:00.000Z')
+const surgeRuleBaseUrl = 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/surge'
+const serviceRuleCases = [
+  { id: 'openai', name: 'OpenAI', filename: 'OpenAI.list' },
+  { id: 'claude', name: 'Claude', filename: 'Claude.list' },
+  { id: 'google', name: 'Google', filename: 'Google.list' },
+  { id: 'gemini', name: 'Gemini', filename: 'Gemini.list' },
+  { id: 'youtube', name: 'YouTube', filename: 'YouTube.list' },
+  { id: 'netflix', name: 'Netflix', filename: 'Netflix.list' },
+  { id: 'disney', name: 'Disney+', filename: 'Disney.list' },
+  { id: 'telegram', name: 'Telegram', filename: 'Telegram.list' },
+  { id: 'github', name: 'GitHub', filename: 'GitHub.list' },
+  { id: 'steam', name: 'Steam', filename: 'Steam.list' },
+] as const
 
 function httpProxy(
   overrides: Partial<Extract<ResolvedProxyEndpointIR, { kind: 'http' }>> = {},
@@ -275,24 +291,121 @@ describe('SurgeCompiler', () => {
     compileFailure(baseIR(endpoint), 'SURGE_PROXY_PROTOCOL_UNSUPPORTED')
   })
 
-  it('fails closed for a current Mihomo first-party service rule source with the specified diagnostic', () => {
+  it.each(serviceRuleCases)('maps the $name service id to its exact first-party Surge asset', ({ id, filename }) => {
     const ir = baseIR()
-    ir.services = [{
-      id: 'openai', name: 'OpenAI', defaultMatchers: ['DOMAIN-SUFFIX'],
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [route(`${id}-route`, { kind: 'service', serviceIds: [id] }, { kind: 'strategy', id: 'manual' }, 10)]
+
+    expect(JSON.stringify(ir.services)).not.toContain('/rules/surge/')
+    const result = compileSuccessfully(ir)
+    expect(sectionLines(result.content, 'Rule')).toEqual([
+      `RULE-SET,${surgeRuleBaseUrl}/${filename},Proxy`,
+      'FINAL,Proxy',
+    ])
+    expect(result.content).not.toContain('/rules/mihomo/')
+  })
+
+  it('supports Strategy, DIRECT and REJECT policies while preserving the representative mixed order', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 10),
+      route('example', { kind: 'domain-suffix', value: 'example.com' }, { kind: 'strategy', id: 'manual' }, 20),
+      route('telegram', { kind: 'service', serviceIds: ['telegram'] }, { kind: 'direct' }, 30),
+      route('steam', { kind: 'service', serviceIds: ['steam'] }, { kind: 'reject' }, 40),
+    ]
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      `RULE-SET,${surgeRuleBaseUrl}/OpenAI.list,Proxy`,
+      'DOMAIN-SUFFIX,example.com,Proxy',
+      `RULE-SET,${surgeRuleBaseUrl}/Telegram.list,DIRECT`,
+      `RULE-SET,${surgeRuleBaseUrl}/Steam.list,REJECT`,
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('keeps Service, Service and FINAL in priority order', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      route('telegram', { kind: 'service', serviceIds: ['telegram'] }, { kind: 'direct' }, 20),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 10),
+    ]
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      `RULE-SET,${surgeRuleBaseUrl}/OpenAI.list,Proxy`,
+      `RULE-SET,${surgeRuleBaseUrl}/Telegram.list,DIRECT`,
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('preserves mixed DOMAIN, Service, IP-CIDR, Service and FINAL ordering', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      route('domain', { kind: 'domain-suffix', value: 'example.com' }, { kind: 'strategy', id: 'manual' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 20),
+      route('cidr', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'direct' }, 30),
+      route('telegram', { kind: 'service', serviceIds: ['telegram'] }, { kind: 'direct' }, 40),
+    ]
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      'DOMAIN-SUFFIX,example.com,Proxy',
+      `RULE-SET,${surgeRuleBaseUrl}/OpenAI.list,Proxy`,
+      'IP-CIDR,192.0.2.0/24,DIRECT',
+      `RULE-SET,${surgeRuleBaseUrl}/Telegram.list,DIRECT`,
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('uses original route index as the stable tie-break for mixed service and ordinary rules', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      route('telegram', { kind: 'service', serviceIds: ['telegram'] }, { kind: 'direct' }, 10),
+      route('domain', { kind: 'domain', value: 'example.com' }, { kind: 'strategy', id: 'manual' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'reject' }, 10),
+    ]
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      `RULE-SET,${surgeRuleBaseUrl}/Telegram.list,DIRECT`,
+      'DOMAIN,example.com,Proxy',
+      `RULE-SET,${surgeRuleBaseUrl}/OpenAI.list,REJECT`,
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('fails closed for unknown, missing-source, legacy China and invalid-target service rules', () => {
+    const unknown = baseIR()
+    unknown.services = structuredClone(serviceCatalog)
+    unknown.routes = [route('unknown', { kind: 'service', serviceIds: ['unknown'] }, { kind: 'direct' }, 10)]
+    compileFailure(unknown, 'SURGE_SERVICE_RULE_NOT_FOUND')
+
+    const missingSource = baseIR()
+    missingSource.services = [{
+      id: 'fictional', name: 'Fictional',
       ruleSources: [{
-        id: 'proxyflow-openai', provider: 'remote', format: 'yaml', behavior: 'classical',
-        url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/mihomo/OpenAI.yaml',
+        id: 'fictional-mihomo', provider: 'remote', format: 'yaml', behavior: 'classical',
+        url: 'https://example.com/fictional.yaml',
       }],
     }]
-    ir.routes = [{
-      id: 'openai-route', name: 'OpenAI', matcher: { kind: 'service', serviceIds: ['openai'] },
-      target: { kind: 'strategy', id: 'manual' }, priority: 10,
-    }]
-    const result = compileFailure(ir, 'SURGE_SERVICE_RULE_SOURCE_UNSUPPORTED')
-    expect(result.issues).toContainEqual(expect.objectContaining({
-      code: 'SURGE_SERVICE_RULE_SOURCE_UNSUPPORTED',
-      message: expect.stringContaining('Surge-compatible first-party rule source is not available yet.'),
-    }))
+    missingSource.routes = [route('missing-source', { kind: 'service', serviceIds: ['fictional'] }, { kind: 'direct' }, 10)]
+    compileFailure(missingSource, 'SURGE_SERVICE_RULE_SOURCE_MISSING')
+
+    const legacyChina = baseIR()
+    legacyChina.services = [structuredClone(legacyChinaServiceDefinition)]
+    legacyChina.routes = [route('legacy-china', { kind: 'service', serviceIds: ['china'] }, { kind: 'direct' }, 10)]
+    const legacyResult = compileFailure(legacyChina, 'SURGE_LEGACY_SERVICE_RULE_UNSUPPORTED')
+    expect(legacyResult.content).not.toContain('China.list')
+
+    const invalidTarget = baseIR()
+    invalidTarget.services = structuredClone(serviceCatalog)
+    invalidTarget.routes = [route('invalid-target', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'missing' }, 10)]
+    compileFailure(invalidTarget, 'IR_ROUTE_TARGET_NOT_FOUND')
+  })
+
+  it('quotes comma-containing rule payloads and rejects line-break injection', () => {
+    expect(serializeSurgeRule('RULE-SET', 'https://example.com/rules,a.list', 'Proxy')).toBe(
+      'RULE-SET,"https://example.com/rules,a.list",Proxy',
+    )
+    expect(() => serializeSurgeRule('RULE-SET', 'https://example.com/rules.list\nFINAL,DIRECT', 'Proxy'))
+      .toThrow('Surge rule tokens must be single-line values.')
   })
 
   it('fails closed whenever the IR contains a Proxy Chain', () => {
