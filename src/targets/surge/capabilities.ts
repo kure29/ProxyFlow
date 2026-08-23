@@ -16,6 +16,9 @@ const docs = {
   loadBalance: 'https://manual.nssurge.com/policy-groups/load-balance.html',
   policies: 'https://manual.nssurge.com/policies/overview.html',
   policyParameters: 'https://manual.nssurge.com/policies/parameters.html',
+  dnsOverview: 'https://manual.nssurge.com/dns/overview.html',
+  dnsServers: 'https://manual.nssurge.com/dns/dns-server.html',
+  encryptedDns: 'https://manual.nssurge.com/dns/encrypted-dns.html',
 } as const
 
 /** Target-backend audit data. This is deliberately separate from the product target registry. */
@@ -59,8 +62,9 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     officialReference: docs.groups, diagnostic: 'SURGE_PROXY_CHAIN_NESTED_MEMBER_UNSUPPORTED',
   },
   {
-    feature: 'DNS', status: 'unsupported', reason: 'Active Surge DNS has not been designed in Universal IR lowering.',
-    officialReference: 'https://manual.nssurge.com/dns/dns-server.html', diagnostic: 'SURGE_DNS_UNSUPPORTED',
+    feature: 'DNS', status: 'conditional',
+    reason: 'Automatic DNS, system/IPv4 UDP defaults, and pure DoH/DoT default resolver sets are exact; role-specific, mixed traditional/encrypted, malformed, ambiguous duplicate, and traditional IPv6-upstream intent fails closed.',
+    officialReference: docs.dnsOverview, diagnostic: 'SURGE_DNS_MIXED_TRANSPORT_SEMANTICS_UNSUPPORTED',
   },
   {
     feature: 'VMess', status: 'unsupported', reason: 'Universal IR does not retain explicit vmess-aead intent.',

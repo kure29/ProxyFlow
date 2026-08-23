@@ -4,7 +4,9 @@ import type { ProxyFlowIR } from '../../core/ir'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
+import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
+import { composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
 import { compileSurgeRules } from './rules'
 import { serializeSurgeProfile } from './serializer'
@@ -27,10 +29,14 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const context = createSurgeContext(ir, issues)
   compileSurgeStrategies(context)
   const rules = compileSurgeRules(context)
+  const general = composeSurgeGeneral([
+    compileSurgeGeneral(ir),
+    planSurgeDns(ir.dns).general,
+  ], issues)
   if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
 
   const content = serializeSurgeProfile({
-    general: compileSurgeGeneral(ir),
+    general,
     proxies: context.proxies,
     proxyGroups: context.proxyGroups,
     rules,

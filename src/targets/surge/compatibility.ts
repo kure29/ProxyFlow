@@ -1,6 +1,7 @@
 import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type ResolvedProxyEndpointIR, type StrategyIR } from '../../core/ir'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
+import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
 import { checkSurgeProxy } from './proxies'
 import { resolveSurgeServiceRuleSource } from './serviceRules'
@@ -98,10 +99,7 @@ export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResu
     ))
   }
 
-  if (ir.dns?.enabled) issues.push(surgeIssue(
-    'SURGE_DNS_UNSUPPORTED', 'error', 'dns',
-    'Surge DNS is not implemented in this compiler phase; active DNS semantics were not ignored.', 'dns',
-  ))
+  issues.push(...planSurgeDns(ir.dns).issues)
 
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }
