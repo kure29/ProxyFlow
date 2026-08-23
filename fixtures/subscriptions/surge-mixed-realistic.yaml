@@ -1,0 +1,86 @@
+proxies:
+  - { name: HK Plain SS, type: ss, server: hk-ss.example.invalid, port: 8388, cipher: aes-128-gcm, password: fixture-password }
+  - name: HK Simple Obfs SS
+    type: ss
+    server: hk-obfs.example.invalid
+    port: 8388
+    cipher: aes-256-gcm
+    password: fixture-password
+    plugin: simple-obfs
+    plugin-opts: { mode: tls, host: cdn.example.invalid }
+  - { name: HK Trojan, type: trojan, server: hk-trojan.example.invalid, port: 443, password: fixture-password, sni: hk-trojan.example.invalid }
+  - { name: HK SOCKS5, type: socks5, server: hk-socks.example.invalid, port: 1080, username: fixture-user, password: fixture-password }
+  - { name: HK Hysteria2, type: hysteria2, server: hk-hy2.example.invalid, port: 443, password: fixture-password, sni: hk-hy2.example.invalid, down: 100 }
+  - { name: HK TUIC, type: tuic, server: hk-tuic.example.invalid, port: 443, uuid: 10000000-0000-4000-8000-000000000001, password: fixture-password, sni: hk-tuic.example.invalid }
+  - { name: HK AnyTLS, type: anytls, server: hk-anytls.example.invalid, port: 443, password: fixture-password, sni: hk-anytls.example.invalid }
+  - { name: HK VMess, type: vmess, server: hk-vmess.example.invalid, port: 443, uuid: 20000000-0000-4000-8000-000000000001, cipher: auto, tls: true }
+  - { name: HK VLESS, type: vless, server: hk-vless.example.invalid, port: 443, uuid: 30000000-0000-4000-8000-000000000001, tls: true, security: tls }
+  - name: HK V2Ray Plugin SS
+    type: ss
+    server: hk-v2ray.example.invalid
+    port: 8388
+    cipher: aes-128-gcm
+    password: fixture-password
+    plugin: v2ray-plugin
+    plugin-opts: { mode: websocket, host: cdn.example.invalid, path: /fixture }
+
+  - { name: US Plain SS A, type: ss, server: us-ss-a.example.invalid, port: 8388, cipher: aes-128-gcm, password: fixture-password }
+  - { name: US Plain SS B, type: ss, server: us-ss-b.example.invalid, port: 8389, cipher: chacha20-ietf-poly1305, password: fixture-password }
+  - { name: JP Plain SS, type: ss, server: jp-ss.example.invalid, port: 8390, cipher: aes-256-gcm, password: fixture-password }
+  - name: SG Simple Obfs SS
+    type: ss
+    server: sg-obfs.example.invalid
+    port: 8388
+    cipher: aes-128-gcm
+    password: fixture-password
+    plugin: obfs-local
+    plugin-opts: { obfs: http, obfs-host: assets.example.invalid, obfs-uri: /resource }
+  - { name: US Trojan, type: trojan, server: us-trojan.example.invalid, port: 443, password: fixture-password, sni: us-trojan.example.invalid }
+  - { name: JP Trojan, type: trojan, server: jp-trojan.example.invalid, port: 443, password: fixture-password, sni: jp-trojan.example.invalid }
+  - { name: SG SOCKS5, type: socks5, server: sg-socks.example.invalid, port: 1080, username: fixture-user, password: fixture-password }
+  - { name: US Hysteria2, type: hysteria2, server: us-hy2.example.invalid, port: 443, password: fixture-password, sni: us-hy2.example.invalid, down: 80 }
+  - { name: JP TUIC, type: tuic, server: jp-tuic.example.invalid, port: 443, uuid: 10000000-0000-4000-8000-000000000002, password: fixture-password, sni: jp-tuic.example.invalid }
+  - { name: US AnyTLS, type: anytls, server: us-anytls.example.invalid, port: 443, password: fixture-password, sni: us-anytls.example.invalid }
+  - { name: JP AnyTLS, type: anytls, server: jp-anytls.example.invalid, port: 443, password: fixture-password, sni: jp-anytls.example.invalid }
+
+  - { name: US VMess, type: vmess, server: us-vmess.example.invalid, port: 443, uuid: 20000000-0000-4000-8000-000000000002, cipher: auto, tls: true }
+  - { name: JP VMess, type: vmess, server: jp-vmess.example.invalid, port: 443, uuid: 20000000-0000-4000-8000-000000000003, cipher: auto, tls: true }
+  - { name: US VLESS, type: vless, server: us-vless.example.invalid, port: 443, uuid: 30000000-0000-4000-8000-000000000002, tls: true, security: tls }
+  - { name: JP VLESS, type: vless, server: jp-vless.example.invalid, port: 443, uuid: 30000000-0000-4000-8000-000000000003, tls: true, security: tls }
+  - name: US V2Ray Plugin SS
+    type: ss
+    server: us-v2ray.example.invalid
+    port: 8388
+    cipher: aes-128-gcm
+    password: fixture-password
+    plugin: v2ray-plugin
+    plugin-opts: { mode: websocket, host: cdn.example.invalid }
+  - name: JP V2Ray Plugin SS
+    type: ss
+    server: jp-v2ray.example.invalid
+    port: 8388
+    cipher: aes-256-gcm
+    password: fixture-password
+    plugin: v2ray-plugin
+    plugin-opts: { mode: websocket, host: cdn.example.invalid }
+  - name: US Trojan gRPC
+    type: trojan
+    server: us-grpc.example.invalid
+    port: 443
+    password: fixture-password
+    network: grpc
+    grpc-opts: { grpc-service-name: fixture }
+  - name: JP Trojan gRPC
+    type: trojan
+    server: jp-grpc.example.invalid
+    port: 443
+    password: fixture-password
+    network: grpc
+    grpc-opts: { grpc-service-name: fixture }
+  - name: SG Trojan gRPC
+    type: trojan
+    server: sg-grpc.example.invalid
+    port: 443
+    password: fixture-password
+    network: grpc
+    grpc-opts: { grpc-service-name: fixture }

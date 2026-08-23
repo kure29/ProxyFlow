@@ -10,6 +10,7 @@ import type { WorkspaceSectionId } from '../../core/workspace'
 import { localizeProjectName, useI18n } from '../../i18n'
 import type { ProjectListItem } from '../../storage/projectStorage'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
+import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 
 interface ProjectOverviewProps {
   projectName: string
@@ -47,8 +48,9 @@ export function ProjectOverview({
   const actionTriggerRef = useRef<HTMLButtonElement | null>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const errorCount = health.diagnostics.filter(({ severity }) => severity === 'error').length
-  const warningCount = health.diagnostics.filter(({ severity }) => severity === 'warning').length
+  const diagnosticCounts = summarizeDiagnosticCounts(health.diagnostics)
+  const errorCount = diagnosticCounts.blockerCount
+  const warningCount = diagnosticCounts.warningGroupCount
   const facts = [
     { label: t('workspace.overview.target'), value: targetLabel },
     { label: t('workspace.overview.exportable'), value: canExport ? t('workspace.overview.yes') : t('workspace.overview.no'), status: canExport ? 'ready' : 'blocked' },

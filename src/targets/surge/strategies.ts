@@ -1,9 +1,19 @@
-import { isUnmodeledProxy, type ChainStrategyIR, type ProxySetRef, type ResolvedProxyEndpointIR, type StrategyCandidateRef, type StrategyIR } from '../../core/ir'
-import { materializeProxySet } from '../../core/proxySet'
+import type { ChainStrategyIR, ProxySetRef, StrategyCandidateRef, StrategyIR } from '../../core/ir'
 import type { SurgeCompileContext } from './context'
 import { registerSurgeProxy } from './context'
 import { surgeIssue } from './errors'
 import type { SurgeParameter, SurgePolicyEntry } from './model'
+import {
+  projectSurgeFixedEndpoint,
+  projectSurgeProxySet,
+  surgeStrategyNoMemberIssue,
+  type SurgeProxySetProjection,
+} from './projection'
+
+interface CompiledMembers {
+  members: string[]
+  projections: SurgeProxySetProjection[]
+}
 
 export function compileSurgeStrategies(context: SurgeCompileContext) {
   for (const strategy of context.ir.strategies) {
@@ -27,41 +37,38 @@ export function compileSurgeStrategies(context: SurgeCompileContext) {
 function compileStrategy(strategy: StrategyIR, context: SurgeCompileContext): SurgePolicyEntry | undefined {
   if (strategy.kind === 'chain') return undefined
   if (strategy.kind === 'fixed') {
-    const endpoint = findFixedEndpoint(strategy.proxyId, context)
-    if (!endpoint) {
-      context.issues.push(surgeIssue(
-        'SURGE_FIXED_PROXY_UNRESOLVED', 'error', 'strategy',
-        `Fixed strategy “${strategy.name}” does not resolve to a modeled proxy endpoint.`, strategy.id,
-      ))
+    const fixed = projectSurgeFixedEndpoint(context.ir, strategy, context.projection)
+    if (!fixed.endpoint) {
+      context.issues.push(...fixed.issues)
       return undefined
     }
     return {
       name: strategy.name,
       type: 'select',
-      arguments: [registerSurgeProxy(endpoint, context)],
+      arguments: [registerSurgeProxy(fixed.endpoint, context)],
     }
   }
   if (strategy.kind === 'select' || strategy.kind === 'fallback') {
-    const members = compileCandidates(strategy.candidates, strategy, context)
-    if (!ensureMembers(members, strategy, context)) return undefined
+    const resolved = compileCandidates(strategy.candidates, strategy, context)
+    if (!ensureMembers(resolved, strategy, context)) return undefined
     const parameters: SurgeParameter[] = strategy.kind === 'fallback' && strategy.healthCheck?.intervalSeconds !== undefined
       ? [{ key: 'interval', value: strategy.healthCheck.intervalSeconds }]
       : []
     return {
       name: strategy.name,
       type: strategy.kind === 'select' ? 'select' : 'fallback',
-      arguments: members,
+      arguments: resolved.members,
       parameters,
     }
   }
 
-  const members = resolveProxySet(strategy.source, strategy, context)
-  if (!ensureMembers(members, strategy, context)) return undefined
+  const resolved = resolveProxySet(strategy.source, context)
+  if (!ensureMembers(resolved, strategy, context)) return undefined
   if (strategy.kind === 'load-balance') return undefined
   return {
     name: strategy.name,
     type: 'url-test',
-    arguments: members,
+    arguments: resolved.members,
     parameters: [
       ...(strategy.healthCheck?.intervalSeconds !== undefined
         ? [{ key: 'interval', value: strategy.healthCheck.intervalSeconds } as const]
@@ -131,47 +138,43 @@ function cloneGroup(entry: SurgePolicyEntry, name: string, underlyingProxy?: str
   }
 }
 
-function findFixedEndpoint(proxyId: string | undefined, context: SurgeCompileContext): ResolvedProxyEndpointIR | undefined {
-  if (!proxyId) return undefined
-  for (const source of context.ir.sources) {
-    if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
-    const endpoint = (source.proxies ?? []).find((proxy) => proxy.id === proxyId)
-    if (endpoint && !isUnmodeledProxy(endpoint)) return endpoint
-  }
-  return undefined
-}
-
 function compileCandidates(
   candidates: StrategyCandidateRef[],
   strategy: Extract<StrategyIR, { kind: 'select' | 'fallback' }>,
   context: SurgeCompileContext,
-) {
-  const members: string[] = []
+): CompiledMembers {
+  const resolved: CompiledMembers = { members: [], projections: [] }
   for (const candidate of candidates) {
     if (candidate.kind === 'strategy') {
       const name = context.strategyNames.get(candidate.id)
-      if (name) members.push(name)
+      if (name) resolved.members.push(name)
       else context.issues.push(surgeIssue(
         'SURGE_STRATEGY_REFERENCE_NOT_FOUND', 'error', 'strategy',
         `Strategy “${strategy.name}” references missing strategy “${candidate.id}”.`, strategy.id,
       ))
-    } else members.push(...resolveProxySet(candidate, strategy, context))
+    } else {
+      const projected = resolveProxySet(candidate, context)
+      resolved.members.push(...projected.members)
+      resolved.projections.push(...projected.projections)
+    }
   }
-  return members
+  resolved.members = [...new Set(resolved.members)]
+  return resolved
 }
 
-function resolveProxySet(ref: ProxySetRef, strategy: StrategyIR, context: SurgeCompileContext) {
-  const result = materializeProxySet(context.ir, ref, context.materialization)
-  for (const issue of result.issues) context.issues.push(surgeIssue(
-    `SURGE_${issue.code}`, issue.severity, 'strategy', issue.message, issue.entityId ?? strategy.id,
-  ))
-  return result.status === 'ready' ? result.proxies.map((proxy) => registerSurgeProxy(proxy, context)) : []
+function resolveProxySet(ref: ProxySetRef, context: SurgeCompileContext): CompiledMembers {
+  const projection = projectSurgeProxySet(context.ir, ref, context.projection)
+  return {
+    members: projection.status === 'ready'
+      ? [...new Set(projection.proxies.map((proxy) => registerSurgeProxy(proxy, context)))]
+      : [],
+    projections: [projection],
+  }
 }
 
-function ensureMembers(members: string[], strategy: StrategyIR, context: SurgeCompileContext) {
-  if (members.length > 0) return true
-  context.issues.push(surgeIssue(
-    'SURGE_STRATEGY_EMPTY', 'error', 'strategy', `Strategy “${strategy.name}” has no materialized policy members.`, strategy.id,
-  ))
+function ensureMembers(resolved: CompiledMembers, strategy: StrategyIR, context: SurgeCompileContext) {
+  if (resolved.members.length > 0) return true
+  const issue = surgeStrategyNoMemberIssue(strategy, resolved.projections)
+  if (issue) context.issues.push(issue)
   return false
 }

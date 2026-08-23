@@ -1,0 +1,217 @@
+{
+  "version": 2,
+  "id": "surge-release-candidate",
+  "name": "Surge Release Candidate",
+  "primaryTarget": "surge",
+  "graph": {
+    "nodes": [
+      {
+        "id": "manual-source",
+        "type": "block",
+        "position": { "x": 80, "y": 80 },
+        "data": {
+          "blockType": "manual-proxy",
+          "category": "source",
+          "title": "Manual HTTPS Egress",
+          "subtitle": "Fixture endpoint",
+          "icon": "server",
+          "proxyProtocol": "http",
+          "proxyServer": "manual.example.invalid",
+          "proxyPort": 8443,
+          "proxyUsername": "release-user",
+          "proxyPassword": "release-password",
+          "proxyTls": true,
+          "proxyServerName": "manual.example.invalid"
+        }
+      },
+      {
+        "id": "snapshot-source",
+        "type": "block",
+        "position": { "x": 80, "y": 300 },
+        "data": {
+          "blockType": "subscription",
+          "category": "source",
+          "title": "Validated Snapshot",
+          "subtitle": "Embedded fixture snapshot",
+          "icon": "radio",
+          "subscriptionInputKind": "paste",
+          "subscriptionContent": "socks5://snapshot:fixture-pass@snapshot-hk-a.example.invalid:1080#HK%20Snapshot%20A\nsocks5://snapshot:fixture-pass@snapshot-hk-b.example.invalid:1081#HK%20Snapshot%20B",
+          "enabled": true
+        }
+      },
+      {
+        "id": "hk-filter",
+        "type": "block",
+        "position": { "x": 380, "y": 300 },
+        "data": {
+          "blockType": "filter",
+          "category": "processing",
+          "title": "Hong Kong Snapshot Filter",
+          "subtitle": "Region = HK",
+          "icon": "list-filter",
+          "filterMode": "region",
+          "filterOperation": "include",
+          "filterRegions": ["HK"],
+          "includeRegions": ["HK"],
+          "systemFilterKeywords": true
+        }
+      },
+      {
+        "id": "snapshot-auto",
+        "type": "block",
+        "position": { "x": 660, "y": 300 },
+        "data": {
+          "blockType": "auto-select",
+          "category": "strategy",
+          "title": "Snapshot Auto",
+          "subtitle": "URL Test",
+          "icon": "gauge",
+          "interval": 300,
+          "tolerance": 50
+        }
+      },
+      {
+        "id": "manual-fixed",
+        "type": "block",
+        "position": { "x": 660, "y": 80 },
+        "data": {
+          "blockType": "fixed-proxy",
+          "category": "strategy",
+          "title": "Manual Fixed",
+          "subtitle": "Optional fixed hop",
+          "icon": "pin",
+          "proxyId": "manual-source"
+        }
+      },
+      {
+        "id": "release-chain",
+        "type": "block",
+        "position": { "x": 940, "y": 200 },
+        "data": {
+          "blockType": "proxy-chain",
+          "category": "chain",
+          "title": "Release Chain",
+          "subtitle": "Snapshot Auto → Manual Fixed",
+          "icon": "route",
+          "hopIds": ["snapshot-auto", "manual-fixed"]
+        }
+      },
+      {
+        "id": "openai-route",
+        "type": "block",
+        "position": { "x": 660, "y": 540 },
+        "data": {
+          "blockType": "service-rule",
+          "category": "routing",
+          "title": "OpenAI",
+          "subtitle": "First-party Surge RULE-SET",
+          "icon": "bot",
+          "services": ["OpenAI"],
+          "targetId": "release-chain",
+          "targetLabel": "Release Chain",
+          "targetKind": "strategy",
+          "routePriority": 10
+        }
+      },
+      {
+        "id": "ordinary-domain-route",
+        "type": "block",
+        "position": { "x": 940, "y": 540 },
+        "data": {
+          "blockType": "custom-rule",
+          "category": "routing",
+          "title": "Documentation Domain",
+          "subtitle": "DOMAIN-SUFFIX example.org",
+          "icon": "globe",
+          "routeMatcherKind": "domain-suffix",
+          "routeMatcherValue": "example.org",
+          "targetId": "snapshot-auto",
+          "targetLabel": "Snapshot Auto",
+          "targetKind": "strategy",
+          "routePriority": 20
+        }
+      },
+      {
+        "id": "safe-dns",
+        "type": "block",
+        "position": { "x": 940, "y": 720 },
+        "data": {
+          "blockType": "dns",
+          "category": "dns",
+          "title": "Safe DNS",
+          "subtitle": "Cloudflare DoH",
+          "icon": "globe-2",
+          "dnsResolvers": [
+            {
+              "id": "cloudflare-doh",
+              "name": "Cloudflare DoH",
+              "kind": "doh",
+              "role": "default",
+              "address": "https://1.1.1.1/dns-query",
+              "enabled": true,
+              "region": "global"
+            }
+          ]
+        }
+      },
+      {
+        "id": "final-route",
+        "type": "block",
+        "position": { "x": 1220, "y": 540 },
+        "data": {
+          "blockType": "final",
+          "category": "routing",
+          "title": "Final",
+          "subtitle": "Remaining traffic → Release Chain",
+          "icon": "corner-down-right",
+          "targetId": "release-chain",
+          "targetLabel": "Release Chain",
+          "targetKind": "strategy",
+          "protected": true
+        }
+      },
+      {
+        "id": "surge-output",
+        "type": "block",
+        "position": { "x": 1220, "y": 260 },
+        "data": {
+          "blockType": "output",
+          "category": "output",
+          "title": "Surge Output",
+          "subtitle": "Release-candidate export",
+          "icon": "package-check",
+          "client": "surge",
+          "compatibility": "Supported",
+          "protected": true
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e-snapshot-filter", "source": "snapshot-source", "target": "hk-filter", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "e-filter-auto", "source": "hk-filter", "target": "snapshot-auto", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "e-auto-chain", "source": "snapshot-auto", "target": "release-chain", "type": "smoothstep", "data": { "semantic": "strategy" } },
+      { "id": "e-fixed-chain", "source": "manual-fixed", "target": "release-chain", "type": "smoothstep", "data": { "semantic": "strategy" } },
+      { "id": "e-openai-chain", "source": "openai-route", "target": "release-chain", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "e-domain-auto", "source": "ordinary-domain-route", "target": "snapshot-auto", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "e-dns-output", "source": "safe-dns", "target": "surge-output", "type": "smoothstep", "data": { "semantic": "dns" } },
+      { "id": "e-final-chain", "source": "final-route", "target": "release-chain", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "e-chain-output", "source": "release-chain", "target": "surge-output", "type": "smoothstep", "data": { "semantic": "output" } }
+    ]
+  },
+  "services": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "category": "ai",
+      "description": "OpenAI release-candidate route",
+      "ruleSources": [],
+      "defaultMatchers": ["DOMAIN-SUFFIX"]
+    }
+  ],
+  "outputs": [
+    { "id": "mihomo", "target": "mihomo", "label": "Mihomo", "status": "supported", "icon": "/third-party/mihomo-party/icon.png" },
+    { "id": "surge", "target": "surge", "label": "Surge", "status": "supported", "icon": "surge.png" },
+    { "id": "sing-box", "target": "sing-box", "label": "sing-box", "status": "paused", "icon": "/third-party/sing-box/icon.svg" }
+  ],
+  "updatedAt": "2026-08-23T00:00:00.000Z"
+}

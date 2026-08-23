@@ -120,14 +120,24 @@ function applyLineOptions(record: Record<string, unknown>, options: Record<strin
   if (options['encrypt-method']) record.cipher = options['encrypt-method']
   if (options.alpn) record.alpn = options.alpn.split(',').map((value) => value.trim()).filter(Boolean)
   if (options.flow) record.flow = options.flow
+  const simpleObfs = String(record.type) === 'ss'
+    && (options.obfs !== undefined || options['obfs-host'] !== undefined || options['obfs-uri'] !== undefined)
+  if (simpleObfs) {
+    record.plugin = 'simple-obfs'
+    record['plugin-opts'] = {
+      ...(options.obfs !== undefined ? { mode: options.obfs } : {}),
+      ...(options['obfs-host'] !== undefined ? { host: options['obfs-host'] } : {}),
+      ...(options['obfs-uri'] !== undefined ? { uri: options['obfs-uri'] } : {}),
+    }
+  }
   const transport = options.transport ?? options.obfs
-  if (transport === 'ws' || transport === 'wss') {
+  if (!simpleObfs && (transport === 'ws' || transport === 'wss')) {
     record.network = 'ws'
     record['ws-opts'] = { ...(options.path || options['obfs-uri'] ? { path: options.path ?? options['obfs-uri'] } : {}), ...(options.host || options['obfs-host'] ? { headers: { Host: options.host ?? options['obfs-host'] } } : {}) }
-  } else if (transport === 'grpc') {
+  } else if (!simpleObfs && transport === 'grpc') {
     record.network = 'grpc'
     record['grpc-opts'] = options.path ? { 'grpc-service-name': options.path } : {}
-  } else if (transport === 'http' || transport === 'h2') {
+  } else if (!simpleObfs && (transport === 'http' || transport === 'h2')) {
     record.network = transport
     record[transport === 'h2' ? 'h2-opts' : 'http-opts'] = { ...(options.path ? { path: options.path } : {}), ...(options.host ? { host: options.host } : {}) }
   }

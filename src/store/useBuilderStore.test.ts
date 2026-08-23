@@ -307,7 +307,7 @@ describe('builder store', () => {
     }))
   })
 
-  it('creates Mihomo and sing-box projects with matching primary targets', () => {
+  it('creates Mihomo, Surge, and historical sing-box projects with matching primary targets', () => {
     useBuilderStore.getState().createNewProject('mihomo')
     const mihomoProjectId = useBuilderStore.getState().projectId
     expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
@@ -325,6 +325,15 @@ describe('builder store', () => {
       source: 'dns', target: 'output', data: { semantic: 'dns' },
     }))
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('mihomo')
+
+    useBuilderStore.getState().createNewProject('surge')
+    expect(useBuilderStore.getState().primaryTarget).toBe('surge')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'surge', title: 'Surge Output',
+    }))
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.mihomoProfile).toBeUndefined()
+    expect(useBuilderStore.getState().nodes.some((node) => node.data.blockType === 'dns')).toBe(false)
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('surge')
 
     useBuilderStore.getState().createNewProject('sing-box')
     expect(useBuilderStore.getState().projectId).not.toBe(mihomoProjectId)
@@ -381,7 +390,7 @@ describe('builder store', () => {
 
   it('fails closed for corrupted primary-target metadata without changing the graph', () => {
     const project = createBlankProject('mihomo') as unknown as Record<string, unknown>
-    project.primaryTarget = 'surge'
+    project.primaryTarget = 'loon'
     const graphBefore = structuredClone(project.graph)
     useBuilderStore.getState().hydrate(project as unknown as ReturnType<typeof createBlankProject>)
     expect(useBuilderStore.getState().primaryTarget).toBeNull()
@@ -465,6 +474,36 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('switches Mihomo → Surge → Mihomo without changing the graph or losing the Mihomo profile', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7894 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    const nonOutputBefore = structuredClone(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output'))
+    const edgesBefore = structuredClone(useBuilderStore.getState().edges)
+
+    useBuilderStore.getState().setPrimaryTarget('surge')
+    expect(useBuilderStore.getState().primaryTarget).toBe('surge')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'surge', mihomoProfile: profile,
+    }))
+    expect(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output')).toEqual(nonOutputBefore)
+    expect(useBuilderStore.getState().edges).toEqual(edgesBefore)
+
+    const savedSurge = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(savedSurge)
+    expect(useBuilderStore.getState().primaryTarget).toBe('surge')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+    const nonOutputAfterHydrate = structuredClone(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output'))
+    const edgesAfterHydrate = structuredClone(useBuilderStore.getState().edges)
+
+    useBuilderStore.getState().setPrimaryTarget('mihomo')
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'mihomo', mihomoProfile: profile,
+    }))
+    expect(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output')).toEqual(nonOutputAfterHydrate)
+    expect(useBuilderStore.getState().edges).toEqual(edgesAfterHydrate)
   })
 
   it('synchronizes a sole supported Output edit without deleting target-native data', () => {

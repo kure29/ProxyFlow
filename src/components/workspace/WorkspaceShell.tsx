@@ -17,6 +17,7 @@ import type { ProductView, WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
+import { mergeProjectHealthDiagnostics, summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 import { stateForTarget, TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
   processingCreationOptions, strategyCreationOptions,
@@ -109,9 +110,12 @@ export function WorkspaceShell({
     () => stateForTarget(targetCompiles, activeProductTarget).result?.issues ?? [],
     [activeProductTarget, targetCompiles],
   )
-  const productStatusDiagnostics = primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused'
-    ? primaryHealth.diagnostics
-    : []
+  const inspectDiagnostics = useMemo(() => mergeProjectHealthDiagnostics(
+    projection.compileIssues,
+    primaryHealth.diagnostics,
+    compatibilityDiagnostics,
+  ), [compatibilityDiagnostics, primaryHealth.diagnostics, projection.compileIssues])
+  const diagnosticCounts = summarizeDiagnosticCounts(primaryHealth.diagnostics)
   const counts: Record<WorkspaceSectionId, number | undefined> = {
     overview: undefined,
     sources: projection.sources.length,
@@ -120,7 +124,7 @@ export function WorkspaceShell({
     strategies: projection.strategies.length + projection.chains.length,
     routing: projection.routing.length + projection.finalRoutes.length,
     dns: projection.dns.length,
-    inspect: primaryHealth.diagnostics.length,
+    inspect: diagnosticCounts.badgeCount,
     export: projection.outputs.length,
   }
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
@@ -279,7 +283,7 @@ export function WorkspaceShell({
         />}
         {activeSection === 'inspect' && <ProjectHealthWorkspace
           nodes={nodes}
-          diagnostics={[...projection.compileIssues, ...productStatusDiagnostics]}
+          diagnostics={inspectDiagnostics}
           compatibilityDiagnostics={compatibilityDiagnostics}
           onOpenNode={openNodeInWorkspace}
         />}

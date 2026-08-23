@@ -8,6 +8,9 @@ describe('target export artifact', () => {
       filename: 'My-Project-mihomo.yaml', mimeType: 'text/yaml;charset=utf-8', content: 'mode: rule\n',
     })
     expect(buildTargetExportArtifact('My Project', 'sing-box', { ...result, content: '{}' })?.filename).toBe('My-Project-sing-box.json')
+    expect(buildTargetExportArtifact('My Project', 'surge', { ...result, content: '[General]\n' })).toEqual({
+      filename: 'My-Project-surge.conf', mimeType: 'text/plain;charset=utf-8', content: '[General]\n',
+    })
     expect(buildTargetExportArtifact('Blocked', 'mihomo', { ...result, success: false, content: '' })).toBeUndefined()
   })
 

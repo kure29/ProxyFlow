@@ -1,6 +1,6 @@
 import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, SemanticIssue, StrategyCandidateRef } from '../ir'
 import { findRuleSourceMatches, isUnmodeledProxy, semanticIssue, validateMatcherIR } from '../ir'
-import { isSupportedShadowsocksMethod, validateProxyEndpointSemantics } from '../proxy'
+import { isModeledShadowsocksMethod, validateProxyEndpointSemantics } from '../proxy'
 import { detectChainCycles } from './detectChainCycles'
 import { isSubscriptionExportMode, isSubscriptionRequestProfile } from '../subscription'
 
@@ -62,7 +62,7 @@ export function validateIR(ir: ProxyFlowIR): SemanticIssue[] {
       if (proxy.protocol === 'shadowsocks' && (!proxy.method || !proxy.password)) add(entityIssue(
         'PROXY_SHADOWSOCKS_INVALID', 'error', `Proxy endpoint "${proxy.name}" requires method and password.`, 'source', source.id,
       ))
-      else if (proxy.protocol === 'shadowsocks' && !isSupportedShadowsocksMethod(proxy.method)) add(entityIssue(
+      else if (proxy.protocol === 'shadowsocks' && !isModeledShadowsocksMethod(proxy.method)) add(entityIssue(
         'PROXY_CIPHER_UNSUPPORTED', 'error', `Proxy endpoint "${proxy.name}" uses an unsupported Shadowsocks cipher.`, 'source', source.id,
       ))
       if (proxy.protocol === 'trojan' && !proxy.password) add(entityIssue(

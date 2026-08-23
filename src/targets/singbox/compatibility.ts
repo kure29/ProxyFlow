@@ -1,5 +1,6 @@
 import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
 import { getTargetCapabilities, proxyCompatibilityForTarget, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
+import { isPortableShadowsocksMethod } from '../../core/proxy'
 import { createMaterializationContext, materializeProxySet, planRemoteProxySource } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { singBoxIssue } from './errors'
@@ -31,6 +32,10 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
       if (targetCompatibility.status === 'partial') issues.push(singBoxIssue(
         'SINGBOX_PROXY_VARIANT_UNSUPPORTED', 'warning', 'source',
         `Proxy “${proxy.name}” 包含 sing-box 映射尚未可靠支持的特性：${targetCompatibility.unsupportedFeatures.join(', ') || proxy.metadata?.compatibility?.unrecognizedParams?.join(', ') || 'unknown variant'}。`, source.id,
+      ))
+      if (proxy.protocol === 'shadowsocks' && !isPortableShadowsocksMethod(proxy.method)) issues.push(singBoxIssue(
+        'SINGBOX_SHADOWSOCKS_METHOD_UNSUPPORTED', 'error', 'source',
+        `Proxy “${proxy.name}” 的 Shadowsocks cipher “${proxy.method}” 不在当前 sing-box 无损支持列表中。`, source.id,
       ))
       if ((proxy.protocol === 'vless' || proxy.protocol === 'vmess' || proxy.protocol === 'trojan') && proxy.transport?.kind === 'xhttp') issues.push(singBoxIssue(
         'SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED', 'error', 'source',

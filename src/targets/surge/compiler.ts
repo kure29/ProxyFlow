@@ -8,6 +8,7 @@ import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
 import { composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
+import { createSurgeProjectionContext, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
 import { serializeSurgeProfile } from './serializer'
 import { compileSurgeStrategies } from './strategies'
@@ -22,18 +23,19 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const issues = irIssues.map((issue) => surgeIssue(
     `IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId,
   ))
-  const compatibility = checkSurgeCompatibility(ir)
+  const projection = createSurgeProjectionContext()
+  const compatibility = checkSurgeCompatibility(ir, projection)
   issues.push(...compatibility.issues)
-  if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
+  if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
 
-  const context = createSurgeContext(ir, issues)
+  const context = createSurgeContext(ir, issues, projection)
   compileSurgeStrategies(context)
   const rules = compileSurgeRules(context)
   const general = composeSurgeGeneral([
     compileSurgeGeneral(ir),
     planSurgeDns(ir.dns).general,
   ], issues)
-  if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
+  if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
 
   const content = serializeSurgeProfile({
     general,
@@ -41,18 +43,48 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     proxyGroups: context.proxyGroups,
     rules,
   })
+  const finalIssues = deduplicateDiagnostics(issues)
   return {
     success: true,
     content,
-    issues: deduplicateDiagnostics(issues),
+    issues: finalIssues,
     generatedAt,
     mock: false,
-    stats: { proxyCount: context.proxies.length, endpointCount: context.registeredProxyIds.size },
+    stats: compileStats(projection, finalIssues, context.proxies.length, context.registeredProxyIds.size),
   }
 }
 
-function failed(issues: CompileResult['issues'], generatedAt: string): CompileResult {
-  return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
+function failed(
+  issues: CompileResult['issues'],
+  generatedAt: string,
+  projection: SurgeProjectionContext,
+): CompileResult {
+  const finalIssues = deduplicateDiagnostics(issues)
+  return {
+    success: false,
+    content: '',
+    issues: finalIssues,
+    generatedAt,
+    mock: false,
+    stats: compileStats(projection, finalIssues, 0, 0),
+  }
+}
+
+function compileStats(
+  projection: SurgeProjectionContext,
+  issues: CompileResult['issues'],
+  proxyCount: number,
+  endpointCount: number,
+): NonNullable<CompileResult['stats']> {
+  const projected = surgeProjectionStats(projection)
+  return {
+    proxyCount,
+    endpointCount,
+    candidateCount: projected.candidateCount,
+    compatibleEndpointCount: projected.compatibleEndpointCount,
+    skippedEndpointCount: projected.skippedEndpointCount,
+    blockingIssueCount: issues.filter((issue) => issue.severity === 'error').length,
+  }
 }
 
 export class SurgeCompiler implements ConfigCompiler {

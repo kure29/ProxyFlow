@@ -3,13 +3,16 @@ import { PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapab
 import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
-  it('keeps both compiler targets registered while exposing only supported product targets', () => {
-    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'sing-box'])
-    expect(PRODUCT_TARGETS).toEqual(['mihomo'])
+  it('keeps all compiler targets registered while exposing release-ready product targets', () => {
+    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box'])
+    expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge'])
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
+    expect(getTargetCapabilities('surge').baselineVersion).toBe('iOS 5.22+ / Mac 6.9+')
     expect(getTargetCapabilities('sing-box').baselineVersion).toBe('v1.13.18')
     expect(getTargetCapabilities('mihomo').productStatus).toBe('supported')
+    expect(getTargetCapabilities('surge').productStatus).toBe('supported')
     expect(getTargetCapabilities('sing-box').productStatus).toBe('paused')
+    expect(resolveActiveProductTarget('surge')).toBe('surge')
     expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
   })
 
@@ -22,6 +25,10 @@ describe('target capability registry', () => {
     expect(getTargetCapabilities('sing-box').strategies.failover).toEqual(expect.objectContaining({
       status: 'unsupported', reason: 'SINGBOX_STRATEGY_FALLBACK_UNSUPPORTED',
     }))
+    expect(getTargetCapabilities('surge').strategies['load-balance']).toEqual(expect.objectContaining({
+      status: 'unsupported', reason: 'SURGE_LOAD_BALANCE_ROUND_ROBIN_UNSUPPORTED',
+    }))
+    expect(getTargetCapabilities('surge').strategies.chain.status).toBe('partial')
     expect(capabilityIsAvailable(getTargetCapabilities('mihomo').strategies['load-balance'])).toBe(true)
     expect(capabilityIsAvailable(getTargetCapabilities('sing-box').strategies['load-balance'])).toBe(false)
   })
@@ -43,6 +50,8 @@ describe('target capability registry', () => {
       status: 'unsupported', reason: 'SINGBOX_RULE_SOURCE_FORMAT_UNSUPPORTED',
     }))
     expect(getTargetCapabilities('mihomo').ruleSources['sing-box-binary'].status).toBe('unsupported')
+    expect(getTargetCapabilities('surge').routingMatchers['domain-suffix'].status).toBe('supported')
+    expect(getTargetCapabilities('surge').routingMatchers.port.status).toBe('unsupported')
   })
 
   it('declares remote proxy sources as an independently extensible target capability', () => {
@@ -58,6 +67,10 @@ describe('target capability registry', () => {
     expect(mihomo.filtering.status).toBe('unsupported')
     expect(singBox.source).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'REMOTE_SOURCE_TARGET_UNSUPPORTED' }))
     expect(singBox.requestProfiles).toEqual([])
+    expect(getTargetCapabilities('surge').remoteProxySource).toEqual(expect.objectContaining({
+      source: expect.objectContaining({ status: 'unsupported', reason: 'SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN' }),
+      requestProfiles: [],
+    }))
   })
 
   it('evaluates modeled Partial proxy variants against the selected target', () => {
@@ -70,5 +83,16 @@ describe('target capability registry', () => {
     }
     expect(proxyCompatibilityForTarget(endpoint, 'mihomo').status).toBe('target-native')
     expect(proxyCompatibilityForTarget(endpoint, 'sing-box')).toEqual({ status: 'partial', unsupportedFeatures: ['plugin:obfs'] })
+    expect(proxyCompatibilityForTarget(endpoint, 'surge')).toEqual({ status: 'partial', unsupportedFeatures: [] })
+  })
+
+  it('marks VLESS unsupported for Surge before export', () => {
+    const endpoint = {
+      kind: 'vless' as const, protocol: 'vless' as const, id: 'vless', name: 'VLESS',
+      server: 'vless.example.com', port: 443, uuid: '00000000-0000-4000-8000-000000000001',
+    }
+    expect(proxyCompatibilityForTarget(endpoint, 'surge')).toEqual({
+      status: 'unsupported', unsupportedFeatures: ['SURGE_PROXY_PROTOCOL_UNSUPPORTED'],
+    })
   })
 })

@@ -10,6 +10,10 @@ export interface CompileResult {
   stats?: {
     proxyCount: number
     endpointCount?: number
+    candidateCount?: number
+    compatibleEndpointCount?: number
+    skippedEndpointCount?: number
+    blockingIssueCount?: number
   }
 }
 
