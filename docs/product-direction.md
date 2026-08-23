@@ -55,7 +55,7 @@ Current target status:
 - Mihomo: Supported and the only official Export Target.
 - sing-box: Official export paused; historical Projects load without data loss,
   can switch to Mihomo, and retain their target-specific data.
-- Surge: Planned after RC6; not implemented in this milestone.
+- Surge: Planned after 1.0; not implemented in this milestone.
 - Loon: Planned after Surge; not implemented in this milestone.
 
 Subscription Request Profile is independent from Export Target. Auto, Mihomo,

@@ -50,7 +50,7 @@ one-shot subscription converter.
 - Unsupported semantics fail closed and are never silently dropped or changed.
 - Project, parser, processing, routing, validation, IR, and compiler engines are
   shared by Workspace and Visual Flow.
-- Mihomo is the only production target in RC6. sing-box official export is
+- Mihomo is the only production target in 1.0. sing-box official export is
   paused while its compiler, capability, validator, parser, tests, and existing
   Project data remain intact. Surge and Loon are planned architecture cases,
   not implemented compilers.
@@ -63,13 +63,13 @@ one-shot subscription converter.
 - Product terms: Primary Target, Target Compatibility, Workspace, Visual Flow,
   Strategy, Routing, Inspect, Export, Advanced, and Target-native.
 - The incumbent quiet, utilitarian visual system remains the design authority
-  for RC6. Client-first changes information architecture, not brand identity.
+  for 1.0. Client-first changes information architecture, not brand identity.
 
 ## Evidence on Hand
 
 - Accepted product direction: `docs/product-direction.md`.
 - Current implementation and validation status: `docs/current-status.md`.
-- RC6 remains within the approved Client-first RC acceptance scope.
+- V1.0 remains within the approved Client-first acceptance scope.
 - Existing fictional fixtures and representative Mihomo/sing-box binary
   validation are the only capability proof; no unsupported marketing claims are
   permitted.

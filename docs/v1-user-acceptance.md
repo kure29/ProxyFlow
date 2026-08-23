@@ -1,9 +1,9 @@
-# ProxyFlow V1.0 RC6 / UI 2.0 User Acceptance
+# ProxyFlow V1.0 / UI 2.0 User Acceptance
 
-Candidate: `1.0.0-rc.6` on `release/1.0.0-rc.6`
+Candidate: `1.0.0` on `release/1.0.0`
 
-Status: UI 2.0 user acceptance and RC6 focused validation pending; not a formal
-release.
+Status: UI 2.0 user acceptance is complete. Stable release metadata validation
+is tracked in `docs/current-status.md`.
 
 This checklist validates the ordinary Client-first workflow and the UI 2.0
 product surface. It does not require knowledge of the Graph, Universal IR, or
@@ -54,7 +54,7 @@ Pre-UI2 checkpoint.
   view switcher, save/Runtime state, Preview, and Export.
 - Confirm language selection is in the overflow menu and canvas actions appear
   only in Visual Flow.
-- Confirm the RC version is muted metadata and is hidden from the mobile brand
+- Confirm the Stable version is muted metadata and is hidden from the mobile brand
   treatment.
 
 ## 2. Workspace Navigation
@@ -350,4 +350,4 @@ Runtime Service prerequisite and is not a browser warning.
   until they can be represented without semantic loss.
 - Dark Mode is not part of the UI 2.0 Light Mode acceptance gate.
 - There is no third Target, cloud sync, multi-user account system, public
-  backend, plugin marketplace, or AI configuration generation in RC6.
+  backend, plugin marketplace, or AI configuration generation in 1.0.
