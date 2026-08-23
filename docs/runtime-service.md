@@ -26,7 +26,7 @@ curl -fL --output proxyflow.sh \
   https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
 less proxyflow.sh
 chmod +x proxyflow.sh
-./proxyflow.sh install
+./proxyflow.sh
 ```
 
 The default address is `http://127.0.0.1:17870`. This uncommon port is bound
@@ -34,7 +34,10 @@ only to the host loopback interface. The browser discovers the same-instance
 backend automatically and does not ask for a Runtime URL or API token.
 
 The manager supports `install`, `update`, `start`, `stop`, `restart`, `status`,
-`logs`, `backup`, `uninstall`, and `help`. Direct Compose usage defaults to the
+`logs`, `backup`, `uninstall`, and `help`. With no arguments, an interactive
+terminal opens the management menu; a non-TTY invocation prints usage and exits
+without waiting for input. Explicit commands retain their scriptable exit-code
+behavior. Direct Compose usage defaults to the
 immutable image `ghcr.io/kure29/proxyflow:1.0.0`. New managed installs use
 the `stable` channel, which maps to `ghcr.io/kure29/proxyflow:latest`.
 `PROXYFLOW_PORT`,
