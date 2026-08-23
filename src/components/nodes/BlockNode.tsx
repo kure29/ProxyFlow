@@ -1,6 +1,8 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { AlertTriangle, ArrowRight, Check, GripVertical, MoreHorizontal, Zap } from 'lucide-react'
 import { BlockIcon } from '../icons/BlockIcon'
+import { ServiceMark } from '../services/ServiceMark'
+import { resolveServiceMarkId } from '../services/serviceMarkDefinitions'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, GraphNode } from '../../types/project'
 import {
@@ -20,6 +22,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
   const nodes = useBuilderStore((state) => state.nodes)
   const subscriptionRuntime = useBuilderStore((state) => state.subscriptionRuntimes[id])
   const selectNode = useBuilderStore((state) => state.selectNode)
+  const activeService = useBuilderStore((state) => state.activeService)
   const hopNodes = (data.hopIds ?? []).map((hopId) => nodes.find((node) => node.id === hopId)).filter(Boolean)
   const subscriptionStatus = data.blockType === 'subscription' ? subscriptionNodeStatus(subscriptionRuntime) : undefined
   const subscriptionTooltip = subscriptionRuntime?.latestError
@@ -80,9 +83,14 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
 
         {resolveRouteMatcherKind(data) === 'service' && (
           <div className="node-services">
-            {(data.services ?? []).map((service) => (
-              <button key={service} onClick={(event) => { event.stopPropagation(); selectNode(id, service) }}>{localizeKnownSystemText(service, locale)}</button>
-            ))}
+            {(data.services ?? []).map((service) => {
+              const markId = resolveServiceMarkId(service)
+              const isActive = activeService === service || activeService === markId
+              return <button key={service} onClick={(event) => { event.stopPropagation(); selectNode(id, service) }}>
+                {markId && <ServiceMark serviceId={markId} size="small" selected={isActive} />}
+                <span>{localizeKnownSystemText(service, locale)}</span>
+              </button>
+            })}
           </div>
         )}
 

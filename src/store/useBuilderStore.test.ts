@@ -9,6 +9,7 @@ import { subscriptionRuntimeRepository } from '../core/subscription'
 import { useBuilderStore } from './useBuilderStore'
 import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 import { createBlankProject } from '../data/newProject'
+import { legacyChinaServiceDefinition } from '../data/legacyServices'
 import { appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver } from '../core/dns/resolverProfiles'
 
 describe('builder store', () => {
@@ -281,6 +282,29 @@ describe('builder store', () => {
     useBuilderStore.getState().hydrate(project)
     expect(useBuilderStore.getState().toProject().version).toBe(2)
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toBeUndefined()
+  })
+
+  it('loads and re-exports historical China routing through hidden compatibility', () => {
+    const project = structuredClone(demoProject)
+    project.services.push(legacyChinaServiceDefinition)
+    project.graph.nodes.push({
+      id: 'legacy-china-route', type: 'block', position: { x: 0, y: 0 },
+      data: {
+        blockType: 'service-rule', category: 'routing', title: 'Legacy China', subtitle: '', icon: 'landmark',
+        services: ['china'], targetKind: 'direct', targetId: 'output', targetLabel: 'DIRECT', routePriority: 37,
+      },
+    })
+    project.graph.edges.push({ id: 'legacy-china-output', source: 'legacy-china-route', target: 'output', data: { semantic: 'route' } })
+
+    useBuilderStore.getState().hydrate(project)
+    const exported = useBuilderStore.getState().toProject()
+    expect(exported.services).toEqual([...demoProject.services, legacyChinaServiceDefinition])
+    expect(exported.graph.nodes.find((node) => node.id === 'legacy-china-route')?.data).toEqual(expect.objectContaining({
+      services: ['china'], targetKind: 'direct', targetId: 'output', routePriority: 37,
+    }))
+    expect(compileGraph(exported).ir?.routes).toContainEqual(expect.objectContaining({
+      id: 'legacy-china-route', matcher: { kind: 'service', serviceIds: ['china'] }, target: { kind: 'direct' }, priority: 37,
+    }))
   })
 
   it('creates Mihomo and sing-box projects with matching primary targets', () => {

@@ -75,10 +75,6 @@ export const demoNodes: GraphNode[] = [
     blockType: 'service-rule', category: 'routing', title: 'Telegram', subtitle: 'Social · HK Auto', subtitleKey: 'demo.telegram.subtitle', icon: 'send',
     services: ['Telegram'], targetId: 'hk-auto', targetLabel: '香港自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
-  node('china', 1360, 650, {
-    blockType: 'service-rule', category: 'routing', title: '国内网站', titleKey: 'demo.china.title', subtitle: 'China Mainland · DIRECT', subtitleKey: 'demo.china.subtitle', icon: 'landmark',
-    services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct', ruleSource: 'builtin',
-  }),
   node('dns', 1080, 870, {
     blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: 'Fake-IP · AliDNS / DNSPod', icon: 'globe-2', dnsResolvers: createMihomoStarterDnsResolvers(),
   }),
@@ -102,7 +98,6 @@ export const demoEdges: GraphEdge[] = [
   edge('e-ai-chain', 'ai-services', 'us-via-hk', 'route'),
   edge('e-stream-us', 'streaming', 'us-auto', 'route'),
   edge('e-telegram-hk', 'telegram', 'hk-auto', 'route'),
-  edge('e-china-output', 'china', 'output', 'route'),
   edge('e-chain-output', 'us-via-hk', 'output', 'output'),
   edge('e-hk-output', 'hk-auto', 'output', 'output'),
   edge('e-us-output', 'us-auto', 'output', 'output'),

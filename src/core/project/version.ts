@@ -1,4 +1,5 @@
 import type { GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
+import { withLegacyChinaCompatibility } from '../../data/legacyServices'
 import { isSubscriptionExportMode } from '../subscription'
 
 export const PROJECT_SCHEMA_VERSION = 2 as const
@@ -121,6 +122,11 @@ function normalizeCurrentDefaults(project: ProxyFlowProject) {
       if (node.data.renameIgnoreCase === undefined) { node.data.renameIgnoreCase = false; changed = true }
       if (node.data.renameGlobal === undefined) { node.data.renameGlobal = true; changed = true }
     }
+  }
+  const compatibleServices = withLegacyChinaCompatibility(normalized.services, normalized.graph.nodes)
+  if (compatibleServices !== normalized.services) {
+    normalized.services = [...compatibleServices]
+    changed = true
   }
   return { project: normalized, changed }
 }

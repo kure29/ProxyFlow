@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
+import { legacyChinaServiceDefinition } from '../../data/legacyServices'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from './version'
 
 describe('project schema version', () => {
@@ -36,6 +37,26 @@ describe('project schema version', () => {
     expect(result).toEqual(expect.objectContaining({ success: true, migrated: true }))
     expect(result.project?.graph.nodes.find((node) => node.id === 'legacy-url')?.data.subscriptionExportMode).toBe('materialized')
     expect(result.project?.graph.nodes.find((node) => node.id === 'new-url')?.data.subscriptionExportMode).toBe('auto')
+  })
+
+  it('normalizes historical China Service data into hidden compatibility without changing its route', () => {
+    const project = structuredClone(demoProject)
+    project.services.push({ ...legacyChinaServiceDefinition, description: 'Former product catalog entry' })
+    project.graph.nodes.push({
+      id: 'legacy-china-route', type: 'block', position: { x: 0, y: 0 },
+      data: {
+        blockType: 'service-rule', category: 'routing', title: 'Legacy China', subtitle: '', icon: 'landmark',
+        services: ['china'], targetKind: 'direct', targetId: 'output', targetLabel: 'DIRECT',
+        routePriority: 42, disabled: true,
+      },
+    })
+
+    const result = migrateProject(project)
+    expect(result).toEqual(expect.objectContaining({ success: true, migrated: true }))
+    expect(result.project?.services).toEqual([...demoProject.services, legacyChinaServiceDefinition])
+    expect(result.project?.graph.nodes.find((node) => node.id === 'legacy-china-route')?.data).toEqual(expect.objectContaining({
+      services: ['china'], targetKind: 'direct', targetId: 'output', routePriority: 42, disabled: true,
+    }))
   })
 
   it('repairs the legacy Final → Output semantic', () => {

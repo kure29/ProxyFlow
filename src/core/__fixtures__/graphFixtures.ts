@@ -1,6 +1,7 @@
 import type { BlockCategory, BlockNodeData, BlockType, EdgeSemantic, GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
 import { outputDefinitions } from '../../data/demoProject'
 import { serviceCatalog } from '../../data/serviceCatalog'
+import { legacyChinaServiceDefinition } from '../../data/legacyServices'
 
 const node = (
   id: string,
@@ -29,12 +30,12 @@ const edge = (id: string, source: string, target: string, semantic: EdgeSemantic
   data: { semantic },
 })
 
-const project = (id: string, nodes: GraphNode[], edges: GraphEdge[]): ProxyFlowProject => ({
+const project = (id: string, nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ProxyFlowProject => ({
   version: 1,
   id,
   name: id,
   graph: { nodes, edges },
-  services: serviceCatalog,
+  services,
   outputs: outputDefinitions,
   updatedAt: '2026-08-15T00:00:00.000Z',
 })
@@ -140,7 +141,7 @@ export const chinaDirectFixture = (() => {
     edge('e-sub-auto', 'subscription', 'auto', 'data'),
     edge('e-china-output', 'china-route', 'output', 'route'),
     ...tail.edges,
-  ])
+  ], [...serviceCatalog, legacyChinaServiceDefinition])
 })()
 
 export const customDomainRouteFixture = (() => {

@@ -2,6 +2,7 @@ import { applyEdgeChanges, applyNodeChanges, MarkerType, type Connection, type E
 import { create } from 'zustand'
 import { blockByType, resolveLibraryNodePreset } from '../data/blockLibrary'
 import { demoProject } from '../data/demoProject'
+import { withLegacyChinaCompatibility } from '../data/legacyServices'
 import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
@@ -1037,7 +1038,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
         ...(state.primaryTarget ? { primaryTarget: state.primaryTarget } : {}),
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
-        services: demoProject.services, outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
+        services: [...withLegacyChinaCompatibility(demoProject.services, state.nodes)], outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
       }
       return { ...localizeProject(project), name: project.name }
     },
