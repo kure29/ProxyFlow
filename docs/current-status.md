@@ -6,8 +6,23 @@ Updated: 2026-08-23
 
 - Repository: `kure29/ProxyFlow`
 - Stable release: `v0.7.0`
-- `origin/main`: `ee2b96f` (PR #26, RC6 workflow stabilization)
+- `origin/main`: `e47bdcb` (RC6 target experience cleanup)
 - Product Direction PR #9 is merged.
+
+## V1.0 Stable Release Preparation
+
+- Branch `release/1.0.0` is based on current `main` at `e47bdcb`.
+- Scope is limited to Stable version metadata, container/update channel
+  expectations, concise release documentation, and the MIT License. Project,
+  Graph, IR, compiler, export, routing, UI, and subscription semantics remain
+  unchanged.
+- Package, Runtime health expectations, and immutable Compose defaults advance
+  to `1.0.0`. New managed installs use `stable -> :latest`; saved RC channels
+  remain on `:rc`, and explicit `PROXYFLOW_IMAGE` pins remain fixed.
+- The existing Container workflow already maps a `v1.0.0` tag to immutable
+  `:1.0.0` plus `:latest`, without updating `:rc`, so the workflow is unchanged.
+- Local validation passed. PR review and CI are pending. No tag, GitHub Release,
+  container publication, server update, or merge has occurred.
 
 ## RC6 Target Experience Cleanup
 
@@ -307,21 +322,8 @@ Updated: 2026-08-23
 
 ## Current Slice
 
-- RC6 release branch: `release/1.0.0-rc.6`, based on current `main` at
-  `ee58742` after PR #24 simplified the project README.
-- Scope is limited to the release version advance and its deployment,
-  Runtime-version, and documentation expectations. Project, Graph, IR,
-  compiler, export, routing, UI, and subscription semantics remain unchanged.
-- Package and immutable Compose defaults advance to `1.0.0-rc.6`; managed
-  installs use the `rc` channel, explicit image pins remain fixed, and the
-  container tag workflow maps RC releases to `:rc` and stable releases to
-  `:latest`.
-- RC6 carries the already-merged mobile interaction polish and Universal Remote
-  Proxy Sources, including Mihomo native proxy-provider lowering and sing-box
-  materialized fallback. The streamlined README is also included.
-- Local automated, Web/Runtime build, deployment, TypeScript, Compose, and diff
-  checks passed. PR review and CI remain pending; no tag or container
-  publication has occurred.
+- V1.0 Stable release preparation on `release/1.0.0`.
+- Release-only validation passed; no feature behavior was changed.
 
 ## Remaining UI 2.0 Slices
 
@@ -333,13 +335,27 @@ Updated: 2026-08-23
 
 ## Next
 
-1. Open the RC6 release-only PR to `main`.
+1. Open the V1.0 Stable release-only PR to `main`.
 2. Wait for all CI checks and authorized review without merging autonomously.
-3. After an authorized merge, tag `v1.0.0-rc.6`, confirm both immutable and
-   `rc` channel tags resolve to one digest, then hand the update command to
-   Self-hosted users.
+3. After an authorized merge and separate release approval, tag `v1.0.0` and
+   confirm immutable `:1.0.0` and moving `:latest` resolve to one digest while
+   `:rc` remains unchanged.
 
 ## Latest Validation
+
+### V1.0 Stable release preparation
+
+- `npm test -- --run` passed 659/659 tests across 75 files. The expected Node
+  22 experimental SQLite notice was the only test warning.
+- Web and Runtime production builds passed; `runtime-dist/server.js` is
+  `222.42 kB`.
+- Deployment manager tests passed 22/22, preserving RC2 through RC6 migration
+  coverage and manual image pins, defaulting new Stable installs to `:latest`,
+  advancing an RC6 health state to `1.0.0` through `:latest`, and explicitly
+  confirming Stable update does not pull `:rc`.
+- `npx tsc -b`, fictional `docker compose config --quiet`, and
+  `git diff --check` passed. The local Docker daemon was not running, so no
+  image was pulled or container started.
 
 ### V1.0 RC6 release preparation
 

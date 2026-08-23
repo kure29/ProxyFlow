@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROXYFLOW_SCRIPT_VERSION='1.0.0-rc.6'
+readonly PROXYFLOW_SCRIPT_VERSION='1.0.0'
 readonly IMAGE_REPOSITORY='ghcr.io/kure29/proxyflow'
-readonly DEFAULT_UPDATE_CHANNEL='rc'
+readonly DEFAULT_UPDATE_CHANNEL='stable'
 readonly DEFAULT_PORT='17870'
 readonly DEFAULT_BIND_ADDRESS='127.0.0.1'
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,7 +58,7 @@ Optional environment overrides:
   PROXYFLOW_HOME          Installation directory (default: ~/.proxyflow)
   PROXYFLOW_DATA_DIR      Persistent Runtime data directory
   PROXYFLOW_IMAGE         Pinned container image (disables managed updates)
-  PROXYFLOW_UPDATE_CHANNEL  Managed channel: rc (default) or stable
+  PROXYFLOW_UPDATE_CHANNEL  Managed channel: stable (default) or rc
 
 Local Mode does not require this script, Docker, or a Runtime Service.
 EOF
@@ -70,6 +70,22 @@ managed_image_for_channel() {
     stable) printf '%s:latest' "${IMAGE_REPOSITORY}" ;;
     *) die 'PROXYFLOW_UPDATE_CHANNEL must be rc or stable.' 64 ;;
   esac
+}
+
+resolve_update_channel() {
+  local saved_image="$1" saved_managed="$2" saved_channel="$3"
+  if [[ -n "${PROXYFLOW_UPDATE_CHANNEL:-}" ]]; then
+    printf '%s' "${PROXYFLOW_UPDATE_CHANNEL}"
+  elif [[ -n "${saved_channel}" ]]; then
+    printf '%s' "${saved_channel}"
+  elif [[ "${saved_managed}" == 'true' ]]; then
+    case "${saved_image}" in
+      "${IMAGE_REPOSITORY}:rc"|"${IMAGE_REPOSITORY}:"*-rc.[0-9]*) printf '%s' 'rc' ;;
+      *) printf '%s' "${DEFAULT_UPDATE_CHANNEL}" ;;
+    esac
+  else
+    printf '%s' "${DEFAULT_UPDATE_CHANNEL}"
+  fi
 }
 
 read_config_value() {
@@ -96,7 +112,7 @@ resolve_settings() {
   saved="$(read_config_value PROXYFLOW_IMAGE || true)"
   saved_managed="$(read_config_value PROXYFLOW_IMAGE_MANAGED || true)"
   saved_channel="$(read_config_value PROXYFLOW_UPDATE_CHANNEL || true)"
-  UPDATE_CHANNEL="${PROXYFLOW_UPDATE_CHANNEL:-${saved_channel:-${DEFAULT_UPDATE_CHANNEL}}}"
+  UPDATE_CHANNEL="$(resolve_update_channel "${saved}" "${saved_managed}" "${saved_channel}")"
   if [[ "${IMAGE_OVERRIDE_SET}" == 'true' ]]; then
     IMAGE="${IMAGE_OVERRIDE_VALUE}"
     IMAGE_MANAGED='false'
@@ -193,7 +209,7 @@ name: proxyflow
 
 services:
   proxyflow:
-    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0-rc.6}
+    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.0.0}
     restart: unless-stopped
     init: true
     user: "${PROXYFLOW_UID:-1000}:${PROXYFLOW_GID:-1000}"

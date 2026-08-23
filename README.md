@@ -1,151 +1,70 @@
 # ProxyFlow
 
-> 你决定流量怎么走，ProxyFlow 负责配置怎么写。
+> Universal Proxy Visual Builder
 
-ProxyFlow 是一个 Local-first 的代理配置编排器。你可以导入订阅、处理节点、创建策略、配置分流和 DNS，再从同一个 Project 输出不同客户端的配置。
+ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo 配置导出，始终使用同一个 Project。
 
-当前正式 Export Target 为 **Mihomo**。sing-box 正式导出已暂停，但其底层能力与历史 Project 数据仍会保留。结构化的“配置”工作区与可视化“蓝图”编辑的是同一个 Project。
+## 主要能力
 
-## 能做什么
+- URL / Paste / File Subscription
+- Node parsing
+- Filter / Rename / Sort / Dedupe / Merge / Limit
+- Strategy
+- Proxy Chain
+- Routing
+- DNS
+- Remote Subscription / Mihomo `proxy-provider`
+- Local Mode
+- Runtime Service
+- Mihomo YAML export
 
-- 从 Subscription URL、粘贴内容或本地文件导入节点
-- 识别分享链接、Base64 列表和 Clash / Mihomo YAML
-- 预览节点，并检查协议、地区与目标兼容性
-- 使用 Keyword、Region 或 Regex 筛选节点
-- Rename、Sort、Dedupe、Merge 和 Limit 节点集合
-- 创建 Selector、URL-Test、Fallback 与 Load Balance 策略
-- 编排多跳 Proxy Chain
-- 配置 Routing、Custom Rule 与 DNS
-- 导出 Mihomo YAML
-- 在合适的目标中保留远程订阅，或固化当前节点
-- 独立使用 Local Mode，或连接可选的 Runtime Service
+## Target Status
 
-支持的代理协议包括 HTTP、SOCKS5、Shadowsocks、Trojan、VMess、VLESS、Hysteria2、TUIC 和 AnyTLS。格式与兼容性详情见 [Subscription Parser & Compatibility](docs/subscription-parser.md)。
-
-## 工作方式
-
-```text
-输入 → 处理 → 策略 → 分流 → 检查 → 导出
-```
-
-### 配置
-
-默认的结构化 Workspace。按照来源、节点、处理、策略、分流、DNS、检查和导出的顺序完成日常配置。
-
-### 蓝图
-
-同一个 Project 的可视化拓扑与高级编辑方式。蓝图与配置工作区共享数据，不是两套独立配置。
-
-## 远程订阅
-
-URL Subscription 可以选择导出方式：
-
-| 模式 | 行为 |
+| Target | Status |
 | --- | --- |
-| Auto | 目标支持且可以无损保留时使用远程订阅，否则固化当前节点 |
-| Remote | 强制目标客户端直接加载远程订阅；无法安全表达时停止导出 |
-| Materialized | 始终导出当前已经解析的节点 |
+| Mihomo | Stable / Supported |
+| sing-box | Official export paused |
+| Surge | Planned |
+| Loon | Planned |
 
-目前正式 Mihomo 导出可以原生使用 `proxy-provider`。Subscription Request Profile 仍可选择 Auto、Mihomo、sing-box 或 Generic；它只影响订阅请求方式，不代表 Export Target。
+sing-box 的底层编译与历史 Project 兼容能力仍然保留。Subscription Request Profile 也继续提供 Auto、Mihomo、sing-box 和 Generic；它只影响订阅请求格式，不代表 Export Target。
 
-即使选择 Remote，ProxyFlow 仍会保留当前 snapshot，用于节点预览、检查和兼容性分析。目标客户端自行刷新后，实际节点可能与当前预览不同。
+## Quick Start
 
-> Remote 导出会把 Subscription URL 写入目标配置。URL 可能包含凭据，请妥善保管导出的文件。
-
-## Local Mode
-
-Local Mode 不需要账号、数据库或 Docker：
-
-- Project 保存在当前浏览器
-- 编译和导出在本地完成
-- Runtime Service 不可用时仍可独立编辑现有 Project
-
-浏览器直接抓取部分 Subscription URL 可能受到 CORS 限制。需要服务器抓取、定时刷新和快照时，可以使用 Runtime Service。
-
-## Self-hosted
-
-使用管理脚本安装：
-
-```bash
-curl -fL --output proxyflow.sh \
-  https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
-
-chmod +x proxyflow.sh
-./proxyflow.sh install
-```
-
-常用命令：
-
-```bash
-./proxyflow.sh status
-./proxyflow.sh update
-./proxyflow.sh logs
-```
-
-服务默认监听 `127.0.0.1:17870`。推荐使用 Nginx、Caddy、1Panel 或其他反向代理提供 HTTPS。
-
-完整的部署、安全边界和管理命令见 [Runtime Service](docs/runtime-service.md)。
-
-## 导出目标
-
-| Target | 状态 |
-| --- | --- |
-| Mihomo | 支持 |
-| sing-box | 正式导出暂停；底层能力保留 |
-| Surge | 计划中 |
-| Loon | 计划中 |
-
-ProxyFlow 的核心模型与具体客户端解耦，未来通过 Target Capability / Compiler 接入新的导出目标。
-
-## 项目状态
-
-ProxyFlow 当前处于 **1.0 Release Candidate** 阶段。
-
-当前重点：
-
-- 真实客户端验收
-- Mihomo 正式导出稳定性
-- sing-box 历史 Project 的无损兼容与迁移提示
-- 订阅兼容性
-- 移动端与桌面端交互收口
-- 1.0 Stable 前最终验证
-
-具体版本与历史请查看 [GitHub Releases](https://github.com/kure29/ProxyFlow/releases)。
-
-## 文档
-
-- [Product Direction](docs/product-direction.md)
-- [Architecture](docs/architecture.md)
-- [Subscription Parser & Compatibility](docs/subscription-parser.md)
-- [Runtime Service](docs/runtime-service.md)
-- [V1.0 User Acceptance](docs/v1-user-acceptance.md)
-- [Design](DESIGN.md)
-- [Current Status](docs/current-status.md)
-
-## 开发
+### Local Mode
 
 ```bash
 git clone https://github.com/kure29/ProxyFlow.git
 cd ProxyFlow
-
 npm install
 npm run dev
 ```
 
-运行测试和构建：
+Local Mode 不需要账号、Docker 或 Runtime Service，Project 保存在当前浏览器中。
+
+### Self-hosted
+
+```bash
+curl -fL --output proxyflow.sh \
+  https://raw.githubusercontent.com/kure29/ProxyFlow/main/scripts/proxyflow.sh
+chmod +x proxyflow.sh
+./proxyflow.sh install
+```
+
+服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.0.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
+
+## Development
 
 ```bash
 npm test -- --run
 npm run build
 npm run runtime:build
+npm run test:deployment
+npx tsc -b
 ```
 
-## 技术栈
+更多资料见 [Product Direction](docs/product-direction.md)、[Architecture](docs/architecture.md) 和 [Subscription Parser & Compatibility](docs/subscription-parser.md)。
 
-- React
-- TypeScript
-- Vite
-- Zustand
-- XYFlow
-- Vitest
-- YAML
+## License
+
+[MIT License](LICENSE) © 2026 kure29
