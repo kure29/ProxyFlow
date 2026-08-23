@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-本文档最初建立于 V0.6；当前稳定版本 v0.7.0 继续使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
+ProxyFlow 1.0 使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
 
 ```text
 Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
@@ -44,7 +44,8 @@ Remote source identity + Current materialized snapshot
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
 - IR 不依赖 React、Zustand、DOM、Canvas 或 `@xyflow/react`。
 - Target Compiler 只接收 IR，不能读取 React Flow Graph。
-- Mihomo 与 sing-box Compiler 通过异步 loader 注册，只有当前 Preview / Output 目标会被加载。
+- Mihomo 是 1.0 的正式 Compiler 产品路径。sing-box Compiler 继续通过异步
+  loader 保留，用于历史 Project 与内部回归，但不作为正式 Export Target。
 
 Project Schema Version 与 IR Schema Version 是两个独立版本：
 
@@ -206,12 +207,3 @@ Planner 的决策是 per ProxySet / per consumer path。同一 Source 的直接�
 Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 继续生成 explicit outbounds，`remote` 失败闭合。未来 Surge、Loon、Quantumult X、Shadowrocket 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics。
 
 为避免旧 Project 输出静默改变，缺少 `exportMode` 的持久化 URL Source 在 V2 additive migration 中规范为 `materialized`；新建 URL Source 默认 `auto`。Project Schema 与 IR major version 均保持 V2。
-
-## Non-goals for V0.6
-
-- 完整 Mihomo / sing-box Schema 与第三个 Target compiler
-- 除 Vision 外的复杂 XTLS flow、Hysteria v1 与未建模协议变体
-- node latency measurement or scheduled refresh
-- remote rule fetching or conversion
-- runtime inbound profiles
-- backend or cloud persistence

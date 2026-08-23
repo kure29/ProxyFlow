@@ -1,9 +1,9 @@
 # ProxyFlow Responsive Layout Contract
 
-Status: Active refactor contract
+Status: ProxyFlow 1.0
 
 This document records the durable implementation rules for the responsive
-layout and typography refactor. Product behavior, Project state, capability
+layout and typography system. Product behavior, Project state, capability
 declarations, validation, and compiler semantics remain unchanged.
 
 ## Breakpoints
@@ -164,13 +164,3 @@ insertion, and confirmations use bottom sheets; routing contextual actions use
 an action sheet with Edit, Copy, Move, and Delete choices. These overlays honor
 safe-area insets, lock page scrolling, trap focus, close with Escape when the
 workflow permits, and restore focus to a persistent launcher.
-
-## Phase Checkpoints
-
-- Phase 1: semantic spacing, typography, control, icon-button, card, code, and
-  responsive foundation tokens.
-- Phase 2: mobile shell, navigation, Routing, DNS, and touch targets.
-- Phase 3: desktop shell and Workspace pages.
-- Phase 4: Visual Flow panels and mobile sheets.
-- Phase 5: modal, action-sheet, and Export compositions.
-- Phase 6: full breakpoint polish and regression verification.

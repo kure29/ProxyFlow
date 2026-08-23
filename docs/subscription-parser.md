@@ -1,6 +1,6 @@
 # Subscription Parser and Proxy Processing
 
-ProxyFlow v0.7.0 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
+ProxyFlow 1.0 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
 
 ## Supported Input Formats
 
@@ -48,7 +48,7 @@ Remote export 不跳过 fetch 或 parse。ProxyFlow 仍保留当前 snapshot 用
 
 ## Supported Protocols
 
-下表表示当前 v0.7.0 沿用的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
+下表表示 ProxyFlow 1.0 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
 
 | Protocol | Parser | Mihomo | sing-box |
 | --- | --- | --- | --- |
@@ -61,7 +61,7 @@ Remote export 不跳过 fetch 或 parse。ProxyFlow 仍保留当前 snapshot 用
 | VLESS Reality / Vision | Supported | Supported | Supported |
 | Hysteria2 | Supported | Supported | Supported |
 | TUIC v5 | Supported | Supported | Supported |
-| AnyTLS（post-V0.6 enhancement） | Supported normalized subset | Supported normalized subset | Supported normalized subset |
+| AnyTLS | Supported normalized subset | Supported normalized subset | Supported normalized subset |
 
 HTTP、SOCKS5 支持基础认证；Shadowsocks 支持 method、password 与可识别的 plugin metadata；Trojan、VMess、VLESS 支持 TLS、SNI 和 transport intent。Reality 使用同一 `ProxyTlsIR` 保存 client fingerprint、public key 与 short ID，Vision 使用受限 flow enum。Hysteria2 authority 支持单端口、逗号分隔端口与范围，缺省端口为 443；TUIC 保存 allow-insecure 与 disable-SNI。AnyTLS 支持官方 `anytls://password@host[:port]` URI（缺省 443）、`sni` / `insecure`，并显式读取可同时映射的 fingerprint、ALPN 与 idle-session 扩展；第三方 URI 中冗余的 `security=tls`、`type=tcp` 会被兼容归一化，`allowInsecure` / `allow_insecure` / `allow-insecure` 作为 `insecure` 的严格布尔 alias 处理。Clash/Mihomo YAML 读取相同的 normalized subset。所有端口必须在 1–65535，VMess/VLESS/TUIC UUID 会验证格式。
 
@@ -79,7 +79,7 @@ Hysteria v1、WireGuard、Snell、SSH 等尚未进入协议模型。损坏的 An
 
 ## CORS Limitations
 
-ProxyFlow v0.7.0 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
+ProxyFlow 1.0 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
 
 - 订阅服务器允许跨域时，可以直接刷新。
 - CORS 或网络失败显示为 `CORS blocked`，不会误报为 Parser Error。
@@ -109,7 +109,7 @@ Parser 输出真正的 discriminated union：HTTP、SOCKS5、Shadowsocks、Troja
 
 所有处理都在 materialized ProxySet 上真实执行：
 
-| Transform | v0.7.0 status | Semantics |
+| Transform | 1.0 status | Semantics |
 | --- | --- | --- |
 | Filter | Supported | 新 UI 使用 Keyword / Region / Regex + Include / Exclude；旧项目的组合字段继续可读取 |
 | Rename | Supported | regex replacement；无效表达式返回稳定错误 |

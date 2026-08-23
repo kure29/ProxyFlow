@@ -1,6 +1,6 @@
 # Mihomo Compiler
 
-ProxyFlow v1.0 RC 的真实编译链路：
+ProxyFlow 1.0 的真实编译链路：
 
 ```text
 ProxyFlowIR
@@ -55,7 +55,7 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 | Reality / Vision | `reality-opts`、`client-fingerprint`、`flow` | Supported |
 | WS / HTTP / H2 / gRPC / HTTPUpgrade / XHTTP | target transport opts | Supported |
 | Hysteria2 / TUIC v5 | explicit `hysteria2` / `tuic` entry | Supported normalized subset |
-| AnyTLS（post-V0.6 enhancement） | explicit `anytls` entry | Supported normalized subset |
+| AnyTLS | explicit `anytls` entry | Supported normalized subset |
 | AnyTLS TLS / session | `sni`、`skip-cert-verify`、`client-fingerprint`、`alpn`、idle-session fields | Supported |
 | AnyTLS + Reality / unknown critical fields | — | Partial / Error；不生成 fallback |
 | Hysteria2 port hopping | `ports: 443,5000-6000` | Supported；由结构化 IR 序列化 |
@@ -102,7 +102,7 @@ Demo Service Catalog 引用 `blackmatrix7/ios_rule_script` 的公开 Clash YAML 
 
 ## Proxy Chain
 
-官方文档已经弃用 `relay` group，且 group 本身不支持 `dialer-proxy`。V0.3 将后一跳的 Provider 克隆为派生 Provider，并设置：
+官方文档已经弃用 `relay` group，且 group 本身不支持 `dialer-proxy`。当前 lowering 将后一跳的 Provider 克隆为派生 Provider，并设置：
 
 ```yaml
 override:
