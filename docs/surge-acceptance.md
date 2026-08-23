@@ -4,11 +4,11 @@
 
 The ProxyFlow compiler, compatibility checks, deterministic `.conf` export, and release-candidate fixtures are covered by automated tests.
 
-**REAL SURGE IMPORT: RETEST REQUIRED**
+**REAL SURGE IMPORT: PASSED**
 
 The first real-world Project acceptance attempt was blocked. The failure is part of the acceptance record below and must not be reclassified as passed: a roughly 142-endpoint mixed subscription produced roughly 224 blocking diagnostics and could not be exported. The identified causes were source-wide compatibility over-validation and missing target lowering for Shadowsocks `simple-obfs`.
 
-The corrective implementation projects only endpoints materialized by active Surge strategies, skips replaceable incompatible pool members with an aggregated warning, and retains blocking errors for explicit or irreplaceable intent. A real subscription must now be retested in the product before this acceptance can pass.
+The corrective implementation projects only endpoints materialized by active Surge strategies, skips replaceable incompatible pool members with an aggregated warning, and retains blocking errors for explicit or irreplaceable intent. The subsequent real-subscription Project retest successfully generated, imported, and used a Surge configuration. The original blocked attempt remains part of the acceptance history below.
 
 The checked-in fixture uses only fake `.invalid` endpoints and fixture credentials. It can validate profile parsing and structure in a real Surge client, but it cannot validate successful proxy connectivity. Replace endpoints only in a private local copy; never commit real servers, credentials, subscription URLs, or certificates.
 
@@ -28,6 +28,23 @@ For the complete mixed pool, the expected product summary is `18 / 30` compatibl
 | --- | --- | --- | --- |
 | First mixed-subscription Project, 2026-08-23 | **BLOCKED** | About 142 endpoints produced about 224 blockers. Unused and filtered endpoints were validated source-wide, and `simple-obfs` Shadowsocks was falsely rejected. | Preserve this result; do not merge based on release-candidate-only coverage. |
 | Projection and `simple-obfs` correction | **RETEST REQUIRED** | Synthetic A–E scenarios cover partial pools, post-filter pools, unused VLESS inventory, explicit Fixed VLESS, and fully incompatible pools. | Repeat the real Project export and record compatible, skipped, and blocking totals plus Surge Mac/iOS import results. |
+| Final real-subscription Project retest | **PASSED** | ProxyFlow generated a Surge `.conf`, Surge imported it without configuration parsing errors, and real proxy traffic worked. Compatible endpoints were emitted while incompatible pool candidates were skipped with non-blocking warnings. | Real-client acceptance complete; retain the existing fail-closed compatibility boundaries. |
+
+## Final real-client acceptance
+
+- Tested with a real subscription Project.
+- ProxyFlow successfully generated a Surge `.conf`.
+- Surge imported the configuration without configuration parsing errors.
+- Compatible endpoints were generated normally.
+- Incompatible candidate endpoints were skipped as designed and surfaced as warnings.
+- Proxy and Proxy Group behavior worked normally.
+- Service Rules worked normally.
+- DNS worked normally.
+- FINAL routing worked normally.
+- Real proxy traffic worked normally.
+- The remaining warnings did not block export of a valid configuration.
+
+No real endpoint addresses, credentials, subscription URLs, tokens, or private configuration are recorded in this document.
 
 Expected projection behavior for the retest:
 
@@ -93,5 +110,6 @@ Expected result: routing and chain behavior match the Project intent, with no hi
 | 2 | Surge Mac 6.9+ | Pending user acceptance | — |
 | 3 | Surge iOS 5.22+ | Pending user acceptance | — |
 | 4 | Private endpoint runtime | Optional / pending | — |
+| Final | Real subscription Project in Surge | **Passed** | ProxyFlow-generated `.conf` imported without parsing errors; compatible endpoints, Proxy, Proxy Group, Service Rules, DNS, FINAL routing, and real proxy traffic worked. Incompatible candidates were skipped with non-blocking warnings. |
 
-Do not mark real acceptance complete until the mixed-subscription product retest and Levels 2 and 3 have been performed, and their results are recorded here.
+Real Surge import and runtime acceptance is complete based on the final private real-subscription Project retest recorded above. The repository fixture checklists remain available for separate platform-specific regression runs.
