@@ -2,8 +2,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  focusNodeInputPickerOnOpen,
   NodeInputPicker,
   normalizeNodeInputSelection,
+  resolveNodeInputPickerInitialFocus,
   resolveNodeInputPickerPresentation,
   restoreNodeInputPickerFocus,
   shouldDismissNodeInputPicker,
@@ -32,6 +34,39 @@ describe('NodeInputPicker', () => {
     expect(resolveNodeInputPickerPresentation(1024)).toBe('popover')
     expect(resolveNodeInputPickerPresentation(768)).toBe('sheet')
     expect(resolveNodeInputPickerPresentation(430)).toBe('sheet')
+  })
+
+  it('focuses Search when a desktop popover opens with more than six candidates', () => {
+    const panelFocus = vi.fn()
+    const searchFocus = vi.fn()
+    expect(focusNodeInputPickerOnOpen('popover', 7, {
+      panel: { focus: panelFocus },
+      search: { focus: searchFocus },
+    })).toBe('search')
+    expect(searchFocus).toHaveBeenCalledOnce()
+    expect(panelFocus).not.toHaveBeenCalled()
+  })
+
+  it('focuses the panel when a mobile sheet opens with more than six candidates', () => {
+    const panelFocus = vi.fn()
+    const searchFocus = vi.fn()
+    expect(focusNodeInputPickerOnOpen('sheet', 7, {
+      panel: { focus: panelFocus },
+      search: { focus: searchFocus },
+    })).toBe('panel')
+    expect(panelFocus).toHaveBeenCalledOnce()
+    expect(searchFocus).not.toHaveBeenCalled()
+  })
+
+  it('never automatically focuses Search when a mobile sheet opens', () => {
+    expect(resolveNodeInputPickerInitialFocus('sheet', 7)).toBe('panel')
+    expect(resolveNodeInputPickerInitialFocus('sheet', 100)).toBe('panel')
+  })
+
+  it('keeps the mobile list usable before the user chooses to open the keyboard', () => {
+    expect(resolveNodeInputPickerInitialFocus('sheet', 0)).toBe('panel')
+    expect(resolveNodeInputPickerInitialFocus('sheet', 12)).toBe('panel')
+    expect(resolveNodeInputPickerInitialFocus('popover', 6)).toBe('panel')
   })
 
   it('dismisses on Escape and restores focus through the supplied scheduler', () => {

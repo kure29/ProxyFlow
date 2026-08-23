@@ -75,6 +75,27 @@ export function resolveNodeInputPickerPresentation(width: number): 'popover' | '
   return resolveShellMode(width) === 'desktop' ? 'popover' : 'sheet'
 }
 
+export function resolveNodeInputPickerInitialFocus(
+  presentation: 'popover' | 'sheet',
+  candidateCount: number,
+): 'search' | 'panel' {
+  return presentation === 'popover' && candidateCount > 6 ? 'search' : 'panel'
+}
+
+export function focusNodeInputPickerOnOpen(
+  presentation: 'popover' | 'sheet',
+  candidateCount: number,
+  elements: {
+    panel: Pick<HTMLElement, 'focus'> | null
+    search: Pick<HTMLElement, 'focus'> | null
+  },
+): 'search' | 'panel' {
+  const target = resolveNodeInputPickerInitialFocus(presentation, candidateCount)
+  if (target === 'search') elements.search?.focus()
+  else elements.panel?.focus()
+  return target
+}
+
 export function shouldDismissNodeInputPicker(key: string): boolean {
   return key === 'Escape'
 }
@@ -121,6 +142,7 @@ export function NodeInputPicker({
       ? { height: 800, offsetTop: 0 }
       : readWorkspaceViewportGeometry(window)
   ))
+  const presentation = compact ? 'sheet' : 'popover'
 
   const visibleCandidates = useMemo(() => {
     const normalizedQuery = normalizeSearch(query)
@@ -187,8 +209,10 @@ export function NodeInputPicker({
     if (!open) return
     updatePosition()
     const frame = window.requestAnimationFrame(() => {
-      if (candidates.length > 6) searchRef.current?.focus()
-      else panelRef.current?.focus()
+      focusNodeInputPickerOnOpen(presentation, candidates.length, {
+        panel: panelRef.current,
+        search: searchRef.current,
+      })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [compact, open])
