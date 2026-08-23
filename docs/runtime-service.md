@@ -38,7 +38,7 @@ The manager supports `install`, `update`, `start`, `stop`, `restart`, `status`,
 terminal opens the management menu; a non-TTY invocation prints usage and exits
 without waiting for input. Explicit commands retain their scriptable exit-code
 behavior. Direct Compose usage defaults to the
-immutable image `ghcr.io/kure29/proxyflow:1.0.0`. New managed installs use
+immutable image `ghcr.io/kure29/proxyflow:1.0.1`. New managed installs use
 the `stable` channel, which maps to `ghcr.io/kure29/proxyflow:latest`.
 `PROXYFLOW_PORT`,
 `PROXYFLOW_HOME`, `PROXYFLOW_DATA_DIR`, `PROXYFLOW_BIND_ADDRESS`, and
@@ -68,7 +68,7 @@ Existing managed RC installations remain on the `rc` channel, including legacy
 installations that only saved an immutable `1.0.0-rc.N` image. This prevents a
 manager-script replacement from silently changing release tracks. To opt in to
 Stable, run these commands as root only after the Stable container workflow has
-published both `:1.0.0` and `:latest`:
+published an immutable Stable image and `:latest`:
 
 ```bash
 manager_tmp="$(mktemp /tmp/proxyflow-manager.XXXXXX)"
@@ -83,8 +83,8 @@ PROXYFLOW_UPDATE_CHANNEL=stable /root/proxyflow.sh update
 ```
 
 The update creates the existing Runtime backup before pulling `:latest`, waits
-for the `1.0.0` health check, and then persists the Stable channel. Later Stable
-updates use `/root/proxyflow.sh update` alone. A saved
+for a healthy Stable Runtime response, and then persists the Stable channel.
+Later Stable updates use `/root/proxyflow.sh update` alone. A saved
 `PROXYFLOW_IMAGE_MANAGED=false` pin remains unchanged, and RC-managed installs
 that do not opt in continue to use `:rc`.
 
