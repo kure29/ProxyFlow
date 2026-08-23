@@ -1,4 +1,9 @@
-# sing-box Compiler MVP
+# sing-box Compiler (Retained)
+
+Product status: official sing-box export is paused in ProxyFlow 1.0. This
+document describes retained parser/compiler infrastructure, historical Project
+compatibility, and internal regression behavior; it is not a current Export
+Target availability promise.
 
 Implementation baseline: **sing-box 1.13.14**
 
@@ -56,7 +61,7 @@ Compiler 是纯函数：不读取 Graph、Zustand、DOM 或 LocalStorage，不�
 | XHTTP | `xhttp-opts` | Error | 1.13.14 无对应 transport；`SINGBOX_TRANSPORT_XHTTP_UNSUPPORTED` |
 | Hysteria2 | `hysteria2` proxy | `hysteria2` outbound | Supported normalized subset |
 | TUIC v5 | `tuic` proxy | `tuic` outbound | Supported normalized subset |
-| AnyTLS（post-V0.6 enhancement） | `anytls` proxy | `anytls` outbound | Supported normalized subset |
+| AnyTLS | `anytls` proxy | `anytls` outbound | Supported normalized subset |
 | AnyTLS TLS / idle sessions | target TLS fields | `tls` + idle-session fields | Supported；fingerprint → `tls.utls` |
 | AnyTLS explicit UDP disable | `udp: false` | Error | `SINGBOX_ANYTLS_UDP_DISABLE_UNSUPPORTED` |
 | AnyTLS `client_metadata` | target version dependent | Partial / excluded | 仅 1.13.16+；当前 baseline 1.13.14 |
@@ -103,7 +108,7 @@ Rule priority is stable: lower Universal `priority` first, then original inserti
 - `sing-box-binary`: compiled binary rule-set format.
 - target-neutral inline Domain / Suffix / Keyword / CIDR / Port matchers.
 
-`ios_rule_script` Clash YAML is still valid for the Mihomo compiler, but is not passed to sing-box. V0.4 does not fetch, inspect, convert, or re-host it.
+`ios_rule_script` Clash YAML is still valid for the Mihomo compiler, but is not passed to sing-box. The retained compiler does not fetch, inspect, convert, or re-host it.
 
 ## Proxy chain direction
 
@@ -126,11 +131,11 @@ Supported resolver kinds:
 - UDP
 - system/local
 
-The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. The v0.7.0 compiler does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
+The first valid resolver becomes `dns.final` and `route.default_domain_resolver`. Hostname proxy servers receive `domain_resolver`; literal IP servers do not. The retained compiler does not implement FakeIP policy, DNS routing, ECS, rewrite, hijack, or split-horizon behavior.
 
 ## Inbound policy
 
-The v0.7.0 compiler emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
+The retained compiler emits routing, DNS, and outbound configuration only. It does not guess TUN, Mixed, SOCKS, or HTTP inbound intent. A deployment-specific Runtime Inbound Profile remains a later target option; successful compilation includes `SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED` as informational compatibility output.
 
 ## Failure behavior and scope
 

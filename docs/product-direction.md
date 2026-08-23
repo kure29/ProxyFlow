@@ -1,6 +1,6 @@
 # ProxyFlow Product Direction
 
-Status: Accepted Product Direction
+Status: ProxyFlow 1.0
 
 This document defines the product boundary used by maintainers, contributors, and future development tasks. It is the default decision record when a proposed feature conflicts with the current product direction.
 
@@ -11,6 +11,11 @@ This document defines the product boundary used by maintainers, contributors, an
 ProxyFlow is not a proxy client. It does not provide TUN, inbound listeners, system proxy integration, VPN connectivity, or real-time traffic forwarding.
 
 ProxyFlow is also not a one-shot subscription converter. Its core is a persistent Project, a client-aware structured Workspace, an optional Visual Flow, shared semantic validation, and independent target compilers.
+
+ProxyFlow serves people who need to turn proxy subscriptions into
+understandable, client-ready configurations without editing low-level syntax.
+The ordinary workflow stays guided, while advanced users retain topology,
+target-specific controls, and precise diagnostics over the same Project.
 
 ## Core User Workflow
 
@@ -53,10 +58,12 @@ regression coverage.
 Current target status:
 
 - Mihomo: Supported and the only official Export Target.
-- sing-box: Official export paused; historical Projects load without data loss,
-  can switch to Mihomo, and retain their target-specific data.
-- Surge: Planned after 1.0; not implemented in this milestone.
-- Loon: Planned after Surge; not implemented in this milestone.
+- sing-box: Official export paused. Its parser, compiler, capability, validator,
+  tests, and Universal IR infrastructure remain available for regression and
+  possible future use. Historical Projects load without data loss, can switch
+  to Mihomo, and retain their target-specific data.
+- Surge: Planned.
+- Loon: Planned.
 
 Subscription Request Profile is independent from Export Target. Auto, Mihomo,
 sing-box, and Generic request profiles remain available.
@@ -78,11 +85,11 @@ routing semantics. Target-native extensions remain namespaced and inactive
 when another Primary Target is selected. Adding a future Target must extend the
 capability profile and compiler without replacing the Project or shared core.
 
-## UI 2.0 Product Surface
+## Product Surface
 
-UI 2.0 applies the Hybrid Workspace model as a product-surface contract, not a
-new application architecture. Workspace remains the default and uses the
-following compact Project navigation:
+The Hybrid Workspace is a product-surface contract, not a separate application
+architecture. Workspace remains the default and uses the following compact
+Project navigation:
 
 ```text
 Sources -> Proxies -> Processing -> Strategies -> Routing
@@ -103,9 +110,14 @@ while third-party artwork is used only when its source is verified.
 Desktop may place a non-modal inspector beside the current page. Tablet may use
 an overlay inspector. Mobile is a single-column Workspace with a compact
 section selector and full-screen editors. The complete basic workflow must
-remain possible without precise canvas interaction. The maintainable UI
-contract is recorded in [`DESIGN.md`](../DESIGN.md) and
-[`docs/ui-2.0.md`](ui-2.0.md).
+remain possible without precise canvas interaction.
+
+## Accessibility And Inclusion
+
+Workspace navigation, forms, ordered routing controls, compatibility states,
+and target switching must support keyboard use, visible focus, semantic labels,
+screen readers, and touch-sized controls. Mobile users must not depend on
+precise canvas dragging or edge creation for the ordinary workflow.
 
 ## Local Mode
 
@@ -182,6 +194,10 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - Mihomo is the only production Export target. sing-box is paused but retained
   below the product surface. Surge, Loon, and any other future targets must not
   appear as ready or actionable before a real compiler path exists.
+- Project export must not contain Runtime credentials or cached subscription
+  credentials.
+- Supported product claims require capability, validation, and compiler
+  evidence; unsupported marketing claims are not permitted.
 
 ## Feature Admission Gate
 
@@ -210,32 +226,13 @@ A feature cannot enter implementation when it:
 - exists only because a target client exposes a field;
 - introduces a second primary goal into the current release.
 
-## Version Direction
+## 1.0 Scope
 
-### V0.8 - Strategy & Routing Core
+ProxyFlow 1.0 provides a stable, client-first, explainable, migratable, and
+verifiable workflow from a real subscription to Mihomo output. The Workspace
+and Visual Flow remain two views over the same Project model.
 
-Enable an ordinary user to complete subscription input, processing, strategy selection, basic routing, compatibility checks, and dual-target export.
-
-### V0.9 - Explain & Simplify
-
-Explain why traffic matches a rule, why a node is excluded, why export is blocked, and where traffic ultimately goes. Simplify the Basic and Advanced experience.
-
-### V0.10 - Runtime Service MVP
-
-Introduce an optional, self-hosted Runtime Service for a controlled Subscription Fetch Gateway, Scheduled Refresh, and limited Snapshot History. This is not a cloud platform.
-
-### V1.0 - Stable Workflow
-
-Deliver a stable, client-first, explainable, migratable, and verifiable workflow
-from a real subscription to Mihomo output. UI 2.0 organizes this
-workflow into a coherent Workspace plus Visual Flow product surface without
-forking the underlying Project model.
-
-### V1.x - Selective Expansion
-
-Consider only capabilities justified by real demand, such as Project Sync, Config Publish URL, Secret Vault, Rule Set cache, notifications, a third target, or a desktop application. This list is not a commitment to implement every item.
-
-## Deferred Before V1.0
+The following remain outside the 1.0 product scope:
 
 - a third production output target;
 - full Mihomo schema replication;
