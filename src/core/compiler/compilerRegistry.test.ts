@@ -4,11 +4,12 @@ import { CompilerRegistry } from './compilerTypes'
 import { compilerRegistry } from './index'
 
 describe('CompilerRegistry', () => {
-  it('lazy-loads the two real target compilers and leaves other targets unavailable', async () => {
+  it('lazy-loads the three backend compilers while leaving unimplemented targets unavailable', async () => {
     expect(compilerRegistry.getLoaded('mihomo')).toBeUndefined()
     expect((await compilerRegistry.load('mihomo'))?.target).toBe('mihomo')
     expect((await compilerRegistry.load('sing-box'))?.target).toBe('sing-box')
-    expect(await compilerRegistry.load('surge')).toBeUndefined()
+    expect((await compilerRegistry.load('surge'))?.target).toBe('surge')
+    expect(await compilerRegistry.load('loon')).toBeUndefined()
   })
 
   it('deduplicates concurrent loads and retries after a loader failure', async () => {
