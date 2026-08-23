@@ -11,7 +11,9 @@ import { useTargetCompile, type TargetCompileState } from './useTargetCompile'
 
 export interface ProjectCompileSelection {
   mihomo?: boolean
+  surge?: boolean
   singBox?: boolean
+  validationTarget?: PrimaryTarget
 }
 
 export function resolveProjectCompileSelection(
@@ -22,6 +24,7 @@ export function resolveProjectCompileSelection(
   return {
     activeProductTarget,
     mihomo: selection.mihomo ?? activeProductTarget === 'mihomo',
+    surge: selection.surge ?? activeProductTarget === 'surge',
     singBox: selection.singBox ?? activeProductTarget === 'sing-box',
   }
 }
@@ -37,10 +40,11 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const resolvedSelection = resolveProjectCompileSelection(primaryTarget, selection)
   const activeProductTarget = resolvedSelection.activeProductTarget
+  const validationTarget = selection.validationTarget ?? activeProductTarget
   const graphResult = useMemo(() => compileGraph(toProject(), {
     subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale),
-    validationTarget: activeProductTarget,
-  }), [activeProductTarget, edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject])
+    validationTarget,
+  }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject, validationTarget])
   const mihomoOutput = useMemo(() => resolveMihomoProfileOutput(nodes), [nodes])
   const mihomoOptions = useMemo(() => ({
     outputNodeId: mihomoOutput?.id,
@@ -48,8 +52,9 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   }), [mihomoOutput])
   const compileEnabled = enabled && graphResult.success
   const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
+  const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge)
   const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox)
-  return { graphResult, mihomoState, singBoxState }
+  return { graphResult, mihomoState, surgeState, singBoxState }
 }
 
 export type ProjectCompiles = ReturnType<typeof useProjectCompiles>
@@ -75,7 +80,9 @@ export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: 
     diagnostics: graphDiagnostics,
   }
 
-  const state = target === 'mihomo' ? compiles.mihomoState : compiles.singBoxState
+  const state = target === 'mihomo'
+    ? compiles.mihomoState
+    : target === 'surge' ? compiles.surgeState : compiles.singBoxState
   if (state.status === 'idle' || state.status === 'loading') return {
     status: 'checking',
     diagnostics: graphDiagnostics,

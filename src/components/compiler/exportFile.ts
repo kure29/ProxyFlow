@@ -1,10 +1,13 @@
 import type { CompileResult } from '../../core/compiler'
 import type { PrimaryTarget } from '../../core/capabilities'
 
-const targetFileMeta = {
-  mihomo: { extension: 'yaml', mimeType: 'text/yaml;charset=utf-8' },
-  'sing-box': { extension: 'json', mimeType: 'application/json;charset=utf-8' },
+export const targetFileMeta = {
+  mihomo: { extension: 'yaml', mimeType: 'text/yaml;charset=utf-8', format: 'yaml' },
+  surge: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
+  'sing-box': { extension: 'json', mimeType: 'application/json;charset=utf-8', format: 'json' },
 } as const
+
+export type TargetExportFormat = typeof targetFileMeta[PrimaryTarget]['format']
 
 export interface TargetExportArtifact {
   filename: string

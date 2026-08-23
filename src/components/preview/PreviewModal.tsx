@@ -7,13 +7,15 @@ import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
 import { localizeDiagnosticMessage, useI18n } from '../../i18n'
 import { APP_VERSION_LABEL } from '../../version'
-import { safeFilename } from '../compiler/exportFile'
+import { buildTargetExportArtifact, safeFilename } from '../compiler/exportFile'
+import { outputDefinitions } from '../../data/demoProject'
 
-type PreviewMode = 'mihomo' | 'ir'
+type PreviewMode = 'mihomo' | 'surge' | 'ir'
 type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
-  mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const, extension: 'yaml' },
+  mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const },
+  surge: { label: 'Surge', icon: outputDefinitions.find((output) => output.target === 'surge')!.icon, descriptionKey: 'preview.surgeCompiler' as const },
 } as const
 
 export function PreviewModal() {
@@ -33,8 +35,11 @@ export function PreviewModal() {
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const { fitView } = useReactFlow()
   const targetCompileEnabled = open && mode !== 'ir'
-  const { graphResult, mihomoState } = useProjectCompiles(targetCompileEnabled, { mihomo: mode === 'mihomo', singBox: false })
-  const targetState = mihomoState
+  const { graphResult, mihomoState, surgeState } = useProjectCompiles(targetCompileEnabled, {
+    mihomo: mode === 'mihomo', surge: mode === 'surge', singBox: false,
+    validationTarget: mode === 'ir' ? undefined : mode,
+  })
+  const targetState = mode === 'surge' ? surgeState : mihomoState
   useEffect(() => {
     const requestedTarget = previewTarget ?? primaryTarget
     if (open) setMode(isPreviewTarget(requestedTarget) ? requestedTarget : 'mihomo')
@@ -83,6 +88,7 @@ export function PreviewModal() {
   const content = mode === 'ir'
     ? graphResult.ir ? `${JSON.stringify(graphResult.ir, null, 2)}\n` : issueLog(graphIssues)
     : targetState.result?.success ? targetState.result.content : issueLog(activeIssues)
+  const artifact = mode === 'ir' ? undefined : buildTargetExportArtifact(projectName, mode, targetState.result)
 
   const copy = async () => {
     if (!compileSuccess) return
@@ -92,13 +98,14 @@ export function PreviewModal() {
   }
   const download = () => {
     if (!compileSuccess) return
-    const isYaml = mode === 'mihomo'
-    const url = URL.createObjectURL(new Blob([content], { type: isYaml ? 'text/yaml;charset=utf-8' : 'application/json;charset=utf-8' }))
+    const mimeType = mode === 'ir' ? 'application/json;charset=utf-8' : artifact?.mimeType
+    if (!mimeType) return
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }))
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = mode === 'ir'
       ? `${safeFilename(projectName)}.ir.json`
-      : `${safeFilename(projectName)}-${mode}.${targetMeta[mode].extension}`
+      : artifact!.filename
     anchor.click()
     URL.revokeObjectURL(url)
     setToast(t('preview.exported', { target: targetLabel }))
@@ -139,11 +146,11 @@ export function PreviewModal() {
           {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
-          {targetCompileEnabled && graphResult.success && <CompatibilitySummary mihomo={mihomoState} />}
+          {targetCompileEnabled && graphResult.success && <CompatibilitySummary label={targetLabel} state={targetState} />}
           <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warnings.length > 0 ? `⚠ ${t(warnings.length === 1 ? 'preview.warning' : 'preview.warnings', { count: warnings.length })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
-          <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : `proxyflow-${mode}.${targetMeta[mode].extension}` : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>
+          <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : artifact?.filename : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>
           {loading
             ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>{t('preview.loadingTitle')}</h3><p>{t('preview.loadingPanel')}</p></div>
             : !compileSuccess
@@ -151,7 +158,7 @@ export function PreviewModal() {
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
-      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : t('preview.exportJson')}</button></div></footer>
+      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : mode === 'surge' ? t('preview.exportConf') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
 }
@@ -160,10 +167,10 @@ function isPreviewTarget(value: unknown): value is Exclude<PreviewMode, 'ir'> {
   return typeof value === 'string' && Object.hasOwn(targetMeta, value)
 }
 
-function CompatibilitySummary({ mihomo }: { mihomo: TargetCompileState }) {
+function CompatibilitySummary({ label, state }: { label: string; state: TargetCompileState }) {
   return <div className="preview-compatibility-summary">
     <span><CompatibilitySummaryLabel /></span>
-    <CompatibilityRow label="Mihomo" state={mihomo} />
+    <CompatibilityRow label={label} state={state} />
   </div>
 }
 

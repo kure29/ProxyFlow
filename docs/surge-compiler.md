@@ -6,7 +6,7 @@ The Surge backend follows the same target-neutral pipeline as the other compiler
 Graph → Universal IR → Semantic Validation → Surge Compatibility → Surge Model → Serializer
 ```
 
-Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surge remains a coming-soon target: this backend is not exposed in the Target Picker or export UI.
+Surge-specific syntax and capability decisions stay in `src/targets/surge`. The currently proven backend subset is complete and exposed as a release-candidate product target with fail-closed compatibility checks. Real Surge client import acceptance is still pending; see `docs/surge-acceptance.md`.
 
 ## Current capability matrix
 
@@ -107,7 +107,7 @@ Stable DNS diagnostics include:
 
 ## Minimum supported Surge version
 
-The recommended baseline for the complete currently implemented backend is Surge iOS 5.22.0+ or Surge Mac 6.9.0+. The highest documented requirement comes from Phase 2 group-level `underlying-proxy`; the Phase 3 System/UDP/DoH/DoT DNS subset does not raise it. Surge remains a coming-soon target and no version selector is exposed.
+The recommended baseline for the complete currently implemented backend is Surge iOS 5.22.0+ or Surge Mac 6.9.0+. The highest documented requirement comes from Phase 2 group-level `underlying-proxy`; the Phase 3 System/UDP/DoH/DoT DNS subset does not raise it. The release-candidate UI displays this minimum and intentionally exposes no version selector.
 
 ## Protocol audit
 

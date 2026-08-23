@@ -38,6 +38,8 @@ export function NewProjectDialog({ open, required = false, configureExistingProj
   useEffect(() => {
     if (!open) return
     setStep(1)
+    setTarget('mihomo')
+    setSource('url')
     setProjectName(t('project.blankName'))
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousBodyOverflow = document.body.style.overflow
@@ -123,7 +125,7 @@ export function NewProjectDialog({ open, required = false, configureExistingProj
             const capabilities = getTargetCapabilities(item)
             return <button type="button" className={target === item ? 'is-selected' : ''} key={item} onClick={() => setTarget(item)} aria-pressed={target === item}>
               <AssetIcon className="target-choice-icon" src={definition.icon} darkSrc={definition.iconDark} fallback={definition.label.slice(0, 1)} />
-              <span><strong>{definition.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small></span>
+              <span><strong>{definition.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small>{item === 'surge' && <small>{t('newProject.targetDescription.surge')}</small>}</span>
               <i>{target === item ? t('newProject.selected') : t('newProject.select')}</i>
             </button>
           })}

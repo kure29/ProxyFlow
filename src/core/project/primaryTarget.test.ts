@@ -43,16 +43,21 @@ describe('project primary target resolution', () => {
     expect(multiple).toEqual(before)
   })
 
-  it('fails closed for corrupted metadata and unsupported legacy outputs', () => {
+  it('accepts Surge metadata and fails closed for corrupted metadata and unsupported legacy outputs', () => {
+    const surge = createBlankProject('surge')
+    expect(resolveProjectPrimaryTarget(surge)).toEqual({
+      target: 'surge', reason: 'explicit', requiresSelection: false,
+    })
+
     const corrupted = createBlankProject('mihomo') as unknown as Record<string, unknown>
-    corrupted.primaryTarget = 'surge'
+    corrupted.primaryTarget = 'loon'
     expect(resolveProjectPrimaryTarget(corrupted as unknown as ProxyFlowProject)).toEqual({
       target: null, reason: 'invalid-metadata', requiresSelection: true,
     })
 
     const unsupported = createBlankProject('mihomo')
     delete unsupported.primaryTarget
-    unsupported.graph.nodes.find((node) => node.data.blockType === 'output')!.data.client = 'surge'
+    unsupported.graph.nodes.find((node) => node.data.blockType === 'output')!.data.client = 'loon'
     expect(resolveProjectPrimaryTarget(unsupported)).toEqual({
       target: null, reason: 'unsupported-output', requiresSelection: true,
     })

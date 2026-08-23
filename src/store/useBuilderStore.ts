@@ -596,14 +596,14 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     setOutputClient: (id, client) => {
       const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
-      get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
+      get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'surge', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
     },
     setPrimaryTarget: (target) => {
       const state = get()
       const outputNodes = state.nodes.filter((node) => node.data.blockType === 'output')
       if (state.primaryTarget === target && (outputNodes.length !== 1 || outputNodes[0].data.client === target)) return
       record()
-      const labels: Record<PrimaryTarget, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box' }
+      const labels: Record<PrimaryTarget, string> = { mihomo: 'Mihomo', surge: 'Surge', 'sing-box': 'sing-box' }
       set({
         primaryTarget: target,
         nodes: outputNodes.length === 1 ? state.nodes.map((node) => node.id === outputNodes[0].id ? {

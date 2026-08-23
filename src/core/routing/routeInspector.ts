@@ -45,6 +45,7 @@ export interface StrategyInspection {
   healthCheckUrl?: string
   targetSupport: {
     mihomo: RouteInspectionTargetSupport
+    surge: RouteInspectionTargetSupport
     'sing-box': RouteInspectionTargetSupport
   }
 }
@@ -108,7 +109,7 @@ function inspectStrategy(ir: ProxyFlowIR, strategyId: string, stack: string[] = 
     kind: 'missing',
     candidatePath: [],
     candidateCount: 0,
-    targetSupport: { mihomo: 'unknown', 'sing-box': 'unknown' },
+    targetSupport: { mihomo: 'unknown', surge: 'unknown', 'sing-box': 'unknown' },
   }
   if (stack.includes(strategy.id)) return {
     id: strategy.id,
@@ -116,7 +117,7 @@ function inspectStrategy(ir: ProxyFlowIR, strategyId: string, stack: string[] = 
     kind: strategy.kind,
     candidatePath: [...stack, strategy.id],
     candidateCount: 0,
-    targetSupport: { mihomo: 'unsupported', 'sing-box': 'unsupported' },
+    targetSupport: { mihomo: 'unsupported', surge: 'unsupported', 'sing-box': 'unsupported' },
   }
 
   const nextStack = [...stack, strategy.id]
@@ -187,9 +188,10 @@ function countProxySet(ir: ProxyFlowIR, kind: 'source' | 'transform', id: string
 }
 
 function strategySupport(strategy: StrategyIR, candidateCount: number) {
-  if (candidateCount === 0) return { mihomo: 'unsupported' as const, 'sing-box': 'unsupported' as const }
-  if (strategy.kind === 'fallback' || strategy.kind === 'load-balance') return { mihomo: 'supported' as const, 'sing-box': 'unsupported' as const }
-  return { mihomo: 'supported' as const, 'sing-box': 'supported' as const }
+  if (candidateCount === 0) return { mihomo: 'unsupported' as const, surge: 'unsupported' as const, 'sing-box': 'unsupported' as const }
+  if (strategy.kind === 'load-balance') return { mihomo: 'supported' as const, surge: 'unsupported' as const, 'sing-box': 'unsupported' as const }
+  if (strategy.kind === 'fallback') return { mihomo: 'supported' as const, surge: 'supported' as const, 'sing-box': 'unsupported' as const }
+  return { mihomo: 'supported' as const, surge: 'supported' as const, 'sing-box': 'supported' as const }
 }
 
 function evaluateRoute(route: ProxyFlowIR['routes'][number], query: RouteQuery): RouteRuleEvaluation {

@@ -6,6 +6,12 @@ import { serviceCatalog } from './serviceCatalog'
 import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
 import type { PrimaryTarget } from '../core/capabilities'
 
+const targetLabels: Record<PrimaryTarget, string> = {
+  mihomo: 'Mihomo',
+  surge: 'Surge',
+  'sing-box': 'sing-box',
+}
+
 const finalNode: GraphNode = {
   id: 'final-route',
   type: 'block',
@@ -21,7 +27,7 @@ const outputNode = (primaryTarget: PrimaryTarget): GraphNode => ({
   type: 'block',
   position: { x: 1080, y: 260 },
   data: {
-    blockType: 'output', category: 'output', title: `${primaryTarget === 'mihomo' ? 'Mihomo' : 'sing-box'} Output`, subtitle: '等待编译', subtitleKey: 'demo.blank.outputSubtitle', icon: 'package-check',
+    blockType: 'output', category: 'output', title: `${targetLabels[primaryTarget]} Output`, subtitle: '等待编译', subtitleKey: 'demo.blank.outputSubtitle', icon: 'package-check',
     client: primaryTarget, compatibility: 'Supported', protected: true,
     ...(primaryTarget === 'mihomo' ? { mihomoProfile: createMihomoStarterProfile() } : {}),
   },

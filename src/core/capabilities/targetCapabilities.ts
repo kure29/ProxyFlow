@@ -3,7 +3,7 @@ import type { BlockType, RouteMatcherKind } from '../../types/project'
 import type { RuleSource } from '../../types/services'
 import type { SubscriptionRequestProfile } from '../subscription'
 
-export const PRIMARY_TARGETS = ['mihomo', 'sing-box'] as const
+export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
 export type TargetProductStatus = 'supported' | 'paused'
@@ -146,6 +146,98 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'desktop-tun': targetNative('Mihomo-only listener, TUN, DNS, and sniffer output profile.'),
       'domain-sniffer': targetNative('Mihomo HTTP, TLS, and QUIC sniffing configuration.'),
       'load-balance': targetNative('Mihomo load-balance proxy group.'),
+    },
+  },
+  surge: {
+    target: 'surge',
+    label: 'Surge',
+    baselineVersion: 'iOS 5.22+ / Mac 6.9+',
+    productStatus: 'supported',
+    protocols: {
+      http: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'HTTP and HTTPS are supported inside the compiler\'s validated authentication and TLS subset.'),
+      socks5: supported(),
+      shadowsocks: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'Only the documented cipher allowlist is supported; plugins fail closed.'),
+      trojan: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'TCP and validated WebSocket transport are supported.'),
+      vmess: unsupported('SURGE_PROXY_PROTOCOL_UNSUPPORTED'),
+      vless: unsupported('SURGE_PROXY_PROTOCOL_UNSUPPORTED'),
+      hysteria2: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'The portable bandwidth, fixed port-hopping, and TLS subset is supported.'),
+      tuic: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'TUIC v5 UUID, password, and TLS are supported.'),
+      anytls: partial('SURGE_PROXY_VARIANT_UNSUPPORTED', 'Password, TLS, and native UDP behavior are supported.'),
+    },
+    transports: {
+      tcp: supported(),
+      ws: partial('SURGE_PROXY_TRANSPORT_UNSUPPORTED', 'Validated Trojan WebSocket fields are supported.'),
+      http: unsupported('SURGE_PROXY_TRANSPORT_UNSUPPORTED'),
+      h2: unsupported('SURGE_PROXY_TRANSPORT_UNSUPPORTED'),
+      grpc: unsupported('SURGE_PROXY_TRANSPORT_UNSUPPORTED'),
+      httpupgrade: unsupported('SURGE_PROXY_TRANSPORT_UNSUPPORTED'),
+      xhttp: unsupported('SURGE_PROXY_TRANSPORT_UNSUPPORTED'),
+    },
+    strategies: {
+      manual: supported(),
+      auto: partial('SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', 'URL Test is supported inside the strict shared global test-URL subset.'),
+      failover: partial('SURGE_FALLBACK_TOLERANCE_UNSUPPORTED', 'Ordered fallback and interval are supported; tolerance fails closed.'),
+      'load-balance': unsupported('SURGE_LOAD_BALANCE_ROUND_ROBIN_UNSUPPORTED'),
+      fixed: supported(),
+      chain: partial('SURGE_PROXY_CHAIN_NESTED_MEMBER_UNSUPPORTED', 'Multi-hop lowering requires direct downstream policy members.'),
+    },
+    routingMatchers: {
+      service: partial('SURGE_SERVICE_RULE_SOURCE_MISSING', 'The ten first-party services lower to Surge RULE-SET assets.'),
+      domain: supported(),
+      'domain-suffix': supported(),
+      'domain-keyword': supported(),
+      'ip-cidr': supported(),
+      'ip-cidr6': supported(),
+      port: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      asn: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'geo-ip': supported(),
+      'geo-site': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'rule-set': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+    },
+    ruleSources: {
+      yaml: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      text: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      mrs: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'sing-box-source': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'sing-box-binary': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'multi-client': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      universal: unsupported('SURGE_MATCHER_UNSUPPORTED'),
+    },
+    dns: {
+      basic: partial('SURGE_DNS_MIXED_TRANSPORT_SEMANTICS_UNSUPPORTED', 'Automatic DNS and a single traditional or encrypted resolver family are supported.'),
+      doh: supported(),
+      dot: supported(),
+      udp: partial('SURGE_DNS_IPV6_RESOLVER_UNMODELED', 'IPv4 literal resolvers with an optional port are supported.'),
+      system: supported(),
+      'default-role': supported(),
+      'direct-role': unsupported('SURGE_DNS_DIRECT_RESOLVER_UNSUPPORTED'),
+      'fallback-role': unsupported('SURGE_DNS_FALLBACK_RESOLVER_UNSUPPORTED'),
+      'redir-host': unsupported('SURGE_DNS_MODE_UNSUPPORTED'),
+      'fake-ip': unsupported('SURGE_DNS_MODE_UNSUPPORTED'),
+    },
+    chains: {
+      'single-hop': supported(),
+      'multi-hop': partial('SURGE_PROXY_CHAIN_NESTED_MEMBER_UNSUPPORTED'),
+      'provider-hop': unsupported('SURGE_SOURCE_REQUIRES_RESOLVED_PROXIES'),
+    },
+    remoteProxySource: {
+      source: unsupported('SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      refresh: unsupported('SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      requestHeaders: unsupported('SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      filtering: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      rename: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      exclude: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      override: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      multipleSourcesInGroup: unsupported('SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      mixedWithExplicitMembers: unsupported('SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      requestProfiles: [],
+    },
+    proxyVariants: {
+      shadowsocksPlugins: [],
+    },
+    native: {
+      'surge-profile': targetNative('Exports a compatibility-checked Surge profile in INI-style syntax.'),
+      'group-underlying-proxy': targetNative('Surge iOS 5.22+ or Surge Mac 6.9+ group-level underlying-proxy.'),
     },
   },
   'sing-box': {
