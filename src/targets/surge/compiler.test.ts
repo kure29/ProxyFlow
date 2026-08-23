@@ -429,14 +429,14 @@ describe('SurgeCompiler', () => {
     expect(sectionLines(result.content, 'Rule')).toEqual(['FINAL,Chain'])
   })
 
-  it('fails closed for active DNS but permits explicitly inactive DNS state', () => {
+  it('uses Surge defaults for automatic DNS and permits explicitly inactive DNS state', () => {
     const active = baseIR()
     active.dns = { enabled: true, mode: 'automatic' }
-    compileFailure(active, 'SURGE_DNS_UNSUPPORTED')
+    expect(sectionLines(compileSuccessfully(active).content, 'General')).toEqual([])
 
     const inactive = baseIR()
     inactive.dns = { enabled: false, mode: 'custom', resolvers: [{ id: 'doh', kind: 'doh', address: 'https://dns.example.com/dns-query' }] }
-    expect(compileSuccessfully(inactive).success).toBe(true)
+    expect(sectionLines(compileSuccessfully(inactive).content, 'General')).toEqual([])
   })
 
   it('uses the strict single-global test URL subset and never emits legacy group url=', () => {

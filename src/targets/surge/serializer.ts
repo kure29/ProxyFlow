@@ -1,12 +1,30 @@
-import type { SurgePolicyEntry, SurgeProfile } from './model'
+import type { SurgeGeneralEntry, SurgePolicyEntry, SurgeProfile } from './model'
 
 export function serializeSurgeProfile(profile: SurgeProfile) {
+  assertUniqueGeneralKeys(profile.general)
   return [
-    serializeSection('General', profile.general.map(({ key, value }) => `${key} = ${serializeSurgeToken(value)}`)),
+    serializeSection('General', profile.general.map(serializeGeneralEntry)),
     serializeSection('Proxy', profile.proxies.map(serializePolicyEntry)),
     serializeSection('Proxy Group', profile.proxyGroups.map(serializePolicyEntry)),
     serializeSection('Rule', profile.rules),
   ].join('\n\n') + '\n'
+}
+
+function serializeGeneralEntry({ key, value }: SurgeGeneralEntry) {
+  if (typeof value === 'object') {
+    if (value.items.length === 0) throw new Error(`Surge [General] list “${key}” must not be empty.`)
+    return `${key} = ${value.items.map(serializeSurgeToken).join(', ')}`
+  }
+  return `${key} = ${serializeSurgeToken(value)}`
+}
+
+function assertUniqueGeneralKeys(entries: SurgeGeneralEntry[]) {
+  const keys = new Set<string>()
+  for (const entry of entries) {
+    const normalized = entry.key.toLowerCase()
+    if (keys.has(normalized)) throw new Error(`Duplicate Surge [General] key: ${entry.key}`)
+    keys.add(normalized)
+  }
 }
 
 export function serializePolicyEntry(entry: SurgePolicyEntry) {

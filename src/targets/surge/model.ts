@@ -3,7 +3,20 @@ export interface SurgeParameter {
   value: string | number | boolean
 }
 
-export type SurgeGeneralEntry = SurgeParameter
+export interface SurgeGeneralList<Item extends string | number | boolean = string> {
+  kind: 'list'
+  items: Item[]
+}
+
+export interface SurgeGeneralValueMap {
+  'proxy-test-url': string
+  'dns-server': SurgeGeneralList<string>
+  'encrypted-dns-server': SurgeGeneralList<string>
+}
+
+export type SurgeGeneralEntry = {
+  [Key in keyof SurgeGeneralValueMap]: { key: Key; value: SurgeGeneralValueMap[Key] }
+}[keyof SurgeGeneralValueMap]
 
 export interface SurgePolicyEntry {
   name: string
