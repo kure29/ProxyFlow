@@ -283,6 +283,7 @@ describe('MihomoCompiler', () => {
     expect(config.rules[0]).toBe('RULE-SET,OpenAI,US via HK')
     expect(config.rules).toContain('RULE-SET,Telegram,香港自动选择')
     expect(config.rules.at(-1)).toBe('MATCH,US via HK')
+    expect(result.content).not.toContain('/rules/surge/')
     expect(config.dns?.nameserver).toEqual(['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'])
   })
 

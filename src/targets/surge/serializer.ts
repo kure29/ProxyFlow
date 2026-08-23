@@ -19,6 +19,9 @@ export function serializePolicyEntry(entry: SurgePolicyEntry) {
 }
 
 export function serializeSurgeRule(type: string, payload: string | undefined, policy: string) {
+  for (const value of [type, payload, policy]) {
+    if (value !== undefined && /[\r\n\u0000]/.test(value)) throw new Error('Surge rule tokens must be single-line values.')
+  }
   return [type, ...(payload === undefined ? [] : [serializeSurgeToken(payload)]), serializeSurgeToken(policy)].join(',')
 }
 

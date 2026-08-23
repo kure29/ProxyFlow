@@ -35,8 +35,8 @@ describe('routing presentation', () => {
     }), serviceCatalog, [], copy)
 
     expect(result).toEqual(expect.objectContaining({
-      intent: 'service', serviceNames: ['OpenAI', 'Claude'], serviceRuleCount: 10,
-      matcherSummary: 'OpenAI, Claude · 10 rules', targetSummary: 'US Auto', status: 'ready',
+      intent: 'service', serviceNames: ['OpenAI', 'Claude'], serviceRuleCount: 24,
+      matcherSummary: 'OpenAI, Claude · 24 rules', targetSummary: 'US Auto', status: 'ready',
     }))
     expect(JSON.stringify(result)).not.toContain('ios_rule_script')
     expect(JSON.stringify(result)).not.toContain('github.com')
@@ -68,7 +68,7 @@ describe('routing presentation', () => {
   it('resolves service IDs and names case-insensitively and counts only known metadata', () => {
     const selected = resolveSelectedServices(['OPENAI', 'Claude', 'missing', 'openai'], serviceCatalog)
     expect(selected.map((service) => service.id)).toEqual(['openai', 'claude'])
-    expect(sumKnownRuleCounts(selected)).toBe(10)
+    expect(sumKnownRuleCounts(selected)).toBe(24)
     expect(sumKnownRuleCounts([{ ...selected[0], ruleSources: [] }])).toBeUndefined()
   })
 })
