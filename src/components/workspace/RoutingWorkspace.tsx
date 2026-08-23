@@ -6,13 +6,15 @@ import {
 } from 'lucide-react'
 import type { CapabilityDeclaration, CapabilityStatus } from '../../core/capabilities'
 import {
-  CUSTOM_ROUTE_MATCHERS, presentRoutingRule, sumKnownRuleCounts,
+  CUSTOM_ROUTE_MATCHERS, presentRoutingRule, resolveSelectedServices, sumKnownRuleCounts,
   type CustomRouteMatcherKind, type RoutingIssueLike, type RoutingPresentationCopy,
   type RoutingRuleStatus,
 } from '../../core/routing/routePresentation'
 import type { WorkspaceNodeItem, WorkspaceRoutingItem } from '../../core/workspace'
 import type { BlockNodeData, BlockType, GraphNode, RouteMatcherKind, ServiceDefinition } from '../../types/project'
-import { AssetIcon } from '../icons/AssetIcon'
+import { currentAuthoringServices } from '../../data/legacyServices'
+import { ServiceMark } from '../services/ServiceMark'
+import { resolveServiceMarkId } from '../services/serviceMarkDefinitions'
 import { WorkspaceItemMenu } from './WorkspaceItemMenu'
 import {
   positionViewportPopover, readPopoverViewport, type ViewportPopoverPosition,
@@ -236,6 +238,9 @@ export function RoutingWorkspace({
         const status = routingRuleStatusForCapability(presentation.status, presentation.matcherKind, capabilities)
         const title = getNodeTitle?.(item.node) ?? presentation.title
         const target = getTargetSummary?.(item.node, presentation.targetSummary) ?? presentation.targetSummary
+        const selectedServices = presentation.intent === 'service'
+          ? resolveSelectedServices(item.node.data.services ?? [], services).filter((service) => resolveServiceMarkId(service.id))
+          : []
         return <article
           className="routing-rule-row"
           data-status={status}
@@ -259,7 +264,10 @@ export function RoutingWorkspace({
           ><GripVertical size={17} /></button>
           <span className="routing-rule-order">{index + 1}</span>
           <button type="button" className="routing-rule-summary" onClick={() => onEdit(item)}>
-            <strong>{title}</strong>
+            <span className="routing-rule-title">
+              {selectedServices.length > 0 && <span className="routing-rule-service-marks">{selectedServices.slice(0, 3).map((service) => <ServiceMark key={service.id} serviceId={service.id} size="small" />)}</span>}
+              <strong>{title}</strong>
+            </span>
             <span><b>{presentation.intent === 'service' ? copy.serviceMatcher : copy.customMatcher}</b><code>{presentation.matcherSummary}</code></span>
           </button>
           <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
@@ -320,7 +328,7 @@ function ServiceChoices({ services, query, capability, copy, onQueryChange, onSe
     <div role="listbox" aria-label={copy.chooseService}>{services.map((service) => {
       const ruleCount = sumKnownRuleCounts([service])
       return <button type="button" role="option" aria-selected="false" disabled={capabilityUnavailable(capability)} key={service.id} onClick={() => onSelect(service)}>
-        <AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} />
+        <ServiceMark serviceId={service.id} />
         <span><strong>{service.name}</strong>{ruleCount !== undefined && <small>{copy.presentation.ruleCount(ruleCount)}</small>}</span>
         <ArrowRight size={15} />
       </button>
@@ -353,9 +361,10 @@ function RuleStatus({ status, label }: { status: RoutingRuleStatus; label: strin
 }
 
 export function filterRoutingServices(services: readonly ServiceDefinition[], query: string) {
+  const authoringServices = currentAuthoringServices(services)
   const normalized = query.trim().toLocaleLowerCase()
-  if (!normalized) return [...services]
-  return services.filter((service) => [service.id, service.name, service.category, service.description]
+  if (!normalized) return authoringServices
+  return authoringServices.filter((service) => [service.id, service.name, service.category, service.description]
     .filter(Boolean)
     .some((value) => String(value).toLocaleLowerCase().includes(normalized)))
 }

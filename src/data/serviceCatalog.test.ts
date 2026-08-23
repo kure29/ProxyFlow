@@ -14,23 +14,12 @@ const firstPartyServices = {
   steam: { filename: 'Steam.yaml', ruleCount: 8, matchers: ['DOMAIN-SUFFIX'] },
 } as const
 
-describe('built-in service artwork', () => {
-  it('ships every branded built-in service with local artwork and real rule support', () => {
-    const required = ['openai', 'claude', 'google', 'gemini', 'youtube', 'netflix', 'disney', 'telegram', 'github', 'steam']
-    for (const id of required) {
-      const service = serviceCatalog.find((candidate) => candidate.id === id)
-      expect(service?.icon).toBeTruthy()
-      expect(service?.icon).not.toContain('jsdelivr')
-      expect(service?.ruleSources.length).toBeGreaterThan(0)
-    }
-  })
-
-  it('uses distinct Google and Gemini artwork and includes Disney+', () => {
-    const byId = new Map(serviceCatalog.map((service) => [service.id, service]))
-    expect(byId.get('google')?.icon).toBeTruthy()
-    expect(byId.get('gemini')?.icon).toBeTruthy()
-    expect(byId.get('gemini')?.icon).not.toBe(byId.get('google')?.icon)
-    expect(byId.get('disney')?.icon).toBeTruthy()
+describe('built-in service catalog', () => {
+  it('contains exactly the ten current branded services without persisted presentation data', () => {
+    expect(serviceCatalog.map((service) => service.id)).toEqual(Object.keys(firstPartyServices))
+    expect(serviceCatalog).toHaveLength(10)
+    expect(serviceCatalog.some((service) => service.id === 'china' || service.name === 'China Mainland')).toBe(false)
+    expect(serviceCatalog.every((service) => !('icon' in service) && !('iconDark' in service))).toBe(true)
   })
 
   it('keeps placeholder repository metadata out of the product model', () => {
@@ -62,13 +51,4 @@ describe('built-in service artwork', () => {
     expect(remoteSources.every((source) => !source.url?.includes('blackmatrix7'))).toBe(true)
   })
 
-  it('keeps China Mainland on the existing built-in GEOSITE and GEOIP source', () => {
-    const china = serviceCatalog.find((service) => service.id === 'china')
-    expect(china).toEqual(expect.objectContaining({
-      name: 'China Mainland',
-      ruleSources: [{ id: 'builtin-china', provider: 'builtin', format: 'universal', ruleCount: 168 }],
-      defaultMatchers: ['GEOSITE', 'GEOIP'],
-    }))
-    expect(china?.ruleSources[0].url).toBeUndefined()
-  })
 })

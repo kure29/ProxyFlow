@@ -9,10 +9,12 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import { validateGraph } from '../../core/validation/validateProject'
 import { productionOutputDefinitions } from '../../data/demoProject'
 import { serviceCatalog } from '../../data/serviceCatalog'
+import { currentAuthoringServices, resolveLegacyServiceDefinition } from '../../data/legacyServices'
 import { compileGraph } from '../../core/graphCompiler'
 import type { BlockNodeData, GraphEdge, GraphNode, ServiceDefinition } from '../../types/project'
 import { BlockIcon } from '../icons/BlockIcon'
 import { AssetIcon } from '../icons/AssetIcon'
+import { ServiceMark } from '../services/ServiceMark'
 import { WebSelect } from '../ui/WebSelect'
 import { RegionPicker } from './RegionPicker'
 import { useTargetCompile } from '../compiler/useTargetCompile'
@@ -677,7 +679,7 @@ export function RoutingInspector({ node }: InspectorProps) {
       ]} />
     </Field>}
     {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><small>{t('inspector.servicesSelected', { count: services.length })}</small></div>
-    <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service); const label = definition?.name ?? service; return <div className={activeService === service || activeService === definition?.name ? 'is-active' : ''} key={service}><AssetIcon className="service-avatar" src={definition?.icon} darkSrc={definition?.iconDark} fallback={label.slice(0, 1)} /><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
+    <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service) ?? resolveLegacyServiceDefinition(service); const label = definition?.name ?? service; const selected = activeService === service || activeService === definition?.name; return <div className={selected ? 'is-active' : ''} key={service}><span className="service-mark-slot"><ServiceMark serviceId={definition?.id ?? service} selected={selected} /></span><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
     <ServiceMultiSelectPopover selected={services} onChange={(next) => update(node.id, { services: next })} /></>}
     {isCustomRule && matcherKind === 'rule-set' && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
     {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
@@ -778,7 +780,7 @@ function ServiceMultiSelectPopover({ selected, onChange }: { selected: string[];
       <div className="service-picker-heading"><div className="service-search"><Search size={15} /><input ref={searchRef} value={query} placeholder={t('inspector.searchServices')} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => moveFocus(event, event.key === 'ArrowDown' ? 'first' : undefined)} /></div><button type="button" className="service-picker-collapse" onClick={() => { setOpen(false); triggerRef.current?.focus() }} aria-label={t('inspector.collapse')} title={t('inspector.collapse')}><X size={16} /></button></div>
       <div className="service-picker-options" role="listbox" aria-multiselectable="true" aria-label={t('inspector.services')} onWheel={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onKeyDown={moveFocus}>{visible.map((service, optionIndex) => {
         const isSelected = selected.includes(service.id) || selected.includes(service.name)
-        return <button type="button" role="option" aria-selected={isSelected} disabled={isSelected} key={service.id} onClick={() => selectService(service.id, optionIndex)}><AssetIcon className="service-avatar" src={service.icon} darkSrc={service.iconDark} fallback={service.name.slice(0, 1)} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span>{isSelected ? <Check size={15} /> : <Plus size={15} />}</button>
+        return <button type="button" role="option" aria-selected={isSelected} disabled={isSelected} key={service.id} onClick={() => selectService(service.id, optionIndex)}><ServiceMark serviceId={service.id} selected={isSelected} /><span><strong>{localizeKnownSystemText(service.name, locale)}</strong><small>{service.description}</small></span>{isSelected ? <Check size={15} /> : <Plus size={15} />}</button>
       })}{visible.length === 0 && <small>{t('inspector.noServices')}</small>}</div>
     </div>, document.body)}
   </>
@@ -856,7 +858,7 @@ function CustomRuleSourceEditor({ node, primaryTarget, update, t }: {
 
   return <section className="custom-rule-source" aria-label={t('inspector.ruleSource.title')}>
     <div className="custom-rule-source-heading">
-      <AssetIcon className="service-avatar" src={icon} fallback="R" />
+      <AssetIcon className="rule-source-avatar" src={icon} fallback="R" />
       <span><strong>{t('inspector.ruleSource.title')}</strong><small>{t('inspector.ruleSource.normalizedHint')}</small></span>
     </div>
     <Field label={t('inspector.ruleSource.name')}><input value={name} onChange={(event) => { setName(event.target.value); updateExisting({ name: event.target.value }) }} /></Field>
@@ -1025,7 +1027,7 @@ export function RouteInspectorPanel() {
     validationTarget: activeProductTarget,
   }), [activeProductTarget, project, subscriptionSnapshots])
   const result = useMemo(() => graph.ir ? inspectRoute(graph.ir, query) : undefined, [graph.ir, query])
-  const services = project.services.filter((service) => service.id && service.name)
+  const services = currentAuthoringServices(project.services).filter((service) => service.id && service.name)
   const setField = (field: keyof RouteQuery, value: string) => setQuery((current) => ({
     ...current,
     [field]: field === 'port' ? (value ? Number(value) : undefined) : value,

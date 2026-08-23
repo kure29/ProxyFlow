@@ -360,6 +360,19 @@ describe('MihomoCompiler', () => {
     expect(parseConfig(ir).config.rules).toEqual([expected, 'MATCH,Auto'])
   })
 
+  it('preserves the ordered two-rule semantics for hidden legacy China projects', () => {
+    const ir = baseIR()
+    ir.services = [{
+      id: 'china', name: 'China Mainland', defaultMatchers: ['GEOSITE', 'GEOIP'],
+      ruleSources: [{ id: 'builtin-china', provider: 'builtin', format: 'universal' }],
+    }]
+    ir.routes = [{
+      id: 'legacy-china', name: 'Legacy China', matcher: { kind: 'service', serviceIds: ['china'] },
+      target: { kind: 'direct' }, priority: 10,
+    }]
+    expect(parseConfig(ir).config.rules).toEqual(['GEOSITE,cn,DIRECT', 'GEOIP,CN,DIRECT', 'MATCH,Auto'])
+  })
+
   it('keeps route priority and always emits Final as MATCH last', () => {
     const ir = baseIR()
     ir.routes = [

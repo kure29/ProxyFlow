@@ -4075,3 +4075,80 @@
 @media (prefers-reduced-motion: reduce) {
   .node-input-picker-panel, .region-picker-panel { animation: none; }
 }
+
+@layer ui2 {
+  .service-mark {
+    --service-mark-badge: color-mix(in srgb, var(--color-primary-soft) 42%, var(--color-surface-subtle));
+    width: 32px;
+    height: 32px;
+    position: relative;
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--color-text-secondary);
+    background: var(--service-mark-badge);
+    transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+  }
+  .service-mark--small { width: 28px; height: 28px; border-radius: 7px; }
+  .service-mark__image {
+    width: var(--service-mark-optical-width);
+    height: var(--service-mark-optical-height);
+    display: block;
+    object-fit: contain;
+  }
+  .service-mark__image--monochrome {
+    background-color: currentColor;
+    mask-image: var(--service-mark-image);
+    -webkit-mask-image: var(--service-mark-image);
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-position: center;
+    mask-size: contain;
+    -webkit-mask-size: contain;
+  }
+  .service-mark[data-selected="true"] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+  }
+  .routing-service-choices > div > button:hover:not(:disabled) .service-mark,
+  .routing-service-choices > div > button:focus-visible .service-mark,
+  .service-picker-options button:hover:not(:disabled) .service-mark,
+  .service-picker-options button:focus-visible .service-mark,
+  .service-list > div:hover .service-mark,
+  .node-services button:hover .service-mark,
+  .node-services button:focus-visible .service-mark {
+    background: color-mix(in srgb, var(--color-primary-soft) 78%, var(--color-surface));
+  }
+  .service-mark-slot { width: 32px; height: 32px; display: grid; place-items: center; }
+  .rule-source-avatar { --asset-icon-background: var(--color-surface-subtle); width: 32px; height: 32px; border-radius: 8px; }
+
+  .routing-service-choices > div > button { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  .routing-rule-title { min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
+  .routing-rule-title > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .routing-rule-service-marks { display: flex; flex: 0 0 auto; align-items: center; }
+  .routing-rule-service-marks .service-mark + .service-mark { margin-inline-start: -8px; }
+  .routing-rule-service-marks .service-mark:nth-child(1) { z-index: 3; }
+  .routing-rule-service-marks .service-mark:nth-child(2) { z-index: 2; }
+  .routing-rule-service-marks .service-mark:nth-child(3) { z-index: 1; }
+
+  .node-services { gap: var(--space-1); }
+  .node-services button {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 7px 1px 1px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    font-size: 9px;
+    line-height: 14px;
+    font-weight: 600;
+  }
+  .node-services button:hover { transform: none; background: var(--color-primary-soft); }
+}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { targetCapabilityRegistry } from '../../core/capabilities'
 import { serviceCatalog } from '../../data/serviceCatalog'
+import { legacyChinaServiceDefinition } from '../../data/legacyServices'
+import { createBlankProject } from '../../data/newProject'
 import {
   capabilityUnavailable, createCustomRuleData, createServiceRuleData, filterRoutingServices,
   routingRuleStatusForCapability,
@@ -11,6 +13,14 @@ describe('Routing Workspace helpers', () => {
     expect(filterRoutingServices(serviceCatalog, 'open').map((service) => service.id)).toEqual(['openai'])
     expect(filterRoutingServices(serviceCatalog, 'streaming').map((service) => service.id)).toEqual(['youtube', 'netflix', 'disney'])
     expect(filterRoutingServices(serviceCatalog, 'no match')).toEqual([])
+    expect(filterRoutingServices([...serviceCatalog, legacyChinaServiceDefinition], '')).toEqual(serviceCatalog)
+    expect(filterRoutingServices([...serviceCatalog, legacyChinaServiceDefinition], 'China Mainland')).toEqual([])
+  })
+
+  it('keeps new-project Service authoring limited to the ten branded services', () => {
+    const project = createBlankProject('mihomo')
+    expect(project.services).toHaveLength(10)
+    expect(project.services.some((service) => service.id === 'china' || service.name === 'China Mainland')).toBe(false)
   })
 
   it('uses capability declarations to disable only unsupported matcher choices', () => {
