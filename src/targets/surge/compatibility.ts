@@ -1,4 +1,4 @@
-import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
+import { isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type ResolvedProxyEndpointIR, type StrategyIR } from '../../core/ir'
 import { createMaterializationContext, materializeProxySet } from '../../core/proxySet'
 import type { CompatibilityIssue } from '../../types/project'
 import { surgeIssue } from './errors'
@@ -29,8 +29,12 @@ export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResu
       `Source “${source.name}” must be materialized to explicit proxy endpoints before Surge compilation.`, source.id,
     ))
     if (source.kind === 'subscription' && source.remote?.exportMode === 'remote') issues.push(surgeIssue(
-      'SURGE_REMOTE_PROXY_SOURCE_UNSUPPORTED', 'error', 'remote-source',
-      `Source “${source.name}” requires native remote export, which is not implemented in this Surge compiler phase.`, source.id,
+      'SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN', 'error', 'remote-source',
+      `Source “${source.name}” requires native Remote export, but ProxyFlow has no verified metadata proving that its URL serves a Surge policy list or a Surge profile [Proxy] section.`, source.id,
+    ))
+    else if (source.kind === 'subscription' && source.remote?.exportMode === 'auto' && source.proxies) issues.push(surgeIssue(
+      'SURGE_REMOTE_PROXY_SOURCE_MATERIALIZED', 'info', 'remote-source',
+      `Source “${source.name}” is materialized from its validated snapshot because its remote format is not proven Surge-compatible.`, source.id,
     ))
     if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
     for (const proxy of source.proxies ?? []) {
@@ -68,11 +72,17 @@ export function checkSurgeCompatibility(ir: ProxyFlowIR): SurgeCompatibilityResu
     const nestedMemberCount = strategy.kind === 'select' || strategy.kind === 'fallback'
       ? strategy.candidates.filter((candidate) => candidate.kind === 'strategy').length
       : 0
+    if (strategy.kind === 'fixed') {
+      const endpoint = findFixedEndpoint(ir, strategy.proxyId)
+      if (endpoint) registerPolicyName(endpoint.name, `proxy:${endpoint.id}`, strategy.id, policyOwners, issues)
+    }
     if (strategy.kind !== 'fixed' && strategy.kind !== 'chain'
       && materializedMemberCount + nestedMemberCount === 0) issues.push(surgeIssue(
       'SURGE_STRATEGY_EMPTY', 'error', 'strategy', `Strategy “${strategy.name}” has no materialized policy members.`, strategy.id,
     ))
   }
+  validateChainStrategies(ir, materialization, issues)
+  validateHealthCheckScope(ir.strategies, issues)
   validateStrategyCycles(ir.strategies, issues)
 
   for (const route of ir.routes) {
@@ -105,25 +115,12 @@ function strategyProxySetRefs(strategy: StrategyIR): ProxySetRef[] {
 }
 
 function validateStrategy(strategy: StrategyIR, issues: CompatibilityIssue[]) {
-  if (strategy.kind === 'chain') {
-    issues.push(surgeIssue(
-      'SURGE_PROXY_CHAIN_UNSUPPORTED', 'error', 'chain',
-      `Proxy Chain “${strategy.name}” is not implemented in this Surge compiler phase.`, strategy.id,
-    ))
-    return
-  }
-  if (strategy.kind === 'fixed') {
-    issues.push(surgeIssue(
-      'SURGE_FIXED_STRATEGY_UNSUPPORTED', 'error', 'strategy',
-      `Fixed strategy “${strategy.name}” is outside this Surge compiler phase.`, strategy.id,
-    ))
-    return
-  }
-  if ((strategy.kind === 'auto-select' || strategy.kind === 'fallback') && strategy.healthCheck?.url) issues.push(surgeIssue(
-    'SURGE_STRATEGY_TEST_URL_UNSUPPORTED', 'error', 'strategy',
-    `Strategy “${strategy.name}” has a group-scoped test URL, but current Surge ignores the legacy group url field and IR cannot lower it losslessly.`, strategy.id,
-  ))
   if (strategy.kind === 'auto-select' || strategy.kind === 'fallback') {
+    const url = strategy.healthCheck?.url
+    if (url !== undefined && !isSafeHttpUrl(url)) issues.push(surgeIssue(
+      'SURGE_STRATEGY_TEST_URL_INVALID', 'error', 'strategy',
+      `Strategy “${strategy.name}” has a test URL that is not a safe absolute HTTP(S) URL.`, strategy.id,
+    ))
     const interval = strategy.healthCheck?.intervalSeconds
     if (interval !== undefined && (!Number.isInteger(interval) || interval <= 0)) issues.push(surgeIssue(
       'SURGE_STRATEGY_INTERVAL_INVALID', 'error', 'strategy', `Strategy “${strategy.name}” has an invalid interval.`, strategy.id,
@@ -137,16 +134,24 @@ function validateStrategy(strategy: StrategyIR, issues: CompatibilityIssue[]) {
       `Fallback strategy “${strategy.name}” has tolerance intent, but Surge fallback has no tolerance field.`, strategy.id,
     ))
   }
-  if (strategy.kind === 'load-balance') issues.push(surgeIssue(
-    'SURGE_LOAD_BALANCE_MODE_UNSUPPORTED', 'error', 'strategy',
-    `Load Balance strategy “${strategy.name}” uses ${strategy.mode ?? 'unspecified'} mode, but current Surge exposes random selection or target-hostname persistence and Universal IR does not retain an equivalent mode contract.`, strategy.id,
-  ))
+  if (strategy.kind === 'load-balance') {
+    if (strategy.mode === 'consistent-hash') issues.push(surgeIssue(
+      'SURGE_LOAD_BALANCE_CONSISTENT_HASH_UNSUPPORTED', 'error', 'strategy',
+      `Load Balance strategy “${strategy.name}” requires Mihomo-style consistent hashing, whose domain key uses top-level-domain matching; Surge persistent mode hashes the full target hostname, so the mapping is not exact.`, strategy.id,
+    ))
+    else issues.push(surgeIssue(
+      'SURGE_LOAD_BALANCE_ROUND_ROBIN_UNSUPPORTED', 'error', 'strategy',
+      `Load Balance strategy “${strategy.name}” requires ordered round-robin selection, while Surge load-balance without persistent mode selects uniformly at random.`, strategy.id,
+    ))
+  }
 }
 
 function validateStrategyCycles(strategies: StrategyIR[], issues: CompatibilityIssue[]) {
-  const references = new Map(strategies.map((strategy) => [strategy.id, strategy.kind === 'select' || strategy.kind === 'fallback'
-    ? strategy.candidates.filter((candidate) => candidate.kind === 'strategy').map((candidate) => candidate.id)
-    : []]))
+  const references = new Map(strategies.map((strategy) => [strategy.id,
+    strategy.kind === 'select' || strategy.kind === 'fallback'
+      ? strategy.candidates.filter((candidate) => candidate.kind === 'strategy').map((candidate) => candidate.id)
+      : strategy.kind === 'chain' ? strategy.hops.map((hop) => hop.id) : [],
+  ]))
   const visiting = new Set<string>()
   const visited = new Set<string>()
   const reported = new Set<string>()
@@ -171,6 +176,105 @@ function validateStrategyCycles(strategies: StrategyIR[], issues: CompatibilityI
     visited.add(id)
   }
   for (const strategy of strategies) visit(strategy.id, [])
+}
+
+function validateHealthCheckScope(strategies: StrategyIR[], issues: CompatibilityIssue[]) {
+  const testing = strategies.filter((strategy) => strategy.kind === 'auto-select' || strategy.kind === 'fallback')
+  const explicit = testing.filter((strategy) => strategy.healthCheck?.url !== undefined)
+  if (explicit.length === 0) return
+
+  const firstUrl = explicit[0].healthCheck!.url!
+  const conflicting = explicit.find((strategy) => strategy.healthCheck!.url !== firstUrl)
+  if (conflicting) issues.push(surgeIssue(
+    'SURGE_STRATEGY_TEST_URL_CONFLICT', 'error', 'strategy',
+    `Strategy “${conflicting.name}” uses a different test URL; Surge only exposes one global proxy-test-url for this lossless subset.`, conflicting.id,
+  ))
+
+  for (const strategy of testing.filter((candidate) => candidate.healthCheck?.url === undefined)) issues.push(surgeIssue(
+    'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', 'error', 'strategy',
+    `Strategy “${strategy.name}” has no explicit test URL, so applying another group's URL globally would change its testing semantics.`, strategy.id,
+  ))
+
+  const otherTestingSurface = strategies.find((strategy) => strategy.kind === 'select' || strategy.kind === 'fixed')
+  if (otherTestingSurface) issues.push(surgeIssue(
+    'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', 'error', 'strategy',
+    `Strategy “${otherTestingSurface.name}” exposes policies outside URL Test/Fallback; a global proxy-test-url could change that testing surface.`, otherTestingSurface.id,
+  ))
+}
+
+function validateChainStrategies(
+  ir: ProxyFlowIR,
+  materialization: ReturnType<typeof createMaterializationContext>,
+  issues: CompatibilityIssue[],
+) {
+  const strategies = new Map(ir.strategies.map((strategy) => [strategy.id, strategy]))
+  for (const chain of ir.strategies) {
+    if (chain.kind !== 'chain') continue
+    for (let index = 0; index < chain.hops.length; index += 1) {
+      const hop = strategies.get(chain.hops[index].id)
+      if (!hop) continue
+      if (hop.kind === 'chain') {
+        issues.push(surgeIssue(
+          'SURGE_PROXY_CHAIN_NESTED_CHAIN_UNSUPPORTED', 'error', 'chain',
+          `Proxy Chain “${chain.name}” uses another chain as hop ${index + 1}; recursive derived-policy lowering is outside the proven subset.`, chain.id,
+        ))
+        continue
+      }
+      if (index === 0) continue
+      if (!hasDirectPolicyMembers(hop)) {
+        issues.push(surgeIssue(
+          'SURGE_PROXY_CHAIN_NESTED_MEMBER_UNSUPPORTED', 'error', 'chain',
+          `Proxy Chain “${chain.name}” has nested strategy members in hop ${index + 1}; Surge group-level underlying-proxy does not apply to nested groups.`, chain.id,
+        ))
+        continue
+      }
+      if (resolvedStrategyProxies(ir, hop, materialization).some((proxy) => proxy.protocol === 'hysteria2' && proxy.serverPorts?.length)) issues.push(surgeIssue(
+        'SURGE_PROXY_CHAIN_PORT_HOPPING_UNSUPPORTED', 'error', 'chain',
+        `Proxy Chain “${chain.name}” applies an underlying policy to Hysteria 2 port hopping in hop ${index + 1}, a combination Surge explicitly forbids.`, chain.id,
+      ))
+    }
+  }
+}
+
+function hasDirectPolicyMembers(strategy: StrategyIR) {
+  if (strategy.kind === 'fixed' || strategy.kind === 'auto-select') return true
+  if (strategy.kind === 'select' || strategy.kind === 'fallback') return strategy.candidates.every((candidate) => candidate.kind !== 'strategy')
+  return false
+}
+
+function resolvedStrategyProxies(
+  ir: ProxyFlowIR,
+  strategy: StrategyIR,
+  materialization: ReturnType<typeof createMaterializationContext>,
+) {
+  if (strategy.kind === 'fixed') {
+    const endpoint = findFixedEndpoint(ir, strategy.proxyId)
+    return endpoint ? [endpoint] : []
+  }
+  return strategyProxySetRefs(strategy).flatMap((ref) => {
+    const result = materializeProxySet(ir, ref, materialization)
+    return result.status === 'ready' ? result.proxies : []
+  })
+}
+
+function findFixedEndpoint(ir: ProxyFlowIR, proxyId?: string): ResolvedProxyEndpointIR | undefined {
+  if (!proxyId) return undefined
+  for (const source of ir.sources) {
+    if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
+    const endpoint = (source.proxies ?? []).find((proxy) => proxy.id === proxyId)
+    if (endpoint && !isUnmodeledProxy(endpoint)) return endpoint
+  }
+  return undefined
+}
+
+function isSafeHttpUrl(value: string) {
+  if (!value || /[\r\n\u0000]/.test(value)) return false
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
+  } catch {
+    return false
+  }
 }
 
 function registerPolicyName(

@@ -2,7 +2,7 @@ import type { SurgePolicyEntry, SurgeProfile } from './model'
 
 export function serializeSurgeProfile(profile: SurgeProfile) {
   return [
-    serializeSection('General', profile.general),
+    serializeSection('General', profile.general.map(({ key, value }) => `${key} = ${serializeSurgeToken(value)}`)),
     serializeSection('Proxy', profile.proxies.map(serializePolicyEntry)),
     serializeSection('Proxy Group', profile.proxyGroups.map(serializePolicyEntry)),
     serializeSection('Rule', profile.rules),

@@ -3,6 +3,8 @@ export interface SurgeParameter {
   value: string | number | boolean
 }
 
+export type SurgeGeneralEntry = SurgeParameter
+
 export interface SurgePolicyEntry {
   name: string
   type: string
@@ -11,7 +13,7 @@ export interface SurgePolicyEntry {
 }
 
 export interface SurgeProfile {
-  general: string[]
+  general: SurgeGeneralEntry[]
   proxies: SurgePolicyEntry[]
   proxyGroups: SurgePolicyEntry[]
   rules: string[]

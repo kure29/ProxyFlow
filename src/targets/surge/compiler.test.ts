@@ -134,7 +134,9 @@ describe('SurgeCompiler', () => {
     const ir = replaceStrategies(baseIR(), [{
       kind: 'load-balance', id: 'balance', name: 'Balance', source: { kind: 'source', id: 'source' }, mode,
     }])
-    compileFailure(ir, 'SURGE_LOAD_BALANCE_MODE_UNSUPPORTED')
+    compileFailure(ir, mode === 'round-robin'
+      ? 'SURGE_LOAD_BALANCE_ROUND_ROBIN_UNSUPPORTED'
+      : 'SURGE_LOAD_BALANCE_CONSISTENT_HASH_UNSUPPORTED')
   })
 
   it('preserves routing priority, graph-order ties, all supported matcher kinds and FINAL-last semantics', () => {
@@ -408,7 +410,7 @@ describe('SurgeCompiler', () => {
       .toThrow('Surge rule tokens must be single-line values.')
   })
 
-  it('fails closed whenever the IR contains a Proxy Chain', () => {
+  it('lowers a direct-member Proxy Chain in client → entry → exit order', () => {
     const ir = baseIR()
     ir.strategies = [
       { kind: 'select', id: 'entry', name: 'Entry', candidates: [{ kind: 'source', id: 'source' }] },
@@ -417,7 +419,14 @@ describe('SurgeCompiler', () => {
     ]
     ir.routes = []
     ir.finalRoute = { target: { kind: 'strategy', id: 'chain' } }
-    compileFailure(ir, 'SURGE_PROXY_CHAIN_UNSUPPORTED')
+    const result = compileSuccessfully(ir)
+    expect(sectionLines(result.content, 'Proxy Group')).toEqual([
+      'Entry = select, Proxy A',
+      'Exit = select, Proxy A',
+      'Chain = select, Proxy A, underlying-proxy=Entry',
+    ])
+    expect(sectionLines(result.content, 'Proxy')).toEqual(['Proxy A = http, proxy.example.com, 8080'])
+    expect(sectionLines(result.content, 'Rule')).toEqual(['FINAL,Chain'])
   })
 
   it('fails closed for active DNS but permits explicitly inactive DNS state', () => {
@@ -430,12 +439,18 @@ describe('SurgeCompiler', () => {
     expect(compileSuccessfully(inactive).success).toBe(true)
   })
 
-  it('fails closed for strategy-scoped test URLs because current Surge ignores group url=', () => {
+  it('uses the strict single-global test URL subset and never emits legacy group url=', () => {
     const ir = replaceStrategies(baseIR(), [{
       kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
       healthCheck: { url: 'https://www.gstatic.com/generate_204', intervalSeconds: 120 },
     }])
-    const result = compileFailure(ir, 'SURGE_STRATEGY_TEST_URL_UNSUPPORTED')
+    const result = compileSuccessfully(ir)
+    expect(sectionLines(result.content, 'General')).toEqual([
+      'proxy-test-url = https://www.gstatic.com/generate_204',
+    ])
+    expect(sectionLines(result.content, 'Proxy Group')).toEqual([
+      'Auto = url-test, Proxy A, interval=120',
+    ])
     expect(result.content).not.toContain('url=')
   })
 

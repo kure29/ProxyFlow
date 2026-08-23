@@ -66,7 +66,7 @@ export function checkSurgeProxy(endpoint: ResolvedProxyEndpointIR, sourceId: str
     case 'vmess':
       add(
         'SURGE_PROXY_PROTOCOL_UNSUPPORTED',
-        `Proxy “${endpoint.name}” uses VMess, but Universal IR does not retain Surge's required vmess-aead intent independently of alterId.`,
+        `Proxy “${endpoint.name}” uses VMess without explicit Surge vmess-aead intent; assuming a value would change its connection semantics.`,
       )
       break
     case 'vless':
