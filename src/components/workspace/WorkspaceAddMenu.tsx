@@ -21,8 +21,31 @@ export function activateWorkspaceCreationOption(
   onClose()
 }
 
-export function WorkspaceAddMenu({ label, options, onCreate }: WorkspaceAddMenuProps) {
+export function WorkspaceAddOptions({ options, onActivate }: {
+  options: WorkspaceCreationOption[]
+  onActivate: (option: WorkspaceCreationOption) => void
+}) {
   const { t } = useI18n()
+  const basicOptions = options.filter(({ advanced }) => !advanced)
+  const advancedOptions = options.filter(({ advanced }) => advanced)
+  const renderOption = (option: WorkspaceCreationOption) => {
+    const item = blockByType.get(option.blockType)
+    const optionLabel = t(blockTitleKey(option.blockType))
+    const status = option.status ? t(`workspace.compatibility.${option.status === 'target-native' ? 'targetNative' : option.status}`)
+      : t(blockDescriptionKey(option.blockType))
+    return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => onActivate(option)}>
+      <BlockIcon name={item?.icon ?? 'plus'} size={17} />
+      <span><strong>{optionLabel}</strong><small>{status}</small></span>
+    </button>
+  }
+  return <>
+    {basicOptions.map(renderOption)}
+    {basicOptions.length > 0 && advancedOptions.length > 0 && <div className="workspace-add-separator" role="separator" />}
+    {advancedOptions.map(renderOption)}
+  </>
+}
+
+export function WorkspaceAddMenu({ label, options, onCreate }: WorkspaceAddMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -65,31 +88,13 @@ export function WorkspaceAddMenu({ label, options, onCreate }: WorkspaceAddMenuP
           : (current + 1) % items.length
     items[next]?.focus()
   }
-  const basicOptions = options.filter(({ advanced }) => !advanced)
-  const advancedOptions = options.filter(({ advanced }) => advanced)
-  const renderOption = (option: WorkspaceCreationOption) => {
-    const item = blockByType.get(option.blockType)
-    const optionLabel = t(blockTitleKey(option.blockType))
-    const status = option.status ? t(`workspace.compatibility.${option.status === 'target-native' ? 'targetNative' : option.status}`)
-      : t(blockDescriptionKey(option.blockType))
-    return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => {
-      activateWorkspaceCreationOption(option, onCreate, () => closeMenu(false))
-    }}>
-      <BlockIcon name={item?.icon ?? 'plus'} size={17} />
-      <span><strong>{optionLabel}</strong><small>{status}</small></span>
-      {option.advanced && <i>{t('workspace.advanced')}</i>}
-    </button>
-  }
-
   return <div className="workspace-add-menu" ref={rootRef}>
     <button ref={triggerRef} type="button" className="primary-action" aria-haspopup="menu" aria-controls={open ? menuId : undefined} aria-expanded={open} onKeyDown={(event) => {
       if (event.key === 'ArrowDown' && !open) { event.preventDefault(); setOpen(true) }
     }} onClick={() => open ? closeMenu(true) : setOpen(true)}><Plus size={15} />{label}<ChevronDown size={14} /></button>
     {open && <div className="workspace-add-sheet-backdrop" onPointerDown={() => closeMenu(true)} />}
     {open && <div ref={menuRef} id={menuId} className="workspace-add-options" role="menu" aria-label={label} onKeyDown={navigateMenu}>
-      {basicOptions.map(renderOption)}
-      {advancedOptions.length > 0 && <div className="workspace-add-group-label" role="presentation">{t('workspace.advanced')}</div>}
-      {advancedOptions.map(renderOption)}
+      <WorkspaceAddOptions options={options} onActivate={(option) => activateWorkspaceCreationOption(option, onCreate, () => closeMenu(false))} />
     </div>}
   </div>
 }

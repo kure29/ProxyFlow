@@ -41,4 +41,14 @@ describe('custom rule source Graph -> IR pipeline', () => {
     corrupted.graph.nodes.find((node) => node.id === 'custom-route')!.data.customRuleSource!.matchers = [{ kind: 'port', port: 0 }]
     expect(compileGraph(corrupted).issues).toContainEqual(expect.objectContaining({ code: 'RULE_SOURCE_NORMALIZED_MODEL_INVALID' }))
   })
+
+  it('checks the active supported Target without mutating a historical sing-box Project', () => {
+    const historical = customSourceProject()
+    historical.primaryTarget = 'sing-box'
+
+    const productResult = compileGraph(historical, { validationTarget: 'mihomo' })
+    expect(productResult.success).toBe(true)
+    expect(productResult.issues.some((issue) => issue.code.startsWith('SINGBOX_'))).toBe(false)
+    expect(historical.primaryTarget).toBe('sing-box')
+  })
 })

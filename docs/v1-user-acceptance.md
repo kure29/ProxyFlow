@@ -45,7 +45,8 @@ Pre-UI2 checkpoint.
 
 ## 1. Create Project And Shell
 
-- Open the Project menu and create one Mihomo Project and one sing-box Project.
+- Open the Project menu and create a Mihomo Project. Confirm sing-box is not a
+  new-Project Target option.
 - Confirm Target selection appears before Source selection.
 - Confirm Workspace is the default view and Visual Flow remains available in
   the view switcher.
@@ -159,29 +160,24 @@ Fallback  Google
 
 ## 8. Export
 
-- Open Export and confirm only Mihomo and sing-box are production Target cards.
-  Future Targets must not look selectable or ready.
+- Open Export and confirm Mihomo is the only production Target card. sing-box,
+  Surge, and Loon must not look selectable or ready.
 - Confirm each card shows the full target name, readiness/blocker state, node
   count, and diagnostic codes without clipping.
 - Select Mihomo and review Network, proxy port, LAN access, TUN preset, DNS
   summary, and collapsed Advanced options.
-- Select sing-box and confirm the page does not pretend unsupported
-  target-specific settings exist.
-- Preview and download each valid Target. Confirm Mihomo produces YAML and
-  sing-box produces JSON from the real compilers.
-- Create a semantic supported only by Mihomo. Confirm sing-box is blocked with
-  an exact code while a valid Mihomo Primary Target can still Preview and
-  Export.
-- Make sing-box Primary and confirm its own blocker disables only its final
-  action.
+- Preview and download Mihomo. Confirm it produces YAML from the real compiler.
+- Confirm normal Mihomo Project Health contains no diagnostics created only by
+  the paused sing-box target.
+- Open a historical sing-box Project. Confirm the page shows one clear paused
+  product state instead of a list of sing-box lowering diagnostics, retains all
+  data, and offers a switch to Mihomo.
 
 ## 9. Primary Target Switching
 
-- Switch Mihomo to sing-box and confirm Source endpoints, Processing, Routing,
-  incompatible Strategies, DNS roles, and Mihomo Output Profile data remain in
-  the Project.
-- Switch back to Mihomo and confirm the prior Mihomo Output Profile and DNS
-  intent return.
+- Load a historical sing-box Project and switch it to Mihomo. Confirm Source
+  endpoints, Processing, Routing, Strategies, DNS roles, sing-box-specific data,
+  and Mihomo Output Profile data remain in the Project.
 - Confirm undo and redo include the Primary Target change.
 - Confirm UI controls, compatibility copy, and compiler result agree with the
   selected Target Capability Registry entry.
@@ -293,9 +289,10 @@ scope review
 secret review
 ```
 
-Compiler behavior changes also require representative Mihomo and sing-box
-binary validation with fictional fixtures where the affected output can be
-accepted by that target.
+Compiler behavior changes require representative Mihomo binary validation with
+fictional fixtures where the affected output can be accepted by that target.
+The retained sing-box compiler continues to use its existing internal
+regression suite unless that compiler changes.
 
 ## Acceptance Result
 
@@ -344,7 +341,8 @@ Runtime Service prerequisite and is not a browser warning.
 
 ## Current Boundaries
 
-- Mihomo and sing-box are the only production Targets.
+- Mihomo is the only production Target. sing-box official export is paused;
+  its compiler and historical Project data remain preserved.
 - Local Mode remains independently usable without Runtime Service.
 - Browser CORS, unsupported protocols, external rule resources, and target
   capability differences remain explicit limitations.

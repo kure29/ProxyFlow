@@ -24,8 +24,8 @@ const edge = (id: string, source: string, target: string, semantic: FlowEdgeData
 
 export const outputDefinitions: OutputDefinition[] = [
   { id: 'mihomo', target: 'mihomo', label: 'Mihomo', status: 'supported', icon: '/third-party/mihomo-party/icon.png', iconDark: '/third-party/mihomo-party/icon.png' },
-  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'supported', icon: '/third-party/sing-box/icon.svg', iconDark: '/third-party/sing-box/icon.svg' },
-  { id: 'surge', target: 'surge', label: 'Surge', status: 'prototype', ...miniIcon('surge') },
+  { id: 'sing-box', target: 'sing-box', label: 'sing-box', status: 'paused', icon: '/third-party/sing-box/icon.svg', iconDark: '/third-party/sing-box/icon.svg' },
+  { id: 'surge', target: 'surge', label: 'Surge', status: 'coming-soon', ...miniIcon('surge') },
   { id: 'loon', target: 'loon', label: 'Loon', status: 'coming-soon', ...miniIcon('loon') },
   { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon', ...miniIcon('quantumultx', 'quanX') },
   { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon', ...miniIcon('shadowrocket') },

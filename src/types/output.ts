@@ -29,7 +29,7 @@ export interface OutputDefinition {
   id: string
   target: TargetClient
   label: string
-  status: 'supported' | 'prototype' | 'coming-soon'
+  status: 'supported' | 'paused' | 'prototype' | 'coming-soon'
   icon?: string
   iconDark?: string
 }

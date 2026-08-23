@@ -4,7 +4,7 @@
 
 ProxyFlow 是一个 Local-first 的代理配置编排器。你可以导入订阅、处理节点、创建策略、配置分流和 DNS，再从同一个 Project 输出不同客户端的配置。
 
-当前正式 Export Target 为 **Mihomo** 和 **sing-box**。结构化的“配置”工作区与可视化“蓝图”编辑的是同一个 Project，可以随时切换。
+当前正式 Export Target 为 **Mihomo**。sing-box 正式导出已暂停，但其底层能力与历史 Project 数据仍会保留。结构化的“配置”工作区与可视化“蓝图”编辑的是同一个 Project。
 
 ## 能做什么
 
@@ -16,7 +16,7 @@ ProxyFlow 是一个 Local-first 的代理配置编排器。你可以导入订阅
 - 创建 Selector、URL-Test、Fallback 与 Load Balance 策略
 - 编排多跳 Proxy Chain
 - 配置 Routing、Custom Rule 与 DNS
-- 导出 Mihomo YAML 和 sing-box JSON
+- 导出 Mihomo YAML
 - 在合适的目标中保留远程订阅，或固化当前节点
 - 独立使用 Local Mode，或连接可选的 Runtime Service
 
@@ -46,7 +46,7 @@ URL Subscription 可以选择导出方式：
 | Remote | 强制目标客户端直接加载远程订阅；无法安全表达时停止导出 |
 | Materialized | 始终导出当前已经解析的节点 |
 
-目前 Mihomo 可以原生使用 `proxy-provider`；sing-box 当前会继续固化为普通 outbounds。
+目前正式 Mihomo 导出可以原生使用 `proxy-provider`。Subscription Request Profile 仍可选择 Auto、Mihomo、sing-box 或 Generic；它只影响订阅请求方式，不代表 Export Target。
 
 即使选择 Remote，ProxyFlow 仍会保留当前 snapshot，用于节点预览、检查和兼容性分析。目标客户端自行刷新后，实际节点可能与当前预览不同。
 
@@ -91,12 +91,9 @@ chmod +x proxyflow.sh
 | Target | 状态 |
 | --- | --- |
 | Mihomo | 支持 |
-| sing-box | 支持 |
+| sing-box | 正式导出暂停；底层能力保留 |
 | Surge | 计划中 |
 | Loon | 计划中 |
-| Quantumult X | 计划中 |
-| Shadowrocket | 计划中 |
-| Stash | 计划中 |
 
 ProxyFlow 的核心模型与具体客户端解耦，未来通过 Target Capability / Compiler 接入新的导出目标。
 
@@ -107,7 +104,8 @@ ProxyFlow 当前处于 **1.0 Release Candidate** 阶段。
 当前重点：
 
 - 真实客户端验收
-- Mihomo / sing-box 双目标稳定
+- Mihomo 正式导出稳定性
+- sing-box 历史 Project 的无损兼容与迁移提示
 - 订阅兼容性
 - 移动端与桌面端交互收口
 - 1.0 Stable 前最终验证

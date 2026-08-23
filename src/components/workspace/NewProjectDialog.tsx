@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CircleDashed, FileInput, Link2, Plus, X } from 'lucide-react'
-import { PRIMARY_TARGETS, getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
+import { PRODUCT_TARGETS, getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
 import { outputDefinitions } from '../../data/demoProject'
 import { useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -118,7 +118,7 @@ export function NewProjectDialog({ open, required = false, configureExistingProj
           <small id="new-project-name-help"><span>{t('project.nameLimit', { count: PROJECT_NAME_MAX_GRAPHEMES })}</span><span>{countProjectNameGraphemes(projectName)} / {PROJECT_NAME_MAX_GRAPHEMES}</span></small>
         </label>}
         <div className="target-choice-list">
-          {PRIMARY_TARGETS.map((item) => {
+          {PRODUCT_TARGETS.map((item) => {
             const definition = outputDefinitions.find((output) => output.target === item)!
             const capabilities = getTargetCapabilities(item)
             return <button type="button" className={target === item ? 'is-selected' : ''} key={item} onClick={() => setTarget(item)} aria-pressed={target === item}>

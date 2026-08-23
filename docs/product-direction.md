@@ -30,13 +30,13 @@ Every user-facing capability must belong to one of these stages:
 - Strategy: Manual, Auto, and Failover in the basic workflow.
 - Routing: Decide which traffic uses a Strategy, DIRECT, or REJECT.
 - Inspect: Explain matches, exclusions, candidates, and export blockers.
-- Output: Compile and export Mihomo or sing-box configuration.
+- Output: Compile and export a Mihomo configuration.
 
 Subscription lifecycle management supports this workflow, but it is not the product's sole purpose. Target compilation is a core capability, but compiler terminology should not become the primary user interface.
 
 ## Client-first Product Model
 
-New Projects begin by choosing a **Primary Target**: Mihomo or sing-box. The
+New Projects use **Mihomo** as the supported Primary Target. The
 Primary Target drives default authoring choices, compatibility guidance, and
 the default export. It does not delete source endpoints, graph nodes, or
 target-native settings that another Target cannot currently express.
@@ -45,9 +45,21 @@ Capability declarations are shared product contracts, not display metadata.
 Workspace creation controls, compatibility summaries, validation, and compiler
 behavior must agree. Unsupported semantics remain visible and fail closed.
 
-ProxyFlow keeps multi-target compilation as Primary Target plus additional
-compatibility. A valid Primary Target export remains available when a secondary
-Target is blocked, and each blocker must identify the unsupported semantic.
+The product surface evaluates the active supported Primary Target instead of a
+least-common-denominator intersection. Cross-target capability, validation,
+and compiler registries remain intact for future targets and internal
+regression coverage.
+
+Current target status:
+
+- Mihomo: Supported and the only official Export Target.
+- sing-box: Official export paused; historical Projects load without data loss,
+  can switch to Mihomo, and retain their target-specific data.
+- Surge: Planned after RC6; not implemented in this milestone.
+- Loon: Planned after Surge; not implemented in this milestone.
+
+Subscription Request Profile is independent from Export Target. Auto, Mihomo,
+sing-box, and Generic request profiles remain available.
 
 ## Hybrid Workspace
 
@@ -104,7 +116,7 @@ Even after a Runtime Service exists, a user must be able to:
 - use ProxyFlow without an account;
 - use ProxyFlow without connecting to a server;
 - open and edit a Project in the browser;
-- compile and export Mihomo and sing-box configurations;
+- compile and export Mihomo configurations;
 - use the local IndexedDB runtime cache;
 - retain local Project access when a Runtime Service is unavailable.
 
@@ -167,8 +179,9 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - A Project has at most one active DNS owner node. That node may hold multiple
   resolver profiles; target-specific resolver roles must use capability-driven
   controls and fail closed when unsupported.
-- Mihomo and sing-box are the only production Export targets. Future targets
-  must not appear as ready or actionable before a real compiler path exists.
+- Mihomo is the only production Export target. sing-box is paused but retained
+  below the product surface. Surge, Loon, and any other future targets must not
+  appear as ready or actionable before a real compiler path exists.
 
 ## Feature Admission Gate
 
@@ -180,9 +193,9 @@ Before implementation, every feature must answer:
 4. Can the existing product and data model express it?
 5. How does it work in Local Mode?
 6. Is a Runtime Service genuinely required?
-7. Can Mihomo express it?
-8. Can sing-box express it?
-9. How does each unsupported path fail closed?
+7. Can the current supported Target express it?
+8. Which paused or planned Target boundaries must remain intact?
+9. How does every unsupported path fail closed?
 10. Is there an end-to-end Graph -> IR -> Validator -> Compiler -> Output test?
 11. What are its long-term test and maintenance costs?
 12. Does it fit the release's single primary goal?
@@ -214,7 +227,7 @@ Introduce an optional, self-hosted Runtime Service for a controlled Subscription
 ### V1.0 - Stable Workflow
 
 Deliver a stable, client-first, explainable, migratable, and verifiable workflow
-from a real subscription to Mihomo or sing-box output. UI 2.0 organizes this
+from a real subscription to Mihomo output. UI 2.0 organizes this
 workflow into a coherent Workspace plus Visual Flow product surface without
 forking the underlying Project model.
 

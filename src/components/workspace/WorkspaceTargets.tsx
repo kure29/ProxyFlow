@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Clipboard, Download, Eye, Laptop, LoaderCircle, Network, Server, ShieldCheck, X } from 'lucide-react'
-import { getTargetCapabilities, PRIMARY_TARGETS, type PrimaryTarget } from '../../core/capabilities'
+import {
+  getTargetCapabilities, PRODUCT_TARGETS, resolveActiveProductTarget, type PrimaryTarget,
+} from '../../core/capabilities'
 import type { StructuredDiagnostic } from '../../core/compiler'
 import { outputDefinitions } from '../../data/demoProject'
 import { useI18n } from '../../i18n'
@@ -26,13 +28,13 @@ interface TargetSwitchDialogProps {
 
 export function TargetSwitchDialog({ open, current, compiles, onClose, onSelect }: TargetSwitchDialogProps) {
   const { t } = useI18n()
-  const [candidate, setCandidate] = useState<PrimaryTarget>(current ?? 'mihomo')
+  const [candidate, setCandidate] = useState<PrimaryTarget>(() => resolveActiveProductTarget(current))
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     if (!open) return
-    setCandidate(current ?? 'mihomo')
+    setCandidate(resolveActiveProductTarget(current))
     const previousBodyOverflow = document.body.style.overflow
     const previousRootOverflow = document.documentElement.style.overflow
     document.body.style.overflow = 'hidden'
@@ -72,7 +74,8 @@ export function TargetSwitchDialog({ open, current, compiles, onClose, onSelect 
     <section ref={panelRef} className="target-switch-dialog" role="dialog" aria-modal="true" aria-labelledby="target-switch-title" onMouseDown={(event) => event.stopPropagation()}>
       <header><div><span>{t('workspace.primaryTarget')}</span><h2 id="target-switch-title">{t('workspace.switchTarget')}</h2></div><button ref={closeRef} type="button" aria-label={t('workspace.closeTargetSwitch')} onClick={onClose}><X size={18} /></button></header>
       <p>{t('workspace.switchTargetDescription')}</p>
-      <div className="target-switch-options">{PRIMARY_TARGETS.map((target) => <button type="button" className={candidate === target ? 'is-selected' : ''} aria-pressed={candidate === target} key={target} onClick={() => setCandidate(target)}>
+      {current && getTargetCapabilities(current).productStatus === 'paused' && <aside className="target-product-paused" role="status"><AlertTriangle size={16} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(current).label })}</strong>{t('workspace.targetPausedDescription')}</span></aside>}
+      <div className="target-switch-options">{PRODUCT_TARGETS.map((target) => <button type="button" className={candidate === target ? 'is-selected' : ''} aria-pressed={candidate === target} key={target} onClick={() => setCandidate(target)}>
         <TargetArtwork target={target} />
         <TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={compiles.graphResult.issues} />
         <i>{candidate === target ? t('newProject.selected') : t('newProject.select')}</i>
@@ -95,7 +98,8 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
   const setToast = useBuilderStore((state) => state.setToast)
   const [copied, setCopied] = useState(false)
-  const activeTarget = primaryTarget ?? 'mihomo'
+  const activeTarget = resolveActiveProductTarget(primaryTarget)
+  const pausedTarget = primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused'
   const output = nodes.find((node) => node.data.blockType === 'output' && !node.data.disabled)
   const mihomoProfile = resolveMihomoOutputProfile(output?.data.mihomoProfile)
   const dnsResolverCount = nodes.filter((node) => node.data.blockType === 'dns' && !node.data.disabled)
@@ -128,11 +132,12 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
   }
 
   return <div className="workspace-export-page">
+    {pausedTarget && <div className="workspace-target-paused" role="status"><AlertTriangle size={20} /><div><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(primaryTarget).label })}</strong><p>{t('workspace.targetPausedDescription')}</p></div>{onSelectTarget && <button type="button" className="primary-action" onClick={() => onSelectTarget(activeTarget)}>{t('workspace.useTarget', { target: getTargetCapabilities(activeTarget).label })}</button>}</div>}
     <div className="workspace-export-layout">
       <div className="workspace-export-settings">
         <section className="workspace-export-section" aria-labelledby="export-target-title">
           <header><div><h2 id="export-target-title">{t('workspace.export.targetSection')}</h2><p>{t('workspace.export.targetDescription')}</p></div></header>
-          <div className="workspace-export-targets">{PRIMARY_TARGETS.map((target) => {
+          <div className="workspace-export-targets">{PRODUCT_TARGETS.map((target) => {
             const primary = target === activeTarget
             const targetState = stateForTarget(compiles, target)
             return <button type="button" className={primary ? 'is-primary' : ''} aria-pressed={primary} key={target} onClick={() => onSelectTarget?.(target)}>
@@ -145,7 +150,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
 
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
-          <div className="workspace-export-compatibility">{PRIMARY_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={compiles.graphResult.issues} /></article>)}</div>
+          <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} graphIssues={compiles.graphResult.issues} /></article>)}</div>
         </section>
 
         <section className="workspace-export-actions" aria-labelledby="export-actions-title"><div><h2 id="export-actions-title">{t('workspace.export.actionsSection')}</h2><span className={`is-${status.kind}`}>{status.kind === 'ready' ? t('workspace.exportReady') : t('workspace.export.blocked')}</span></div><div><button type="button" className="secondary-action workspace-export-open-preview" onClick={() => onPreview(activeTarget)}><Eye size={16} />{t('workspace.export.preview')}</button><button type="button" className="primary-action workspace-export-mobile-download" disabled={!artifact} onClick={download}><Download size={16} />{t('workspace.export.download')}</button></div></section>

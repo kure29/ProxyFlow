@@ -57,6 +57,7 @@ export interface WorkspaceProjection {
 export interface WorkspaceProjectionOptions {
   subscriptionSnapshots?: Record<string, SubscriptionSnapshot>
   sourceAvailability?: Record<string, WorkspaceSourceAvailability | undefined>
+  validationTarget?: PrimaryTargetResolution['target']
 }
 
 export function createWorkspaceProjection(
@@ -84,6 +85,7 @@ export function createWorkspaceProjection(
   const compiled = compileGraph(project, {
     subscriptionSnapshots: options.subscriptionSnapshots,
     retainDraftOnErrorForDiagnostics: true,
+    ...(options.validationTarget !== undefined ? { validationTarget: options.validationTarget } : {}),
   })
   const primaryTarget = resolveProjectPrimaryTarget(project)
 
