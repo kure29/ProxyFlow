@@ -274,9 +274,14 @@ describe('MihomoCompiler', () => {
     }))
     expect(config['rule-providers']?.OpenAI).toEqual(expect.objectContaining({
       behavior: 'classical', format: 'yaml',
-      url: 'https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/OpenAI/OpenAI.yaml',
+      url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/mihomo/OpenAI.yaml',
+    }))
+    expect(config['rule-providers']?.Telegram).toEqual(expect.objectContaining({
+      behavior: 'classical', format: 'yaml',
+      url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/mihomo/Telegram.yaml',
     }))
     expect(config.rules[0]).toBe('RULE-SET,OpenAI,US via HK')
+    expect(config.rules).toContain('RULE-SET,Telegram,香港自动选择')
     expect(config.rules.at(-1)).toBe('MATCH,US via HK')
     expect(config.dns?.nameserver).toEqual(['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'])
   })

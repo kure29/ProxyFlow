@@ -96,7 +96,7 @@ Compiler 是纯函数：不读取 Zustand、LocalStorage 或 DOM，不下载订�
 
 ## Rule sources
 
-Demo Service Catalog 引用 `blackmatrix7/ios_rule_script` 的公开 Clash YAML URL，使用 `http + classical + yaml` Rule Provider。ProxyFlow 不复制、打包或在测试中下载第三方规则。China 内置 Service 生成 `GEOSITE,cn` 与 `GEOIP,CN`。
+Demo Service Catalog 引用 `kure29/proxyflow-rules` 的第一方 Mihomo YAML URL，使用 `http + classical + yaml` Rule Provider。ProxyFlow Runtime 和测试不下载远程规则。China 内置 Service 仍生成 `GEOSITE,cn` 与 `GEOIP,CN`。
 
 只允许 `http:` 与 `https:` Remote URL。`file:`、`data:`、`javascript:` 和无效 URL 会产生 compile error，输出内容为空。
 
