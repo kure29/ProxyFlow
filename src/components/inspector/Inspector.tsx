@@ -14,11 +14,11 @@ import type { BlockNodeData, GraphEdge, GraphNode, ServiceDefinition } from '../
 import { BlockIcon } from '../icons/BlockIcon'
 import { AssetIcon } from '../icons/AssetIcon'
 import { WebSelect } from '../ui/WebSelect'
-import { canonicalizeRegionSelection, clearRegionSelection, toggleRegionSelection } from './regionSelection'
+import { RegionPicker } from './RegionPicker'
 import { useTargetCompile } from '../compiler/useTargetCompile'
 import { NodesPreview } from '../subscription/NodesPreview'
 import { ChangesPreview } from '../subscription/ChangesPreview'
-import { proxyProtocolLabel, searchRegions, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
+import { proxyProtocolLabel, type RegionCode, type SupportedProxyProtocol } from '../../core/proxy'
 import {
   normalizePersistedSubscriptionExportMode, normalizeSubscriptionRequestProfile, snapshotFreshness,
   type SubscriptionExportMode, type SubscriptionFreshness, type SubscriptionRefreshError,
@@ -360,32 +360,12 @@ function FilterInspector({ node }: InspectorProps) {
   </>
 }
 
-function RegionMultiSelect({ values, onChange }: { values: RegionCode[]; onChange: (values: RegionCode[]) => void }) {
-  const { locale, t } = useI18n()
-  const listId = useId()
-  const [query, setQuery] = useState('')
-  const [activeIndex, setActiveIndex] = useState(0)
-  const canonicalValues = canonicalizeRegionSelection(values)
-  const options = searchRegions(query, locale)
-  const toggle = (code: RegionCode) => {
-    onChange(toggleRegionSelection(canonicalValues, code))
-  }
-  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') { event.preventDefault(); setQuery(''); setActiveIndex(0); return }
-    if (event.key === 'ArrowDown') { event.preventDefault(); setActiveIndex((index) => options.length ? (index + 1) % options.length : 0); return }
-    if (event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((index) => options.length ? (index - 1 + options.length) % options.length : 0); return }
-    if (event.key === 'Home') { event.preventDefault(); setActiveIndex(0); return }
-    if (event.key === 'End') { event.preventDefault(); setActiveIndex(Math.max(0, options.length - 1)); return }
-    if (event.key === 'Enter' && options[activeIndex]) { event.preventDefault(); toggle(options[activeIndex].code) }
-  }
-  return <div className="inspector-field"><span>{t('inspector.filterRegions')}<small>{t('inspector.filterRegionsHint')}</small></span><div className="region-combobox">
-    <div className="region-selection-summary"><span>{t('inspector.filterSelectedCount', { count: canonicalValues.length })}</span>{canonicalValues.length > 0 && <button type="button" aria-label={t('inspector.filterClear')} onClick={() => onChange(clearRegionSelection())}>{t('inspector.filterClear')}</button>}</div>
-    <div className="region-combobox-input"><Search size={15} /><input role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={options[activeIndex] ? `${listId}-${options[activeIndex].code}` : undefined} value={query} placeholder={t('inspector.filterRegionSearch')} onChange={(event) => { setQuery(event.target.value); setActiveIndex(0) }} onKeyDown={onKeyDown} /></div>
-    <div className="region-options" id={listId} role="listbox" aria-multiselectable="true">{options.map((item, index) => {
-      const selected = canonicalValues.includes(item.code)
-      return <button type="button" id={`${listId}-${item.code}`} role="option" aria-selected={selected} className={`${selected ? 'is-selected' : ''}${index === activeIndex ? ' is-active' : ''}`} key={item.code} onPointerMove={() => setActiveIndex(index)} onClick={() => toggle(item.code)}><span>{item.flag}</span><strong>{locale === 'zh-CN' ? item.zh : item.en}</strong><code>{item.code}</code>{selected && <Check size={15} aria-hidden="true" />}</button>
-    })}{options.length === 0 && <span className="region-options-empty">{t('inspector.filterNoRegions')}</span>}</div>
-  </div></div>
+export function RegionMultiSelect({ values, onChange }: { values: RegionCode[]; onChange: (values: RegionCode[]) => void }) {
+  const { t } = useI18n()
+  return <div className="inspector-field">
+    <span>{t('inspector.filterRegions')}<small>{t('inspector.filterRegionsHint')}</small></span>
+    <RegionPicker values={values} onChange={onChange} />
+  </div>
 }
 
 function inferLegacyFilterMode(data: BlockNodeData): NonNullable<BlockNodeData['filterMode']> {
