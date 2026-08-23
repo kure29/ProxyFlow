@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-ProxyFlow 1.0 使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
+ProxyFlow 使用单向派生架构，并在 Project 与 IR 之间加入可丢弃的运行时订阅快照：
 
 ```text
 Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
@@ -17,9 +17,9 @@ Visual Graph / ProxyFlow Project + Runtime Subscription Snapshots
               │
               │ ConfigCompiler.compile(ir)
               ▼
-     Target-specific configuration
-          ↙           ↘
-    Mihomo YAML    sing-box JSON
+        Target-specific configuration
+          ↙             ↓             ↘
+    Mihomo YAML     Surge CONF     sing-box JSON
 ```
 
 URL Subscription 会同时保留两种互补事实：
@@ -44,7 +44,7 @@ Remote source identity + Current materialized snapshot
 - IR 是按需生成的只读派生物，不保存到 `ProjectStorage`。
 - IR 不依赖 React、Zustand、DOM、Canvas 或 `@xyflow/react`。
 - Target Compiler 只接收 IR，不能读取 React Flow Graph。
-- Mihomo 是 1.0 的正式 Compiler 产品路径。sing-box Compiler 继续通过异步
+- Mihomo 与 Surge 是正式 Compiler 产品路径。sing-box Compiler 继续通过异步
   loader 保留，用于历史 Project 与内部回归，但不作为正式 Export Target。
 
 Project Schema Version 与 IR Schema Version 是两个独立版本：
@@ -192,7 +192,7 @@ Issue 使用稳定 `code`，UI、CLI、测试和未来本地化不依赖错误�
 
 `compileGraph(project, { subscriptionSnapshots })` 将当前会话已经解析的节点注入 Subscription Source IR。随后 `materializeProxySet()` 以纯函数方式解析 `ProxySetRef`，对 Source / Transform 结果按 context 缓存，并传播上游 issue。
 
-Partial variant 仍留在 Parser result 与 Import Summary 中，但在 Source materialization 时以 `PROXY_VARIANT_EXCLUDED` warning 排除。这样 Strategy candidate count 与 Target 输出都只包含可安全生成的节点，同时 UI 仍能解释 detected 与 usable 的差异。
+Partial variant 仍留在 Parser result 与 Import Summary 中，并随解析结果进入 target-neutral materialized ProxySet。各 Target 的兼容性检查再决定是否以 warning 保留、在可替换候选中跳过，或对不可表达的显式 intent 失败闭合；UI 继续解释 detected 与 usable 的差异。
 
 Target Compiler 不访问网络、Store 或 Parser。URL Source 即使选择 remote export，也必须先拥有当前解析 snapshot；该 snapshot 继续用于预览、兼容性分析、处理和不支持 remote target 的回退。
 
@@ -204,6 +204,6 @@ URL Subscription 的 `exportMode` 是客户端无关的用户意图：
 
 Planner 的决策是 per ProxySet / per consumer path。同一 Source 的直接分支可以 native remote，而经过 Filter 的另一分支仍 materialize；同一 target 输出中两者可以并存。第一阶段只有未经过 Transform 的 URL Source 可走 native path；Filter、Rename、Sort、Dedupe、Merge、Limit、manual merge、Fixed identity 与 Proxy Chain hop 都保守 materialize。
 
-Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 继续生成 explicit outbounds，`remote` 失败闭合。未来 Surge、Loon、Quantumult X、Shadowrocket 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics。
+Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。Surge 与 sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 分别生成 materialized policies 或 explicit outbounds，`remote` 失败闭合。未来 Loon、Quantumult X、Shadowrocket 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics。
 
 为避免旧 Project 输出静默改变，缺少 `exportMode` 的持久化 URL Source 在 V2 additive migration 中规范为 `materialized`；新建 URL Source 默认 `auto`。Project Schema 与 IR major version 均保持 V2。

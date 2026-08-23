@@ -2,7 +2,7 @@
 
 > Universal Proxy Visual Builder
 
-ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo 配置导出，始终使用同一个 Project。
+ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo YAML / Surge CONF 导出，始终使用同一个 Project。
 
 ## 主要能力
 
@@ -17,15 +17,21 @@ ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输
 - Local Mode
 - Runtime Service
 - Mihomo YAML export
+- Surge CONF export
+- First-party Service Rules
+- Target-aware compatibility checks
 
 ## Target Status
 
 | Target | Status |
 | --- | --- |
 | Mihomo | Stable / Supported |
+| Surge | Stable / Supported |
 | sing-box | Official export paused |
-| Surge | Planned |
+| Stash | Planned |
 | Loon | Planned |
+| Shadowrocket | Planned |
+| Quantumult X | Planned |
 
 sing-box 的底层编译与历史 Project 兼容能力仍然保留。Subscription Request Profile 也继续提供 Auto、Mihomo、sing-box 和 Generic；它只影响订阅请求格式，不代表 Export Target。
 
@@ -51,7 +57,7 @@ chmod +x proxyflow.sh
 ./proxyflow.sh
 ```
 
-交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.0.1`。完整说明见 [Runtime Service](docs/runtime-service.md)。
+交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.1.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
 
 ## Development
 

@@ -6,7 +6,7 @@ The Surge backend follows the same target-neutral pipeline as the other compiler
 Graph → Universal IR → Semantic Validation → Surge Compatibility → Surge Model → Serializer
 ```
 
-Surge-specific syntax and capability decisions stay in `src/targets/surge`. The currently proven backend subset is complete and exposed as a release-candidate product target with fail-closed compatibility checks. Real Surge client import acceptance is still pending; see `docs/surge-acceptance.md`.
+Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surge is a supported production target within the documented, fail-closed capability subset. Real Surge client import and proxy-traffic acceptance passed; see `docs/surge-acceptance.md`.
 
 ## Current capability matrix
 
@@ -107,7 +107,7 @@ Stable DNS diagnostics include:
 
 ## Minimum supported Surge version
 
-The recommended baseline for the complete currently implemented backend is Surge iOS 5.22.0+ or Surge Mac 6.9.0+. The highest documented requirement comes from Phase 2 group-level `underlying-proxy`; the Phase 3 System/UDP/DoH/DoT DNS subset does not raise it. The release-candidate UI displays this minimum and intentionally exposes no version selector.
+The recommended baseline for the complete currently implemented backend is Surge iOS 5.22.0+ or Surge Mac 6.9.0+. The highest documented requirement comes from Phase 2 group-level `underlying-proxy`; the Phase 3 System/UDP/DoH/DoT DNS subset does not raise it. The Surge target UI displays this minimum and intentionally exposes no version selector.
 
 ## Protocol audit
 
@@ -115,7 +115,7 @@ The recommended baseline for the complete currently implemented backend is Surge
 | --- | --- | --- |
 | HTTP / HTTPS | Supported subset | Paired username/password; TLS SNI, certificate verification flag, and ALPN are preserved. |
 | SOCKS5 | Supported subset | Normalized UDP-capable endpoint intent emits the Surge-required `udp-relay=true`. |
-| Shadowsocks | Supported subset | Documented cipher allowlist, exact password/key validation, and `udp-relay=true`; plugins fail closed. |
+| Shadowsocks | Supported subset | Documented cipher allowlist, exact password/key validation, native simple-obfs http/tls lowering, and `udp-relay=true`; other plugin or option semantics fail closed. |
 | Trojan | Supported subset | Password, TLS, and TCP/WebSocket fields are preserved. Other transports fail closed. |
 | VMess | Unsupported | Explicit `vmess-aead` intent is absent from Universal IR. |
 | VLESS | Unsupported | No current official lossless Surge policy. |
@@ -123,7 +123,7 @@ The recommended baseline for the complete currently implemented backend is Surge
 | TUIC | Supported subset | Emits documented TUIC v5 UUID/password/TLS fields; explicit congestion-control and UDP-relay-mode intent fail closed. |
 | AnyTLS | Supported subset | Password/TLS and native UDP behavior are preserved; explicit UDP disable and unsupported idle-session tuning fail closed. |
 
-Explicit parser Partial metadata, client fingerprints, Reality, unsupported transports, or fields without a Surge equivalent stop compilation instead of being dropped.
+Unconsumed parser Partial metadata, client fingerprints, Reality, unsupported transports, or fields without a Surge equivalent stop compilation instead of being dropped. Exact simple-obfs metadata is consumed by the native lowering path.
 
 ## Official references
 

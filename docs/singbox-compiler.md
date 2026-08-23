@@ -1,6 +1,6 @@
 # sing-box Compiler (Retained)
 
-Product status: official sing-box export is paused in ProxyFlow 1.0. This
+Product status: official sing-box export remains paused in ProxyFlow 1.1. This
 document describes retained parser/compiler infrastructure, historical Project
 compatibility, and internal regression behavior; it is not a current Export
 Target availability promise.
@@ -139,6 +139,6 @@ The retained compiler emits routing, DNS, and outbound configuration only. It do
 
 ## Failure behavior and scope
 
-All compatibility failures are stable, entity-addressable issues and return `success: false`, empty content, and `mock: false`. Partial proxy variants remain visible in Import Summary and produce compatibility warnings while being excluded from the usable ProxySet; unsupported strategy semantics still fail closed.
+All compatibility failures are stable, entity-addressable issues and return `success: false`, empty content, and `mock: false`. Partial proxy variants remain visible in Import Summary and the target-neutral ProxySet; target compatibility emits warnings or fails closed as the exact sing-box semantics require, while unsupported strategy semantics still fail closed.
 
-Not implemented: URL fetching inside the Target Compiler, XHTTP, non-Vision complex XTLS flow, WireGuard, inbound profiles, local rule-set paths, online rule conversion, and any third target.
+Not implemented: URL fetching inside the Target Compiler, XHTTP, non-Vision complex XTLS flow, WireGuard, inbound profiles, local rule-set paths, online rule conversion, and any additional target.
