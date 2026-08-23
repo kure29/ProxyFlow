@@ -155,7 +155,7 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
     const step = summarizeWorkspaceProcessing(item, runtime.get(item.node.id), issues)
     const canMove = availability(item.node.id)
     const disabled = step.status === 'disabled'
-    return <li className="workspace-processing-step" data-status={step.status} key={step.id}>
+    return <li className="workspace-processing-step" data-status={step.status} data-mobile-layout="body-toggle-actions" key={step.id}>
       <button type="button" className="workspace-card-body workspace-processing-body" onClick={() => onEdit(item)}>
         <span className="workspace-step-number" aria-hidden="true">{index + 1}</span>
         <span className="workspace-step-icon"><BlockIcon name={item.node.data.icon} size={18} /></span>
@@ -166,7 +166,7 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
         </span>
       </button>
       <label className="workspace-compact-toggle"><span className="visually-hidden">{disabled ? t('workspace.enable') : t('workspace.disable')}</span><input type="checkbox" checked={!disabled} onChange={(event) => onToggle(item, !event.target.checked)} /></label>
-      <div className="workspace-step-actions">
+      <div className="workspace-step-actions" data-action-layout="horizontal">
         <button type="button" className="icon-button" disabled={!canMove.up} title={canMove.up ? t('workspace.processing.moveUp') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveUp')} onClick={() => onMove(step.id, 'up')}><ArrowUp size={16} /></button>
         <button type="button" className="icon-button" disabled={!canMove.down} title={canMove.down ? t('workspace.processing.moveDown') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveDown')} onClick={() => onMove(step.id, 'down')}><ArrowDown size={16} /></button>
         <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />

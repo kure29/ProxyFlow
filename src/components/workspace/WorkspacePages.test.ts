@@ -5,7 +5,8 @@ import type { WorkspaceProxySummary } from '../../core/workspace'
 import { I18nProvider } from '../../i18n'
 import { demoNodes, demoProject } from '../../data/demoProject'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import { collectProxyFilterOptions, ProjectHealthWorkspace, resolveRelativeSourceTime } from './WorkspacePages'
+import { createWorkspaceProjection } from '../../core/workspace'
+import { collectProxyFilterOptions, ProcessingWorkspace, ProjectHealthWorkspace, resolveRelativeSourceTime } from './WorkspacePages'
 
 describe('Workspace page presentation helpers', () => {
   it('builds stable de-duplicated Proxy filters from real projection values', () => {
@@ -50,5 +51,27 @@ describe('Workspace page presentation helpers', () => {
     expect(html).toContain('route-inspector-panel')
     expect(html).toContain('route-inspector-query')
     expect(html).toContain('workspace-health-ready')
+  })
+
+  it('keeps Processing card controls in the mobile two-row layout contract', () => {
+    const item = createWorkspaceProjection(demoProject).processing[0]
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(ProcessingWorkspace, {
+      items: [item],
+      runtime: new Map(),
+      issues: [],
+      availability: () => ({ up: false, down: false }),
+      onMove: () => undefined,
+      onToggle: () => undefined,
+      onEdit: () => undefined,
+      onShowFlow: () => undefined,
+      onDuplicate: () => undefined,
+      onDelete: () => undefined,
+    })))
+    expect(html).toContain('workspace-processing-step')
+    expect(html).toContain('workspace-processing-body')
+    expect(html).toContain('workspace-compact-toggle')
+    expect(html).toContain('workspace-step-actions')
+    expect(html).toContain('data-mobile-layout="body-toggle-actions"')
+    expect(html).toContain('data-action-layout="horizontal"')
   })
 })

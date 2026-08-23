@@ -14,3 +14,32 @@ export function toggleRegionSelection(values: readonly RegionCode[], code: Regio
 export function clearRegionSelection() {
   return [] as RegionCode[]
 }
+
+export interface RegionSelectionDraft {
+  committed: RegionCode[]
+  draft: RegionCode[]
+}
+
+export function createRegionSelectionDraft(values: readonly RegionCode[]): RegionSelectionDraft {
+  const committed = canonicalizeRegionSelection(values)
+  return { committed, draft: [...committed] }
+}
+
+export function toggleRegionSelectionDraft(
+  state: RegionSelectionDraft,
+  code: RegionCode,
+): RegionSelectionDraft {
+  return { ...state, draft: toggleRegionSelection(state.draft, code) }
+}
+
+export function clearRegionSelectionDraft(state: RegionSelectionDraft): RegionSelectionDraft {
+  return { ...state, draft: clearRegionSelection() }
+}
+
+export function commitRegionSelectionDraft(state: RegionSelectionDraft): RegionCode[] {
+  return canonicalizeRegionSelection(state.draft)
+}
+
+export function discardRegionSelectionDraft(state: RegionSelectionDraft): RegionCode[] {
+  return canonicalizeRegionSelection(state.committed)
+}
