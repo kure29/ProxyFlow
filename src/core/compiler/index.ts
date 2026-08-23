@@ -10,5 +10,10 @@ if (!compilerRegistry.has('sing-box')) compilerRegistry.register('sing-box', asy
   return new SingBoxCompiler()
 })
 
+if (!compilerRegistry.has('surge')) compilerRegistry.register('surge', async () => {
+  const { SurgeCompiler } = await import('../../targets/surge')
+  return new SurgeCompiler()
+})
+
 export * from './compilerTypes'
 export * from './diagnostics'
