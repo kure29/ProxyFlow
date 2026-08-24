@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapabilities, resolveActiveProductTarget, strategyCapabilityForBlockType } from './targetCapabilities'
+import { PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapabilities, isPrimaryTarget, resolveActiveProductTarget, strategyCapabilityForBlockType } from './targetCapabilities'
 import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
   it('keeps all compiler targets registered while exposing release-ready product targets', () => {
-    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box'])
+    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box', 'loon'])
     expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge'])
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
     expect(getTargetCapabilities('surge').baselineVersion).toBe('iOS 5.22+ / Mac 6.9+')
@@ -12,8 +12,24 @@ describe('target capability registry', () => {
     expect(getTargetCapabilities('mihomo').productStatus).toBe('supported')
     expect(getTargetCapabilities('surge').productStatus).toBe('supported')
     expect(getTargetCapabilities('sing-box').productStatus).toBe('paused')
+    expect(getTargetCapabilities('loon').productStatus).toBe('paused')
+    expect(getTargetCapabilities('loon').label).toBe('Loon')
+    expect(isPrimaryTarget('loon')).toBe(true)
+    expect(isPrimaryTarget('future-target')).toBe(false)
     expect(resolveActiveProductTarget('surge')).toBe('surge')
     expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
+    expect(resolveActiveProductTarget('loon')).toBe('mihomo')
+  })
+
+  it('keeps Loon capability declarations conservative and out of product exposure', () => {
+    const loon = getTargetCapabilities('loon')
+    expect(PRODUCT_TARGETS).not.toContain('loon')
+    expect(loon.protocols.http.status).toBe('supported')
+    expect(loon.protocols.socks5).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' }))
+    expect(loon.protocols.shadowsocks).toEqual(expect.objectContaining({ status: 'partial', reason: 'LOON_PROXY_CIPHER_UNSUPPORTED' }))
+    expect(loon.routingMatchers.domain.status).toBe('partial')
+    expect(loon.routingMatchers['rule-set']).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'LOON_RULE_SOURCE_FORMAT_UNPROVEN' }))
+    expect(loon.remoteProxySource.source).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN' }))
   })
 
   it('keeps target-specific strategy differences explicit', () => {

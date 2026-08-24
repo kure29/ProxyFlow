@@ -251,7 +251,7 @@ function TargetStatus({ target, state, active, graphIssues }: { target: PrimaryT
 export function stateForTarget(compiles: ProjectCompiles, target: PrimaryTarget) {
   return target === 'mihomo'
     ? compiles.mihomoState
-    : target === 'surge' ? compiles.surgeState : compiles.singBoxState
+    : target === 'surge' ? compiles.surgeState : target === 'sing-box' ? compiles.singBoxState : compiles.loonState
 }
 
 export function targetStatus(state: TargetCompileState, graphIssues: StructuredDiagnostic[], active: boolean) {

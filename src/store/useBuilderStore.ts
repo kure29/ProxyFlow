@@ -22,7 +22,7 @@ import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
 import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
-import { isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
+import { getTargetCapabilities, isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 import { normalizeValidProjectName } from '../core/project/projectName'
@@ -603,7 +603,6 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const outputNodes = state.nodes.filter((node) => node.data.blockType === 'output')
       if (state.primaryTarget === target && (outputNodes.length !== 1 || outputNodes[0].data.client === target)) return
       record()
-      const labels: Record<PrimaryTarget, string> = { mihomo: 'Mihomo', surge: 'Surge', 'sing-box': 'sing-box' }
       set({
         primaryTarget: target,
         nodes: outputNodes.length === 1 ? state.nodes.map((node) => node.id === outputNodes[0].id ? {
@@ -611,7 +610,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
           data: {
             ...node.data,
             client: target,
-            title: translateCurrent('node.outputTitle', { target: labels[target] }),
+            title: translateCurrent('node.outputTitle', { target: getTargetCapabilities(target).label }),
             titleKey: undefined,
             compatibility: 'Supported',
           },

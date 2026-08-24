@@ -13,6 +13,7 @@ export interface ProjectCompileSelection {
   mihomo?: boolean
   surge?: boolean
   singBox?: boolean
+  loon?: boolean
   validationTarget?: PrimaryTarget
 }
 
@@ -21,11 +22,13 @@ export function resolveProjectCompileSelection(
   selection: ProjectCompileSelection = {},
 ) {
   const activeProductTarget = resolveActiveProductTarget(primaryTarget)
+  const loonPrimary = primaryTarget === 'loon'
   return {
     activeProductTarget,
-    mihomo: selection.mihomo ?? activeProductTarget === 'mihomo',
-    surge: selection.surge ?? activeProductTarget === 'surge',
-    singBox: selection.singBox ?? activeProductTarget === 'sing-box',
+    mihomo: selection.mihomo ?? (!loonPrimary && activeProductTarget === 'mihomo'),
+    surge: selection.surge ?? (!loonPrimary && activeProductTarget === 'surge'),
+    singBox: selection.singBox ?? false,
+    loon: selection.loon ?? primaryTarget === 'loon',
   }
 }
 
@@ -40,7 +43,7 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const subscriptionSnapshots = useBuilderStore((state) => state.subscriptionSnapshots)
   const resolvedSelection = resolveProjectCompileSelection(primaryTarget, selection)
   const activeProductTarget = resolvedSelection.activeProductTarget
-  const validationTarget = selection.validationTarget ?? activeProductTarget
+  const validationTarget = selection.validationTarget ?? (primaryTarget === 'loon' ? 'loon' : activeProductTarget)
   const graphResult = useMemo(() => compileGraph(toProject(), {
     subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale),
     validationTarget,
@@ -54,7 +57,8 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
   const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge)
   const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox)
-  return { graphResult, mihomoState, surgeState, singBoxState }
+  const loonState = useTargetCompile(graphResult.ir, 'loon', compileEnabled && resolvedSelection.loon)
+  return { graphResult, mihomoState, surgeState, singBoxState, loonState }
 }
 
 export type ProjectCompiles = ReturnType<typeof useProjectCompiles>
@@ -65,15 +69,10 @@ export interface PrimaryTargetHealth {
 }
 
 export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: PrimaryTarget | null): PrimaryTargetHealth {
-  if (target && getTargetCapabilities(target).productStatus === 'paused') return {
+  if (target && target !== 'loon' && getTargetCapabilities(target).productStatus === 'paused') return {
     status: 'blocked',
-    diagnostics: [{
-      code: 'TARGET_PRODUCT_SUPPORT_PAUSED',
-      severity: 'error',
-      message: `${getTargetCapabilities(target).label} official export is temporarily paused. Switch the Project to Mihomo to continue.`,
-    }],
+    diagnostics: [pausedTargetDiagnostic(target)],
   }
-
   const graphDiagnostics: StructuredDiagnostic[] = compiles.graphResult.issues
   if (!compiles.graphResult.success || !target) return {
     status: graphDiagnostics.some((issue) => issue.severity === 'error') ? 'blocked' : 'checking',
@@ -82,10 +81,12 @@ export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: 
 
   const state = target === 'mihomo'
     ? compiles.mihomoState
-    : target === 'surge' ? compiles.surgeState : compiles.singBoxState
+    : target === 'surge' ? compiles.surgeState : target === 'sing-box' ? compiles.singBoxState : compiles.loonState
   if (state.status === 'idle' || state.status === 'loading') return {
-    status: 'checking',
-    diagnostics: graphDiagnostics,
+    status: getTargetCapabilities(target).productStatus === 'paused' ? 'blocked' : 'checking',
+    diagnostics: getTargetCapabilities(target).productStatus === 'paused'
+      ? [...graphDiagnostics, pausedTargetDiagnostic(target)]
+      : graphDiagnostics,
   }
 
   const diagnostics = deduplicateDiagnostics<StructuredDiagnostic>([
@@ -95,9 +96,18 @@ export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: 
   if ((state.status === 'error' || state.status === 'unavailable') && !diagnostics.some((issue) => issue.severity === 'error')) {
     diagnostics.push(targetCompilerUnavailableDiagnostic(state))
   }
+  if (getTargetCapabilities(target).productStatus === 'paused') diagnostics.push(pausedTargetDiagnostic(target))
   return {
     status: diagnostics.some((issue) => issue.severity === 'error') ? 'blocked' : 'ready',
-    diagnostics,
+    diagnostics: deduplicateDiagnostics(diagnostics),
+  }
+}
+
+function pausedTargetDiagnostic(target: PrimaryTarget): StructuredDiagnostic {
+  return {
+    code: 'TARGET_PRODUCT_SUPPORT_PAUSED',
+    severity: 'error',
+    message: `${getTargetCapabilities(target).label} official export is temporarily paused. Switch the Project to Mihomo to continue.`,
   }
 }
 

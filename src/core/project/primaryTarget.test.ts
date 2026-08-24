@@ -11,6 +11,18 @@ describe('project primary target resolution', () => {
     })
   })
 
+  it('accepts Loon as an internal paused target', () => {
+    const project = createBlankProject('loon')
+    expect(resolveProjectPrimaryTarget(project)).toEqual({
+      target: 'loon', reason: 'explicit', requiresSelection: false,
+    })
+
+    delete project.primaryTarget
+    expect(resolveProjectPrimaryTarget(project)).toEqual({
+      target: 'loon', reason: 'single-output', requiresSelection: false,
+    })
+  })
+
   it('infers a legacy project with one production output without mutating it', () => {
     const project = createBlankProject('mihomo')
     delete project.primaryTarget
@@ -50,15 +62,22 @@ describe('project primary target resolution', () => {
     })
 
     const corrupted = createBlankProject('mihomo') as unknown as Record<string, unknown>
-    corrupted.primaryTarget = 'loon'
+    corrupted.primaryTarget = 'future-target'
     expect(resolveProjectPrimaryTarget(corrupted as unknown as ProxyFlowProject)).toEqual({
       target: null, reason: 'invalid-metadata', requiresSelection: true,
     })
 
     const unsupported = createBlankProject('mihomo')
     delete unsupported.primaryTarget
-    unsupported.graph.nodes.find((node) => node.data.blockType === 'output')!.data.client = 'loon'
+    unsupported.graph.nodes.find((node) => node.data.blockType === 'output')!.data.client = 'future-target' as never
     expect(resolveProjectPrimaryTarget(unsupported)).toEqual({
+      target: null, reason: 'unsupported-output', requiresSelection: true,
+    })
+
+    const unknownOutput = createBlankProject('mihomo')
+    delete unknownOutput.primaryTarget
+    unknownOutput.graph.nodes.find((node) => node.data.blockType === 'output')!.data.client = 'future-target' as never
+    expect(resolveProjectPrimaryTarget(unknownOutput)).toEqual({
       target: null, reason: 'unsupported-output', requiresSelection: true,
     })
   })

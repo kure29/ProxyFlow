@@ -3,9 +3,10 @@ import type { BlockType, RouteMatcherKind } from '../../types/project'
 import type { RuleSource } from '../../types/services'
 import type { SubscriptionRequestProfile } from '../subscription'
 
-export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box'] as const
+export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box', 'loon'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
+export type ProductTarget = Exclude<PrimaryTarget, 'sing-box' | 'loon'>
 export type TargetProductStatus = 'supported' | 'paused'
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
@@ -321,6 +322,95 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'runtime-inbound': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),
     },
   },
+  loon: {
+    target: 'loon',
+    label: 'Loon',
+    baselineVersion: '3.5.0 (975)',
+    productStatus: 'paused',
+    protocols: {
+      http: supported(),
+      socks5: unsupported('LOON_PROXY_PROTOCOL_UNSUPPORTED'),
+      shadowsocks: partial('LOON_PROXY_CIPHER_UNSUPPORTED'),
+      trojan: partial('LOON_PROXY_TLS_VARIANT_UNSUPPORTED'),
+      vmess: partial('LOON_PROXY_CIPHER_UNSUPPORTED'),
+      vless: partial('LOON_VLESS_VARIANT_UNSUPPORTED'),
+      hysteria2: partial('LOON_HYSTERIA2_VARIANT_UNSUPPORTED'),
+      tuic: unsupported('LOON_PROXY_PROTOCOL_UNSUPPORTED'),
+      anytls: unsupported('LOON_PROXY_PROTOCOL_UNSUPPORTED'),
+    },
+    transports: {
+      tcp: supported(),
+      ws: partial('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+      http: partial('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+      h2: unsupported('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+      grpc: unsupported('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+      httpupgrade: unsupported('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+      xhttp: unsupported('LOON_PROXY_TRANSPORT_UNSUPPORTED'),
+    },
+    strategies: {
+      manual: supported(),
+      auto: supported(),
+      failover: partial('LOON_FALLBACK_TOLERANCE_UNSUPPORTED'),
+      'load-balance': partial('LOON_LOAD_BALANCE_CONSISTENT_HASH_UNSUPPORTED'),
+      fixed: supported(),
+      chain: unsupported('LOON_PROXY_CHAIN_UNPROVEN'),
+    },
+    routingMatchers: {
+      service: partial('LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN'),
+      domain: partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      'domain-suffix': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      'domain-keyword': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      'ip-cidr': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      'ip-cidr6': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      port: unsupported('LOON_PORT_MATCHER_UNSUPPORTED'),
+      asn: unsupported('LOON_ROUTE_NO_RESOLVE_UNMODELED'),
+      'geo-ip': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
+      'geo-site': unsupported('LOON_MATCHER_UNSUPPORTED'),
+      'rule-set': unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+    },
+    ruleSources: {
+      yaml: unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      text: unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      mrs: unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      'sing-box-source': unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      'sing-box-binary': unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      'multi-client': unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      universal: unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+    },
+    dns: {
+      basic: partial('LOON_DNS_MIXED_SEMANTICS_UNSUPPORTED'),
+      doh: supported(),
+      dot: unsupported('LOON_DNS_DOT_UNSUPPORTED'),
+      udp: partial('LOON_DNS_UDP_PORT_UNPROVEN'),
+      system: supported(),
+      'default-role': supported(),
+      'direct-role': unsupported('LOON_DNS_DIRECT_RESOLVER_UNSUPPORTED'),
+      'fallback-role': unsupported('LOON_DNS_FALLBACK_RESOLVER_UNSUPPORTED'),
+      'redir-host': unsupported('LOON_DNS_ROLE_UNSUPPORTED'),
+      'fake-ip': unsupported('LOON_DNS_ROLE_UNSUPPORTED'),
+    },
+    chains: {
+      'single-hop': supported(),
+      'multi-hop': unsupported('LOON_PROXY_CHAIN_UNPROVEN'),
+      'provider-hop': unsupported('LOON_PROXY_CHAIN_UNPROVEN'),
+    },
+    remoteProxySource: {
+      source: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      refresh: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      requestHeaders: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      filtering: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      rename: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      exclude: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      override: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      multipleSourcesInGroup: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      mixedWithExplicitMembers: unsupported('LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN'),
+      requestProfiles: [],
+    },
+    proxyVariants: {
+      shadowsocksPlugins: ['simple-obfs'],
+    },
+    native: {},
+  },
 }
 
 /**
@@ -330,7 +420,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
  */
 export const PRODUCT_TARGETS = PRIMARY_TARGETS.filter(
   (target) => targetCapabilityRegistry[target].productStatus === 'supported',
-)
+) as ProductTarget[]
 
 export const DEFAULT_PRODUCT_TARGET = PRODUCT_TARGETS[0]
 
@@ -342,11 +432,11 @@ export function getTargetCapabilities(target: PrimaryTarget) {
   return targetCapabilityRegistry[target]
 }
 
-export function isProductTarget(target: PrimaryTarget | null | undefined): target is PrimaryTarget {
+export function isProductTarget(target: PrimaryTarget | null | undefined): target is ProductTarget {
   return Boolean(target && getTargetCapabilities(target).productStatus === 'supported')
 }
 
-export function resolveActiveProductTarget(target: PrimaryTarget | null | undefined): PrimaryTarget {
+export function resolveActiveProductTarget(target: PrimaryTarget | null | undefined): ProductTarget {
   return isProductTarget(target) ? target : DEFAULT_PRODUCT_TARGET
 }
 

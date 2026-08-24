@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Check, CheckCircle2, CircleAlert, FileOutput, MoreHorizontal, Plus, SearchCheck, Trash2, X,
 } from 'lucide-react'
-import { getTargetCapabilities } from '../../core/capabilities'
+import { getTargetCapabilities, isPrimaryTarget } from '../../core/capabilities'
 import {
   countProjectNameGraphemes, PROJECT_NAME_MAX_GRAPHEMES, validateProjectName,
 } from '../../core/project/projectName'
@@ -161,7 +161,7 @@ export function ProjectOverview({
         {projects.map((project) => {
           const active = project.id === projectId
           const visibleName = localizeProjectName(project.name, locale)
-          const itemTarget = project.primaryTarget ? getTargetCapabilities(project.primaryTarget).label : t('workspace.targetRequired')
+          const itemTarget = isPrimaryTarget(project.primaryTarget) ? getTargetCapabilities(project.primaryTarget).label : t('workspace.targetRequired')
           return <article className={active ? 'is-active' : ''} key={project.id}>
             <button type="button" className="project-manager-select" disabled={active} onClick={() => void onSwitchProject(project.id)}>
               <span className="project-manager-status">{active && <Check size={16} />}</span>

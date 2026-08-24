@@ -35,6 +35,21 @@ cases fail closed. Those are accepted limitations or deferred scope when the
 product surface clearly reports the blocker and prevents export; they are not,
 by themselves, reasons to broaden the Foundation allowlist.
 
+## 1a. Paused integration follow-up (2026-08-25)
+
+The lifecycle blocker is now addressed internally without changing the release
+decision. Loon is registered as a complete `PrimaryTarget` with
+`productStatus: 'paused'`, a central evidence-bounded capability profile, and a
+lazy compiler-registry loader. Projects can be created by internal code,
+resolved from explicit or legacy output metadata, persisted, hydrated, switched,
+and undone/redone without graph loss. The compile hook also maintains a real
+Loon compiler state and uses that state for paused-target health diagnostics.
+
+`PRODUCT_TARGETS` remains exactly Mihomo and Surge, so Loon is still absent from
+ordinary New Project, target switching, Preview, and Export. Preview/export
+integration remains a separate follow-up and no schema or version change was
+made.
+
 ## 2. Current accepted baseline
 
 | Item | Accepted fact | Evidence |
@@ -69,61 +84,60 @@ real-client coverage can follow a separate, explicitly documented release plan.
 
 ### Observed path
 
-- [`PRIMARY_TARGETS`](../src/core/capabilities/targetCapabilities.ts#L6-L10) is
-  exactly `mihomo`, `surge`, `sing-box`; `PRODUCT_TARGETS` filters only profiles
-  whose `productStatus` is `supported` ([lines 326-351](../src/core/capabilities/targetCapabilities.ts#L326-L351)).
-- The central `targetCapabilityRegistry` has no `loon` key. Its profile contract
-  requires label, baseline version, protocols, transports, strategies, routing,
-  rule sources, DNS, chains, remote-source, and native metadata
-  ([lines 36-53](../src/core/capabilities/targetCapabilities.ts#L36-L53)).
+- At the audit baseline, [`PRIMARY_TARGETS`](../src/core/capabilities/targetCapabilities.ts#L6-L10)
+  contained only `mihomo`, `surge`, and `sing-box`. The paused integration now
+  adds `loon`; `PRODUCT_TARGETS` still filters only profiles whose
+  `productStatus` is `supported` ([lines 420-426](../src/core/capabilities/targetCapabilities.ts#L420-L426)).
+- The central `targetCapabilityRegistry` now has a complete paused `loon` key.
+  Its profile is deliberately conservative: unproven protocol, routing,
+  rule-source, DNS, chain, and remote-source cases remain `partial` or
+  `unsupported` with the existing Loon diagnostics.
 - `TargetClient` includes `loon`, but this wider output union is not a product
   registry ([`src/types/output.ts`](../src/types/output.ts#L1-L8)).
 - `outputDefinitions` contains Loon only as `coming-soon`; supported production
   definitions filter it out ([`src/data/demoProject.ts`](../src/data/demoProject.ts#L25-L35)).
-- The compiler registry registers Mihomo, sing-box, and Surge only
-  ([`src/core/compiler/index.ts`](../src/core/compiler/index.ts#L1-L18)); the
-  test explicitly expects `compilerRegistry.load('loon')` to be undefined
-  ([`src/core/compiler/compilerRegistry.test.ts`](../src/core/compiler/compilerRegistry.test.ts#L6-L13)).
+- The compiler registry lazily registers Mihomo, sing-box, Surge, and the
+  internal Loon compiler ([`src/core/compiler/index.ts`](../src/core/compiler/index.ts#L1-L23)).
 - The target-local matrix in [`src/targets/loon/capabilities.ts`](../src/targets/loon/capabilities.ts#L18-L44)
   is intentionally separate from product exposure.
 
 ### Finding
 
-Current hidden behavior is correct and safe. The registry is **BLOCKED for
-exposure**: there is no complete central profile, compiler loader, product
-ordering/status, or target metadata contract. A direct `src/targets/loon`
-compiler does not make Loon a selectable product target.
+The internal registry/lazy-loader blocker is **ADDRESSED**. Product exposure is
+still **BLOCKED by design** because Loon remains paused and is not in
+`PRODUCT_TARGETS`; a direct `src/targets/loon` compiler still does not make Loon
+a selectable product target.
 
 ## 5. New Project audit
 
 `NewProjectDialog` iterates `PRODUCT_TARGETS` and initializes its selection to
 Mihomo ([`src/components/workspace/NewProjectDialog.tsx`](../src/components/workspace/NewProjectDialog.tsx#L22-L43),
 [`#L116-L147`](../src/components/workspace/NewProjectDialog.tsx#L116-L147)).
-`createBlankProject` accepts only `PrimaryTarget`; its label map contains three
-targets and only Mihomo receives target-specific DNS/profile defaults
-([`src/data/newProject.ts`](../src/data/newProject.ts#L9-L33),
-[`#L62-L77`](../src/data/newProject.ts#L62-L77)). Existing tests assert that the
-picker offers Mihomo and Surge only ([`src/components/workspace/newProjectFlow.test.ts`](../src/components/workspace/newProjectFlow.test.ts#L20-L33)).
+`createBlankProject` accepts every registered `PrimaryTarget`, resolves labels
+from the central registry, and keeps Mihomo-only DNS/profile defaults
+([`src/data/newProject.ts`](../src/data/newProject.ts#L7-L27),
+[`#L56-L69`](../src/data/newProject.ts#L56-L69)). Internal Loon projects are
+therefore structurally valid while the ordinary picker still offers Mihomo and
+Surge only.
 
-`resolveProjectPrimaryTarget` accepts only `isPrimaryTarget` values. An explicit
-`primaryTarget: 'loon'` is `invalid-metadata`; a legacy output client of `loon`
-is `unsupported-output` ([`src/core/project/primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25),
-[`src/core/project/primaryTarget.test.ts`](../src/core/project/primaryTarget.test.ts#L46-L64)).
+`resolveProjectPrimaryTarget` accepts registered `isPrimaryTarget` values,
+including explicit and legacy Loon metadata, while unknown values remain
+`invalid-metadata`/`unsupported-output` ([`src/core/project/primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25),
+[`src/core/project/primaryTarget.test.ts`](../src/core/project/primaryTarget.test.ts#L18-L82)).
 Hydration deliberately preserves the graph while nulling corrupted target
 metadata ([`src/store/useBuilderStore.test.ts`](../src/store/useBuilderStore.test.ts#L391-L398)).
-The project index currently returns a stored `primaryTarget` without validating
-it ([`src/storage/projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107)),
-while the project overview immediately dereferences its capability label
+The project index still returns a stored `primaryTarget` without validating it
+([`src/storage/projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107));
+the project overview now guards that list value with `isPrimaryTarget` and shows
+the existing target-required recovery label for unknown metadata
 ([`src/components/workspace/ProjectOverview.tsx`](../src/components/workspace/ProjectOverview.tsx#L161-L168)).
-Unknown persisted target metadata must therefore be normalized or rendered as an
-explicit recovery state before any new target can be exposed.
+Hydration continues to normalize unknown metadata to the explicit recovery path
+without rewriting the graph.
 
-**Answer if Loon were merely added to the picker:** **NO**. The resulting
-Project would lack a valid central target profile, label/default plumbing,
-resolver acceptance, and registered compiler. The existing schema already has an
-optional `primaryTarget` field (`PROJECT_SCHEMA_VERSION = 2`), so a version bump
-is not inherently required; target union, registry, migration/validation,
-unknown-target recovery, and tests must be wired before exposure.
+**Paused integration answer:** internal lifecycle plumbing is **READY** and the
+existing schema remains sufficient (`PROJECT_SCHEMA_VERSION = 2`). **NO** to
+ordinary picker exposure: Loon is intentionally excluded until Preview/export
+and their current-result gates are addressed in a separate change.
 
 ## 6. Target Switch audit
 
@@ -131,19 +145,15 @@ unknown-target recovery, and tests must be wired before exposure.
 ([`src/components/workspace/WorkspaceTargets.tsx`](../src/components/workspace/WorkspaceTargets.tsx#L32-L90),
 [`#L148-L167`](../src/components/workspace/WorkspaceTargets.tsx#L148-L167)).
 `setPrimaryTarget` updates a sole output and records history non-destructively,
-with labels for only Mihomo, Surge, and sing-box
+using central labels for all registered targets
 ([`src/store/useBuilderStore.ts`](../src/store/useBuilderStore.ts#L601-L620)).
 The Mihomo ↔ Surge path preserves graph, edges, target-native profile, and
 undo/redo ([`src/store/useBuilderStore.test.ts`](../src/store/useBuilderStore.test.ts#L450-L507)).
 
-There is a dangerous partial path: the lower-level `setOutputClient` accepts the
-wider `TargetClient` union and can be called with `loon`, but
-`updateNodeData` synchronizes `primaryTarget` only when `isPrimaryTarget(patch.client)`
-is true ([`src/store/useBuilderStore.ts`](../src/store/useBuilderStore.ts#L450-L463),
-[`#L597-L600`](../src/store/useBuilderStore.ts#L597-L600)). This can leave
-`client: 'loon'`, `compatibility: 'Prototype'`, and a null/inconsistent primary
-target. Compile selection has only Mihomo, Surge, and sing-box states and falls
-back to the default product target for non-product metadata
+The internal `setOutputClient` path now recognizes Loon through the central
+target registry, and a sole output edit synchronizes `primaryTarget`. Compile
+selection has a dedicated Loon state; only ordinary product selection continues
+to fall back to the default product target for non-product metadata
 ([`src/components/compiler/useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L19-L57),
 [`src/core/capabilities/targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L345-L351)).
 
@@ -401,10 +411,10 @@ private subscription or credential file was opened.
 
 | Area | Current Status | Evidence | User Impact | Classification | Required Action |
 | --- | --- | --- | --- | --- | --- |
-| Target Registry / compiler registration | Loon is absent from the central capability registry and lazy compiler registry; only a target-local backend exists. | [`targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L6-L53), [`compiler/index.ts`](../src/core/compiler/index.ts#L1-L18), registry test. | No ordinary product path can select or compile Loon. | MUST FIX BEFORE EXPOSURE | Add a complete central profile, product status/order, metadata, and registered lazy loader; keep it hidden until all downstream gates pass. |
-| New Project / persistence plumbing | Picker, defaults, resolver, and `PrimaryTarget` union reject Loon; a picker-only addition would create an invalid Project. Stored unknown metadata is also not validated before overview rendering. | [`NewProjectDialog.tsx`](../src/components/workspace/NewProjectDialog.tsx#L22-L43), [`newProject.ts`](../src/data/newProject.ts#L9-L77), [`primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25), [`projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107), [`ProjectOverview.tsx`](../src/components/workspace/ProjectOverview.tsx#L161-L168). | User cannot create or reliably reload a usable Loon Project; legacy Loon metadata is nulled and unknown stored metadata can produce an invalid target label. | MUST FIX BEFORE EXPOSURE | Wire target union/profile/defaults/resolver/migration, unknown-target recovery, and persistence round-trip tests; do not bump schema unless a real new field is required. |
-| Target Switch / state consistency | Switch UI and compile state support only product targets; low-level `setOutputClient('loon')` can leave client/primaryTarget inconsistent and unknown targets fall back. | [`WorkspaceTargets.tsx`](../src/components/workspace/WorkspaceTargets.tsx#L32-L90), [`useBuilderStore.ts`](../src/store/useBuilderStore.ts#L450-L463), [`#L597-L620`](../src/store/useBuilderStore.ts#L597-L620). | A partially exposed switch can mutate intent or report another target's state. | MUST FIX BEFORE EXPOSURE | Make switch, output node, compiler state, settings, hydration, and undo/redo atomic for Loon; add all four transition tests. |
-| Preview pipeline | Preview modes, metadata, and compile hook omit Loon; unknown targets select Mihomo. | [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx#L16-L49), [`useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L32-L57). | Loon cannot be previewed; a fallback preview could be mistaken for a Loon config. | MUST FIX BEFORE EXPOSURE | Add Loon mode/state/label/plain-text rendering and stale transition coverage; reject rather than fall back on unknown target metadata. |
+| Target Registry / compiler registration | Loon is now a complete central paused profile with a lazy compiler loader; it remains absent from product targets. | [`targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L6-L53), [`compiler/index.ts`](../src/core/compiler/index.ts#L1-L23), registry test. | No ordinary product path can select Loon; internal code can resolve and compile it. | ADDRESSED INTERNALLY | Keep `productStatus: 'paused'` and `PRODUCT_TARGETS` exposure unchanged until downstream gates pass. |
+| New Project / persistence plumbing | Internal creation, resolver, storage round-trip, hydration, unknown-target recovery, and overview rendering now handle registered Loon safely. | [`NewProjectDialog.tsx`](../src/components/workspace/NewProjectDialog.tsx#L22-L43), [`newProject.ts`](../src/data/newProject.ts#L7-L69), [`primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25), [`projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107), [`ProjectOverview.tsx`](../src/components/workspace/ProjectOverview.tsx#L161-L168). | A paused Loon Project can survive internal lifecycle operations without graph loss; ordinary creation remains hidden. | ADDRESSED INTERNALLY | Keep the existing schema and recovery behavior; do not expose the picker in this phase. |
+| Target Switch / state consistency | Internal target switching, low-level output edits, compiler state selection, hydration, and undo/redo keep registered target metadata synchronized; UI still iterates product targets only. | [`WorkspaceTargets.tsx`](../src/components/workspace/WorkspaceTargets.tsx#L32-L90), [`useBuilderStore.ts`](../src/store/useBuilderStore.ts#L450-L463), [`#L597-L620`](../src/store/useBuilderStore.ts#L597-L620). | Internal transitions preserve intent and graph state without reporting another target's compiler state. | ADDRESSED INTERNALLY | Keep paused-target messaging and do not add Loon to ordinary switch cards. |
+| Preview pipeline | Preview modes, metadata, and compile hook omit Loon; unknown targets retain the pre-existing Mihomo safety fallback. | [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx#L16-L49), [`useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L32-L57). | Loon cannot be previewed; Preview remains a separate exposure gate. | MUST FIX BEFORE EXPOSURE | Add Loon mode/state/label/plain-text rendering only in a separate PR with stale transition coverage. |
 | Export metadata and current-result gate | No Loon extension/MIME metadata; artifact construction does not bind a previous result to the current graph generation. | [`exportFile.ts`](../src/components/compiler/exportFile.ts#L4-L29), [`useTargetCompile.ts`](../src/components/compiler/useTargetCompile.ts#L21-L46), export panel. | Missing metadata breaks download; a transition can briefly expose stale config, risking silent wrong export. | MUST FIX BEFORE EXPOSURE | Define evidence-backed Loon artifact metadata and require current successful result + current graph/target identity before copy/download/preview. |
 | Compatibility UX | All Loon codes use generic copy; exact code/message is collapsed and node mapping is partial. | [`diagnosticPresentation.ts`](../src/components/compiler/diagnosticPresentation.ts#L130-L220), [`DiagnosticPresentationList.tsx`](../src/components/compiler/DiagnosticPresentationList.tsx#L41-L53). | Users may not understand whether a blocker is unsupported, unproven, or how to fix it. | SHOULD FIX BEFORE 1.2.0 | Add localized Loon-specific titles, impact, remediation, and affected-entity mapping while retaining technical codes. |
 | CI acceptance coverage | CI runs `loon:acceptance` but not the service-rules or precedence acceptance scripts. | [`ci.yml`](../.github/workflows/ci.yml#L19-L29); package scripts. | Regressions in the newest evidence boundaries may pass CI unnoticed. | SHOULD FIX BEFORE 1.2.0 | Add deterministic service-rule and precedence jobs plus golden drift checks to the exposure gate. |
@@ -421,8 +431,9 @@ private subscription or credential file was opened.
 | Existing fail-closed compiler/export behavior | Failed Loon compile returns empty content; existing target export rejects failed/empty results; inactive inventory and partial pools are isolated. | [`compiler.ts`](../src/targets/loon/compiler.ts#L27-L74), [`exportFile.ts`](../src/components/compiler/exportFile.ts#L18-L29), projection tests. | Current developer-only workflows do not emit partial configs. | READY / NO ACTION | Preserve these invariants while wiring product exposure. |
 | Schema shape / version | `primaryTarget?: PrimaryTarget` and schema V2 already exist; no new field is inherently required for initial exposure. | [`src/types/project.ts`](../src/types/project.ts#L166-L178), [`src/core/project/version.ts`](../src/core/project/version.ts#L1-L15). | A target can reuse the existing shape once validation/registry plumbing is complete. | READY / NO ACTION | Avoid a speculative schema bump; add only evidenced target-specific settings. |
 
-Matrix row counts: **MUST FIX BEFORE EXPOSURE 5**; **SHOULD FIX BEFORE
-1.2.0 4**; **ACCEPTED LIMITATION 5**; **DEFERRED 3**; **READY / NO ACTION 2**.
+Matrix row counts: **MUST FIX BEFORE EXPOSURE 2**; **ADDRESSED INTERNALLY 3**;
+**SHOULD FIX BEFORE 1.2.0 4**; **ACCEPTED LIMITATION 5**; **DEFERRED 3**;
+**READY / NO ACTION 2**.
 
 ## 16. Recommended implementation sequence
 
