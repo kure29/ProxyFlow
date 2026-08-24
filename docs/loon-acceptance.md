@@ -29,7 +29,9 @@ product surfaces.
 - First-party Service Rules Foundation: **IMPLEMENTED**
 - First-party Service Rules deterministic acceptance: **PASSED**
 - First-party Service Rules real-client acceptance: **PASSED** for OpenAI
-- Routing Precedence Acceptance: **PENDING** ([dedicated harness and result record](loon-routing-precedence-acceptance.md))
+- Routing Precedence Acceptance: **PASSED** for the controlled four-profile
+  run ([dedicated result record](loon-routing-precedence-acceptance.md));
+  production follow-up review is still required
 
 The compiler continues to consume Universal IR through the existing graph and
 projection pipeline. Loon remains absent from Target selector, New Project,
@@ -353,13 +355,17 @@ custom name/tag; this is expected because the accepted minimal serializer form
 deliberately omits unproven `tag=` syntax. This acceptance proves that the
 untagged representation works for this audited scenario.
 
+The controlled Google/Gemini precedence acceptance is now recorded separately
+in [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md):
+the local-vs-Remote pair observed `LOCAL_FIRST`, and the two order-inverted
+Google/Gemini profiles observed `FIRST_SUBSCRIPTION_WINS`. These results do not
+relax the production guards.
+
 Not proven by this acceptance:
 
-- precedence between local `[Rule]` entries and `[Remote Rule]` resources;
-- ordering between multiple Remote Rule subscriptions with different policies;
+- arbitrary Remote Rule ordering for every matcher combination;
 - the same remote service assigned to conflicting policies, which remains a
   blocker rather than an order-resolved case;
-- overlapping Google and Gemini service ordering;
 - arbitrary interleaving according to Universal priority;
 - HTTP request method, headers, authentication behavior, and automatic refresh
   cadence;
@@ -385,6 +391,10 @@ The readiness workflow does not relax any Foundation decision:
 - mixed domain/IP route precedence remains blocked by
   `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` until a deliberate mixed-family
   precedence fixture proves equivalence to Universal priority;
+- the controlled local-vs-Remote and Google/Gemini order experiments passed on
+  Loon `3.5.0 (975)`, but arbitrary Remote Rule ordering remains subject to
+  separate review and the existing `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`
+  guard;
 - syntax-safe Unicode policy names are preserved for acceptance candidates;
   the tested CJK and flag/emoji candidates survived import, while broader
   Unicode round-trip remains conditional;
@@ -403,7 +413,8 @@ The readiness workflow does not relax any Foundation decision:
 - native Remote Proxy Source format remains unproven;
 - the audited OpenAI Service Rule import, recognition, refresh, policy binding,
   and traffic path has passed real-client acceptance; long-duration failure,
-  offline cache, other-service client behavior, and precedence remain unproven.
+  offline cache, other-service client behavior, and generalized ordering beyond
+  the controlled precedence pair remain unproven.
 
 Existing diagnostics remain visible, including
 `LOON_PROXY_PROTOCOL_UNSUPPORTED`, `LOON_PROXY_CIPHER_UNSUPPORTED`,
@@ -471,7 +482,8 @@ These cases are intentionally not auto-enabled by the fixture:
 - long-duration download/refresh failure, malformed-list/parse failure, and
   offline persistence;
 - direct real-client behavior for first-party services other than OpenAI;
-- local-vs-remote and different-policy Remote Rule precedence.
+- arbitrary Remote Rule ordering beyond the controlled Google/Gemini pair;
+- same-service conflicting policy behavior and generic `rule-set` semantics.
 
 Each requires pinned first-party syntax plus real-client acceptance before the
 Foundation grammar or capability boundary can be widened.

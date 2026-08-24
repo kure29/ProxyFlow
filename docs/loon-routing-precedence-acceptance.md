@@ -1,12 +1,22 @@
 # Loon Routing Precedence Acceptance
 
-`LOON ROUTING PRECEDENCE REAL CLIENT ACCEPTANCE: PENDING`
+`LOON ROUTING PRECEDENCE REAL CLIENT ACCEPTANCE: PASSED`
 
-This is a developer-only, acceptance/research harness for Loon `3.5.0 (975)`. It
-does not change the production compiler, remove a compatibility blocker, or
-enable Loon in ProxyFlow product surfaces. The four profiles contain no proxy
-nodes, credentials, private subscriptions, or real endpoints; they use only
-`DIRECT`, `REJECT`, public first-party rule URLs, and public test domains.
+`LOCAL VS REMOTE PRECEDENCE: LOCAL_FIRST`
+
+`REMOTE VS REMOTE PRECEDENCE: FIRST_SUBSCRIPTION_WINS`
+
+`PRODUCTION BLOCKER DECISION: READY FOR FOLLOW-UP REVIEW`
+
+This document closes the developer-only real-client acceptance run prepared by
+PR #44. It records request-detail observations from Loon `3.5.0 (975)`; the
+exact iOS version was **NOT RECORDED**. The result means that all four planned
+profiles produced internally consistent observations. It does not prove every
+Loon routing-ordering semantic and does not change the production compiler.
+
+The four profiles contain no proxy nodes, credentials, private subscriptions,
+or real endpoints. They use only `DIRECT`, `REJECT`, public first-party rule
+URLs, and public test domains.
 
 ## Accepted baseline
 
@@ -18,8 +28,6 @@ The following evidence remains accepted and is not reopened here:
 - First-party Service Rules deterministic acceptance: **PASSED**
 - First-party Service Rules real-client acceptance: **PASSED** for OpenAI
 - Tested client: Loon `3.5.0 (975)`
-
-This phase only prepares evidence for unresolved ordering semantics.
 
 ## Pinned evidence
 
@@ -36,82 +44,98 @@ The current first-party Loon pages were audited on **2026-08-24** at the live
 [`sub_rule`](https://nsloon.app/docs/Rule/sub_rule/) pages; their checked-in
 source is pinned to
 [`Loon0x00/Loon0x00.github.io` commit `a34f179a48e2bbd4207824be24195694a3b2ab44`](https://github.com/Loon0x00/Loon0x00.github.io/blob/a34f179a48e2bbd4207824be24195694a3b2ab44/docs/Rule/rule.md#L11-L17).
-It describes domain rules before DNS/IP rules and source priority of local
-rules over subscription rules. That source does not define ordering among
-multiple Remote Rule subscriptions. The rule-subscription page proves only a
-URL-plus-policy collection syntax ([`sub_rule.md` lines 5-10](https://github.com/Loon0x00/Loon0x00.github.io/blob/a34f179a48e2bbd4207824be24195694a3b2ab44/docs/Rule/sub_rule.md#L5-L10)); the first-party example confirms the concrete
-`[Remote Rule]` line form ([`example.conf` lines 91-105](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L91-L105)). Documentation is not substituted for the real-client run.
+The rule page describes domain rules before DNS/IP rules and source priority of
+local rules over subscription rules. It does not define ordering among
+multiple Remote Rule subscriptions. The subscription page proves only a
+URL-plus-policy collection syntax ([`sub_rule.md` lines 5-10](https://github.com/Loon0x00/Loon0x00.github.io/blob/a34f179a48e2bbd4207824be24195694a3b2ab44/docs/Rule/sub_rule.md#L5-L10)); the first-party example confirms the concrete `[Remote Rule]` line form ([`example.conf` lines 91-105](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L91-L105)). The conclusions below rely on the supplied real-client request records, not documentation inference.
 
 ## Experiment A: local versus Remote Rule
 
-Both profiles request `https://www.google.com/generate_204` and use the exact
-Google asset. Only the local and remote policies are inverted:
+Target: `www.google.com` using `https://www.google.com/generate_204`. The two
+profiles invert only the local and Google Remote Rule policies.
 
-| Profile | Local `[Rule]` | Remote Google policy | Observed policy |
-| --- | --- | --- | --- |
-| `local-reject-remote-direct.conf` | `REJECT` | `DIRECT` | `PENDING` |
-| `local-direct-remote-reject.conf` | `DIRECT` | `REJECT` | `PENDING` |
+| Profile | Local `[Rule]` | Google Remote policy | Matched rule in Loon request detail | Observed result |
+| --- | --- | --- | --- | --- |
+| `local-reject-remote-direct.conf` | `DOMAIN,www.google.com,REJECT` | `DIRECT` | `DOMAIN,www.google.com,REJECT` | `REJECT` (intercepted / blocked successfully) |
+| `local-direct-remote-reject.conf` | `DOMAIN,www.google.com,DIRECT` | `REJECT` | `DOMAIN,www.google.com,DIRECT` | `DIRECT` |
 
-Interpretation after a clean, paired run:
+Both request records matched the local `[Rule]` entry before the conflicting
+first-party Remote Rule. This is direct request-detail evidence rather than
+browser-only behavior.
 
-- first profile `REJECT`, second `DIRECT`: `LOCAL_FIRST`
-- first profile `DIRECT`, second `REJECT`: `REMOTE_FIRST`
-- any other or ambiguous result: `INCONCLUSIVE`
-
-`LOCAL VS REMOTE PRECEDENCE: PENDING`
-
-The source-level documentation cited above is useful context, but this record
-does not turn it into a completed client acceptance or alter the production
-guard.
+`LOCAL VS REMOTE PRECEDENCE: LOCAL_FIRST`
 
 ## Experiment B: Remote Rule versus Remote Rule
 
-Both profiles request `https://generativelanguage.googleapis.com/`. Google is
-always `REJECT`; Gemini is always `DIRECT`; only subscription order changes:
+Target: `generativelanguage.googleapis.com` using
+`https://generativelanguage.googleapis.com/`. Google was always `REJECT` and
+Gemini was always `DIRECT`; only subscription order changed.
 
-| Profile | First remote | Second remote | Observed policy |
-| --- | --- | --- | --- |
-| `remote-google-first.conf` | Google -> `REJECT` | Gemini -> `DIRECT` | `PENDING` |
-| `remote-gemini-first.conf` | Gemini -> `DIRECT` | Google -> `REJECT` | `PENDING` |
+| Profile | First remote | Second remote | Matched rule and source | Observed result |
+| --- | --- | --- | --- | --- |
+| `remote-google-first.conf` | Google -> `REJECT` | Gemini -> `DIRECT` | `DOMAIN-SUFFIX,googleapis.com,REJECT` from `Google.list` | `REJECT` (DNS-REJECT / blocked successfully) |
+| `remote-gemini-first.conf` | Gemini -> `DIRECT` | Google -> `REJECT` | `DOMAIN,generativelanguage.googleapis.com,DIRECT` from `Gemini.list` | `DIRECT` |
 
-Interpretation after a clean paired run:
+Changing only Remote Rule order changed the matched source and policy. In both
+directions the first subscription won in this controlled pair:
 
-- Google-first `REJECT`, Gemini-first `DIRECT`: `FIRST_SUBSCRIPTION_WINS`
-- Google-first `DIRECT`, Gemini-first `REJECT`: `LAST_SUBSCRIPTION_WINS`
-- both `DIRECT` or both `REJECT`: `ORDER_INDEPENDENT_OBSERVED`, describing the
-  matcher that won; do not generalize beyond this overlap
-- ambiguous results: `INCONCLUSIVE`
+`REMOTE VS REMOTE PRECEDENCE: FIRST_SUBSCRIPTION_WINS`
 
-`REMOTE VS REMOTE PRECEDENCE: PENDING`
+### Matcher-type boundary
 
-Important caveat: the controlled overlap is not a generic subscription-order
-test. Google contributes `DOMAIN-SUFFIX,googleapis.com`, while Gemini
-contributes the exact `DOMAIN,generativelanguage.googleapis.com`. A result may
-therefore reflect matcher-type precedence rather than Remote Rule list order.
+Google contributes `DOMAIN-SUFFIX,googleapis.com`, while Gemini contributes the
+exact `DOMAIN,generativelanguage.googleapis.com`. The paired result cannot be
+explained simply as “exact DOMAIN always beats DOMAIN-SUFFIX”: when Google was
+first, its suffix rule matched before the later exact Gemini rule. Nevertheless,
+this is one controlled overlap and must not be generalized to every matcher
+combination or every Remote Rule source.
 
-## Manual procedure
+## Manual procedure and evidence quality
 
-Run `npm run loon:precedence:acceptance`, then transfer the four files from
-`tmp/loon-precedence-acceptance/` to the test device. For each profile, import
-and activate the intended profile, refresh its Remote Rule resources, and toggle
-Loon off/on if needed. Use a fresh Safari/private request, inspect a **new**
-request record with the current timestamp, and record the matched policy from
-the request detail. Do not reuse cached logs or rely only on browser success.
-Use the target URL listed in each experiment; an HTTP error response is still
-useful secondary evidence when the request was not rejected.
+The four generated profiles were imported and tested on the real Loon client.
+For each profile, the intended profile was activated, resources were refreshed,
+and a fresh request record was inspected. The observations above are copied
+from those request details. Future reruns should toggle Loon if needed, use a
+fresh/private request, inspect a new record with the current timestamp, and not
+reuse cached logs or rely only on browser success.
 
-## Production decision
+## Proven by this acceptance
 
-`PRODUCTION BLOCKER DECISION: PENDING REAL CLIENT ACCEPTANCE`
+- In the tested Google overlap, local `[Rule]` matched before the first-party
+  Google Remote Rule (`LOCAL_FIRST`).
+- In the tested Google/Gemini overlap, changing only subscription order changed
+  the matched Remote Rule source, with the first subscription winning in both
+  directions (`FIRST_SUBSCRIPTION_WINS`).
 
-The following guards remain unchanged in this branch:
+## Not proven by this acceptance
 
-- `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN` for local/Remote or different-
-  policy Remote Rule ordering
+This result does **not** prove:
+
+- arbitrary Remote Rule ordering for every matcher combination;
+- arbitrary user-provided remote lists or generic `rule-set` semantics;
+- mixed domain/IP precedence;
+- native Remote Proxy Source semantics;
+- every Loon routing feature or every first-party service individually;
+- long-duration Remote Rule behavior;
+- malformed Remote Rule failure semantics;
+- cache/offline persistence semantics.
+
+## Production decision and preserved guards
+
+`PRODUCTION BLOCKER DECISION: READY FOR FOLLOW-UP REVIEW`
+
+This means the evidence is sufficient to open a separate engineering review. It
+does **not** mean a production blocker was removed or that
+`LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN` is resolved in production.
+
+The following guards remain unchanged in PR #44:
+
+- `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN` for local/Remote or
+  different-policy Remote Rule ordering;
 - `LOON_SERVICE_RULE_POLICY_CONFLICT` for one service URL assigned conflicting
-  policies
-- `LOON_RULE_SOURCE_FORMAT_UNPROVEN` for arbitrary rule sets
-- `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP families
+  policies;
+- `LOON_RULE_SOURCE_FORMAT_UNPROVEN` for arbitrary rule sets;
+- `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP families.
 
-No result is prefilled, simulated, or generalized. Product exposure remains
-disabled.
+No result is simulated or generalized. Loon remains developer-hidden and
+product exposure remains disabled.
