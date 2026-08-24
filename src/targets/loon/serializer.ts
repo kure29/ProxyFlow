@@ -34,11 +34,12 @@ function assertUniqueGeneralKeys(entries: LoonGeneralEntry[]) {
 
 export function serializeLoonPolicyEntry(entry: LoonPolicyEntry) {
   if (!isSafeLoonPolicyName(entry.name)) {
-    throw new Error('Loon policy names must be non-empty, trimmed values without delimiters, quotes, backslashes, comments, or control characters.')
+    throw new Error('Loon policy names must be non-empty, trimmed values without delimiters, quotes, backslashes, comments, or control characters; syntax-safe Unicode is allowed.')
   }
+  const groupArguments = isPolicyGroupType(entry.type)
   const components = [
     serializeLoonToken(entry.type),
-    ...entry.arguments.map(serializeLoonToken),
+    ...entry.arguments.map((value) => groupArguments ? serializeLoonPolicyReference(value) : serializeLoonToken(value)),
     ...(entry.parameters ?? []).map(({ key, value }) => {
       assertSafeKey(key, 'Loon parameter')
       return `${key}=${serializeLoonToken(value)}`
@@ -50,8 +51,8 @@ export function serializeLoonPolicyEntry(entry: LoonPolicyEntry) {
 export function serializeLoonRule(rule: LoonRule) {
   const type = rule.type === 'FINAL' ? 'final' : rule.type === 'GEOIP' ? 'geoip' : rule.type
   const components = rule.type === 'FINAL'
-    ? [type, serializeLoonToken(rule.policy)]
-    : [type, serializeLoonToken(rule.payload), serializeLoonToken(rule.policy), ...(rule.noResolve ? ['no-resolve'] : [])]
+    ? [type, serializeLoonPolicyReference(rule.policy)]
+    : [type, serializeLoonToken(rule.payload), serializeLoonPolicyReference(rule.policy), ...(rule.noResolve ? ['no-resolve'] : [])]
   return components.join(',')
 }
 
@@ -60,7 +61,7 @@ export function serializeLoonToken(value: LoonScalar) {
     if (!isLoonQuotedLiteral(value)) {
       throw new Error('Loon quoted literals require a valid quoted scalar value.')
     }
-    assertSafeLoonQuotedLiteral(value.value)
+    assertSafeLoonQuotedLiteral(value.value, value.grammar)
     // The pinned manual proves this fixed field form, but does not prove an
     // escaping grammar. The value is therefore emitted exactly as validated.
     return `"${value.value}"`
@@ -79,26 +80,43 @@ function isLoonQuotedLiteral(value: unknown): value is LoonQuotedLiteral {
     && value !== null
     && (value as { kind?: unknown }).kind === 'quoted'
     && typeof (value as { value?: unknown }).value === 'string'
+    && ((value as { grammar?: unknown }).grammar === undefined || (value as { grammar?: unknown }).grammar === 'http-username')
 }
 
-function assertSafeLoonQuotedLiteral(value: string) {
+function assertSafeLoonQuotedLiteral(value: string, grammar?: LoonQuotedLiteral['grammar']) {
   if (!isProvenAscii(value)
     || !value
     || value !== value.trim()
-    || /[,="\\]/.test(value)
+    || (grammar !== 'http-username' && value.includes(','))
+    || /["\\]/.test(value)
     || /^(?:#|;|\/\/)/.test(value)
     || /\s(?:#|;|\/\/)/.test(value)) {
-    throw new Error('Loon quoted literals require a non-empty printable ASCII value without delimiters, quotes, backslashes, control characters, Unicode, or outer whitespace.')
+    throw new Error('Loon quoted literals require a non-empty printable ASCII value without unproven commas, quotes, backslashes, control characters, Unicode, or outer whitespace.')
   }
 }
 
 export function isSafeLoonPolicyName(value: string) {
   return Boolean(value)
     && value === value.trim()
-    && isProvenAscii(value)
+    && !hasUnpairedSurrogate(value)
     && !/[,=\r\n\u0000-\u001f\u007f-\u009f\u2028\u2029"\\]/.test(value)
     && !/^(?:#|;|\/\/)/.test(value)
     && !/\s(?:#|;|\/\/)/.test(value)
+}
+
+/** Policy/group references use the same left-hand name grammar verbatim. */
+export function serializeLoonPolicyReference(value: LoonScalar) {
+  if (typeof value !== 'string') {
+    throw new Error('Loon policy references must be string policy names.')
+  }
+  if (!isSafeLoonPolicyName(value)) {
+    throw new Error('Loon policy references must use a non-empty, trimmed policy name without delimiters, comments, or control characters.')
+  }
+  return value
+}
+
+function isPolicyGroupType(type: string): type is 'select' | 'url-test' | 'fallback' | 'load-balance' {
+  return type === 'select' || type === 'url-test' || type === 'fallback' || type === 'load-balance'
 }
 
 function serializeSection(name: string, lines: string[]) {
@@ -125,4 +143,16 @@ function isProvenAscii(value: string) {
   // The pinned manual shows simple ASCII examples but does not prove Unicode
   // round-tripping or an escape grammar for arbitrary token values.
   return /^[\x20-\x7e]*$/.test(value)
+}
+
+function hasUnpairedSurrogate(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (Number.isNaN(next) || next < 0xdc00 || next > 0xdfff) return true
+      index += 1
+    } else if (code >= 0xdc00 && code <= 0xdfff) return true
+  }
+  return false
 }

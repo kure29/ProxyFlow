@@ -13,6 +13,7 @@ import vlessReality from '../../../fixtures/subscriptions/vless-reality.txt?raw'
 import vlessVision from '../../../fixtures/subscriptions/vless-vision.txt?raw'
 import anytls from '../../../fixtures/subscriptions/anytls.txt?raw'
 import anytlsClash from '../../../fixtures/subscriptions/anytls-clash.yaml?raw'
+import loonSimpleObfsSource from '../../../fixtures/loon/simple-obfs-source.yaml?raw'
 import { encodeBase64Text } from './base64'
 import { parseSubscription } from './parseSubscription'
 import { redactSecret, redactSubscriptionUrl } from '../proxy'
@@ -80,6 +81,16 @@ describe('subscription parser', () => {
     expect(result.proxies).toHaveLength(6)
     expect(result.issues.map((issue) => issue.code)).toContain('ONLY_PROXY_SECTION_IMPORTED')
     expect(result.proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['UNKNOWN', 'UNKNOWN', 'HK', 'US', 'JP', 'SG'])
+  })
+
+  it('preserves SIP003 simple-obfs source option names for target lowering', () => {
+    const result = parseSubscription(loonSimpleObfsSource, options)
+    expect(result.format).toBe('clash-yaml')
+    expect(result.partialCount).toBe(1)
+    expect(result.proxies[0]).toEqual(expect.objectContaining({
+      protocol: 'shadowsocks',
+      plugin: { name: 'simple-obfs', options: { obfs: 'http', 'obfs-host': 'cdn.example.invalid' } },
+    }))
   })
 
   it('never silently drops malformed or unsupported lines', () => {

@@ -12,20 +12,21 @@ export interface LoonCapabilityDecision {
 }
 
 const MANUAL = 'https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn'
+const CURRENT_NODE = 'https://nsloon.app/docs/Node/'
 
 /** Target-backend evidence records; this is intentionally separate from product exposure. */
 export const LOON_CAPABILITY_MATRIX: readonly LoonCapabilityDecision[] = [
   { feature: 'HTTP', status: 'supported', reason: 'Bare HTTP and exact positional credentials are documented.', officialReference: `${MANUAL}/node.md#L61-L64` },
-  { feature: 'HTTPS', status: 'conditional', reason: 'Ordinary TLS, SNI, and certificate skipping are represented; fingerprints, ALPN, and Reality are not proven in the HTTPS syntax.', officialReference: `${MANUAL}/node.md#L66-L70`, diagnostic: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED' },
-  { feature: 'Shadowsocks', status: 'conditional', reason: 'Only aes-128-gcm and chacha20 are directly shown in the pinned Loon Shadowsocks examples; every other cipher fails closed.', officialReference: `${MANUAL}/node.md#L43-L48`, diagnostic: 'LOON_PROXY_CIPHER_UNSUPPORTED' },
-  { feature: 'Shadowsocks simple-obfs', status: 'conditional', reason: 'The canonical simple-obfs name plus exact obfs-name, obfs-host, and obfs-uri options are lowered independently; aliases and other plugins remain blocked.', officialReference: `${MANUAL}/node.md#L49-L52`, diagnostic: 'LOON_PROXY_VARIANT_UNSUPPORTED' },
+  { feature: 'HTTPS', status: 'conditional', reason: 'Ordinary TLS, SNI, and certificate skipping are represented; the current Reality evidence is specific to VLESS and is not a lossless mapping for ordinary HTTPS endpoints.', officialReference: `${MANUAL}/node.md#L66-L70`, diagnostic: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED' },
+  { feature: 'Shadowsocks', status: 'conditional', reason: 'The pinned examples show aes-128-gcm and chacha20; the current first-party page additionally shows 2022-blake3-aes-128-gcm. The target allowlist remains exact-value and every other cipher fails closed.', officialReference: CURRENT_NODE, diagnostic: 'LOON_PROXY_CIPHER_UNSUPPORTED' },
+  { feature: 'Shadowsocks simple-obfs', status: 'conditional', reason: 'The current page proves Loon obfs-name=http/tls, obfs-host, and obfs-uri. SIP003 source obfs=http/tls is lowered to obfs-name; aliases and other plugins remain blocked.', officialReference: CURRENT_NODE, diagnostic: 'LOON_PROXY_VARIANT_UNSUPPORTED' },
   { feature: 'Trojan', status: 'conditional', reason: 'Plain TLS with TCP/WS/HTTP transport, SNI, ALPN, and certificate skipping is lowered.', officialReference: `${MANUAL}/node.md#L120-L130`, diagnostic: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED' },
   { feature: 'VMess', status: 'conditional', reason: 'Only the aes-128-gcm security shown in the pinned examples, explicit alterId, and documented TCP/WS/HTTP fields are lowered; other security values and omitted alterId fail closed.', officialReference: `${MANUAL}/node.md#L72-L94`, diagnostic: 'LOON_PROXY_CIPHER_UNSUPPORTED' },
-  { feature: 'VLESS', status: 'conditional', reason: 'Basic TCP/WS/HTTP and ordinary TLS subset only; Reality, Vision, flow, and modern transports fail closed.', officialReference: `${MANUAL}/node.md#L96-L118`, diagnostic: 'LOON_VLESS_VARIANT_UNSUPPORTED' },
+  { feature: 'VLESS', status: 'conditional', reason: 'The current page proves TCP/WS/HTTP plus XTLS Vision/Reality syntax, but the current Universal-to-Loon Reality/flow lowering is not yet audited; only the basic TCP/WS/HTTP subset is emitted.', officialReference: CURRENT_NODE, diagnostic: 'LOON_VLESS_VARIANT_UNSUPPORTED' },
   { feature: 'Hysteria2', status: 'conditional', reason: 'Minimal password/TLS/SNI subset only; obfs, bandwidth, and hopping fields are deferred.', officialReference: `${MANUAL}/node.md#L135-L137`, diagnostic: 'LOON_HYSTERIA2_VARIANT_UNSUPPORTED' },
-  { feature: 'SOCKS5', status: 'unproven', reason: 'No SOCKS5 node syntax is established in the pinned first-party protocol pages.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
+  { feature: 'SOCKS5', status: 'deferred', reason: 'The current first-party page proves a SOCKS5 node syntax, but this foundation has not completed the Universal-to-Loon lowering and client acceptance audit.', officialReference: CURRENT_NODE, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'TUIC', status: 'deferred', reason: 'No Universal-to-Loon exact syntax audit is in this foundation.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
-  { feature: 'AnyTLS', status: 'deferred', reason: 'No Universal-to-Loon exact syntax audit is in this foundation.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
+  { feature: 'AnyTLS', status: 'deferred', reason: 'The current page proves AnyTLS syntax for Build 945+, but this foundation has not completed an exact Universal field and client acceptance audit.', officialReference: CURRENT_NODE, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'WireGuard', status: 'deferred', reason: 'Loon has native fields, but Universal IR has no WireGuard endpoint model.', officialReference: `${MANUAL}/node.md#L132-L133`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'ShadowsocksR', status: 'deferred', reason: 'Loon has SSR fields, but Universal IR has no SSR endpoint model.', officialReference: `${MANUAL}/node.md#L54-L59`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'Custom JS protocol', status: 'deferred', reason: 'Loon has a JS script-path form, but Universal IR has no script intent.', officialReference: `${MANUAL}/node.md#L139-L142`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
@@ -42,6 +43,7 @@ export const LOON_CAPABILITY_MATRIX: readonly LoonCapabilityDecision[] = [
 
 export const LOON_OFFICIAL_REFERENCES = {
   manual: MANUAL,
+  currentNode: CURRENT_NODE,
   node: `${MANUAL}/node.md`,
   policyGroup: `${MANUAL}/policygroup.md`,
   dns: `${MANUAL}/dns.md`,
@@ -52,7 +54,7 @@ export const LOON_CAPABILITIES = {
   protocols: {
     http: 'supported', https: 'conditional', shadowsocks: 'conditional', 'shadowsocks-simple-obfs': 'conditional',
     trojan: 'conditional', vmess: 'conditional', vless: 'conditional', hysteria2: 'conditional',
-    socks5: 'unproven', tuic: 'deferred', anytls: 'deferred', wireguard: 'deferred', shadowsocksr: 'deferred', custom: 'deferred',
+    socks5: 'deferred', tuic: 'deferred', anytls: 'deferred', wireguard: 'deferred', shadowsocksr: 'deferred', custom: 'deferred',
   },
   strategies: { select: 'supported', 'url-test': 'supported', fallback: 'conditional', fixed: 'supported', 'load-balance-round-robin': 'supported', 'load-balance-pcc': 'unsupported', chain: 'unproven' },
   routing: ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'IP-CIDR', 'IP-CIDR6', 'GEOIP', 'FINAL'] as const,

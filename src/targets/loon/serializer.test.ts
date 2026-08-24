@@ -70,6 +70,8 @@ describe('Loon serializer', () => {
 
   it('serializes a fixed quoted literal verbatim without inventing escapes', () => {
     expect(serializeLoonToken({ kind: 'quoted', value: 'password' })).toBe('"password"')
+    expect(serializeLoonToken({ kind: 'quoted', value: 'fixture-key==:fixture-user==' })).toBe('"fixture-key==:fixture-user=="')
+    expect(serializeLoonToken({ kind: 'quoted', value: 'user,name', grammar: 'http-username' })).toBe('"user,name"')
     expect(serializeLoonPolicyEntry({
       name: 'HTTP Auth', type: 'http', arguments: ['example.com', 80, 'user', { kind: 'quoted', value: 'password' }],
     })).toBe('HTTP Auth = http,example.com,80,user,"password"')
@@ -82,7 +84,7 @@ describe('Loon serializer', () => {
     'bad"quote',
     'back\\slash',
     'comma,value',
-    'foo=bar',
+    'a,b',
     '#comment',
     ';comment',
     '//comment',
@@ -96,10 +98,48 @@ describe('Loon serializer', () => {
     expect(() => serializeLoonToken({ kind: 'quoted', value })).toThrow(/quoted literals/)
   })
 
+  it('does not generalize comma support beyond the explicitly tagged HTTP username grammar', () => {
+    expect(() => serializeLoonToken({ kind: 'quoted', value: 'password,with,commas' })).toThrow(/quoted literals/)
+    expect(() => serializeLoonToken({ kind: 'quoted', value: 'user,name', grammar: 'http-username' })).not.toThrow()
+  })
+
   it.each(['HK, Premium', 'foo=bar', 'quote"name', 'back\\slash', ' leading', 'trailing ', 'line\nfeed'])(
     'rejects unsafe left-hand policy name %j',
     (name) => expect(() => serializeLoonPolicyEntry({ name, type: 'select', arguments: ['DIRECT'] })).toThrow(/policy names/),
   )
+
+  it.each(['control\u0001name', 'c1\u0085name', 'line\u2028name', 'paragraph\u2029name'])(
+    'rejects control or invalid-Unicode policy name %j',
+    (name) => expect(() => serializeLoonPolicyEntry({ name, type: 'select', arguments: ['DIRECT'] })).toThrow(/policy names/),
+  )
+
+  it('rejects an unpaired UTF-16 surrogate in a policy name', () => {
+    const name = `lone-surrogate${String.fromCharCode(0xd800)}`
+    expect(() => serializeLoonPolicyEntry({ name, type: 'select', arguments: ['DIRECT'] })).toThrow(/policy names/)
+  })
+
+  it('preserves syntax-safe Unicode policy names and their group/rule references verbatim', () => {
+    const profile: LoonProfile = {
+      general: [],
+      proxies: [{ name: '香港01', type: 'http', arguments: ['proxy.example.invalid', 8080] }],
+      proxyGroups: [{ name: '🇭🇰 香港 01', type: 'select', arguments: ['香港01', 'DIRECT'] }],
+      rules: [{ type: 'DOMAIN', payload: 'example.invalid', policy: '🇭🇰 香港 01' }, { type: 'FINAL', policy: '香港01' }],
+    }
+    expect(serializeLoonProfile(profile)).toBe([
+      '[General]',
+      '',
+      '[Proxy]',
+      '香港01 = http,proxy.example.invalid,8080',
+      '',
+      '[Proxy Group]',
+      '🇭🇰 香港 01 = select,香港01,DIRECT',
+      '',
+      '[Rule]',
+      'DOMAIN,example.invalid,🇭🇰 香港 01',
+      'final,香港01',
+      '',
+    ].join('\n'))
+  })
 
   it.each(['line\nfeed', 'carriage\rreturn', 'nul\u0000byte', 'tab\tvalue', 'separator\u2028value', '东京']) (
     'rejects unsafe token %j',

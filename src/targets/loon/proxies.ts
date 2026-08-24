@@ -2,17 +2,21 @@ import type { ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR } from '../.
 import type { CompatibilityIssue } from '../../types/project'
 import { loonIssue } from './errors'
 import type { LoonParameter, LoonProxy, LoonQuotedLiteral } from './model'
+import { isSafeLoonPolicyName } from './serializer'
 
 /**
- * Only values shown in the pinned first-party Shadowsocks examples are
- * accepted. SSR examples and other clients are not capability evidence for
- * the Loon Shadowsocks node grammar.
+ * Only values shown in checked first-party Loon examples are accepted. The
+ * historical pinned manual proves aes-128-gcm and chacha20; the current node
+ * page additionally shows 2022-blake3-aes-128-gcm. SSR examples and other
+ * clients are not capability evidence for the Loon Shadowsocks grammar.
  * Evidence: LoonManual commit 4311d0030fe3065d4664b403a32010f083b99273,
- * docs/cn/node.md#L43-L48.
+ * docs/cn/node.md#L43-L48; current first-party page retrieved 2026-08-24:
+ * https://nsloon.app/docs/Node/.
  */
 export const LOON_SHADOWSOCKS_CIPHERS = new Set([
   'aes-128-gcm',
   'chacha20',
+  '2022-blake3-aes-128-gcm',
 ])
 
 /**
@@ -23,8 +27,8 @@ export const LOON_SHADOWSOCKS_CIPHERS = new Set([
 export const LOON_VMESS_SECURITY = new Set(['aes-128-gcm'])
 const SIMPLE_OBFS_NAMES = new Set(['simple-obfs'])
 
-function quoted(value: string): LoonQuotedLiteral {
-  return { kind: 'quoted', value }
+function quoted(value: string, grammar?: LoonQuotedLiteral['grammar']): LoonQuotedLiteral {
+  return grammar ? { kind: 'quoted', value, grammar } : { kind: 'quoted', value }
 }
 
 export function checkLoonProxy(endpoint: ResolvedProxyEndpointIR, sourceId = endpoint.id): CompatibilityIssue[] {
@@ -34,7 +38,7 @@ export function checkLoonProxy(endpoint: ResolvedProxyEndpointIR, sourceId = end
   if (!isSafeServer(endpoint.server)) add(
     'LOON_PROXY_SERVER_INVALID', `Proxy "${endpoint.name}" has a server value that cannot be represented safely in a Loon profile.`,
   )
-  if (!isSafePolicyName(endpoint.name)) add(
+  if (!isSafeLoonPolicyName(endpoint.name)) add(
     'LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has a name that is unsafe in Loon's left-hand policy grammar.`, 'serialization',
   )
 
@@ -94,7 +98,9 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: tls ? 'https' : 'http',
-        arguments: [endpoint.server, endpoint.port, ...(endpoint.username !== undefined ? [endpoint.username, quoted(endpoint.password ?? '')] : [])],
+        arguments: [endpoint.server, endpoint.port, ...(endpoint.username !== undefined
+          ? [endpoint.username.includes(',') ? quoted(endpoint.username, 'http-username') : endpoint.username, quoted(endpoint.password ?? '')]
+          : [])],
         parameters: tls ? tlsParameters(endpoint.tls, false) : [],
       }
     }
@@ -179,9 +185,13 @@ function checkHttp(
   if (hasUser !== hasPassword || hasUser && (!endpoint.username || !endpoint.password)) add(
     'LOON_PROXY_AUTH_UNSUPPORTED', `Proxy "${endpoint.name}" must provide both non-empty HTTP credentials or neither.`, 'authentication',
   )
-  for (const [field, value] of [['username', endpoint.username], ['password', endpoint.password]] as const) {
-    if (value !== undefined && !isSafeValue(value)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an unsafe ${field} value.`, 'serialization')
+  if (endpoint.username !== undefined) {
+    const usernameSafe = endpoint.username.includes(',')
+      ? isSafeQuotedCredential(endpoint.username, true)
+      : isSafeValue(endpoint.username)
+    if (!usernameSafe) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an unsafe username value.`, 'serialization')
   }
+  if (endpoint.password !== undefined && !isSafeQuotedCredential(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an unsafe password value.`, 'serialization')
   checkTls(endpoint.name, endpoint.tls, add, endpoint.tls?.enabled === true ? 'https' : 'http', false)
 }
 
@@ -192,7 +202,7 @@ function checkShadowsocks(
   if (!LOON_SHADOWSOCKS_CIPHERS.has(endpoint.method)) add(
     'LOON_PROXY_CIPHER_UNSUPPORTED', `Proxy "${endpoint.name}" uses Shadowsocks cipher "${endpoint.method}", which is outside Loon's audited cipher boundary.`, 'proxy-cipher',
   )
-  if (!endpoint.password || !isSafeValue(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Shadowsocks password.`, 'serialization')
+  if (!endpoint.password || !isSafeQuotedCredential(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Shadowsocks password.`, 'serialization')
   const plugin = lowerSimpleObfs(endpoint.plugin)
   if (plugin.error) add('LOON_PROXY_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" ${plugin.error}`, 'proxy-variant')
 }
@@ -202,7 +212,7 @@ function checkTrojan(
   add: (code: string, message: string, feature?: string) => void,
 ) {
   if (endpoint.tls.enabled !== true) add('LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" requires enabled TLS for Trojan.`, 'tls')
-  if (!endpoint.password || !isSafeValue(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Trojan password.`, 'serialization')
+  if (!endpoint.password || !isSafeQuotedCredential(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Trojan password.`, 'serialization')
   checkTls(endpoint.name, endpoint.tls, add, 'trojan', true)
   checkTransport(endpoint.name, endpoint.transport, add, ['tcp', 'ws', 'http'])
 }
@@ -225,7 +235,7 @@ function checkVless(
   add: (code: string, message: string, feature?: string) => void,
 ) {
   if (endpoint.tls?.reality || endpoint.security === 'reality' || endpoint.flow) add(
-    'LOON_VLESS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" carries Reality, Vision, or flow intent that the audited Loon foundation does not prove.`, 'vless',
+    'LOON_VLESS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" carries Reality, Vision, or flow intent that Loon documents but this Universal-to-Loon mapping has not yet audited losslessly.`, 'vless',
   )
   if (endpoint.encryption !== undefined && endpoint.encryption !== 'none') add('LOON_VLESS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" uses unsupported VLESS encryption intent.`, 'vless')
   if (endpoint.security === 'tls' && endpoint.tls?.enabled !== true) add('LOON_VLESS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" declares VLESS TLS security without enabled TLS.`, 'vless')
@@ -240,7 +250,7 @@ function checkHysteria2(
   add: (code: string, message: string, feature?: string) => void,
 ) {
   if (endpoint.tls.enabled !== true) add('LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" requires enabled TLS for Hysteria2.`, 'tls')
-  if (!endpoint.password || !isSafeValue(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Hysteria2 password.`, 'serialization')
+  if (!endpoint.password || !isSafeQuotedCredential(endpoint.password)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${endpoint.name}" has an empty or unsafe Hysteria2 password.`, 'serialization')
   checkTls(endpoint.name, endpoint.tls, add, 'hysteria2', false)
   if (endpoint.obfs || endpoint.upMbps !== undefined || endpoint.downMbps !== undefined || endpoint.serverPorts?.length || endpoint.hopInterval) add(
     'LOON_HYSTERIA2_VARIANT_UNSUPPORTED', `Proxy "${endpoint.name}" uses Hysteria2 obfuscation, bandwidth, or port-hopping fields outside the proven Loon node subset.`, 'hysteria2',
@@ -267,7 +277,7 @@ function checkTls(
     'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has TLS-only fields while TLS is disabled.`, feature,
   )
   if (tls.fingerprint || tls.reality || tls.disableSni) add(
-    'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has TLS fingerprint, Reality, or disable-SNI intent that Loon's audited node syntax does not express.`, feature,
+    'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has TLS fingerprint, Reality, or disable-SNI intent that this audited ProxyFlow mapping does not express losslessly.`, feature,
   )
   if (alpn?.length && (!allowAlpn || alpn.length !== 1)) add(
     'LOON_PROXY_TLS_VARIANT_UNSUPPORTED',
@@ -330,15 +340,29 @@ function lowerSimpleObfs(plugin: Extract<ResolvedProxyEndpointIR, { protocol: 's
     }
   } else if (plugin.options) entries.push(...Object.entries(plugin.options))
   let mode: string | undefined
+  let modeKey: 'obfs' | 'obfs-name' | undefined
   let host: string | undefined
   let uri: string | undefined
   for (const [rawKey, rawValue] of entries) {
     const key = rawKey.trim().toLocaleLowerCase()
-    const field = key === 'obfs-name' ? 'mode'
+    // SIP003/simple-obfs source semantics call the mode `obfs`; Loon's
+    // target syntax calls the same semantic field `obfs-name`. This is a
+    // target-owned lowering, not an alias accepted in the Universal IR.
+    const field = key === 'obfs' ? 'mode'
+      : key === 'obfs-name' ? 'mode'
       : key === 'obfs-host' ? 'host'
         : key === 'obfs-uri' ? 'uri' : undefined
     if (!field || typeof rawValue !== 'string' || !rawValue) return { error: `uses simple-obfs option "${rawKey}" that cannot be mapped losslessly.` }
-    if (field === 'mode') { if (mode !== undefined) return { error: 'contains duplicate obfuscation mode intent.' }; mode = rawValue.toLocaleLowerCase() }
+    if (field === 'mode') {
+      const normalizedMode = rawValue.toLocaleLowerCase()
+      if (mode !== undefined) {
+        if (modeKey === key) return { error: `contains duplicate ${key} obfuscation mode intent.` }
+        if (mode !== normalizedMode) return { error: 'contains conflicting obfs and obfs-name mode intent.' }
+      } else {
+        mode = normalizedMode
+        modeKey = key as 'obfs' | 'obfs-name'
+      }
+    }
     if (field === 'host') { if (host !== undefined) return { error: 'contains duplicate obfs-host intent.' }; host = rawValue }
     if (field === 'uri') { if (uri !== undefined) return { error: 'contains duplicate obfs-uri intent.' }; uri = rawValue }
   }
@@ -361,11 +385,17 @@ function isSafeValue(value: string) {
     && !/\s(?:#|;|\/\/)/.test(value)
 }
 
-function isSafeServer(value: string) {
-  return isSafeValue(value) && !/\s/.test(value)
+/** Fixed quoted credentials may contain `=` as shown by the SS2022 example. */
+function isSafeQuotedCredential(value: string, allowComma = false) {
+  return Boolean(value)
+    && /^[\x20-\x7e]+$/.test(value)
+    && value === value.trim()
+    && (allowComma || !value.includes(','))
+    && !/["\\]/.test(value)
+    && !/^(?:#|;|\/\/)/.test(value)
+    && !/\s(?:#|;|\/\/)/.test(value)
 }
 
-function isSafePolicyName(value: string) {
-  return Boolean(value) && /^[\x20-\x7e]+$/.test(value) && value === value.trim() && !/[,=\\"]/.test(value)
-    && !/^(?:#|;|\/\/)/.test(value) && !/\s(?:#|;|\/\/)/.test(value)
+function isSafeServer(value: string) {
+  return isSafeValue(value) && !/\s/.test(value)
 }

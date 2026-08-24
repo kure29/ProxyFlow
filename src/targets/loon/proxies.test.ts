@@ -37,16 +37,23 @@ describe('Loon proxy capability boundary', () => {
     expect(issues(http({ tls: { enabled: true, alpn: ['h2'] } }))).toContain('LOON_PROXY_TLS_VARIANT_UNSUPPORTED')
   })
 
-  it('blocks Unicode names and values until a Loon round-trip fixture exists', () => {
-    expect(issues(http({ name: '东京' }))).toContain('LOON_SERIALIZER_UNSAFE_VALUE')
+  it('preserves syntax-safe Unicode policy names while raw values stay conservative', () => {
+    expect(issues(http({ name: '东京' }))).not.toContain('LOON_SERIALIZER_UNSAFE_VALUE')
+    expect(serializeLoonPolicyEntry(compileLoonProxy(http({ name: '🇭🇰 香港 01' }))!)).toBe('🇭🇰 香港 01 = http,node.example.invalid,443')
     expect(issues(http({ username: '用户', password: 'secret' }))).toContain('LOON_SERIALIZER_UNSAFE_VALUE')
+  })
+
+  it('uses the explicitly evidenced quoted HTTP username form for a comma', () => {
+    const endpoint = http({ name: 'https3', username: 'user,name', password: 'password', tls: { enabled: true } })
+    expect(checkLoonProxy(endpoint, 'source')).toEqual([])
+    expect(serializeLoonPolicyEntry(compileLoonProxy(endpoint)!)).toBe('https3 = https,node.example.invalid,443,"user,name","password"')
   })
 
   it('lowers Shadowsocks and the independent simple-obfs mapping', () => {
     const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS',
       server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
-      plugin: { name: 'simple-obfs', options: 'obfs-name=http;obfs-host=cdn.example.invalid;obfs-uri=/tunnel' },
+      plugin: { name: 'simple-obfs', options: 'obfs=http;obfs-host=cdn.example.invalid' },
       metadata: { compatibility: { status: 'partial', unsupportedFeatures: ['plugin:simple-obfs'] } },
     }
     expect(checkLoonProxy(endpoint, 'source')).toEqual([])
@@ -55,10 +62,28 @@ describe('Loon proxy capability boundary', () => {
       parameters: [
         { key: 'obfs-name', value: 'http' },
         { key: 'obfs-host', value: 'cdn.example.invalid' },
-        { key: 'obfs-uri', value: '/tunnel' },
         { key: 'udp', value: true },
       ],
     })
+  })
+
+  it('accepts the normalized target-style obfs-name without changing source semantics', () => {
+    const source: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss-source', name: 'SS source',
+      server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
+      plugin: { name: 'simple-obfs', options: { obfs: 'tls', 'obfs-host': 'cdn.example.invalid' } },
+    }
+    const targetStyle = { ...source, id: 'ss-target', plugin: { name: 'simple-obfs', options: { 'obfs-name': 'tls', 'obfs-host': 'cdn.example.invalid' } } }
+    expect(compileLoonProxy(source)).toEqual(compileLoonProxy(targetStyle))
+  })
+
+  it('accepts semantically identical obfs and obfs-name keys but blocks conflicts', () => {
+    const baseEndpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss-dual', name: 'SS dual',
+      server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
+    }
+    expect(issues({ ...baseEndpoint, plugin: { name: 'simple-obfs', options: { obfs: 'HTTP', 'obfs-name': 'http', 'obfs-host': 'cdn.example.invalid' } } })).toEqual([])
+    expect(issues({ ...baseEndpoint, plugin: { name: 'simple-obfs', options: { obfs: 'http', 'obfs-name': 'tls' } } })).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
   })
 
   it('has a Loon-owned cipher boundary and rejects unsupported plugins', () => {
@@ -67,11 +92,21 @@ describe('Loon proxy capability boundary', () => {
       server: 'ss.example.invalid', port: 8388, method: '2022-blake3-aes-256-gcm', password: 'secret',
     }
     expect(issues(ss)).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
+    expect(issues({ ...ss, method: '2022-blake3-chacha20-poly1305' })).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
     expect(issues({ ...ss, method: 'aes-128-gcm', plugin: { name: 'v2ray-plugin', options: { mode: 'websocket' } } })).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
   })
 
-  it('keeps every accepted cipher tied to a pinned first-party example', () => {
-    expect([...LOON_SHADOWSOCKS_CIPHERS].sort()).toEqual(['aes-128-gcm', 'chacha20'])
+  it('accepts the exactly documented SS2022 AES-128 value and quoted equals credential', () => {
+    const ss: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss2022', name: 'SS2022',
+      server: 'ss.example.invalid', port: 8388, method: '2022-blake3-aes-128-gcm', password: 'fixture-key==:fixture-user==',
+    }
+    expect(checkLoonProxy(ss, 'source')).toEqual([])
+    expect(serializeLoonPolicyEntry(compileLoonProxy(ss)!)).toBe('SS2022 = Shadowsocks,ss.example.invalid,8388,2022-blake3-aes-128-gcm,"fixture-key==:fixture-user==",udp=true')
+  })
+
+  it('keeps every accepted cipher tied to a checked first-party example', () => {
+    expect([...LOON_SHADOWSOCKS_CIPHERS].sort()).toEqual(['2022-blake3-aes-128-gcm', 'aes-128-gcm', 'chacha20'])
     expect([...LOON_VMESS_SECURITY].sort()).toEqual(['aes-128-gcm'])
 
     const ss: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
@@ -98,7 +133,6 @@ describe('Loon proxy capability boundary', () => {
 
   it.each([
     ['mode', 'http'],
-    ['obfs', 'http'],
     ['host', 'cdn.example.invalid'],
     ['uri', '/tunnel'],
     ['path', '/tunnel'],

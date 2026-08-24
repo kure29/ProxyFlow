@@ -25,10 +25,22 @@ dropping a field or selecting a merely similar option.
 
 ## Evidence baseline
 
-The primary source is the official [LoonManual repository](https://github.com/Loon0x00/LoonManual). The default branch currently resolves to commit
+The historical pinned source is the official [LoonManual repository](https://github.com/Loon0x00/LoonManual). The Foundation baseline uses commit
 [`4311d0030fe3065d4664b403a32010f083b99273`](https://github.com/Loon0x00/LoonManual/commit/4311d0030fe3065d4664b403a32010f083b99273). All links below are pinned to
-that commit so that a later manual edit cannot silently change a capability
-decision.
+that commit so that a later manual edit cannot silently change a historical
+capability decision.
+
+The current first-party capability source was also audited at
+[`https://nsloon.app/docs/Node/`](https://nsloon.app/docs/Node/) on **2026-08-24**.
+That page now explicitly lists Shadowsocks stream/AEAD/2022, Simple Obfs,
+SOCKS5, VLESS TCP/WS/HTTP and XTLS Vision + Reality, Hysteria2, and AnyTLS
+(Build 945+). Its examples prove exact spellings including
+`2022-blake3-aes-128-gcm`, `obfs-name=http|tls`, fixed quoted credentials
+containing `=`, and an HTTP username containing a comma in fixed quotes. This
+current page supersedes stale claims that those Loon features are absent. It
+does not, by itself, prove that ProxyFlow's Universal IR preserves every field
+or that this adapter has a lossless lowering; those remain separate decisions
+below.
 
 | Official page | Evidence used in this audit |
 | --- | --- |
@@ -46,6 +58,7 @@ decision.
 | [dns.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/dns.md#L1-L33) | UDP, DoH, DoQ, DoH3, encrypted-vs-traditional precedence, concurrency, and fallback. |
 | [general.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/general.md#L14-L77) | `[General]` DNS keys, `proxy-test-url`, and resource-parser. |
 | [scheme.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/scheme.md#L21-L26) | Remote config/node/rule import links; this is not a proof of a target-native proxy source format. |
+| [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) | Current first-party protocol inventory and exact node examples. It is capability evidence, not automatic Universal-IR mapping or real-client acceptance evidence. |
 
 The page examples are normative evidence for the spelling and presence of a
 field, but an example is not an allowlist. In particular, the node page does
@@ -97,21 +110,21 @@ phase even though Loon may have native syntax.
 | Feature | Loon official semantics | Universal IR semantics | Mapping decision | Status | Diagnostic | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | HTTP, no auth | `http,name/server/port`; no credential fields are required. | `HttpProxyIR` with optional username/password. | Emit the bare HTTP form only when TLS is absent and credentials are absent. | Supported | - | [node.md#L61-L64](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L61-L64) |
-| HTTP, username/password | Positional username plus a fixed double-quoted password are documented. | Optional `username` and `password` are exact fields. | Emit the username as a raw token and the password as a field-specific quoted literal. Only the conservative printable-ASCII subset is admitted; reject a half-pair and any delimiter/escape-sensitive value. | Supported | `LOON_PROXY_AUTH_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L61-L64](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L61-L64) |
-| HTTPS | `https` supports credentials, `skip-cert-verify`, and `tls-name`/SNI. | `HttpProxyIR.tls` carries enabled, SNI, and allow-insecure, plus ALPN, fingerprint, and Reality fields. | Support only enabled ordinary TLS with exact credentials, `serverName`, and `allowInsecure`; block ALPN, fingerprint, Reality, disable-SNI, or other unproven fields. | Conditional | `LOON_PROXY_TLS_VARIANT_UNSUPPORTED` | [node.md#L66-L70](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L66-L70) |
-| Shadowsocks core | `Shadowsocks,server,port,cipher,"password"`; the pinned core examples show only `aes-128-gcm` and `chacha20`, with optional `fast-open` and `udp`. | `ShadowsocksProxyIR` has method/password/plugin; the existing normalized endpoint convention implies UDP capability, but no explicit UDP disable or fast-open intent. | Accept only `aes-128-gcm` and `chacha20`, because those are the only ciphers directly evidenced by the core examples. Emit password as a fixed quoted literal, not as generic quote support. Do not infer values from SSR, Mihomo, Surge, or community configurations. `udp=true` is permitted only under the existing convention; fast-open and explicit UDP intent remain deferred because the IR has no corresponding fields. | Conditional | `LOON_PROXY_CIPHER_UNSUPPORTED`, `LOON_PROXY_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L43-L47](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L43-L47) |
-| Shadowsocks simple-obfs | `obfs-name=http` or `tls`, `obfs-host`, and `obfs-uri` are explicit options. | Plugin name plus string or primitive record options can carry these keys. | Lower only the exact canonical `simple-obfs` plugin name and the exact `obfs-name`/`obfs-host`/`obfs-uri` option keys. `obfs` and `obfs-local` aliases plus `mode`, `obfs`, `host`, `uri`, or `path` option aliases are blockers; do not copy a Surge plugin spelling. | Conditional | `LOON_PROXY_VARIANT_UNSUPPORTED` | [node.md#L49-L52](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L49-L52) |
+| HTTP, username/password | Positional username plus a fixed double-quoted password are documented; the current page also shows a comma-containing username in fixed quotes. | Optional `username` and `password` are exact fields. | Keep ordinary usernames raw; when an HTTP username contains a comma, emit the explicitly evidenced `"user,name"` form. Emit the password as a fixed quoted literal. Equals/colon are admitted in fixed quoted credentials; quotes, backslashes, controls, Unicode, and unproven comma-containing passwords remain blocked. | Supported | `LOON_PROXY_AUTH_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L61-L64](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L61-L64), [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
+| HTTPS | `https` supports credentials, `skip-cert-verify`, and `tls-name`/SNI. The current Reality evidence is specific to VLESS. | `HttpProxyIR.tls` carries enabled, SNI, and allow-insecure, plus ALPN, fingerprint, and Reality fields. | Support only enabled ordinary TLS with exact credentials, `serverName`, and `allowInsecure`; block ALPN, fingerprint, Reality, disable-SNI, or other fields without a lossless ordinary-HTTPS mapping. | Conditional | `LOON_PROXY_TLS_VARIANT_UNSUPPORTED` | [node.md#L66-L70](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L66-L70) |
+| Shadowsocks core | `Shadowsocks,server,port,cipher,"password"`; the current page shows `aes-128-gcm`, `chacha20`, and `2022-blake3-aes-128-gcm` with a quoted credential containing `=`. | `ShadowsocksProxyIR` preserves method/password/plugin as opaque fields; it does not model SS2022 key roles or lengths. | Accept only those three exact cipher values. Emit the password as a fixed quoted literal and preserve its opaque value; do not claim arbitrary SS2022 key validation or infer values from SSR, Mihomo, Surge, or community configurations. `udp=true` follows the existing normalized endpoint convention; fast-open and explicit UDP intent remain unmodeled. `2022-blake3-aes-256-gcm` and other unshown values fail closed. | Conditional | `LOON_PROXY_CIPHER_UNSUPPORTED`, `LOON_PROXY_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
+| Shadowsocks simple-obfs | Loon target syntax uses `obfs-name=http` or `tls`, `obfs-host`, and optional `obfs-uri`; SIP003 source semantics use `obfs=http|tls` and `obfs-host`. | Plugin name plus string or primitive record options preserve the source keys. | Lower only the exact canonical `simple-obfs` plugin. Map source `obfs` to target `obfs-name`, preserve `obfs-host`, and emit `obfs-uri` only when source intent explicitly contains it. Target-shaped `obfs-name` remains accepted; arbitrary `mode`, `host`, `uri`, or `path` aliases and other plugin names remain blockers. | Conditional | `LOON_PROXY_VARIANT_UNSUPPORTED` | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
 | Trojan, TCP | Fixed double-quoted password and TLS are required by the documented form; `alpn`, SNI, certificate skipping, and `udp` are options. | `TrojanProxyIR` has password, required TLS, and optional transport; normalized endpoint convention supplies UDP capability but not an explicit toggle. | Emit password as a fixed quoted literal and support ordinary TLS/TCP with proven SNI, ALPN, and allow-insecure fields. Emit `udp=true` only under the convention; explicit UDP intent remains deferred because the IR has no toggle. | Conditional | `LOON_PROXY_TLS_VARIANT_UNSUPPORTED`, `LOON_PROXY_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L120-L123](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L120-L123) |
 | Trojan, WS/HTTP | Loon documents `transport=ws` and `transport=http`, with path/host and the same TLS options. | `ProxyTransportIR` carries WS and HTTP/HTTP2 variants, path, and host. | Support only the exact WS and plain HTTP variants; reject H2, gRPC, HTTPUpgrade, XHTTP, and explicit UDP/other metadata. | Conditional | `LOON_PROXY_TRANSPORT_UNSUPPORTED`, `LOON_PROXY_TLS_VARIANT_UNSUPPORTED` | [node.md#L124-L130](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L124-L130) |
 | VMess, TCP/WS/HTTP | Loon documents quoted UUID, security, `transport=tcp`, `ws`, or `http`, `alterId`, path/host, TLS, SNI, and certificate skipping. The pinned examples use `aes-128-gcm`; `alterId=0` is described as enabling AEAD. | IR carries UUID/security and optional `alterId`, TLS, and transports, but an omitted `alterId` does not prove the AEAD intent. | Emit UUID as a fixed quoted literal. Conditional support requires the directly evidenced `security=aes-128-gcm`, explicit `alterId` (including explicit zero), and only documented TCP/WS/HTTP fields. Never infer `auto`, `none`, or another security value, and never auto-fill `alterId=0`. | Conditional | `LOON_VMESS_VARIANT_UNSUPPORTED`, `LOON_PROXY_CIPHER_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L72-L94](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L72-L94) |
-| VLESS, TCP/WS/HTTP | Loon documents quoted UUID in TCP, WS, and HTTP forms, with optional TLS, SNI, and certificate skipping. | IR additionally carries `security`, `encryption`, `flow=xtls-rprx-vision`, Reality, and modern transports. | Emit UUID as a fixed quoted literal and support only the basic documented transport/TLS subset when no unrepresentable security or transport intent is present. Reality, Vision, `flow`, gRPC, HTTPUpgrade, XHTTP, fingerprints, packet encoding, and unknown metadata block compilation. | Conditional | `LOON_VLESS_VARIANT_UNSUPPORTED`, `LOON_PROXY_TRANSPORT_UNSUPPORTED`, `LOON_PROXY_TLS_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L96-L118](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L96-L118) |
+| VLESS, TCP/WS/HTTP | The current page documents quoted UUID in TCP, WS, and HTTP forms and separately shows XTLS Vision + Reality fields. | IR carries `security`, `encryption`, `flow`, Reality, and modern transports. | Emit only the basic TCP/WS/HTTP and ordinary TLS subset. The official Reality/flow syntax is now proven, but exact IR preservation and lowering are deferred; Reality, Vision, flow, gRPC, HTTPUpgrade, XHTTP, fingerprints, packet encoding, and unknown metadata still block compilation. | Conditional | `LOON_VLESS_VARIANT_UNSUPPORTED`, `LOON_PROXY_TRANSPORT_UNSUPPORTED`, `LOON_PROXY_TLS_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
 | Hysteria2, minimal | Loon documents server, port, fixed double-quoted password, SNI, certificate skipping, `udp`, and `fast-open`. | IR has password/TLS, obfs, bandwidth, server ports, and fixed/ranged hop interval; normalized endpoint convention supplies UDP capability but no fast-open toggle. | Emit password as a fixed quoted literal and consider ordinary TLS/SNI plus convention-derived `udp=true` as the minimal subset. Explicit fast-open/UDP intent remains unmodeled; obfs, bandwidth, port hopping, and any unproven option require a blocker. | Conditional | `LOON_HYSTERIA2_VARIANT_UNSUPPORTED`, `LOON_PROXY_TLS_VARIANT_UNSUPPORTED`, `LOON_SERIALIZER_UNSAFE_VALUE` | [node.md#L135-L137](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L135-L137) |
-| SOCKS5 | No SOCKS5 node format appears in the pinned official node protocol list or pages audited here. | `SocksProxyIR` is modeled. | Do not infer support from other clients; hold until a first-party Loon syntax page and parser/client fixture prove it. | Unproven | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L15-L39](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L15-L39) |
+| SOCKS5 | The current page explicitly lists SOCKS5 and shows `socks5,server,port` forms with quoted credentials. | `SocksProxyIR` is modeled, but no Loon lowering or client fixture is included in this phase. | Treat the official syntax as proven capability evidence, while keeping the ProxyFlow protocol deferred until field-by-field lowering and real-client acceptance are audited. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
 | ShadowsocksR | Loon gives an SSR syntax with protocol, protocol-param, obfs, and obfs-param. | No SSR endpoint type exists in Universal IR. | Defer; do not coerce SSR into Shadowsocks. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L54-L59](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L54-L59) |
 | WireGuard | Loon documents a native WireGuard line with interface and peer structures. | No WireGuard endpoint model exists in Universal IR. | Defer; no schema expansion in Foundation. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L132-L133](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L132-L133) |
 | Custom JS protocol | Loon uses `custom` plus a `script-path`. | No script path or JS protocol intent exists in Universal IR. | Defer; never emit a script reference from an opaque endpoint. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L139-L142](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L139-L142) |
 | TUIC | No TUIC syntax is present in the pinned pages audited for this phase. | `TuicProxyIR` is modeled. | Defer; do not infer a TUIC spelling or downgrade to another protocol. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L15-L39](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L15-L39) |
-| AnyTLS | No AnyTLS syntax is present in the pinned pages audited for this phase. | `AnyTlsProxyIR` is modeled. | Defer until official syntax and all security/session fields are audited. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [node.md#L15-L39](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L15-L39) |
+| AnyTLS | The current page explicitly lists AnyTLS (Build 945+) and shows a node form. | `AnyTlsProxyIR` is modeled, but session/security field parity has not been audited. | Keep deferred until exact Universal mapping and client acceptance exist; do not infer support from the official protocol listing alone. | Deferred | `LOON_PROXY_PROTOCOL_UNSUPPORTED` | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) |
 
 The protocol list proves that Loon can parse several families; it does not
 prove that the current Universal IR can carry every option. A parsed partial
@@ -228,7 +241,8 @@ readiness. Section names are based on the Loon manual, not copied from Surge
 field semantics ([`general.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/general.md#L1-L20), [`policygroup.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/policygroup.md#L1-L6), [`plugin.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/plugin.md#L18-L33)).
 
 The official examples are comma-delimited and quote a fixed set of passwords
-and UUIDs, but the audited manual does not specify a complete escape grammar
+and UUIDs, with one explicit comma-containing HTTP username. Neither the
+historical manual nor the current page specifies a complete escape grammar
 for arbitrary names or values. Foundation therefore does not invent CSV-like
 quoting or backslash escapes.
 
@@ -237,24 +251,29 @@ There are two deliberately separate serializer boundaries:
 1. **Generic raw-token grammar (unproven beyond the conservative subset).**
    Raw values must be directly representable, non-empty printable ASCII
    tokens with no comma, equals sign, quote, backslash, comment marker, or
-   ambiguous outer whitespace. CR, LF, NUL, other control characters, line
-   separators, and Unicode fail closed with `LOON_SERIALIZER_UNSAFE_VALUE`.
-   No generic quote or escape support is implemented.
-2. **Fixed double-quoted literals (supported only where the pinned examples
-   show the exact field form).** HTTP/HTTPS password, Shadowsocks password,
-   Trojan password, Hysteria2 password, and VMess/VLESS UUID are represented
-   in the target model as `LoonQuotedLiteral`. The serializer emits the outer
-   quotes verbatim and accepts only the same safe printable-ASCII content
-   subset. It does not imply general quote support: comma, equals, quote,
+   ambiguous outer whitespace. CR, LF, NUL, other control characters, and
+   line separators fail closed with `LOON_SERIALIZER_UNSAFE_VALUE`. No generic
+   quote or escape support is implemented.
+2. **Fixed double-quoted literals (supported only where the first-party
+   examples show the exact field form).** HTTP/HTTPS password, Shadowsocks
+   password, Trojan password, Hysteria2 password, and VMess/VLESS UUID are
+   represented in the target model as `LoonQuotedLiteral`. The serializer
+   emits the outer quotes verbatim. The current SS2022 example directly
+   proves `=` and `:` inside a quoted credential, so those characters are
+   admitted in this fixed subset. A separate `http-username` grammar admits a
+   comma only for the explicitly documented quoted HTTP username form. Quote,
    backslash, CR/LF/NUL, controls, Unicode, and ambiguous outer whitespace
-   are rejected because no escaping or parser behavior is proven.
+   remain rejected because no escaping or parser behavior is proven.
 
-Other fields (server, host, path, SNI, policy names, group members, and rule
-payloads) remain raw tokens and are never automatically quoted. Serializer
-fixtures cover exact lines for every fixed quoted field plus simple-value,
-comma, equals, quote, backslash, CR/LF/NUL, and Unicode rejection. The
-official examples prove the field-specific outer quotes, not arbitrary
-embedded-character escaping.
+Policy names and policy references use a separate syntax-safe UTF-8 grammar:
+Unicode text is preserved byte-for-byte, while commas, equals, quotes,
+backslashes, controls, line separators, comments, and outer whitespace remain
+blocked. Other fields (server, host, path, SNI, and rule payloads) remain raw
+ASCII tokens and are never automatically quoted. Serializer fixtures cover
+exact lines for every fixed quoted field, the proven HTTP comma form, Unicode
+policy/group references, and simple-value, comma, quote, backslash, CR/LF/NUL,
+and raw Unicode rejection. The official examples prove field-specific outer
+quotes, not arbitrary embedded-character escaping.
 
 Repeated compilation of the same IR must be byte-identical: proxy and group
 order, route order, diagnostic order, derived names, and all section keys are

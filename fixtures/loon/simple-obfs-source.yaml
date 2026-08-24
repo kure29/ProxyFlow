@@ -1,0 +1,11 @@
+proxies:
+  - name: Simple Obfs Source
+    type: ss
+    server: obfs.example.invalid
+    port: 8388
+    cipher: aes-128-gcm
+    password: fixture-password
+    plugin: simple-obfs
+    plugin-opts:
+      obfs: http
+      obfs-host: cdn.example.invalid

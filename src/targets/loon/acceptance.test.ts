@@ -5,6 +5,7 @@ import ipFixtureText from '../../../fixtures/loon/routing-ip-project.json?raw'
 import ipExpected from '../../../fixtures/loon/routing-ip.expected.conf?raw'
 import dohFixtureText from '../../../fixtures/loon/dns-doh-project.json?raw'
 import dohExpected from '../../../fixtures/loon/dns-doh.expected.conf?raw'
+import simpleObfsSource from '../../../fixtures/loon/simple-obfs-source.yaml?raw'
 import { acceptanceDiagnosticCounts, compileLoonAcceptanceIr, compileLoonAcceptanceProject } from './acceptance'
 
 const project = JSON.parse(projectText)
@@ -44,6 +45,13 @@ describe('Loon real-client acceptance fixture', () => {
     expect(expectedProfile).toContain('Fallback = fallback,')
   })
 
+  it('lowers the source-shaped simple-obfs fixture to Loon target syntax', () => {
+    const result = compileLoonAcceptanceProject(project, simpleObfsSource)
+    expect(result.loon?.success).toBe(true)
+    expect(result.loon?.content).toContain('Simple Obfs Source = Shadowsocks,obfs.example.invalid,8388,aes-128-gcm,"fixture-password",obfs-name=http,obfs-host=cdn.example.invalid,udp=true')
+    expect(result.loon?.content).not.toContain('obfs-uri=')
+  })
+
   it('retains compatible members and only warns for an inactive-in-pool SOCKS endpoint', () => {
     const content = [
       'proxies:',
@@ -51,7 +59,7 @@ describe('Loon real-client acceptance fixture', () => {
       '    type: http',
       '    server: compatible.example.com',
       '    port: 8080',
-      '  - name: Unproven SOCKS',
+      '  - name: Deferred SOCKS',
       '    type: socks5',
       '    server: socks.example.com',
       '    port: 1080',
@@ -67,7 +75,7 @@ describe('Loon real-client acceptance fixture', () => {
   it('blocks a fixed strategy and active pools when every local endpoint is unproven', () => {
     const content = [
       'proxies:',
-      '  - name: Unproven SOCKS',
+      '  - name: Deferred SOCKS',
       '    type: socks5',
       '    server: socks.example.com',
       '    port: 1080',
