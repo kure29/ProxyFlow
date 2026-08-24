@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ResolvedProxyEndpointIR } from '../../core/ir'
-import { checkLoonProxy, compileLoonProxy } from './proxies'
+import { checkLoonProxy, compileLoonProxy, LOON_SHADOWSOCKS_CIPHERS, LOON_VMESS_SECURITY } from './proxies'
 
 const base = {
   server: 'node.example.invalid',
@@ -36,6 +36,11 @@ describe('Loon proxy capability boundary', () => {
     expect(issues(http({ tls: { enabled: true, alpn: ['h2'] } }))).toContain('LOON_PROXY_TLS_VARIANT_UNSUPPORTED')
   })
 
+  it('blocks Unicode names and values until a Loon round-trip fixture exists', () => {
+    expect(issues(http({ name: '东京' }))).toContain('LOON_SERIALIZER_UNSAFE_VALUE')
+    expect(issues(http({ username: '用户', password: 'secret' }))).toContain('LOON_SERIALIZER_UNSAFE_VALUE')
+  })
+
   it('lowers Shadowsocks and the independent simple-obfs mapping', () => {
     const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS',
@@ -62,6 +67,32 @@ describe('Loon proxy capability boundary', () => {
     }
     expect(issues(ss)).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
     expect(issues({ ...ss, method: 'aes-128-gcm', plugin: { name: 'v2ray-plugin', options: { mode: 'websocket' } } })).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
+  })
+
+  it('keeps every accepted cipher tied to a pinned first-party example', () => {
+    expect([...LOON_SHADOWSOCKS_CIPHERS].sort()).toEqual(['aes-128-gcm', 'chacha20'])
+    expect([...LOON_VMESS_SECURITY].sort()).toEqual(['aes-128-gcm'])
+
+    const ss: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS',
+      server: 'ss.example.invalid', port: 8388, method: 'aes-256-gcm', password: 'secret',
+    }
+    expect(issues(ss)).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
+
+    const vmess: Extract<ResolvedProxyEndpointIR, { protocol: 'vmess' }> = {
+      kind: 'vmess', protocol: 'vmess', id: 'vmess', name: 'VMess',
+      server: 'vmess.example.invalid', port: 443, uuid: '123e4567-e89b-12d3-a456-426614174000', security: 'auto', alterId: 0,
+    }
+    expect(issues(vmess)).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
+  })
+
+  it('accepts only the canonical simple-obfs plugin name', () => {
+    const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss-alias', name: 'SS Alias',
+      server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
+      plugin: { name: 'obfs-local', options: { mode: 'http' } },
+    }
+    expect(issues(endpoint)).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
   })
 
   it('fails closed for unknown protocols and malformed TLS metadata', () => {

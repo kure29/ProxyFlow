@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ProxyFlowIR, RouteIR, RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
+import { PROXYFLOW_IR_VERSION } from '../../core/ir'
+import { checkLoonCompatibility } from './compatibility'
 import { compileLoonRules, planLoonRouting, type LoonRoutingContext } from './routing'
 import { serializeLoonRule } from './serializer'
 
@@ -24,12 +26,69 @@ function context(
   }
 }
 
+function compatibilityIR(routes: RouteIR[]): ProxyFlowIR {
+  return {
+    version: PROXYFLOW_IR_VERSION,
+    metadata: { projectId: 'loon-routing-test', projectName: 'Loon routing test', projectSchemaVersion: 2 },
+    sources: [],
+    transforms: [],
+    strategies: [],
+    services: [],
+    routes,
+    finalRoute: { target: { kind: 'direct' } },
+    outputs: [],
+  }
+}
+
 describe('Loon routing', () => {
-  it('maps the proven matcher baseline in semantic priority order and keeps FINAL last', () => {
+  it('blocks active mixed domain and IP matcher families at compatibility time', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('domain', { kind: 'domain', value: 'example.invalid' }, { kind: 'direct' }, 20),
+      route('ip', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'reject' }, 10),
+    ]))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      target: 'loon',
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED',
+      severity: 'error',
+      feature: 'route-order',
+    }))
+  })
+
+  it.each([
+    {
+      label: 'domain family',
+      routes: [
+        route('exact', { kind: 'domain', value: 'exact.example.invalid' }, { kind: 'direct' }, 20),
+        route('suffix', { kind: 'domain-suffix', value: 'example.invalid' }, { kind: 'reject' }, 10),
+      ],
+    },
+    {
+      label: 'IP family',
+      routes: [
+        route('ipv4', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'direct' }, 20),
+        route('ipv6', { kind: 'ip-cidr6', value: '2001:db8::/32' }, { kind: 'reject' }, 10),
+        route('geo', { kind: 'geo-ip', countryCode: 'US' }, { kind: 'direct' }, 5),
+      ],
+    },
+  ])('preserves pure $label routes and FINAL without an order blocker', ({ routes }) => {
+    const result = checkLoonCompatibility(compatibilityIR(routes))
+    expect(result.supported).toBe(true)
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED' }))
+
+    const plan = planLoonRouting({ routes, finalRoute: { target: { kind: 'direct' } } }, new Map(), new Set())
+    expect(plan.issues).toEqual([])
+    expect(plan.rules.at(-1)).toEqual({ type: 'FINAL', policy: 'DIRECT' })
+    expect(plan.rules.slice(0, -1).map((rule) => rule.payload)).toEqual(
+      [...routes].sort((left, right) => left.priority - right.priority).map((route) => (
+        route.matcher.kind === 'geo-ip' ? route.matcher.countryCode : 'value' in route.matcher ? route.matcher.value : ''
+      )),
+    )
+  })
+
+  it('domain-only preserves Universal priority order and keeps FINAL last', () => {
     const input = context([
-      route('geo', { kind: 'geo-ip', countryCode: 'US' }, { kind: 'reject' }, 60),
-      route('ipv6', { kind: 'ip-cidr6', value: '2001:db8::/32' }, { kind: 'direct' }, 50),
-      route('ipv4', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'strategy', id: 'manual' }, 40),
       route('keyword', { kind: 'domain-keyword', value: 'needle' }, { kind: 'reject' }, 30),
       route('suffix', { kind: 'domain-suffix', value: 'suffix.example' }, { kind: 'direct' }, 20),
       route('domain', { kind: 'domain', value: 'exact.example' }, { kind: 'strategy', id: 'manual' }, 10),
@@ -43,10 +102,23 @@ describe('Loon routing', () => {
       'DOMAIN,tie.example,DIRECT',
       'DOMAIN-SUFFIX,suffix.example,DIRECT',
       'DOMAIN-KEYWORD,needle,REJECT',
+      'final,Proxy',
+    ])
+  })
+
+  it('IP-only preserves Universal priority order and keeps FINAL last', () => {
+    const input = context([
+      route('geo', { kind: 'geo-ip', countryCode: 'US' }, { kind: 'reject' }, 30),
+      route('ipv6', { kind: 'ip-cidr6', value: '2001:db8::/32' }, { kind: 'direct' }, 20),
+      route('ipv4', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'strategy', id: 'manual' }, 10),
+    ])
+    const rules = compileLoonRules(input)
+    expect(input.issues).toEqual([])
+    expect(rules.map(serializeLoonRule)).toEqual([
       'IP-CIDR,192.0.2.0/24,Proxy',
       'IP-CIDR6,2001:db8::/32,DIRECT',
-      'GEOIP,US,REJECT',
-      'FINAL,Proxy',
+      'geoip,US,REJECT',
+      'final,Proxy',
     ])
   })
 
@@ -62,7 +134,7 @@ describe('Loon routing', () => {
     expect(plan.rules.map(serializeLoonRule)).toEqual([
       'IP-CIDR,198.51.100.0/24,DIRECT',
       'IP-CIDR6,2001:db8::/32,REJECT',
-      'FINAL,DIRECT',
+      'final,DIRECT',
     ])
     expect(plan.rules).not.toContainEqual(expect.objectContaining({ noResolve: true }))
   })
@@ -76,7 +148,7 @@ describe('Loon routing', () => {
   ] satisfies TrafficMatcherIR[])('blocks unsupported matcher $kind instead of silently dropping it', (matcher) => {
     const input = context([route('unsupported', matcher, { kind: 'direct' }, 10)])
     const rules = compileLoonRules(input)
-    expect(rules.map(serializeLoonRule)).toEqual(['FINAL,Proxy'])
+    expect(rules.map(serializeLoonRule)).toEqual(['final,Proxy'])
     expect(input.issues).toContainEqual(expect.objectContaining({
       target: 'loon', code: matcher.kind === 'asn' ? 'LOON_ROUTE_NO_RESOLVE_UNMODELED' : 'LOON_MATCHER_UNSUPPORTED', severity: 'error', entityId: 'unsupported',
     }))
@@ -104,7 +176,7 @@ describe('Loon routing', () => {
     expect(compileLoonRules(input).map(serializeLoonRule)).toEqual([
       'DOMAIN,direct.example,DIRECT',
       'DOMAIN,reject.example,REJECT',
-      'FINAL,REJECT',
+      'final,REJECT',
     ])
   })
 })

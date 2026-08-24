@@ -4,25 +4,24 @@ import { loonIssue } from './errors'
 import type { LoonParameter, LoonProxy } from './model'
 
 /**
- * This is deliberately a Loon-owned cipher boundary.  The Loon manual gives
- * examples for these legacy ciphers, but does not establish support for newer
- * target-specific methods such as Shadowsocks 2022.
+ * Only values shown in the pinned first-party Shadowsocks examples are
+ * accepted. SSR examples and other clients are not capability evidence for
+ * the Loon Shadowsocks node grammar.
+ * Evidence: LoonManual commit 4311d0030fe3065d4664b403a32010f083b99273,
+ * docs/cn/node.md#L43-L48.
  */
 export const LOON_SHADOWSOCKS_CIPHERS = new Set([
   'aes-128-gcm',
-  'aes-192-gcm',
-  'aes-256-gcm',
   'chacha20',
-  'chacha20-ietf',
-  'chacha20-ietf-poly1305',
-  'xchacha20-ietf-poly1305',
-  'aes-128-cfb',
-  'aes-192-cfb',
-  'aes-256-cfb',
 ])
 
-const LOON_VMESS_SECURITY = new Set(['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none'])
-const SIMPLE_OBFS_NAMES = new Set(['simple-obfs', 'obfs', 'obfs-local'])
+/**
+ * VMess examples in the pinned manual directly show only aes-128-gcm.
+ * Evidence: LoonManual commit 4311d0030fe3065d4664b403a32010f083b99273,
+ * docs/cn/node.md#L72-L94.
+ */
+export const LOON_VMESS_SECURITY = new Set(['aes-128-gcm'])
+const SIMPLE_OBFS_NAMES = new Set(['simple-obfs'])
 
 export function checkLoonProxy(endpoint: ResolvedProxyEndpointIR, sourceId = endpoint.id): CompatibilityIssue[] {
   const issues: CompatibilityIssue[] = []
@@ -350,7 +349,12 @@ function lowerSimpleObfs(plugin: Extract<ResolvedProxyEndpointIR, { protocol: 's
 }
 
 function isSafeValue(value: string) {
-  return Boolean(value) && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029,="\\]/.test(value)
+  return Boolean(value)
+    && /^[\x20-\x7e]+$/.test(value)
+    && value === value.trim()
+    && !/[,="\\]/.test(value)
+    && !/^(?:#|;|\/\/)/.test(value)
+    && !/\s(?:#|;|\/\/)/.test(value)
 }
 
 function isSafeServer(value: string) {
@@ -358,6 +362,6 @@ function isSafeServer(value: string) {
 }
 
 function isSafePolicyName(value: string) {
-  return Boolean(value) && value === value.trim() && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029,=\\"]/.test(value)
+  return Boolean(value) && /^[\x20-\x7e]+$/.test(value) && value === value.trim() && !/[,=\\"]/.test(value)
     && !/^(?:#|;|\/\/)/.test(value) && !/\s(?:#|;|\/\/)/.test(value)
 }

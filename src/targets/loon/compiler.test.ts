@@ -52,7 +52,7 @@ describe('Loon compiler foundation', () => {
     const result = success(ir)
     expect(result.content).toContain('[General]\n\n[Proxy]\nProxy A = http,proxy-a.example.invalid,8080')
     expect(section(result.content, 'Proxy Group')).toEqual(['Proxy = select,Proxy A'])
-    expect(section(result.content, 'Rule')).toEqual(['DOMAIN-SUFFIX,example.invalid,Proxy', 'FINAL,Proxy'])
+    expect(section(result.content, 'Rule')).toEqual(['DOMAIN-SUFFIX,example.invalid,Proxy', 'final,Proxy'])
     expect(result.content.endsWith('\n')).toBe(true)
     expect(result.content).toBe(compileLoon(ir, { now: fixedNow }).content)
     expect(await new LoonCompiler(fixedNow).compile(ir)).toEqual(result)
@@ -221,10 +221,25 @@ describe('Loon compiler foundation', () => {
       { id: 'second', name: 'Second', matcher: { kind: 'domain', value: 'second.example.invalid' }, target: { kind: 'direct' }, priority: 20 },
       { id: 'first', name: 'First', matcher: { kind: 'domain', value: 'first.example.invalid' }, target: { kind: 'reject' }, priority: 10 },
     ]
-    expect(section(success(ir).content, 'Rule')).toEqual(['DOMAIN,first.example.invalid,REJECT', 'DOMAIN,second.example.invalid,DIRECT', 'FINAL,Proxy'])
+    expect(section(success(ir).content, 'Rule')).toEqual(['DOMAIN,first.example.invalid,REJECT', 'DOMAIN,second.example.invalid,DIRECT', 'final,Proxy'])
     const unsupported = baseIR()
     unsupported.routes = [{ id: 'port', name: 'Port', matcher: { kind: 'port', port: 443 }, target: { kind: 'direct' }, priority: 10 }]
     failure(unsupported, 'LOON_PORT_MATCHER_UNSUPPORTED')
+  })
+
+  it('fails closed for mixed domain/IP route families while keeping pure FINAL lowering valid', () => {
+    const mixed = baseIR()
+    mixed.routes = [
+      { id: 'domain', name: 'Domain', matcher: { kind: 'domain', value: 'example.invalid' }, target: { kind: 'direct' }, priority: 10 },
+      { id: 'ip', name: 'IP', matcher: { kind: 'ip-cidr', value: '192.0.2.0/24' }, target: { kind: 'reject' }, priority: 20 },
+    ]
+    const result = failure(mixed, 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')
+    expect(result.issues.filter((issue) => issue.code === 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')).toHaveLength(1)
+    expect(result.content).toBe('')
+
+    const pure = baseIR()
+    pure.routes = [{ id: 'ip', name: 'IP', matcher: { kind: 'ip-cidr', value: '192.0.2.0/24' }, target: { kind: 'direct' }, priority: 10 }]
+    expect(section(success(pure).content, 'Rule')).toEqual(['IP-CIDR,192.0.2.0/24,DIRECT', 'final,Proxy'])
   })
 
   it('keeps DNS resolver order and remains byte deterministic', () => {

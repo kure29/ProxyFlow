@@ -94,8 +94,44 @@ export function checkLoonCompatibility(
         : `Matcher "${route.matcher.kind}" is outside the lossless routing subset of this Loon foundation.`, route.id,
     ))
   }
+  validateLoonRouteOrderSemantics(ir, issues, activeStrategyIds)
   issues.push(...planLoonDns(ir.dns).issues)
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+/**
+ * Loon gives domain and IP rules special precedence that is not established to
+ * follow Universal's single priority sequence when both matcher families are
+ * present. Keep pure-family ordering lossless, but fail closed for a mixed
+ * active route set until a real-client precedence fixture proves equivalence.
+ */
+function validateLoonRouteOrderSemantics(
+  ir: Pick<ProxyFlowIR, 'routes'>,
+  issues: CompatibilityIssue[],
+  activeStrategyIds: ReadonlySet<string>,
+) {
+  let hasDomainFamily = false
+  let hasIpFamily = false
+  for (const route of ir.routes) {
+    if (route.target.kind === 'strategy' && !activeStrategyIds.has(route.target.id)) continue
+    if (isLoonDomainFamilyMatcher(route.matcher.kind)) hasDomainFamily = true
+    else if (isLoonIpFamilyMatcher(route.matcher.kind)) hasIpFamily = true
+    if (hasDomainFamily && hasIpFamily) {
+      issues.push(loonIssue(
+        'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', 'error', 'route-order',
+        'Loon domain and IP rule precedence is not proven equivalent to Universal priority when active routes mix both matcher families.',
+      ))
+      return
+    }
+  }
+}
+
+function isLoonDomainFamilyMatcher(kind: string) {
+  return kind === 'domain' || kind === 'domain-suffix' || kind === 'domain-keyword'
+}
+
+function isLoonIpFamilyMatcher(kind: string) {
+  return kind === 'ip-cidr' || kind === 'ip-cidr6' || kind === 'geo-ip'
 }
 
 function strategyProxySetRefs(strategy: StrategyIR): ProxySetRef[] {

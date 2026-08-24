@@ -13,13 +13,13 @@ function representativeProfile(): LoonProfile {
     proxies: [{
       name: 'HK Premium', type: 'http', arguments: ['proxy.example.invalid:8080'],
       parameters: [
-        { key: 'username', value: 'foo=bar' },
-        { key: 'password', value: 'quote" and \\' },
+        { key: 'username', value: 'foo' },
+        { key: 'password', value: 'secret' },
       ],
     }],
-    proxyGroups: [{ name: '选择策略', type: 'select', arguments: ['HK Premium', 'DIRECT'] }],
+    proxyGroups: [{ name: 'Select Strategy', type: 'select', arguments: ['HK Premium', 'DIRECT'] }],
     rules: [
-      { type: 'DOMAIN-SUFFIX', payload: 'example.com', policy: '选择策略' },
+      { type: 'DOMAIN-SUFFIX', payload: 'example.com', policy: 'Select Strategy' },
       { type: 'FINAL', policy: 'DIRECT' },
     ],
   }
@@ -33,14 +33,14 @@ describe('Loon serializer', () => {
       'dns-server = system,192.0.2.53',
       '',
       '[Proxy]',
-      'HK Premium = http,proxy.example.invalid:8080,username="foo=bar",password="quote\\" and \\\\"',
+      'HK Premium = http,proxy.example.invalid:8080,username=foo,password=secret',
       '',
       '[Proxy Group]',
-      '选择策略 = select,HK Premium,DIRECT',
+      'Select Strategy = select,HK Premium,DIRECT',
       '',
       '[Rule]',
-      'DOMAIN-SUFFIX,example.com,选择策略',
-      'FINAL,DIRECT',
+      'DOMAIN-SUFFIX,example.com,Select Strategy',
+      'final,DIRECT',
       '',
     ].join('\n'))
     expect(content).not.toContain('\r')
@@ -48,20 +48,24 @@ describe('Loon serializer', () => {
     expect(content.endsWith('\n\n')).toBe(false)
   })
 
-  it('uses one escaping contract for commas, equals, quotes, backslashes and Unicode', () => {
+  it('accepts only the proven simple token grammar', () => {
     expect(serializeLoonToken('plain')).toBe('plain')
-    expect(serializeLoonToken('HK, Premium')).toBe('"HK, Premium"')
-    expect(serializeLoonToken('foo=bar')).toBe('"foo=bar"')
-    expect(serializeLoonToken('a"b')).toBe('"a\\"b"')
-    expect(serializeLoonToken('a\\b')).toBe('"a\\\\b"')
-    expect(serializeLoonToken('东京')).toBe('东京')
-    expect(serializeLoonToken('')).toBe('""')
+    expect(serializeLoonToken('internal space')).toBe('internal space')
+    expect(() => serializeLoonToken('HK, Premium')).toThrow(/simple token grammar|delimiters/)
+    expect(() => serializeLoonToken('foo=bar')).toThrow(/simple token grammar|delimiters/)
+    expect(() => serializeLoonToken('a"b')).toThrow(/simple token grammar|delimiters/)
+    expect(() => serializeLoonToken('a\\b')).toThrow(/simple token grammar|delimiters/)
+    expect(() => serializeLoonToken('东京')).toThrow(/ASCII|simple token grammar/)
+    expect(() => serializeLoonToken('')).toThrow(/non-empty|simple token grammar/)
     expect(serializeLoonPolicyEntry({
-      name: 'Policy', type: 'select', arguments: ['HK, Premium', '东京'],
-    })).toBe('Policy = select,"HK, Premium",东京')
-    expect(serializeLoonRule({
-      type: 'DOMAIN-KEYWORD', payload: 'foo=bar', policy: 'HK, Premium',
-    })).toBe('DOMAIN-KEYWORD,"foo=bar","HK, Premium"')
+      name: 'Policy', type: 'select', arguments: ['Simple', 'DIRECT'],
+    })).toBe('Policy = select,Simple,DIRECT')
+    expect(() => serializeLoonPolicyEntry({
+      name: 'Policy', type: 'select', arguments: ['HK, Premium', 'DIRECT'],
+    })).toThrow()
+    expect(() => serializeLoonRule({
+      type: 'DOMAIN-KEYWORD', payload: 'foo=bar', policy: 'Policy',
+    })).toThrow()
   })
 
   it.each(['HK, Premium', 'foo=bar', 'quote"name', 'back\\slash', ' leading', 'trailing ', 'line\nfeed'])(
@@ -69,9 +73,9 @@ describe('Loon serializer', () => {
     (name) => expect(() => serializeLoonPolicyEntry({ name, type: 'select', arguments: ['DIRECT'] })).toThrow(/policy names/),
   )
 
-  it.each(['line\nfeed', 'carriage\rreturn', 'nul\u0000byte', 'tab\tvalue', 'separator\u2028value'])(
+  it.each(['line\nfeed', 'carriage\rreturn', 'nul\u0000byte', 'tab\tvalue', 'separator\u2028value', '东京']) (
     'rejects unsafe token %j',
-    (unsafe) => expect(() => serializeLoonToken(unsafe)).toThrow(/control|line-separator/),
+    (unsafe) => expect(() => serializeLoonToken(unsafe)).toThrow(/tokens|ASCII|control|line-separator/),
   )
 
   it('rejects unsafe text no matter which section would consume it', () => {

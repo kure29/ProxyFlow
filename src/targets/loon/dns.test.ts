@@ -44,8 +44,8 @@ describe('Loon DNS proven subset', () => {
   it('lowers a pure DoH default set to doh-server in declared order', () => {
     expect(line(custom([
       { id: 'one', kind: 'doh', address: 'https://192.0.2.53/dns-query' },
-      { id: 'two', kind: 'doh', address: 'https://dns.example.invalid/dns-query?edns=true' },
-    ]))).toBe('doh-server = https://192.0.2.53/dns-query,"https://dns.example.invalid/dns-query?edns=true"')
+      { id: 'two', kind: 'doh', address: 'https://dns.example.invalid/dns-query' },
+    ]))).toBe('doh-server = https://192.0.2.53/dns-query,https://dns.example.invalid/dns-query')
   })
 
   it('is deterministic without mutating resolver order', () => {

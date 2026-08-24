@@ -47,9 +47,10 @@ export function serializeLoonPolicyEntry(entry: LoonPolicyEntry) {
 }
 
 export function serializeLoonRule(rule: LoonRule) {
+  const type = rule.type === 'FINAL' ? 'final' : rule.type === 'GEOIP' ? 'geoip' : rule.type
   const components = rule.type === 'FINAL'
-    ? [rule.type, serializeLoonToken(rule.policy)]
-    : [rule.type, serializeLoonToken(rule.payload), serializeLoonToken(rule.policy), ...(rule.noResolve ? ['no-resolve'] : [])]
+    ? [type, serializeLoonToken(rule.policy)]
+    : [type, serializeLoonToken(rule.payload), serializeLoonToken(rule.policy), ...(rule.noResolve ? ['no-resolve'] : [])]
   return components.join(',')
 }
 
@@ -59,14 +60,14 @@ export function serializeLoonToken(value: LoonScalar) {
     return String(value)
   }
   if (typeof value === 'boolean') return value ? 'true' : 'false'
-  assertSafeText(value)
-  if (!needsQuoting(value)) return value
-  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+  assertSafeToken(value)
+  return value
 }
 
 export function isSafeLoonPolicyName(value: string) {
   return Boolean(value)
     && value === value.trim()
+    && isProvenAscii(value)
     && !/[,=\r\n\u0000-\u001f\u007f-\u009f\u2028\u2029"\\]/.test(value)
     && !/^(?:#|;|\/\/)/.test(value)
     && !/\s(?:#|;|\/\/)/.test(value)
@@ -77,20 +78,23 @@ function serializeSection(name: string, lines: string[]) {
 }
 
 function assertSafeKey(value: string, owner: string) {
-  assertSafeText(value)
+  assertSafeToken(value)
   if (!/^[a-z][a-z0-9-]*$/i.test(value)) throw new Error(`${owner} keys must use letters, numbers, and hyphens only.`)
 }
 
-function assertSafeText(value: string) {
-  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(value)) {
-    throw new Error('Loon tokens must not contain control or line-separator characters.')
-  }
-}
-
-function needsQuoting(value: string) {
-  return value.length === 0
+function assertSafeToken(value: string) {
+  if (!isProvenAscii(value)
+    || !value
     || value !== value.trim()
     || /[,="\\]/.test(value)
     || /^(?:#|;|\/\/)/.test(value)
-    || /\s(?:#|;|\/\/)/.test(value)
+    || /\s(?:#|;|\/\/)/.test(value)) {
+    throw new Error('Loon tokens require a non-empty printable ASCII value without delimiters, quotes, backslashes, or ambiguous comments.')
+  }
+}
+
+function isProvenAscii(value: string) {
+  // The pinned manual shows simple ASCII examples but does not prove Unicode
+  // round-tripping or an escape grammar for arbitrary token values.
+  return /^[\x20-\x7e]*$/.test(value)
 }
