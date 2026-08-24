@@ -147,13 +147,14 @@ function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentati
   if (issue.code === SURGE_SKIPPED) return presentSurgeSkipped(bucket, context)
   if (issue.code === SURGE_MATERIALIZED) return presentSurgeMaterialized(bucket, context)
   if (issue.code === MIHOMO_VARIANT) return presentMihomoVariant(bucket, context)
-  const loonKind = loonPresentationKind(issue.code)
+  const loonKind = loonPresentationKind(issue)
   if (loonKind) return presentLoon(bucket, context, loonKind)
   return presentGeneric(bucket, context)
 }
 
-function loonPresentationKind(code: string): LoonPresentationKind | undefined {
-  if (!code.startsWith('LOON_')) return undefined
+function loonPresentationKind(issue: StructuredDiagnostic): LoonPresentationKind | undefined {
+  const { code, severity } = issue
+  if (!code.startsWith('LOON_') || severity !== 'error') return undefined
   if (code === 'LOON_SERVICE_RULE_POLICY_CONFLICT') return 'serviceConflict'
   if (code === 'LOON_RULE_SOURCE_FORMAT_UNPROVEN') return 'sourceUnproven'
   if (code === 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN') return 'remoteSourceUnproven'

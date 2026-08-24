@@ -20,6 +20,20 @@ const surgeMaterialized: StructuredDiagnostic = {
   message: 'Source “Subscription” is materialized from its validated snapshot because its remote format cannot be proven for Surge.',
 }
 
+const loonRemoteProxySourceMaterialized: StructuredDiagnostic = {
+  code: 'LOON_REMOTE_PROXY_SOURCE_MATERIALIZED',
+  severity: 'info',
+  entityId: 'loon-source',
+  message: 'Source “Subscription” is materialized from its validated snapshot because its remote format cannot be proven for Loon.',
+}
+
+const loonProxySetEndpointsSkipped: StructuredDiagnostic = {
+  code: 'LOON_PROXY_SET_ENDPOINTS_SKIPPED',
+  severity: 'warning',
+  entityId: 'loon-strategy',
+  message: 'Loon can use 2 of 3 candidates. 1 incompatible endpoint was skipped.',
+}
+
 describe('human diagnostic presentation', () => {
   beforeEach(() => setCurrentLocale('en-US'))
 
@@ -63,6 +77,30 @@ describe('human diagnostic presentation', () => {
     expect(titleIndex).toBeGreaterThan(-1)
     expect(detailsIndex).toBeGreaterThan(titleIndex)
     expect(codeIndex).toBeGreaterThan(detailsIndex)
+  })
+
+  it('keeps Loon materialized-source information non-blocking and preserves its code and location', () => {
+    const presented = presentDiagnostics([loonRemoteProxySourceMaterialized], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: true,
+    })[0]
+    expect(presented.severity).toBe('info')
+    expect(presented.title).toBe('Export information')
+    expect(presented.impact).not.toContain('blocked')
+    expect(presented.technicalDetails[0].issue.code).toBe('LOON_REMOTE_PROXY_SOURCE_MATERIALIZED')
+    expect(presented.locationIssue?.entityId).toBe('loon-source')
+  })
+
+  it('keeps Loon skipped endpoints non-blocking while describing the compatibility limitation', () => {
+    const presented = presentDiagnostics([loonProxySetEndpointsSkipped], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: true,
+    })[0]
+    expect(presented.severity).toBe('warning')
+    expect(presented.title).toBe('Compatibility limitation')
+    expect(presented.description).toBe('The current target cannot preserve part of this configuration.')
+    expect(presented.impact).toBe('This warning does not block export by itself.')
+    expect(presented.impact).not.toContain('blocked')
+    expect(presented.technicalDetails[0].issue.code).toBe('LOON_PROXY_SET_ENDPOINTS_SKIPPED')
+    expect(presented.locationIssue?.entityId).toBe('loon-strategy')
   })
 
   it('collapses many Mihomo variant rows into one user-meaning group', () => {
