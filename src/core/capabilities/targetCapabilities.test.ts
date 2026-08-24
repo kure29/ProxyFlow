@@ -24,7 +24,10 @@ describe('target capability registry', () => {
   it('keeps Loon capability declarations conservative and out of product exposure', () => {
     const loon = getTargetCapabilities('loon')
     expect(PRODUCT_TARGETS).not.toContain('loon')
-    expect(loon.protocols.http.status).toBe('supported')
+    expect(loon.protocols.http).toEqual(expect.objectContaining({
+      status: 'partial', reason: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED',
+      notes: 'Bare HTTP is supported; HTTPS is limited to the validated TLS subset.',
+    }))
     expect(loon.protocols.socks5).toEqual(expect.objectContaining({ status: 'unsupported', reason: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' }))
     expect(loon.protocols.shadowsocks).toEqual(expect.objectContaining({ status: 'partial', reason: 'LOON_PROXY_CIPHER_UNSUPPORTED' }))
     expect(loon.routingMatchers.domain.status).toBe('partial')

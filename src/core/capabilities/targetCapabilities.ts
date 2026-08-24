@@ -328,7 +328,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     baselineVersion: '3.5.0 (975)',
     productStatus: 'paused',
     protocols: {
-      http: supported(),
+      http: partial('LOON_PROXY_TLS_VARIANT_UNSUPPORTED', 'Bare HTTP is supported; HTTPS is limited to the validated TLS subset.'),
       socks5: unsupported('LOON_PROXY_PROTOCOL_UNSUPPORTED'),
       shadowsocks: partial('LOON_PROXY_CIPHER_UNSUPPORTED'),
       trojan: partial('LOON_PROXY_TLS_VARIANT_UNSUPPORTED'),

@@ -595,8 +595,17 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       get().updateNodeData(chainId, { hopIds: hops })
     },
     setOutputClient: (id, client) => {
-      const labels: Record<TargetClient, string> = { mihomo: 'Mihomo', 'sing-box': 'sing-box', surge: 'Surge', loon: 'Loon', 'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash' }
-      get().updateNodeData(id, { client, title: translateCurrent('node.outputTitle', { target: labels[client] }), titleKey: undefined, compatibility: ['mihomo', 'surge', 'sing-box'].includes(client) ? 'Supported' : 'Prototype' })
+      const prototypeLabels: Record<Exclude<TargetClient, PrimaryTarget>, string> = {
+        'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash',
+      }
+      const registered = isPrimaryTarget(client)
+      const label = registered ? getTargetCapabilities(client).label : prototypeLabels[client]
+      get().updateNodeData(id, {
+        client,
+        title: translateCurrent('node.outputTitle', { target: label }),
+        titleKey: undefined,
+        compatibility: registered ? 'Supported' : 'Prototype',
+      })
     },
     setPrimaryTarget: (target) => {
       const state = get()

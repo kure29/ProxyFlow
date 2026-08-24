@@ -580,11 +580,15 @@ describe('builder store', () => {
   it('keeps low-level output edits synchronized for registered targets without registering prototype clients', () => {
     useBuilderStore.getState().setOutputClient('output', 'loon')
     expect(useBuilderStore.getState().primaryTarget).toBe('loon')
-    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'loon', compatibility: 'Supported',
+    }))
 
     useBuilderStore.getState().setOutputClient('output', 'quantumult-x')
     expect(useBuilderStore.getState().primaryTarget).toBeNull()
-    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.client).toBe('quantumult-x')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'quantumult-x', compatibility: 'Prototype',
+    }))
   })
 
   it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {
