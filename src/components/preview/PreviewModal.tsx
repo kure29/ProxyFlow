@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { deduplicateDiagnostics, diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
-import type { PrimaryTarget } from '../../core/capabilities'
+import { getTargetCapabilities, PRODUCT_TARGETS, type PrimaryTarget } from '../../core/capabilities'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
@@ -45,12 +45,11 @@ export function PreviewModal() {
     validationTarget: mode === 'ir' ? undefined : mode,
   })
   const targetState = mode === 'surge' ? surgeState : mode === 'loon' ? loonState : mihomoState
-  const loonPreviewVisible = primaryTarget === 'loon' || previewTarget === 'loon'
   const visibleTargetModes = resolveVisiblePreviewTargets(primaryTarget, previewTarget)
   useEffect(() => {
     const requestedTarget = resolvePreviewTarget(previewTarget, primaryTarget)
-    if (open) setMode(isPreviewTarget(requestedTarget) && (requestedTarget !== 'loon' || loonPreviewVisible) ? requestedTarget : 'mihomo')
-  }, [loonPreviewVisible, open, previewTarget, primaryTarget])
+    if (open) setMode(isPreviewTarget(requestedTarget) ? requestedTarget : 'mihomo')
+  }, [open, previewTarget, primaryTarget])
   useEffect(() => {
     if (!open) return
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -155,7 +154,7 @@ export function PreviewModal() {
               ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warningCount > 0 && ` ${t(warningCount === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warningCount })}`}</span>
               : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
         </div>
-        {mode === 'loon' && <div className="preview-target-paused" role="status"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: targetLabel })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
+        {shouldShowPreviewPausedWarning(mode) && <div className="preview-target-paused" role="status"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: targetLabel })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
         {mode === 'surge' && !loading && <SurgeProjectionSummary result={targetState.result} />}
         {compileSuccess && displayedSuccessIssues.length > 0 && <div className="preview-diagnostics"><DiagnosticPresentationList issues={displayedSuccessIssues} exportable entityNames={entityNames} compact /></div>}
       </div>
@@ -196,9 +195,13 @@ export function resolvePreviewTarget(previewTarget: PrimaryTarget | null, primar
 }
 
 export function resolveVisiblePreviewTargets(primaryTarget: PrimaryTarget | null, previewTarget: PrimaryTarget | null) {
-  return primaryTarget === 'loon' || previewTarget === 'loon'
-    ? (Object.keys(targetMeta) as Array<keyof typeof targetMeta>)
-    : (['mihomo', 'surge'] as const)
+  void primaryTarget
+  void previewTarget
+  return PRODUCT_TARGETS.filter((target) => Object.hasOwn(targetMeta, target))
+}
+
+export function shouldShowPreviewPausedWarning(mode: PreviewMode) {
+  return mode === 'loon' && getTargetCapabilities('loon').productStatus === 'paused'
 }
 
 function CompatibilitySummary({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {

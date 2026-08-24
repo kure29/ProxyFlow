@@ -48,12 +48,7 @@ describe('Project target compile selection', () => {
       status: 'blocked',
       diagnostics: [expect.objectContaining({ code: 'TARGET_PRODUCT_SUPPORT_PAUSED', severity: 'error' })],
     }))
-    expect(summarizePrimaryTargetHealth(compiles, 'loon')).toEqual(expect.objectContaining({
-      status: 'blocked',
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({ code: 'TARGET_PRODUCT_SUPPORT_PAUSED' }),
-      ]),
-    }))
+    expect(summarizePrimaryTargetHealth(compiles, 'loon')).toEqual({ status: 'ready', diagnostics: [] })
   })
 
   it('does not schedule hidden sing-box compilation for ordinary or historical Projects', () => {
@@ -61,7 +56,7 @@ describe('Project target compile selection', () => {
     expect(resolveProjectCompileSelection('surge')).toEqual({ activeProductTarget: 'surge', mihomo: false, surge: true, singBox: false, loon: false })
     expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false })
     expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: true, loon: false })
-    expect(resolveProjectCompileSelection('loon')).toEqual({ activeProductTarget: 'mihomo', mihomo: false, surge: false, singBox: false, loon: true })
+    expect(resolveProjectCompileSelection('loon')).toEqual({ activeProductTarget: 'loon', mihomo: false, surge: false, singBox: false, loon: true })
   })
 
   it('synthesizes a blocker when the active compiler is unavailable without a result', () => {
@@ -81,7 +76,7 @@ describe('Project target compile selection', () => {
     })
   })
 
-  it('uses the Loon compiler state for a paused internal target', () => {
+  it('uses the Loon compiler state for a supported product target', () => {
     const project = createBlankProject('loon')
     const graphResult = compileGraph(project, { validationTarget: 'loon' })
     const loonIssue = { target: 'loon' as const, code: 'LOON_PROXY_PROTOCOL_UNSUPPORTED', severity: 'error' as const, feature: 'proxy', message: 'Loon blocked this protocol.' }
@@ -94,10 +89,7 @@ describe('Project target compile selection', () => {
     }
     expect(summarizePrimaryTargetHealth(compiles, 'loon')).toEqual({
       status: 'blocked',
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({ code: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' }),
-        expect.objectContaining({ code: 'TARGET_PRODUCT_SUPPORT_PAUSED' }),
-      ]),
+      diagnostics: [expect.objectContaining({ code: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' })],
     })
     expect(summarizePrimaryTargetHealth(compiles, 'loon').diagnostics).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ target: 'mihomo' }),

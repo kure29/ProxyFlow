@@ -2718,11 +2718,6 @@
     box-shadow: 0 0 0 2px var(--color-focus-ring);
   }
 
-  .workspace-export-targets > article.workspace-export-internal-target {
-    border-color: var(--color-warning);
-    background: var(--color-warning-soft);
-  }
-
   .workspace-export-targets > button > span:not(.workspace-target-icon) {
     grid-column: 2;
     grid-row: 2;

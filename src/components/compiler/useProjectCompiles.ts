@@ -69,7 +69,7 @@ export interface PrimaryTargetHealth {
 }
 
 export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: PrimaryTarget | null): PrimaryTargetHealth {
-  if (target && target !== 'loon' && getTargetCapabilities(target).productStatus === 'paused') return {
+  if (target && getTargetCapabilities(target).productStatus === 'paused') return {
     status: 'blocked',
     diagnostics: [pausedTargetDiagnostic(target)],
   }

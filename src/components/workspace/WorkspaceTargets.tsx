@@ -102,10 +102,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
   const setToast = useBuilderStore((state) => state.setToast)
   const [copied, setCopied] = useState(false)
-  // A paused target must keep its own compiler/result identity on the internal
-  // export surface. Only ordinary product cards continue to use the active
-  // supported-target fallback.
-  const activeTarget: PrimaryTarget = primaryTarget === 'loon' ? 'loon' : resolveActiveProductTarget(primaryTarget)
+  const activeTarget: PrimaryTarget = resolveActiveProductTarget(primaryTarget)
   const pausedTarget = primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused'
   const output = nodes.find((node) => node.data.blockType === 'output' && !node.data.disabled)
   const mihomoProfile = resolveMihomoOutputProfile(output?.data.mihomoProfile)
@@ -150,7 +147,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
       <div className="workspace-export-settings">
         <section className="workspace-export-section" aria-labelledby="export-target-title">
           <header><div><h2 id="export-target-title">{t('workspace.export.targetSection')}</h2><p>{t('workspace.export.targetDescription')}</p></div></header>
-          <div className="workspace-export-targets">{primaryTarget === 'loon' && <article className="workspace-export-internal-target"><TargetArtwork target="loon" /><TargetStatus target="loon" state={compiles.loonState} active graphIssues={compiles.graphResult.issues} /></article>}{PRODUCT_TARGETS.map((target) => {
+          <div className="workspace-export-targets">{PRODUCT_TARGETS.map((target) => {
             const primary = target === activeTarget
             const targetState = stateForTarget(compiles, target)
             return <button type="button" className={primary ? 'is-primary' : ''} aria-pressed={primary} key={target} onClick={() => onSelectTarget?.(target)}>
@@ -164,7 +161,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
           {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} />}
-          <div className="workspace-export-compatibility">{primaryTarget === 'loon' && <article key="loon"><TargetArtwork target="loon" /><TargetStatus target="loon" state={compiles.loonState} active graphIssues={compiles.graphResult.issues} /></article>}{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
+          <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
         </section>
 
         <section className="workspace-export-actions" aria-labelledby="export-actions-title"><div><h2 id="export-actions-title">{t('workspace.export.actionsSection')}</h2><span className={`is-${status.kind}`}>{status.kind === 'ready' ? t('workspace.exportReady') : t('workspace.export.blocked')}</span></div><div><button type="button" className="secondary-action workspace-export-open-preview" onClick={() => onPreview(activeTarget)}><Eye size={16} />{t('workspace.export.preview')}</button><button type="button" className="primary-action workspace-export-mobile-download" disabled={!artifact} onClick={download}><Download size={16} />{t('workspace.export.download')}</button></div></section>
