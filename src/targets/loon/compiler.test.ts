@@ -124,6 +124,11 @@ describe('Loon compiler foundation', () => {
     failure(incompatible, 'LOON_PROXY_PROTOCOL_UNSUPPORTED')
   })
 
+  it('fails closed when a deserialized endpoint carries an unknown protocol', () => {
+    const ir = baseIR([{ ...http(), kind: 'wireguard', protocol: 'wireguard' } as unknown as ResolvedProxyEndpointIR])
+    failure(ir, 'LOON_STRATEGY_NO_COMPATIBLE_MEMBERS')
+  })
+
   it('does not let an unused Proxy Chain block the active compilation', () => {
     const ir = baseIR()
     ir.strategies.push({

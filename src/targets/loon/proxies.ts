@@ -72,6 +72,14 @@ export function checkLoonProxy(endpoint: ResolvedProxyEndpointIR, sourceId = end
     case 'anytls':
       add('LOON_PROXY_PROTOCOL_UNSUPPORTED', `Proxy "${endpoint.name}" uses ${endpoint.protocol}, which is outside the proven Loon foundation protocol subset.`)
       break
+    default: {
+      // Runtime callers can still hand us a deserialized IR value that is
+      // wider than the TypeScript union. Treat it as unsupported instead of
+      // allowing an unregistered endpoint to become a dangling group member.
+      const runtimeEndpoint = endpoint as unknown as { name?: unknown; protocol?: unknown }
+      add('LOON_PROXY_PROTOCOL_UNSUPPORTED', `Proxy "${String(runtimeEndpoint.name)}" uses ${String(runtimeEndpoint.protocol)}, which is not recognized by the Loon compiler.`)
+      break
+    }
   }
   return issues
 }
@@ -153,6 +161,8 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
     case 'socks5':
     case 'tuic':
     case 'anytls':
+      return undefined
+    default:
       return undefined
   }
 }
@@ -242,20 +252,28 @@ function checkTls(
   allowAlpn: boolean,
 ) {
   if (!tls) return
+  if (!Array.isArray(tls.alpn) && tls.alpn !== undefined) add(
+    'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has malformed ALPN metadata; Loon requires an explicit string-list shape.`, feature,
+  )
+  const rawAlpn = Array.isArray(tls.alpn) ? tls.alpn : undefined
+  if (rawAlpn?.some((value) => typeof value !== 'string')) add(
+    'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has a non-string ALPN token.`, feature,
+  )
+  const alpn = rawAlpn?.filter((value): value is string => typeof value === 'string')
   if (tls.enabled !== true && (tls.serverName || tls.allowInsecure || tls.alpn?.length || tls.disableSni || tls.fingerprint || tls.reality)) add(
     'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has TLS-only fields while TLS is disabled.`, feature,
   )
   if (tls.fingerprint || tls.reality || tls.disableSni) add(
     'LOON_PROXY_TLS_VARIANT_UNSUPPORTED', `Proxy "${name}" has TLS fingerprint, Reality, or disable-SNI intent that Loon's audited node syntax does not express.`, feature,
   )
-  if (tls.alpn?.length && (!allowAlpn || tls.alpn.length !== 1)) add(
+  if (alpn?.length && (!allowAlpn || alpn.length !== 1)) add(
     'LOON_PROXY_TLS_VARIANT_UNSUPPORTED',
     allowAlpn
       ? `Proxy "${name}" has multiple ALPN values, while the audited Loon syntax proves only one alpn token.`
       : `Proxy "${name}" has ALPN intent outside the audited syntax for this protocol variant.`,
     feature,
   )
-  if (tls.alpn?.some((value) => !isSafeValue(value) || value.includes(','))) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${name}" has an unsafe ALPN token.`, 'serialization')
+  if (alpn?.some((value) => !isSafeValue(value) || value.includes(','))) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${name}" has an unsafe ALPN token.`, 'serialization')
   if (tls.serverName !== undefined && !isSafeServer(tls.serverName)) add('LOON_SERIALIZER_UNSAFE_VALUE', `Proxy "${name}" has an unsafe TLS server name.`, 'serialization')
 }
 

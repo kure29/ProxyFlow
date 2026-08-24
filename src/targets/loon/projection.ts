@@ -191,7 +191,33 @@ export function loonProjectionStats(context: LoonProjectionContext): LoonProject
 }
 
 export function loonProjectionEndpointKey(endpoint: ResolvedProxyEndpointIR) {
-  return `${endpoint.id}\u0000${endpoint.name}\u0000${proxyFingerprint(endpoint)}`
+  const runtimeEndpoint = endpoint as unknown as {
+    id?: unknown
+    name?: unknown
+    protocol?: unknown
+    server?: unknown
+    port?: unknown
+  }
+  let fingerprint: string
+  try {
+    fingerprint = proxyFingerprint(endpoint)
+  } catch {
+    // A deserialized value can be wider than the typed IR union. Keep its
+    // diagnostic path structured even when the shared identity helper cannot
+    // derive protocol-specific material for it.
+    try {
+      fingerprint = JSON.stringify([
+        runtimeEndpoint.protocol,
+        runtimeEndpoint.server,
+        runtimeEndpoint.port,
+        runtimeEndpoint.id,
+        runtimeEndpoint.name,
+      ])
+    } catch {
+      fingerprint = [runtimeEndpoint.protocol, runtimeEndpoint.id, runtimeEndpoint.name].map(String).join('\u0000')
+    }
+  }
+  return `${String(runtimeEndpoint.id)}\u0000${String(runtimeEndpoint.name)}\u0000${fingerprint}`
 }
 
 function aggregateSkipReasons(skipped: LoonSkippedEndpoint[]): Array<{ code: string; label: string; count: number }> {
@@ -199,7 +225,7 @@ function aggregateSkipReasons(skipped: LoonSkippedEndpoint[]): Array<{ code: str
   for (const item of skipped) {
     const issue = primarySkipIssue(item.issues)
     const code = issue?.code ?? 'LOON_PROXY_VARIANT_UNSUPPORTED'
-    const label = code === 'LOON_PROXY_PROTOCOL_UNSUPPORTED' ? proxyProtocolLabel(item.endpoint.protocol)
+    const label = code === 'LOON_PROXY_PROTOCOL_UNSUPPORTED' ? proxyProtocolLabel(item.endpoint.protocol) ?? 'unsupported protocol'
       : code === 'LOON_PROXY_CIPHER_UNSUPPORTED' ? 'proxy cipher'
         : code === 'LOON_PROXY_TRANSPORT_UNSUPPORTED' ? 'transport' : 'endpoint variant'
     const key = `${code}\u0000${label}`

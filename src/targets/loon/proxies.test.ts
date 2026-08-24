@@ -64,6 +64,17 @@ describe('Loon proxy capability boundary', () => {
     expect(issues({ ...ss, method: 'aes-128-gcm', plugin: { name: 'v2ray-plugin', options: { mode: 'websocket' } } })).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
   })
 
+  it('fails closed for unknown protocols and malformed TLS metadata', () => {
+    const unknown = { ...http(), kind: 'wireguard', protocol: 'wireguard' } as unknown as ResolvedProxyEndpointIR
+    expect(issues(unknown)).toContain('LOON_PROXY_PROTOCOL_UNSUPPORTED')
+    expect(compileLoonProxy(unknown)).toBeUndefined()
+
+    const malformed = http({ tls: { enabled: true, alpn: 'h2' as unknown as string[] } })
+    expect(issues(malformed)).toContain('LOON_PROXY_TLS_VARIANT_UNSUPPORTED')
+    const malformedToken = http({ tls: { enabled: true, alpn: [42] as unknown as string[] } })
+    expect(issues(malformedToken)).toContain('LOON_PROXY_TLS_VARIANT_UNSUPPORTED')
+  })
+
   it('lowers Trojan TCP/WS/HTTP and blocks unsupported transport metadata', () => {
     const trojan: Extract<ResolvedProxyEndpointIR, { protocol: 'trojan' }> = {
       kind: 'trojan', protocol: 'trojan', id: 'trojan', name: 'Trojan',
