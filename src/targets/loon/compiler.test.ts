@@ -255,6 +255,33 @@ describe('Loon compiler foundation', () => {
     expect(result.content).not.toContain('/rules/mihomo/')
   })
 
+  it('compiles a Universal local-before-Remote profile end to end', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      { id: 'local', name: 'Local', matcher: { kind: 'domain', value: 'local.example.invalid' }, target: { kind: 'reject' }, priority: 10 },
+      { id: 'openai', name: 'OpenAI', matcher: { kind: 'service', serviceIds: ['openai'] }, target: { kind: 'strategy', id: 'manual' }, priority: 20 },
+    ]
+    ir.finalRoute = { target: { kind: 'direct' } }
+
+    const result = success(ir)
+    expect(section(result.content, 'Rule')).toEqual(['DOMAIN,local.example.invalid,REJECT', 'final,DIRECT'])
+    expect(section(result.content, 'Remote Rule')).toEqual([
+      'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Proxy,enabled=true',
+    ])
+  })
+
+  it('fails closed for a Universal Remote-before-local profile end to end', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [
+      { id: 'openai', name: 'OpenAI', matcher: { kind: 'service', serviceIds: ['openai'] }, target: { kind: 'reject' }, priority: 10 },
+      { id: 'local', name: 'Local', matcher: { kind: 'domain', value: 'local.example.invalid' }, target: { kind: 'direct' }, priority: 20 },
+    ]
+    ir.finalRoute = { target: { kind: 'direct' } }
+    failure(ir, 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED')
+  })
+
   it('fails closed for mixed domain/IP route families while keeping pure FINAL lowering valid', () => {
     const mixed = baseIR()
     mixed.routes = [

@@ -271,22 +271,108 @@ describe('Loon routing', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
   })
 
-  it('blocks mixed local and Remote Rule routing without treating FINAL as a conflict', () => {
+  it('allows local-before-Remote routing and keeps FINAL independent', () => {
     const services = structuredClone(serviceCatalog)
     const mixed = checkLoonCompatibility(compatibilityIR([
-      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
-      route('domain', { kind: 'domain-suffix', value: 'example.invalid' }, { kind: 'direct' }, 20),
+      route('domain', { kind: 'domain-suffix', value: 'example.invalid' }, { kind: 'direct' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 20),
     ], services))
-    expect(mixed.supported).toBe(false)
-    expect(mixed.issues).toContainEqual(expect.objectContaining({
-      code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', severity: 'error', feature: 'remote-rule-order',
-    }))
+    expect(mixed.supported).toBe(true)
+    expect(mixed.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+    expect(mixed.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
 
     const serviceOnly = checkLoonCompatibility(compatibilityIR([
       route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
     ], services))
     expect(serviceOnly.supported).toBe(true)
     expect(serviceOnly.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it.each([
+    { label: 'IP-CIDR', matcher: { kind: 'ip-cidr', value: '192.0.2.0/24' } as const },
+    { label: 'IP-CIDR6', matcher: { kind: 'ip-cidr6', value: '2001:db8::/32' } as const },
+    { label: 'GEOIP', matcher: { kind: 'geo-ip', countryCode: 'US' } as const },
+  ])('blocks active $label local plus a first-party Remote Rule at route-order boundary', ({ matcher }) => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('ip-local', matcher, { kind: 'direct' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 20),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', feature: 'route-order', entityId: 'ip-local',
+    }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('keeps the existing single mixed-family blocker when an opaque Remote Rule is also present', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('domain-local', { kind: 'domain', value: 'local.example.invalid' }, { kind: 'direct' }, 10),
+      route('ip-local', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'direct' }, 20),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 30),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues.filter((issue) => issue.code === 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')).toHaveLength(1)
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
+  })
+
+  it('blocks Remote-before-local intent as a known LOCAL_FIRST incompatibility', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
+      route('domain', { kind: 'domain-suffix', value: 'example.invalid' }, { kind: 'direct' }, 20),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', feature: 'remote-rule-order', entityId: 'openai',
+    }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('uses stable IR insertion order when local and Remote routes tie in priority', () => {
+    const services = structuredClone(serviceCatalog)
+    const localFirst = [
+      route('local', { kind: 'domain', value: 'local.example.invalid' }, { kind: 'direct' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'reject' }, 10),
+    ]
+    expect(checkLoonCompatibility(compatibilityIR(localFirst, services)).supported).toBe(true)
+
+    const remoteFirst = [localFirst[1], localFirst[0]]
+    const blocked = checkLoonCompatibility(compatibilityIR(remoteFirst, services))
+    expect(blocked.supported).toBe(false)
+    expect(blocked.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED', entityId: 'openai',
+    }))
+  })
+
+  it('allows multiple local routes before one Remote Rule without changing local order', () => {
+    const services = structuredClone(serviceCatalog)
+    const routes = [
+      route('local-late', { kind: 'domain-keyword', value: 'late' }, { kind: 'reject' }, 20),
+      route('local-early', { kind: 'domain', value: 'early.example.invalid' }, { kind: 'direct' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 30),
+    ]
+    const result = checkLoonCompatibility(compatibilityIR(routes, services))
+    expect(result.supported).toBe(true)
+    expect(result.issues.filter((issue) => issue.feature === 'remote-rule-order')).toEqual([])
+
+    const plan = planLoonRouting({ services, routes, finalRoute: { target: { kind: 'direct' } } }, new Map(), new Set())
+    expect(plan.rules.map(serializeLoonRule)).toEqual([
+      'DOMAIN,early.example.invalid,DIRECT',
+      'DOMAIN-KEYWORD,late,REJECT',
+      'final,DIRECT',
+    ])
+  })
+
+  it('allows local plus multiple same-policy Remote Rules', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('local', { kind: 'domain-suffix', value: 'local.example.invalid' }, { kind: 'direct' }, 10),
+      route('services', { kind: 'service', serviceIds: ['google', 'gemini'] }, { kind: 'direct' }, 20),
+    ], structuredClone(serviceCatalog)))
+    expect(result.supported).toBe(true)
+    expect(result.issues.filter((issue) => issue.feature === 'remote-rule-order')).toEqual([])
   })
 
   it('blocks different-policy Remote Rule subscriptions but supports multiple same-policy assets', () => {
