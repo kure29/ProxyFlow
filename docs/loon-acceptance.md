@@ -1,5 +1,6 @@
 REAL LOON IMPORT: PASSED
 REAL PROXY TRAFFIC: PASSED
+LOON SERVICE RULES: PENDING USER ACCEPTANCE
 
 # Loon Real Client Readiness
 
@@ -17,6 +18,9 @@ subset without enabling Loon on formal product surfaces.
 - Tested iOS version: **NOT RECORDED**
 - Import result: **PASSED**
 - Real proxy traffic: **PASSED**
+- Core Loon profile acceptance: **PASSED**
+- First-party Service Rules Foundation: **IMPLEMENTED**
+- First-party Service Rules real-client acceptance: **PENDING**
 
 The compiler continues to consume Universal IR through the existing graph and
 projection pipeline. Loon remains absent from Target selector, New Project,
@@ -41,6 +45,22 @@ loss. The current page therefore supersedes stale "Loon does not support" or
 `deferred` pending an IR audit and real-client acceptance. The audited
 materialized subset has now passed one real-client import and traffic check;
 Reality, SOCKS5, and AnyTLS remain intentionally deferred.
+
+The first-party Service Rules evidence is a separate three-source chain:
+
+- [`kure29/proxyflow-rules` commit `27d38e44282115e071d19c846c17e14e6d2e584b`](https://github.com/kure29/proxyflow-rules/commit/27d38e44282115e071d19c846c17e14e6d2e584b)
+  proves ProxyFlow's canonical service JSON, deterministic generator, validator,
+  and owned `rules/loon/*.list` assets.
+- [Current Loon Remote Rule documentation source at `65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737`](https://github.com/Loon0x00/Loon0x00.github.io/blob/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737/docs/Rule/sub_rule.md#L5-L10)
+  proves that a subscription is a remote rule collection whose lines use
+  Loon-supported rule syntax.
+- [LoonExampleConfig `example.conf` at `dfbfc0b74dd689d9d76d5b6da7fe3778791c0710`](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105)
+  proves `[Remote Rule]` and the exact
+  `URL,policy=PROXY,enabled=true` entry form.
+
+The first source owns ProxyFlow's asset URLs and content; only the Loon sources
+are authority for target syntax. None of them substitutes for the pending real
+client import, download, refresh, traffic, or failure-behavior observations.
 
 ## Checked-in Fixtures
 
@@ -232,6 +252,81 @@ and route checks remain neutral.
 
 Result: **CORE ACCEPTANCE PASSED**. Product exposure remains disabled.
 
+## Loon Service Rules Acceptance
+
+Status: **PENDING USER ACCEPTANCE**
+
+This is an independent acceptance axis. It does not change or revoke the core
+profile result above. The developer-hidden Foundation now resolves Universal
+service matchers only through ProxyFlow's owned Loon asset catalog, lowers them
+to typed `LoonRemoteRule` entries, and serializes the directly evidenced form:
+
+```ini
+[Remote Rule]
+https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Proxy,enabled=true
+```
+
+The owned target directory contains exactly `OpenAI.list`, `Claude.list`,
+`Google.list`, `Gemini.list`, `YouTube.list`, `Netflix.list`, `Disney.list`,
+`Telegram.list`, `GitHub.list`, and `Steam.list`. They are deterministically
+generated from the same ten canonical service JSON documents as the other rule
+targets. China is intentionally absent and continues to use the existing
+GEOIP/GEOSITE path outside this catalog.
+
+The checked-in developer workflow uses the sanitized OpenAI-only
+`fixtures/loon/service-rules-project.json` project and exact
+`fixtures/loon/service-rules.expected.conf` golden without fetching the remote
+asset:
+
+```bash
+npm run loon:service-rules:acceptance
+```
+
+The optional private workflow reuses the existing local subscription input,
+selects a compatible endpoint, and writes only the ignored developer artifact:
+
+```bash
+npm run loon:service-rules:acceptance:local
+```
+
+Its input remains `tmp/loon-real-subscription.txt`; successful output is
+`tmp/loon-service-rules-acceptance.conf`. It must report aggregate counts,
+diagnostic code counts, Remote Rule count, and public canonical service IDs
+only. It must never print subscription data, endpoint fields, credentials, or
+the generated configuration body, and it never imports into Loon automatically.
+
+On Loon `3.5.0 (975)`, every item below remains pending until the user records a
+real-client observation:
+
+1. The configuration imports.
+2. Loon reports no parser error.
+3. The `[Remote Rule]` resource appears.
+4. The OpenAI rule subscription downloads successfully.
+5. Its policy binding resolves to the compiled Loon policy group.
+6. OpenAI traffic uses the intended policy.
+7. Other traffic follows `FINAL`.
+8. Refreshing rule subscriptions succeeds.
+9. No policy reference is dangling.
+10. The first-party asset remains external and updateable.
+
+Not proven by this Foundation or checklist:
+
+- precedence between local `[Rule]` entries and `[Remote Rule]` resources;
+- ordering between multiple Remote Rule subscriptions with different policies;
+- overlapping Google and Gemini service ordering;
+- arbitrary interleaving according to Universal priority;
+- HTTP request details, cache/persistence, refresh cadence, and download,
+  refresh, or parse failure behavior.
+
+The compiler therefore blocks local matcher plus service combinations and
+different-policy service-route combinations with
+`LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`. Reusing one service asset with two
+policies blocks with `LOON_SERVICE_RULE_POLICY_CONFLICT`. Exact duplicate
+URL-plus-policy references are deduplicated, same-policy service assets may be
+emitted deterministically, and `FINAL` is not a conflicting local matcher.
+Custom `rule-set` routes and arbitrary remote lists remain blocked by
+`LOON_RULE_SOURCE_FORMAT_UNPROVEN`.
+
 ## Preserved Foundation Boundaries
 
 The readiness workflow does not relax any Foundation decision:
@@ -255,36 +350,48 @@ The readiness workflow does not relax any Foundation decision:
 - proxy chains remain unproven;
 - DoT and mixed encrypted/traditional DNS remain unsupported;
 - native Remote Proxy Source format remains unproven;
-- Service Rules remain unproven.
+- first-party Service Rules lowering is implemented, but its real-client
+  import, load, refresh, failure, and precedence evidence remains pending.
 
 Existing diagnostics remain visible, including
 `LOON_PROXY_PROTOCOL_UNSUPPORTED`, `LOON_PROXY_CIPHER_UNSUPPORTED`,
 `LOON_PROXY_VARIANT_UNSUPPORTED`, `LOON_PROXY_CHAIN_UNPROVEN`,
 `LOON_DNS_DOT_UNSUPPORTED`, `LOON_DNS_MIXED_SEMANTICS_UNSUPPORTED`,
-`LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN`, and
-`LOON_SERVICE_RULE_SOURCE_UNPROVEN`.
+`LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN`,
+`LOON_RULE_SOURCE_FORMAT_UNPROVEN`,
+`LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`,
+`LOON_SERVICE_RULE_SOURCE_MISSING`,
+`LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, and
+`LOON_SERVICE_RULE_POLICY_CONFLICT`.
 
-## Service Rules Research
+## Service Rules Foundation
 
-Pinned LoonManual commit
-[`4311d0030fe3065d4664b403a32010f083b99273`](https://github.com/Loon0x00/LoonManual/commit/4311d0030fe3065d4664b403a32010f083b99273)
-was audited for `sub_rule.md`, `rule.md`, `scheme.md`, and `general.md`.
+The previous research blocker has been narrowed rather than broadly removed.
+At `proxyflow-rules` commit `27d38e4`, `sources/services/*.json` is the canonical
+source for all ten services, `scripts/generate-rules.mjs` deterministically
+creates `rules/loon/*.list`, and `scripts/validate-rules.mjs` checks the exact
+file matrix, generated freshness, rule syntax, and semantic parity. The
+ProxyFlow catalog now registers those owned Loon assets without copying their
+bodies or rule counts into the target adapter.
 
-`sub_rule.md` proves a URL-plus-policy example for a collection of Loon-type
-rules. It does not define a canonical ProxyFlow artifact, matcher parity,
-headers or content MIME, request/auth behavior, refresh cadence, persistence,
-or update/failure semantics. `scheme.md` proves user-triggered
-`loon://import` and `loon://update` actions, not native rule-provider behavior.
-The existing asset catalog registers Mihomo YAML and Surge LIST assets only;
-there is no Loon asset. Do not copy Surge URLs or infer a Loon format.
+The current Loon Remote Rule page at source commit `65292c2` proves the remote
+collection and policy relationship. LoonExampleConfig commit `dfbfc0b` proves
+the `[Remote Rule]` section and `URL,policy=PROXY,enabled=true`. The serializer
+uses only that named-policy and enabled form; it does not infer `tag`, interval,
+format, behavior, path, type, or any general escaping grammar.
 
-Keep `LOON_SERVICE_RULE_SOURCE_UNPROVEN` until all of the following exist:
+Resolution fails closed with distinct diagnostics:
 
-- a checked-in Loon rule-list artifact and deterministic generator;
-- canonical matcher-parity tests;
-- proven remote URL syntax and update/failure semantics;
-- real-client import, refresh, and failure evidence;
-- ProxyFlow asset-catalog registration after the evidence is complete.
+- `LOON_SERVICE_RULE_NOT_FOUND` when the referenced service is absent from IR;
+- `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED` for historical China references;
+- `LOON_SERVICE_RULE_SOURCE_MISSING` when a catalog service lacks an owned
+  Loon asset.
+
+This evidence is sufficient for the checked-in Foundation and sanitized
+compiler acceptance. It is not evidence that Loon has accepted, fetched,
+refreshed, cached, or recovered from failure for these particular resources.
+Those observations remain **PENDING USER ACCEPTANCE**. User-provided arbitrary
+rule sources remain outside the owned path and fail closed.
 
 ## Mixed Precedence Research
 
@@ -305,7 +412,9 @@ These cases are intentionally not auto-enabled by the fixture:
 - comma, quote, and backslash values outside the explicitly proven HTTP
   username form (and equals outside the fixed quoted credential subset);
 - mixed domain/IP precedence;
-- native remote proxy and Service Rules sources.
+- native remote proxy sources and arbitrary remote rule sources;
+- first-party Remote Rule loading, refresh, persistence, and failure behavior;
+- local-vs-remote and different-policy Remote Rule precedence.
 
 Each requires pinned first-party syntax plus real-client acceptance before the
 Foundation grammar or capability boundary can be widened.

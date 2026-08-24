@@ -6,7 +6,7 @@ import { checkLoonCompatibility } from './compatibility'
 import { createLoonContext } from './context'
 import { planLoonDns } from './dns'
 import { loonIssue } from './errors'
-import { compileLoonRules } from './routing'
+import { compileLoonRouting } from './routing'
 import { serializeLoonProfile } from './serializer'
 import { compileLoonStrategies } from './strategies'
 import { createLoonProjectionContext, loonProjectionStats, type LoonProjectionContext } from './projection'
@@ -28,7 +28,7 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
 
   const context = createLoonContext(ir, issues, projection)
   compileLoonStrategies(context)
-  const rules = compileLoonRules(context)
+  const routing = compileLoonRouting(context)
   const dns = planLoonDns(ir.dns)
   issues.push(...dns.issues)
   if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
@@ -39,7 +39,8 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
       general: dns.general,
       proxies: context.proxies,
       proxyGroups: context.proxyGroups,
-      rules,
+      rules: routing.rules,
+      remoteRules: routing.remoteRules,
     })
   } catch (error) {
     issues.push(loonIssue(

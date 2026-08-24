@@ -1,0 +1,114 @@
+{
+  "version": 2,
+  "id": "loon-service-rules-acceptance",
+  "name": "Loon Service Rules Acceptance Fixture",
+  "primaryTarget": "mihomo",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "services": [
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "category": "ai",
+      "description": "Sanitized first-party service fixture",
+      "ruleSources": [
+        {
+          "id": "proxyflow-openai",
+          "provider": "remote",
+          "format": "yaml",
+          "behavior": "classical",
+          "url": "https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/mihomo/OpenAI.yaml",
+          "ruleCount": 20
+        }
+      ],
+      "defaultMatchers": ["DOMAIN-SUFFIX"]
+    }
+  ],
+  "outputs": [
+    { "id": "loon-output-definition", "target": "loon", "label": "Loon", "status": "coming-soon" }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "service-rule-source",
+        "type": "block",
+        "position": { "x": 0, "y": 0 },
+        "data": {
+          "blockType": "subscription",
+          "category": "source",
+          "title": "Sanitized Acceptance Source",
+          "subtitle": "Developer-only fixture",
+          "icon": "radio",
+          "enabled": true,
+          "subscriptionInputKind": "paste",
+          "subscriptionContent": "proxies:\n  - name: Fixture HTTP\n    type: http\n    server: fixture-http.example.invalid\n    port: 8080\n"
+        }
+      },
+      {
+        "id": "service-proxy",
+        "type": "block",
+        "position": { "x": 320, "y": 0 },
+        "data": {
+          "blockType": "fixed-proxy",
+          "category": "strategy",
+          "title": "Service Proxy",
+          "subtitle": "First compatible endpoint",
+          "icon": "pin",
+          "proxyId": "__FIRST_COMPATIBLE__"
+        }
+      },
+      {
+        "id": "openai-route",
+        "type": "block",
+        "position": { "x": 640, "y": 0 },
+        "data": {
+          "blockType": "service-rule",
+          "category": "routing",
+          "title": "OpenAI",
+          "subtitle": "First-party Loon Remote Rule",
+          "icon": "route",
+          "routeMatcherKind": "service",
+          "services": ["openai"],
+          "targetKind": "strategy",
+          "targetId": "service-proxy",
+          "targetLabel": "Service Proxy",
+          "routePriority": 10
+        }
+      },
+      {
+        "id": "final",
+        "type": "block",
+        "position": { "x": 640, "y": 180 },
+        "data": {
+          "blockType": "final",
+          "category": "routing",
+          "title": "Final",
+          "subtitle": "Remaining traffic uses DIRECT",
+          "icon": "corner-down-right",
+          "targetKind": "direct",
+          "targetId": "DIRECT",
+          "targetLabel": "DIRECT",
+          "protected": true
+        }
+      },
+      {
+        "id": "loon-output",
+        "type": "block",
+        "position": { "x": 960, "y": 0 },
+        "data": {
+          "blockType": "output",
+          "category": "output",
+          "title": "Loon Service Rules Output",
+          "subtitle": "Developer-only",
+          "icon": "package-check",
+          "client": "loon",
+          "compatibility": "Pending user acceptance"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "source-fixed", "source": "service-rule-source", "target": "service-proxy", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "route-fixed", "source": "openai-route", "target": "service-proxy", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "fixed-output", "source": "service-proxy", "target": "loon-output", "type": "smoothstep", "data": { "semantic": "output" } }
+    ]
+  }
+}

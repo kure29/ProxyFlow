@@ -19,12 +19,17 @@ The developer-only real-client preparation workflow is documented in
   `4` intentionally skipped, `0` blockers)
 - Real Loon client import: **PASSED** on Loon `3.5.0 (975)`
 - Real proxy traffic: **PASSED**
+- First-party Service Rules Foundation: **IMPLEMENTED**
+- First-party Service Rules real-client acceptance: **PENDING**
 - Tested iOS version: **NOT RECORDED**
 - Product exposure: **NOT ENABLED**
 
-The client result validates the materialized subset represented by the profile;
-it does not widen the deferred protocol, routing, serializer, Service Rules,
-or native remote-source boundaries below.
+The recorded client result validates the core materialized subset represented
+by the accepted profile. First-party Service Rules are a separate acceptance
+axis: their typed lowering is implemented, but client import, resource loading,
+refresh, failure behavior, and precedence remain pending or blocked as stated
+below. Neither axis widens the deferred protocol, serializer, arbitrary remote
+source, or product-exposure boundaries.
 
 The intended pipeline is:
 
@@ -58,6 +63,19 @@ does not, by itself, prove that ProxyFlow's Universal IR preserves every field
 or that this adapter has a lossless lowering; those remain separate decisions
 below.
 
+The Service Rules evidence is independently pinned. ProxyFlow's owned rule
+repository was audited at
+[`27d38e44282115e071d19c846c17e14e6d2e584b`](https://github.com/kure29/proxyflow-rules/commit/27d38e44282115e071d19c846c17e14e6d2e584b).
+Its canonical JSON, generator, validator, and generated `rules/loon/*.list`
+matrix establish the content and URLs of ProxyFlow's ten first-party assets.
+The current Loon rule-subscription documentation is pinned through its
+first-party site source at
+[`65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737`](https://github.com/Loon0x00/Loon0x00.github.io/commit/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737),
+and the full-profile syntax example is pinned to LoonExampleConfig commit
+[`dfbfc0b74dd689d9d76d5b6da7fe3778791c0710`](https://github.com/Loon0x00/LoonExampleConfig/commit/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710).
+These sources have different ownership: `proxyflow-rules` proves our asset
+generation, while the two Loon sources prove the client configuration syntax.
+
 | Official page | Evidence used in this audit |
 | --- | --- |
 | [node.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/node.md#L15-L39) | Protocol inventory: Shadowsocks, SSR, VMess, VLESS, Trojan, HTTP/HTTPS, WireGuard, Hysteria2, and custom JS. |
@@ -75,6 +93,9 @@ below.
 | [general.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/general.md#L14-L77) | `[General]` DNS keys, `proxy-test-url`, and resource-parser. |
 | [scheme.md](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/scheme.md#L21-L26) | Remote config/node/rule import links; this is not a proof of a target-native proxy source format. |
 | [Current Node page](https://nsloon.app/docs/Node/) (retrieved 2026-08-24) | Current first-party protocol inventory and exact node examples. It is capability evidence, not automatic Universal-IR mapping or real-client acceptance evidence. |
+| [Current Remote Rule page source](https://github.com/Loon0x00/Loon0x00.github.io/blob/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737/docs/Rule/sub_rule.md#L5-L10) | A rule subscription is a remote rule collection whose lines use Loon-supported rule syntax; the page shows URL-plus-policy subscription syntax. |
+| [LoonExampleConfig `example.conf`](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) | First-party full-profile evidence for `[Remote Rule]` and the exact `URL,policy=PROXY,enabled=true` entry form. |
+| [`proxyflow-rules` architecture](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/README.md#L17-L29) | Ten service JSON documents are the canonical source for generated Loon LIST assets. Generator and validator evidence is pinned separately below. |
 
 The page examples are normative evidence for the spelling and presence of a
 field, but an example is not an allowlist. In particular, the node page does
@@ -184,8 +205,8 @@ reuse the Surge evaluator.
 | Port | Loon has `DEST-PORT` and `SRC-PORT`, including ranges and open intervals. | `PortMatcherIR` carries only one number and no direction/range. Treat it as destination-only only if the existing Universal contract is explicitly documented; source/range forms block. | Conditional | `LOON_PORT_MATCHER_UNSUPPORTED` | [port_rule.md#L1-L18](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/port_rule.md#L1-L18) |
 | Logical rules | Loon supports nested `AND`, `OR`, and `NOT`. | IR has no logical matcher tree. | Unsupported | `LOON_LOGICAL_RULE_UNSUPPORTED` (reserved) | [logic_rule.md#L1-L27](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/logic_rule.md#L1-L27) |
 | Protocol / URL / User-Agent | Loon has protocol rules and HTTP URL/UA rules. | No corresponding Universal matcher types. | Unsupported | `LOON_MATCHER_UNSUPPORTED` | [protocol_rule.md#L1-L8](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/protocol_rule.md#L1-L8), [http_rule.md#L1-L12](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/http_rule.md#L1-L12) |
-| Rule Set / remote list | A URL ending in a Loon rule list can be assigned a policy. | `RuleSourceIR` can retain remote URL/format, but current first-party assets expose only Mihomo YAML and Surge LIST; no Loon artifact or update/failure contract is proven. | Unproven | `LOON_RULE_SOURCE_FORMAT_UNPROVEN` | [sub_rule.md#L1-L5](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/sub_rule.md#L1-L5) |
-| First-party Service Rules | Loon's remote rule-list syntax can carry a URL and policy. | `kure29/proxyflow-rules` currently has no audited Loon artifact in `src/data/serviceRuleAssets.ts`; do not copy Surge `.list` URLs. The current adapter blocks service matcher routes entirely; inline service lowering is follow-up work. | Unproven | `LOON_SERVICE_RULE_SOURCE_UNPROVEN` | [sub_rule.md#L1-L5](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/sub_rule.md#L1-L5) |
+| Arbitrary Rule Set / remote list | A Loon rule subscription carries a URL and policy, and each downloaded line must use Loon-supported rule syntax. | `RuleSourceIR` may contain a user-controlled URL and format whose ownership, canonical grammar, request behavior, refresh behavior, and failure semantics are not proven. Never treat an arbitrary `.list` as an owned Service Rule. | Unproven | `LOON_RULE_SOURCE_FORMAT_UNPROVEN` | [Current Remote Rule page source](https://github.com/Loon0x00/Loon0x00.github.io/blob/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737/docs/Rule/sub_rule.md#L5-L10) |
+| First-party Service Rules | Loon documents remote rule collections, and its full-profile example uses `[Remote Rule]` with `URL,policy=PROXY,enabled=true`. | Resolve only the ten owned `kure29/proxyflow-rules/rules/loon/*.list` assets from the central catalog, lower each service reference to a typed `LoonRemoteRule`, and serialize no extra remote options. Missing, legacy China, ordering, and policy-conflict cases fail closed. | Foundation implemented; real-client acceptance pending | `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_SERVICE_RULE_POLICY_CONFLICT` | [generated Loon matrix](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/generate-rules.mjs#L129-L209), [validator](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/validate-rules.mjs#L161-L218), [Loon example](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) |
 | Rule order | Loon gives domain/IP rules special matching behavior and otherwise uses configuration order. | Universal routes carry explicit priority/insertion order. Sorting by matcher type is forbidden. Pure domain-family and pure IP-family sets preserve Universal priority; mixed family precedence is not proven. | Conditional | `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP routes | [rule.md#L5-L11](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/rule.md#L5-L11) |
 
 The route compiler preserves Universal priority order for every emitted pure
@@ -196,6 +217,28 @@ rule. The serializer uses the official example spellings `geoip` and `final`
 for those two rule tokens while retaining uppercase internal model types. A
 real-client precedence fixture is required before mixed-family routes can be
 admitted.
+
+Service matcher lowering follows a separate typed pipeline:
+
+```text
+Universal IR service matcher -> first-party Loon asset resolver
+    -> LoonRemoteRule -> deterministic [Remote Rule] serializer
+```
+
+The owned matrix contains `OpenAI.list`, `Claude.list`, `Google.list`,
+`Gemini.list`, `YouTube.list`, `Netflix.list`, `Disney.list`, `Telegram.list`,
+`GitHub.list`, and `Steam.list`. Each is generated from the same canonical
+service JSON as the other rule targets; China is intentionally absent. Exact
+duplicate URL-plus-policy references are deduplicated. Reusing one asset with
+different policies blocks with `LOON_SERVICE_RULE_POLICY_CONFLICT`.
+
+Section precedence is not inferred. A service route combined with a non-service
+local matcher, or multiple service routes resolving to different effective
+policies, blocks with `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`. Multiple
+owned service assets may be emitted when they all resolve to the same policy;
+`FINAL` is not considered a conflicting local matcher. This does not prove
+ordering between `[Rule]` and `[Remote Rule]`, disjointness between service
+assets, or arbitrary interleaving by Universal priority.
 
 ## DNS matrix
 
@@ -240,22 +283,52 @@ Remote mode currently reports `LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN`.
 `ProviderSourceIR` and imported configs are not treated as Loon-native remote
 sources. The compiler does not fetch URLs or parse subscriptions.
 
-For first-party Service Rules, `sub_rule.md` proves a URL-plus-policy list
-syntax, but the repository's service catalog currently provides only Mihomo and
-Surge artifacts. Until `kure29/proxyflow-rules` publishes and documents a Loon
-artifact, service routing remains unproven and reports
-`LOON_SERVICE_RULE_SOURCE_UNPROVEN`.
+First-party Service Rules are not `RemoteProxySourceIR` and are not the arbitrary
+`rule-set` path. At audited `proxyflow-rules` commit `27d38e4`, the ten
+`sources/services/*.json` documents deterministically generate a policy-free
+Loon LIST matrix under `rules/loon/`; validation checks the exact file matrix,
+generated bytes, and semantic parity. ProxyFlow resolves those owned assets
+through the central service catalog and emits their public `main` URLs so the
+resource remains externally updateable. It does not copy rule bodies, fetch the
+URLs during compilation, or accept a user-controlled substitute.
+
+The current first-party Loon docs and full-profile example directly support the
+least expressive typed form:
+
+```ini
+[Remote Rule]
+https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Proxy,enabled=true
+```
+
+The compiler does not emit `tag`, `interval`, `update-interval`, `format`,
+`behavior`, `path`, or `type`. A service missing from the IR, a legacy China
+reference, or a catalog entry without an owned Loon asset respectively reports
+`LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, or
+`LOON_SERVICE_RULE_SOURCE_MISSING`. Arbitrary remote rule lists remain blocked
+by `LOON_RULE_SOURCE_FORMAT_UNPROVEN`. Real-client import, resource download,
+refresh, persistence, request behavior, and failure semantics for the owned
+assets are still pending acceptance; implementation does not turn those
+unknowns into capability claims.
 
 ## Serialization and determinism
 
 The serializer must produce UTF-8, LF line endings, deterministic section and
 entry order, and exactly one trailing newline. The target baseline uses
-`[General]`, `[Proxy]`, `[Proxy Group]`, and `[Rule]`; `[General]`, group, and
-rule section evidence is explicit in the audited pages, while the node examples
-imply `[Proxy]` and the readiness record now includes one successful client
-import. This does not make the adapter product-ready. Section names are based
-on the Loon manual, not copied from Surge
+`[General]`, `[Proxy]`, `[Proxy Group]`, `[Rule]`, and `[Remote Rule]` in that
+order. `[General]`, group, rule, and Remote Rule evidence is explicit in the
+audited pages or first-party full-profile example, while the node examples
+imply `[Proxy]` and the readiness record includes one successful core client
+import. The Remote Rule addition has not yet passed its separate client
+acceptance. Section names are based on Loon sources, not copied from Surge
 field semantics ([`general.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/general.md#L1-L20), [`policygroup.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/policygroup.md#L1-L6), [`plugin.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/plugin.md#L18-L33)).
+
+`LoonRemoteRule` is a typed model with `url`, `policy`, and literal
+`enabled: true`; it is not an arbitrary serialized line. Its URL must be an
+absolute HTTPS URL with no credentials, comma, quote, backslash, whitespace, or
+control characters. Its policy passes through the same safe policy-reference
+grammar used by local rules and groups. The serializer emits exactly
+`URL,policy=<policy>,enabled=true` and never quotes, escapes, renames, or
+transliterates the policy.
 
 The official examples are comma-delimited and quote a fixed set of passwords
 and UUIDs, with one explicit comma-containing HTTP username. Neither the
@@ -312,7 +385,8 @@ Currently emitted by `src/targets/loon`:
 - `LOON_VMESS_VARIANT_UNSUPPORTED`, `LOON_VLESS_VARIANT_UNSUPPORTED`, `LOON_HYSTERIA2_VARIANT_UNSUPPORTED`
 - `LOON_STRATEGY_NO_COMPATIBLE_MEMBERS`, `LOON_FIXED_PROXY_UNRESOLVED`, `LOON_STRATEGY_CYCLE`, `LOON_STRATEGY_REFERENCE_NOT_FOUND`, `LOON_TARGET_REFERENCE_NOT_FOUND`
 - `LOON_STRATEGY_TEST_URL_INVALID`, `LOON_STRATEGY_INTERVAL_INVALID`, `LOON_STRATEGY_TOLERANCE_INVALID`, `LOON_FALLBACK_TOLERANCE_UNSUPPORTED`, `LOON_LOAD_BALANCE_CONSISTENT_HASH_UNSUPPORTED`, `LOON_LOAD_BALANCE_ALGORITHM_UNPROVEN`, `LOON_PROXY_CHAIN_UNPROVEN`
-- `LOON_ROUTE_PRIORITY_INVALID`, `LOON_MATCHER_UNSUPPORTED`, `LOON_PORT_MATCHER_UNSUPPORTED`, `LOON_ROUTE_NO_RESOLVE_UNMODELED`, `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`, `LOON_RULE_SOURCE_FORMAT_UNPROVEN`, `LOON_SERVICE_RULE_SOURCE_UNPROVEN`
+- `LOON_ROUTE_PRIORITY_INVALID`, `LOON_MATCHER_UNSUPPORTED`, `LOON_PORT_MATCHER_UNSUPPORTED`, `LOON_ROUTE_NO_RESOLVE_UNMODELED`, `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`, `LOON_RULE_SOURCE_FORMAT_UNPROVEN`
+- `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_SERVICE_RULE_POLICY_CONFLICT`
 - `LOON_DNS_CUSTOM_EMPTY`, `LOON_DNS_RESOLVER_ID_DUPLICATE`, `LOON_DNS_RESOLVER_DUPLICATE`, `LOON_DNS_RESOLVER_ADDRESS_INVALID`, `LOON_DNS_RESOLVER_SCHEME_MISMATCH`, `LOON_DNS_DOT_UNSUPPORTED`, `LOON_DNS_UDP_PORT_UNPROVEN`, `LOON_DNS_IPV6_UDP_UNPROVEN`, `LOON_DNS_UDP_HOSTNAME_UNSUPPORTED`, `LOON_DNS_DIRECT_RESOLVER_UNSUPPORTED`, `LOON_DNS_FALLBACK_RESOLVER_UNSUPPORTED`, `LOON_DNS_RESOLVER_ROLE_UNSUPPORTED`, `LOON_DNS_MIXED_SEMANTICS_UNSUPPORTED`
 - `LOON_POLICY_NAME_RESERVED`, `LOON_POLICY_NAME_DUPLICATE`
 
@@ -343,8 +417,10 @@ phase:
 - logical, protocol, URL, and User-Agent matcher trees;
 - DoQ and DoH3 resolver kinds plus role/fallback semantics;
 - a target-neutral remote source content-format contract;
-- a formal, tested Loon escaping grammar and a first-party Loon service-rule
-  artifact.
+- a formal, tested Loon escaping grammar;
+- real-client evidence for Service Rule import, resource loading, refresh,
+  persistence, request/failure behavior, local-vs-remote precedence, and
+  different-policy Remote Rule ordering.
 
 Until those requirements are proven and modeled, the corresponding rows remain
 fail-closed. No Project schema migration, automatic Loon exposure, version

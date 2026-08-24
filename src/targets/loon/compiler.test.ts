@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DnsResolverIR, ProxyFlowIR, ResolvedProxyEndpointIR } from '../../core/ir'
 import { PROXYFLOW_IR_VERSION } from '../../core/ir'
+import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileLoon, LoonCompiler } from './compiler'
 
 const fixedNow = () => new Date('2026-08-23T00:00:00.000Z')
@@ -235,6 +236,23 @@ describe('Loon compiler foundation', () => {
     const unsupported = baseIR()
     unsupported.routes = [{ id: 'port', name: 'Port', matcher: { kind: 'port', port: 443 }, target: { kind: 'direct' }, priority: 10 }]
     failure(unsupported, 'LOON_PORT_MATCHER_UNSUPPORTED')
+  })
+
+  it('compiles an owned service route to a typed Remote Rule without copying another target URL', () => {
+    const ir = baseIR()
+    ir.services = structuredClone(serviceCatalog)
+    ir.routes = [{
+      id: 'openai', name: 'OpenAI', matcher: { kind: 'service', serviceIds: ['openai'] },
+      target: { kind: 'strategy', id: 'manual' }, priority: 10,
+    }]
+    ir.finalRoute = { target: { kind: 'direct' } }
+
+    const result = success(ir)
+    expect(section(result.content, 'Rule')).toEqual(['final,DIRECT'])
+    expect(section(result.content, 'Remote Rule')).toEqual([
+      'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Proxy,enabled=true',
+    ])
+    expect(result.content).not.toContain('/rules/mihomo/')
   })
 
   it('fails closed for mixed domain/IP route families while keeping pure FINAL lowering valid', () => {

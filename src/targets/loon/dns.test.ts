@@ -10,7 +10,7 @@ function custom(resolvers: DnsResolverIR[]): DnsIR {
 function line(dns: DnsIR | undefined) {
   const plan = planLoonDns(dns)
   expect(plan.issues).toEqual([])
-  const content = serializeLoonProfile({ general: plan.general, proxies: [], proxyGroups: [], rules: [] })
+  const content = serializeLoonProfile({ general: plan.general, proxies: [], proxyGroups: [], rules: [], remoteRules: [] })
   return content.split('\n').find((value) => /^(?:dns-server|doh-server)\s*=/.test(value))
 }
 

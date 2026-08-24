@@ -3,6 +3,7 @@ import type { LoonProfile } from './model'
 import {
   serializeLoonPolicyEntry,
   serializeLoonProfile,
+  serializeLoonRemoteRule,
   serializeLoonRule,
   serializeLoonToken,
 } from './serializer'
@@ -22,11 +23,16 @@ function representativeProfile(): LoonProfile {
       { type: 'DOMAIN-SUFFIX', payload: 'example.com', policy: 'Select Strategy' },
       { type: 'FINAL', policy: 'DIRECT' },
     ],
+    remoteRules: [{
+      url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list',
+      policy: 'Select Strategy',
+      enabled: true,
+    }],
   }
 }
 
 describe('Loon serializer', () => {
-  it('serializes the four typed sections with LF and exactly one trailing newline', () => {
+  it('serializes the five typed sections with LF and exactly one trailing newline', () => {
     const content = serializeLoonProfile(representativeProfile())
     expect(content).toBe([
       '[General]',
@@ -41,6 +47,9 @@ describe('Loon serializer', () => {
       '[Rule]',
       'DOMAIN-SUFFIX,example.com,Select Strategy',
       'final,DIRECT',
+      '',
+      '[Remote Rule]',
+      'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Select Strategy,enabled=true',
       '',
     ].join('\n'))
     expect(content).not.toContain('\r')
@@ -124,6 +133,11 @@ describe('Loon serializer', () => {
       proxies: [{ name: '香港01', type: 'http', arguments: ['proxy.example.invalid', 8080] }],
       proxyGroups: [{ name: '🇭🇰 香港 01', type: 'select', arguments: ['香港01', 'DIRECT'] }],
       rules: [{ type: 'DOMAIN', payload: 'example.invalid', policy: '🇭🇰 香港 01' }, { type: 'FINAL', policy: '香港01' }],
+      remoteRules: [{
+        url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/Claude.list',
+        policy: '🇭🇰 香港 01',
+        enabled: true,
+      }],
     }
     expect(serializeLoonProfile(profile)).toBe([
       '[General]',
@@ -138,8 +152,48 @@ describe('Loon serializer', () => {
       'DOMAIN,example.invalid,🇭🇰 香港 01',
       'final,香港01',
       '',
+      '[Remote Rule]',
+      'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/Claude.list,policy=🇭🇰 香港 01,enabled=true',
+      '',
     ].join('\n'))
   })
+
+  it('serializes DIRECT and REJECT Remote Rule policies without quotes or target-specific additions', () => {
+    const base = 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon'
+    expect(serializeLoonRemoteRule({ url: `${base}/OpenAI.list`, policy: 'DIRECT', enabled: true }))
+      .toBe(`${base}/OpenAI.list,policy=DIRECT,enabled=true`)
+    expect(serializeLoonRemoteRule({ url: `${base}/Claude.list`, policy: 'REJECT', enabled: true }))
+      .toBe(`${base}/Claude.list,policy=REJECT,enabled=true`)
+  })
+
+  it.each([
+    'http://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list',
+    'https:example.invalid/OpenAI.list',
+    'https:/example.invalid/OpenAI.list',
+    'https:///example.invalid/OpenAI.list',
+    'https://@example.invalid/OpenAI.list',
+    'https://:@example.invalid/OpenAI.list',
+    'https://user@example.invalid/OpenAI.list',
+    'https://user:password@example.invalid/OpenAI.list',
+    'https://example.invalid/OpenAI,list',
+    'https://example.invalid/OpenAI.list\nnext',
+    'https://example.invalid/OpenAI.list\rnext',
+    'https://example.invalid/OpenAI.list\u0000next',
+    'https://example.invalid/OpenAI.list\tnext',
+    'https://example.invalid/OpenAI list',
+    '/rules/loon/OpenAI.list',
+  ])('rejects unsafe Remote Rule URL %j', (url) => {
+    expect(() => serializeLoonRemoteRule({ url, policy: 'DIRECT', enabled: true })).toThrow(/Remote Rule URLs/)
+  })
+
+  it.each(['Policy,Other', 'Policy=Other', 'Policy"Other', 'Policy\\Other', 'Policy\nOther', 'Policy\u0000Other', ' Policy']) (
+    'rejects unsafe Remote Rule policy %j',
+    (policy) => expect(() => serializeLoonRemoteRule({
+      url: 'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list',
+      policy,
+      enabled: true,
+    })).toThrow(/policy references/),
+  )
 
   it.each(['line\nfeed', 'carriage\rreturn', 'nul\u0000byte', 'tab\tvalue', 'separator\u2028value', '东京']) (
     'rejects unsafe token %j',
