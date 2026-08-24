@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "metadata": { "projectId": "loon-doh-focused", "projectName": "Loon DoH focus", "projectSchemaVersion": 2 },
+  "sources": [
+    {
+      "kind": "manual-proxy",
+      "id": "doh-source",
+      "name": "DoH Fixture Source",
+      "proxies": [
+        { "kind": "http", "protocol": "http", "id": "doh-http", "name": "DoH HTTP", "server": "doh.example.invalid", "port": 8080 }
+      ]
+    }
+  ],
+  "transforms": [],
+  "strategies": [
+    { "kind": "select", "id": "doh-select", "name": "DoH Select", "candidates": [{ "kind": "source", "id": "doh-source" }] }
+  ],
+  "services": [],
+  "routes": [
+    { "id": "doh-domain", "name": "DoH Domain", "matcher": { "kind": "domain-suffix", "value": "example.invalid" }, "target": { "kind": "strategy", "id": "doh-select" }, "priority": 10 }
+  ],
+  "finalRoute": { "target": { "kind": "strategy", "id": "doh-select" } },
+  "dns": {
+    "enabled": true,
+    "mode": "custom",
+    "resolvers": [
+      { "id": "doh-one", "kind": "doh", "address": "https://dns1.example.invalid/dns-query" },
+      { "id": "doh-two", "kind": "doh", "address": "https://dns2.example.invalid/dns-query" }
+    ]
+  },
+  "outputs": [{ "id": "doh-output", "name": "Loon", "target": "loon", "enabled": true }]
+}

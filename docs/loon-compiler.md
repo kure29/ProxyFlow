@@ -6,6 +6,10 @@ fail-closed boundary for the independent `src/targets/loon` backend. It does
 not make Loon available in New Project, Target Switch, Export, or workspace
 target surfaces. There is no real-client acceptance in this phase.
 
+The developer-only real-client preparation workflow is documented in
+[`docs/loon-acceptance.md`](loon-acceptance.md); its import status remains
+`REAL LOON IMPORT: PENDING USER ACCEPTANCE`.
+
 The intended pipeline is:
 
 ```text
