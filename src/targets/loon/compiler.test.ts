@@ -61,7 +61,7 @@ describe('Loon compiler foundation', () => {
   it('lowers HTTP/HTTPS, SS, simple-obfs and Trojan in stable source order', () => {
     const ss: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS', server: 'ss.example.invalid', port: 443, method: 'aes-128-gcm', password: 'secret',
-      plugin: { name: 'simple-obfs', options: { mode: 'tls', host: 'cdn.example.invalid', uri: '/' } },
+      plugin: { name: 'simple-obfs', options: { 'obfs-name': 'tls', 'obfs-host': 'cdn.example.invalid', 'obfs-uri': '/' } },
       metadata: { compatibility: { status: 'partial', unsupportedFeatures: ['plugin:simple-obfs'] } },
     }
     const trojan: Extract<ResolvedProxyEndpointIR, { protocol: 'trojan' }> = {
@@ -75,8 +75,8 @@ describe('Loon compiler foundation', () => {
     expect(lines).toEqual([
       'Proxy A = http,proxy-a.example.invalid,8080',
       'HTTPS = https,https.example.invalid,8080,tls-name=sni.example.invalid',
-      'SS = Shadowsocks,ss.example.invalid,443,aes-128-gcm,secret,obfs-name=tls,obfs-host=cdn.example.invalid,obfs-uri=/,udp=true',
-      'Trojan = trojan,trojan.example.invalid,443,secret,udp=true',
+      'SS = Shadowsocks,ss.example.invalid,443,aes-128-gcm,"secret",obfs-name=tls,obfs-host=cdn.example.invalid,obfs-uri=/,udp=true',
+      'Trojan = trojan,trojan.example.invalid,443,"secret",udp=true',
     ])
   })
 

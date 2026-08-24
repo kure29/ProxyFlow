@@ -1,5 +1,6 @@
 import type {
   LoonGeneralEntry,
+  LoonQuotedLiteral,
   LoonPolicyEntry,
   LoonProfile,
   LoonRule,
@@ -55,6 +56,15 @@ export function serializeLoonRule(rule: LoonRule) {
 }
 
 export function serializeLoonToken(value: LoonScalar) {
+  if (typeof value === 'object') {
+    if (!isLoonQuotedLiteral(value)) {
+      throw new Error('Loon quoted literals require a valid quoted scalar value.')
+    }
+    assertSafeLoonQuotedLiteral(value.value)
+    // The pinned manual proves this fixed field form, but does not prove an
+    // escaping grammar. The value is therefore emitted exactly as validated.
+    return `"${value.value}"`
+  }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) throw new Error('Loon numeric tokens must be finite values.')
     return String(value)
@@ -62,6 +72,24 @@ export function serializeLoonToken(value: LoonScalar) {
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   assertSafeToken(value)
   return value
+}
+
+function isLoonQuotedLiteral(value: unknown): value is LoonQuotedLiteral {
+  return typeof value === 'object'
+    && value !== null
+    && (value as { kind?: unknown }).kind === 'quoted'
+    && typeof (value as { value?: unknown }).value === 'string'
+}
+
+function assertSafeLoonQuotedLiteral(value: string) {
+  if (!isProvenAscii(value)
+    || !value
+    || value !== value.trim()
+    || /[,="\\]/.test(value)
+    || /^(?:#|;|\/\/)/.test(value)
+    || /\s(?:#|;|\/\/)/.test(value)) {
+    throw new Error('Loon quoted literals require a non-empty printable ASCII value without delimiters, quotes, backslashes, control characters, Unicode, or outer whitespace.')
+  }
 }
 
 export function isSafeLoonPolicyName(value: string) {

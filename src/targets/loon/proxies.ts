@@ -1,7 +1,7 @@
 import type { ProxyTlsIR, ProxyTransportIR, ResolvedProxyEndpointIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { loonIssue } from './errors'
-import type { LoonParameter, LoonProxy } from './model'
+import type { LoonParameter, LoonProxy, LoonQuotedLiteral } from './model'
 
 /**
  * Only values shown in the pinned first-party Shadowsocks examples are
@@ -22,6 +22,10 @@ export const LOON_SHADOWSOCKS_CIPHERS = new Set([
  */
 export const LOON_VMESS_SECURITY = new Set(['aes-128-gcm'])
 const SIMPLE_OBFS_NAMES = new Set(['simple-obfs'])
+
+function quoted(value: string): LoonQuotedLiteral {
+  return { kind: 'quoted', value }
+}
 
 export function checkLoonProxy(endpoint: ResolvedProxyEndpointIR, sourceId = endpoint.id): CompatibilityIssue[] {
   const issues: CompatibilityIssue[] = []
@@ -90,7 +94,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: tls ? 'https' : 'http',
-        arguments: [endpoint.server, endpoint.port, ...(endpoint.username !== undefined ? [endpoint.username, endpoint.password ?? ''] : [])],
+        arguments: [endpoint.server, endpoint.port, ...(endpoint.username !== undefined ? [endpoint.username, quoted(endpoint.password ?? '')] : [])],
         parameters: tls ? tlsParameters(endpoint.tls, false) : [],
       }
     }
@@ -99,7 +103,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: 'Shadowsocks',
-        arguments: [endpoint.server, endpoint.port, endpoint.method, endpoint.password],
+        arguments: [endpoint.server, endpoint.port, endpoint.method, quoted(endpoint.password)],
         parameters: [
           ...(plugin.parameters ?? []),
           // Universal's normalized endpoint contract treats Shadowsocks as
@@ -113,7 +117,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: 'trojan',
-        arguments: [endpoint.server, endpoint.port, endpoint.password],
+        arguments: [endpoint.server, endpoint.port, quoted(endpoint.password)],
         parameters: [
           ...transportParameters(endpoint.transport),
           ...tlsParameters(endpoint.tls, true),
@@ -124,7 +128,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: 'vmess',
-        arguments: [endpoint.server, endpoint.port, endpoint.security, endpoint.uuid],
+        arguments: [endpoint.server, endpoint.port, endpoint.security, quoted(endpoint.uuid)],
         parameters: [
           { key: 'transport', value: endpoint.transport?.kind ?? 'tcp' },
           { key: 'alterId', value: endpoint.alterId! },
@@ -137,7 +141,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: 'VLESS',
-        arguments: [endpoint.server, endpoint.port, endpoint.uuid],
+        arguments: [endpoint.server, endpoint.port, quoted(endpoint.uuid)],
         parameters: [
           { key: 'transport', value: endpoint.transport?.kind ?? 'tcp' },
           ...transportParameters(endpoint.transport),
@@ -149,7 +153,7 @@ export function compileLoonProxy(endpoint: ResolvedProxyEndpointIR): LoonProxy |
       return {
         name: endpoint.name,
         type: 'Hysteria2',
-        arguments: [endpoint.server, endpoint.port, endpoint.password],
+        arguments: [endpoint.server, endpoint.port, quoted(endpoint.password)],
         parameters: [
           ...tlsParameters(endpoint.tls, false),
           // Hysteria2 is likewise UDP-capable in the normalized IR contract;
@@ -330,9 +334,9 @@ function lowerSimpleObfs(plugin: Extract<ResolvedProxyEndpointIR, { protocol: 's
   let uri: string | undefined
   for (const [rawKey, rawValue] of entries) {
     const key = rawKey.trim().toLocaleLowerCase()
-    const field = key === 'mode' || key === 'obfs' || key === 'obfs-name' ? 'mode'
-      : key === 'host' || key === 'obfs-host' ? 'host'
-        : key === 'uri' || key === 'path' || key === 'obfs-uri' ? 'uri' : undefined
+    const field = key === 'obfs-name' ? 'mode'
+      : key === 'obfs-host' ? 'host'
+        : key === 'obfs-uri' ? 'uri' : undefined
     if (!field || typeof rawValue !== 'string' || !rawValue) return { error: `uses simple-obfs option "${rawKey}" that cannot be mapped losslessly.` }
     if (field === 'mode') { if (mode !== undefined) return { error: 'contains duplicate obfuscation mode intent.' }; mode = rawValue.toLocaleLowerCase() }
     if (field === 'host') { if (host !== undefined) return { error: 'contains duplicate obfs-host intent.' }; host = rawValue }

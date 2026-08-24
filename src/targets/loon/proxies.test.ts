@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ResolvedProxyEndpointIR } from '../../core/ir'
 import { checkLoonProxy, compileLoonProxy, LOON_SHADOWSOCKS_CIPHERS, LOON_VMESS_SECURITY } from './proxies'
+import { serializeLoonPolicyEntry } from './serializer'
 
 const base = {
   server: 'node.example.invalid',
@@ -24,7 +25,7 @@ describe('Loon proxy capability boundary', () => {
     })
     expect(checkLoonProxy(https, 'source')).toEqual([])
     expect(compileLoonProxy(https)).toEqual({
-      name: 'HTTPS', type: 'https', arguments: [base.server, base.port, 'alice', 'secret'],
+      name: 'HTTPS', type: 'https', arguments: [base.server, base.port, 'alice', { kind: 'quoted', value: 'secret' }],
       parameters: [{ key: 'skip-cert-verify', value: true }, { key: 'tls-name', value: 'sni.example.invalid' }],
     })
   })
@@ -45,12 +46,12 @@ describe('Loon proxy capability boundary', () => {
     const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS',
       server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
-      plugin: { name: 'simple-obfs', options: 'obfs=http;obfs-host=cdn.example.invalid;obfs-uri=/tunnel' },
+      plugin: { name: 'simple-obfs', options: 'obfs-name=http;obfs-host=cdn.example.invalid;obfs-uri=/tunnel' },
       metadata: { compatibility: { status: 'partial', unsupportedFeatures: ['plugin:simple-obfs'] } },
     }
     expect(checkLoonProxy(endpoint, 'source')).toEqual([])
     expect(compileLoonProxy(endpoint)).toEqual({
-      name: 'SS', type: 'Shadowsocks', arguments: ['ss.example.invalid', 8388, 'aes-128-gcm', 'secret'],
+      name: 'SS', type: 'Shadowsocks', arguments: ['ss.example.invalid', 8388, 'aes-128-gcm', { kind: 'quoted', value: 'secret' }],
       parameters: [
         { key: 'obfs-name', value: 'http' },
         { key: 'obfs-host', value: 'cdn.example.invalid' },
@@ -86,11 +87,26 @@ describe('Loon proxy capability boundary', () => {
     expect(issues(vmess)).toContain('LOON_PROXY_CIPHER_UNSUPPORTED')
   })
 
-  it('accepts only the canonical simple-obfs plugin name', () => {
+  it.each(['obfs', 'obfs-local'] as const)('accepts only the canonical simple-obfs plugin name (%s is blocked)', (pluginName) => {
     const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
-      kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss-alias', name: 'SS Alias',
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: `ss-${pluginName}`, name: `SS ${pluginName}`,
       server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
-      plugin: { name: 'obfs-local', options: { mode: 'http' } },
+      plugin: { name: pluginName, options: { 'obfs-name': 'http' } },
+    }
+    expect(issues(endpoint)).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
+  })
+
+  it.each([
+    ['mode', 'http'],
+    ['obfs', 'http'],
+    ['host', 'cdn.example.invalid'],
+    ['uri', '/tunnel'],
+    ['path', '/tunnel'],
+  ] as const)('rejects non-canonical simple-obfs option key %s', (key, value) => {
+    const endpoint: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
+      kind: 'shadowsocks', protocol: 'shadowsocks', id: `ss-${key}`, name: `SS ${key}`,
+      server: 'ss.example.invalid', port: 8388, method: 'aes-128-gcm', password: 'secret',
+      plugin: { name: 'simple-obfs', options: { [key]: value } },
     }
     expect(issues(endpoint)).toContain('LOON_PROXY_VARIANT_UNSUPPORTED')
   })
@@ -115,7 +131,7 @@ describe('Loon proxy capability boundary', () => {
     }
     expect(checkLoonProxy(trojan, 'source')).toEqual([])
     expect(compileLoonProxy(trojan)).toEqual({
-      name: 'Trojan', type: 'trojan', arguments: ['trojan.example.invalid', 443, 'secret'],
+      name: 'Trojan', type: 'trojan', arguments: ['trojan.example.invalid', 443, { kind: 'quoted', value: 'secret' }],
       parameters: [
         { key: 'path', value: '/ws' }, { key: 'host', value: 'cdn.example.invalid' },
         { key: 'skip-cert-verify', value: true }, { key: 'tls-name', value: 'sni.example.invalid' }, { key: 'alpn', value: 'h2' },
@@ -133,7 +149,7 @@ describe('Loon proxy capability boundary', () => {
     }
     expect(checkLoonProxy(vmess, 'source')).toEqual([])
     expect(compileLoonProxy(vmess)).toEqual({
-      name: 'VMess', type: 'vmess', arguments: ['vmess.example.invalid', 443, 'aes-128-gcm', vmess.uuid],
+      name: 'VMess', type: 'vmess', arguments: ['vmess.example.invalid', 443, 'aes-128-gcm', { kind: 'quoted', value: vmess.uuid }],
       parameters: [
         { key: 'transport', value: 'ws' }, { key: 'alterId', value: 0 }, { key: 'path', value: '/' }, { key: 'host', value: 'cdn.example.invalid' },
         { key: 'over-tls', value: true }, { key: 'tls-name', value: 'sni.example.invalid' },
@@ -156,6 +172,36 @@ describe('Loon proxy capability boundary', () => {
     expect(issues({ ...vless, transport: { kind: 'xhttp', path: '/', host: 'cdn.example.invalid' } })).toContain('LOON_PROXY_TRANSPORT_UNSUPPORTED')
   })
 
+  it('serializes the audited protocol fields as exact Loon lines', () => {
+    const uuid = '52396e06-041a-4cc2-be5c-8525eb457809'
+    const endpoints: ResolvedProxyEndpointIR[] = [
+      { kind: 'http', protocol: 'http', id: 'http1', name: 'http1', server: 'example.com', port: 80, username: 'user', password: 'password' },
+      { kind: 'http', protocol: 'http', id: 'https1', name: 'https1', server: 'example.com', port: 443, username: 'user', password: 'password', tls: { enabled: true } },
+      { kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss1', name: 'ss1', server: 'example.com', port: 443, method: 'aes-128-gcm', password: 'password' },
+      { kind: 'vmess', protocol: 'vmess', id: 'vmess1', name: 'vmess1', server: 'example.com', port: 10086, uuid, security: 'aes-128-gcm', alterId: 0 },
+      { kind: 'vless', protocol: 'vless', id: 'VLESS1', name: 'VLESS1', server: 'example.com', port: 10086, uuid, security: 'none', encryption: 'none' },
+      { kind: 'trojan', protocol: 'trojan', id: 'trojan1', name: 'trojan1', server: 'example.com', port: 443, password: 'password', tls: { enabled: true } },
+      { kind: 'hysteria2', protocol: 'hysteria2', id: 'hysteria21', name: 'hysteria21', server: 'example.com', port: 443, password: 'password', tls: { enabled: true } },
+    ]
+
+    const lines = endpoints.map((endpoint) => {
+      expect(checkLoonProxy(endpoint, 'source')).toEqual([])
+      const compiled = compileLoonProxy(endpoint)
+      expect(compiled).toBeDefined()
+      return serializeLoonPolicyEntry(compiled!)
+    })
+
+    expect(lines).toEqual([
+      'http1 = http,example.com,80,user,"password"',
+      'https1 = https,example.com,443,user,"password"',
+      'ss1 = Shadowsocks,example.com,443,aes-128-gcm,"password",udp=true',
+      `vmess1 = vmess,example.com,10086,aes-128-gcm,"${uuid}",transport=tcp,alterId=0,over-tls=false`,
+      `VLESS1 = VLESS,example.com,10086,"${uuid}",transport=tcp,over-tls=false`,
+      'trojan1 = trojan,example.com,443,"password",udp=true',
+      'hysteria21 = Hysteria2,example.com,443,"password",udp=true',
+    ])
+  })
+
   it('supports minimal Hysteria2 and blocks fields outside the proven subset', () => {
     const hy2: Extract<ResolvedProxyEndpointIR, { protocol: 'hysteria2' }> = {
       kind: 'hysteria2', protocol: 'hysteria2', id: 'hy2', name: 'Hysteria2',
@@ -163,7 +209,7 @@ describe('Loon proxy capability boundary', () => {
     }
     expect(checkLoonProxy(hy2, 'source')).toEqual([])
     expect(compileLoonProxy(hy2)).toEqual({
-      name: 'Hysteria2', type: 'Hysteria2', arguments: ['hy2.example.invalid', 443, 'secret'],
+      name: 'Hysteria2', type: 'Hysteria2', arguments: ['hy2.example.invalid', 443, { kind: 'quoted', value: 'secret' }],
       parameters: [{ key: 'skip-cert-verify', value: true }, { key: 'tls-name', value: 'hy2.example.invalid' }, { key: 'udp', value: true }],
     })
     expect(issues({ ...hy2, obfs: { type: 'salamander', password: 'obfs' } })).toContain('LOON_HYSTERIA2_VARIANT_UNSUPPORTED')

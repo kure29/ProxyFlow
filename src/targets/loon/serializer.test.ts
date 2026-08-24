@@ -14,7 +14,7 @@ function representativeProfile(): LoonProfile {
       name: 'HK Premium', type: 'http', arguments: ['proxy.example.invalid:8080'],
       parameters: [
         { key: 'username', value: 'foo' },
-        { key: 'password', value: 'secret' },
+        { key: 'password', value: { kind: 'quoted', value: 'secret' } },
       ],
     }],
     proxyGroups: [{ name: 'Select Strategy', type: 'select', arguments: ['HK Premium', 'DIRECT'] }],
@@ -33,7 +33,7 @@ describe('Loon serializer', () => {
       'dns-server = system,192.0.2.53',
       '',
       '[Proxy]',
-      'HK Premium = http,proxy.example.invalid:8080,username=foo,password=secret',
+      'HK Premium = http,proxy.example.invalid:8080,username=foo,password="secret"',
       '',
       '[Proxy Group]',
       'Select Strategy = select,HK Premium,DIRECT',
@@ -66,6 +66,34 @@ describe('Loon serializer', () => {
     expect(() => serializeLoonRule({
       type: 'DOMAIN-KEYWORD', payload: 'foo=bar', policy: 'Policy',
     })).toThrow()
+  })
+
+  it('serializes a fixed quoted literal verbatim without inventing escapes', () => {
+    expect(serializeLoonToken({ kind: 'quoted', value: 'password' })).toBe('"password"')
+    expect(serializeLoonPolicyEntry({
+      name: 'HTTP Auth', type: 'http', arguments: ['example.com', 80, 'user', { kind: 'quoted', value: 'password' }],
+    })).toBe('HTTP Auth = http,example.com,80,user,"password"')
+  })
+
+  it.each([
+    '',
+    ' leading',
+    'trailing ',
+    'bad"quote',
+    'back\\slash',
+    'comma,value',
+    'foo=bar',
+    '#comment',
+    ';comment',
+    '//comment',
+    'value #comment',
+    'line\nfeed',
+    'carriage\rreturn',
+    'nul\u0000byte',
+    'tab\tvalue',
+    '东京',
+  ])('rejects unsafe fixed quoted literal value %j', (value) => {
+    expect(() => serializeLoonToken({ kind: 'quoted', value })).toThrow(/quoted literals/)
   })
 
   it.each(['HK, Premium', 'foo=bar', 'quote"name', 'back\\slash', ' leading', 'trailing ', 'line\nfeed'])(

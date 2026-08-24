@@ -1,4 +1,10 @@
-export type LoonScalar = string | number | boolean
+/** A value whose field-specific Loon syntax is an explicit quoted literal. */
+export interface LoonQuotedLiteral {
+  kind: 'quoted'
+  value: string
+}
+
+export type LoonScalar = string | number | boolean | LoonQuotedLiteral
 
 export interface LoonParameter {
   key: string
