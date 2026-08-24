@@ -47,13 +47,15 @@ describe('Workspace target status', () => {
     const mihomoState: TargetCompileState = { status: 'success', result: successResult }
     const singBoxState: TargetCompileState = { status: 'error', result: blockedResult }
     const surgeState: TargetCompileState = { status: 'error', result: surgeBlockedResult }
-    const compiles = { mihomoState, surgeState, singBoxState } as ProjectCompiles
+    const loonState: TargetCompileState = { status: 'success', result: successResult }
+    const compiles = { mihomoState, surgeState, singBoxState, loonState } as ProjectCompiles
 
     expect(targetStatus(stateForTarget(compiles, 'mihomo'), [], true)).toEqual(expect.objectContaining({ kind: 'ready' }))
     expect(targetStatus(stateForTarget(compiles, 'sing-box'), [], false)).toEqual(expect.objectContaining({ kind: 'available', errorCount: 0 }))
     expect(targetStatus(stateForTarget(compiles, 'surge'), [], false)).toEqual(expect.objectContaining({ kind: 'available', errorCount: 0 }))
     expect(targetStatus(stateForTarget(compiles, 'surge'), [], true)).toEqual(expect.objectContaining({ kind: 'blocked', errorCount: 1 }))
     expect(stateForTarget(compiles, 'mihomo').result?.stats?.proxyCount).toBe(3)
+    expect(stateForTarget(compiles, 'loon')).toBe(loonState)
   })
 
   it('distinguishes active checking from every inactive compiler state', () => {

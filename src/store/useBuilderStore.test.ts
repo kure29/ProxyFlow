@@ -341,6 +341,15 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.some((node) => node.data.blockType === 'dns')).toBe(false)
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('sing-box')
+
+    useBuilderStore.getState().createNewProject('loon')
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'loon', title: 'Loon Output',
+    }))
+    expect(useBuilderStore.getState().nodes.some((node) => node.data.blockType === 'dns')).toBe(false)
+    expect(useBuilderStore.getState().nodes.some((node) => node.data.mihomoProfile !== undefined)).toBe(false)
+    expect(useBuilderStore.getState().toProject().primaryTarget).toBe('loon')
   })
 
   it('renames a new project and preserves the trimmed name through target switches and hydration', () => {
@@ -390,7 +399,7 @@ describe('builder store', () => {
 
   it('fails closed for corrupted primary-target metadata without changing the graph', () => {
     const project = createBlankProject('mihomo') as unknown as Record<string, unknown>
-    project.primaryTarget = 'loon'
+    project.primaryTarget = 'future-target'
     const graphBefore = structuredClone(project.graph)
     useBuilderStore.getState().hydrate(project as unknown as ReturnType<typeof createBlankProject>)
     expect(useBuilderStore.getState().primaryTarget).toBeNull()
@@ -476,6 +485,60 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
   })
 
+  it('switches Mihomo → Loon → undo/redo and preserves graph plus target-native profile', () => {
+    const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7895 }
+    useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
+    const graphBeforeSwitch = {
+      nodes: structuredClone(useBuilderStore.getState().nodes),
+      edges: structuredClone(useBuilderStore.getState().edges),
+    }
+
+    useBuilderStore.getState().setPrimaryTarget('loon')
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data).toEqual(expect.objectContaining({ client: 'loon', mihomoProfile: profile }))
+    expect(useBuilderStore.getState().nodes.filter((node) => node.id !== 'output')).toEqual(graphBeforeSwitch.nodes.filter((node) => node.id !== 'output'))
+    expect(useBuilderStore.getState().edges).toEqual(graphBeforeSwitch.edges)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('mihomo')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('mihomo')
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('loon')
+  })
+
+  it('hydrates a Loon project and keeps the explicit target and output synchronized', () => {
+    const project = createBlankProject('loon')
+    const graph = structuredClone(project.graph)
+    useBuilderStore.getState().hydrate(JSON.parse(JSON.stringify(project)))
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('loon')
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graph)
+    expect(useBuilderStore.getState().toProject().version).toBe(project.version)
+  })
+
+  it.each(['surge', 'sing-box'] as const)('preserves %s ↔ Loon internal target transitions with history', (start) => {
+    const project = createBlankProject(start)
+    const graph = structuredClone(project.graph)
+    const nonOutputNodes = graph.nodes.filter((node) => node.data.blockType !== 'output')
+    useBuilderStore.getState().hydrate(project)
+
+    useBuilderStore.getState().setPrimaryTarget('loon')
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('loon')
+    expect(useBuilderStore.getState().nodes.filter((node) => node.data.blockType !== 'output')).toEqual(nonOutputNodes)
+    expect(useBuilderStore.getState().edges).toEqual(graph.edges)
+
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBe(start)
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe(start)
+    useBuilderStore.getState().redo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    useBuilderStore.getState().setPrimaryTarget(start)
+    expect(useBuilderStore.getState().primaryTarget).toBe(start)
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe(start)
+  })
+
   it('switches Mihomo → Surge → Mihomo without changing the graph or losing the Mihomo profile', () => {
     const profile = { ...createMihomoOutputProfile('desktop-tun'), mixedPort: 7894 }
     useBuilderStore.getState().updateNodeData('output', { mihomoProfile: profile })
@@ -512,6 +575,20 @@ describe('builder store', () => {
     useBuilderStore.getState().setOutputClient('output', 'sing-box')
     expect(useBuilderStore.getState().primaryTarget).toBe('sing-box')
     expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data.mihomoProfile).toEqual(profile)
+  })
+
+  it('keeps low-level output edits synchronized for registered targets without registering prototype clients', () => {
+    useBuilderStore.getState().setOutputClient('output', 'loon')
+    expect(useBuilderStore.getState().primaryTarget).toBe('loon')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'loon', compatibility: 'Supported',
+    }))
+
+    useBuilderStore.getState().setOutputClient('output', 'quantumult-x')
+    expect(useBuilderStore.getState().primaryTarget).toBeNull()
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === 'output')?.data).toEqual(expect.objectContaining({
+      client: 'quantumult-x', compatibility: 'Prototype',
+    }))
   })
 
   it('round-trips V0.8 matcher fields and route priority without a schema bump', () => {

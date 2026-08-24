@@ -1,13 +1,15 @@
 import type { CompileResult } from '../../core/compiler'
 import type { PrimaryTarget } from '../../core/capabilities'
 
+type ExportTarget = Exclude<PrimaryTarget, 'loon'>
+
 export const targetFileMeta = {
   mihomo: { extension: 'yaml', mimeType: 'text/yaml;charset=utf-8', format: 'yaml' },
   surge: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
   'sing-box': { extension: 'json', mimeType: 'application/json;charset=utf-8', format: 'json' },
 } as const
 
-export type TargetExportFormat = typeof targetFileMeta[PrimaryTarget]['format']
+export type TargetExportFormat = typeof targetFileMeta[ExportTarget]['format']
 
 export interface TargetExportArtifact {
   filename: string
@@ -17,7 +19,7 @@ export interface TargetExportArtifact {
 
 export function buildTargetExportArtifact(
   projectName: string,
-  target: PrimaryTarget,
+  target: ExportTarget,
   result: CompileResult | undefined,
 ): TargetExportArtifact | undefined {
   if (!result?.success || !result.content) return undefined

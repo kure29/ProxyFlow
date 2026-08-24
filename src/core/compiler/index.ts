@@ -15,5 +15,10 @@ if (!compilerRegistry.has('surge')) compilerRegistry.register('surge', async () 
   return new SurgeCompiler()
 })
 
+if (!compilerRegistry.has('loon')) compilerRegistry.register('loon', async () => {
+  const { LoonCompiler } = await import('../../targets/loon')
+  return new LoonCompiler()
+})
+
 export * from './compilerTypes'
 export * from './diagnostics'

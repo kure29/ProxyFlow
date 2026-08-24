@@ -31,6 +31,18 @@ describe('ProjectStorage', () => {
     expect(await storage.load()).toBeNull()
   })
 
+  it('round-trips an internal paused Loon project without changing schema or graph data', async () => {
+    const storage = new MemoryProjectStorage()
+    const project = createBlankProject('loon')
+    const graph = structuredClone(project.graph)
+    await storage.save(project)
+    const loaded = await storage.load()
+    expect(loaded?.version).toBe(project.version)
+    expect(loaded?.primaryTarget).toBe('loon')
+    expect(loaded?.graph).toEqual(graph)
+    expect(loaded?.graph.nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('loon')
+  })
+
   it('stores independent projects and keeps the selected project active across reloads', async () => {
     const storage = new MemoryProjectStorage()
     const first = createBlankProject('mihomo')
