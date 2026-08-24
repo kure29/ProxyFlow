@@ -80,11 +80,18 @@ export interface LoonFinalRule {
 
 export type LoonRule = LoonMatcherRule | LoonFinalRule
 
+export interface LoonRemoteRule {
+  url: string
+  policy: string
+  enabled: true
+}
+
 export interface LoonProfile {
   general: LoonGeneralEntry[]
   proxies: LoonProxy[]
   proxyGroups: LoonProxyGroup[]
   rules: LoonRule[]
+  remoteRules: LoonRemoteRule[]
 }
 
 export type LoonModel = LoonProfile

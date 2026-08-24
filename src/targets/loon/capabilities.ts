@@ -13,6 +13,7 @@ export interface LoonCapabilityDecision {
 
 const MANUAL = 'https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn'
 const CURRENT_NODE = 'https://nsloon.app/docs/Node/'
+const LOON_EXAMPLE_CONFIG = 'https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105'
 
 /** Target-backend evidence records; this is intentionally separate from product exposure. */
 export const LOON_CAPABILITY_MATRIX: readonly LoonCapabilityDecision[] = [
@@ -38,6 +39,7 @@ export const LOON_CAPABILITY_MATRIX: readonly LoonCapabilityDecision[] = [
   { feature: 'Proxy Chain', status: 'unproven', reason: 'No native chain syntax was established in the audited manual.', officialReference: `${MANUAL}/policygroup.md#L1-L33`, diagnostic: 'LOON_PROXY_CHAIN_UNPROVEN' },
   { feature: 'DNS', status: 'conditional', reason: 'System/bare IPv4 UDP and pure DoH are supported; DoT, roles, mixed semantics, and unmodeled encrypted kinds fail closed.', officialReference: `${MANUAL}/dns.md#L1-L33`, diagnostic: 'LOON_DNS_MIXED_SEMANTICS_UNSUPPORTED' },
   { feature: 'Routing baseline', status: 'conditional', reason: 'Pure domain-family and pure IP-family mappings preserve Universal priority; mixed domain/IP routes are blocked until real-client precedence evidence exists.', officialReference: `${MANUAL}/rule.md#L5-L11`, diagnostic: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED' },
+  { feature: 'First-party Service Rules', status: 'conditional', reason: 'Owned Loon rule assets use the evidenced Remote Rule syntax; real-client resource acceptance and local/remote or different-policy ordering remain pending and fail closed.', officialReference: LOON_EXAMPLE_CONFIG, diagnostic: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' },
   { feature: 'Remote Proxy Source', status: 'unproven', reason: 'Universal IR does not prove a target-native remote resource format or refresh contract.', officialReference: `${MANUAL}/scheme.md#L21-L26`, diagnostic: 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN' },
 ] as const
 
@@ -58,6 +60,7 @@ export const LOON_CAPABILITIES = {
   },
   strategies: { select: 'supported', 'url-test': 'supported', fallback: 'conditional', fixed: 'supported', 'load-balance-round-robin': 'supported', 'load-balance-pcc': 'unsupported', chain: 'unproven' },
   routing: ['DOMAIN', 'DOMAIN-SUFFIX', 'DOMAIN-KEYWORD', 'IP-CIDR', 'IP-CIDR6', 'GEOIP', 'FINAL'] as const,
+  serviceRules: { firstParty: 'conditional', arbitrary: 'unproven' },
   dns: ['dns-server', 'doh-server'] as const,
   shadowsocksCiphers: [...LOON_SHADOWSOCKS_CIPHERS] as const,
 } as const

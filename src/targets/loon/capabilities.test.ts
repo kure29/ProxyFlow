@@ -11,6 +11,10 @@ describe('Loon capability boundary', () => {
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'Routing baseline')?.status).toBe('conditional')
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'Routing baseline')?.diagnostic)
       .toBe('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')
+    expect(LOON_CAPABILITIES.serviceRules).toEqual({ firstParty: 'conditional', arbitrary: 'unproven' })
+    expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'First-party Service Rules')).toMatchObject({
+      status: 'conditional', diagnostic: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN',
+    })
     expect(LOON_OFFICIAL_REFERENCES.currentNode).toBe('https://nsloon.app/docs/Node/')
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'SOCKS5')?.status).toBe('deferred')
   })

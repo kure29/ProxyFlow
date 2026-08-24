@@ -1,4 +1,4 @@
-import type { ProxyFlowIR, ProxySetRef, StrategyIR } from '../../core/ir'
+import type { ProxyFlowIR, ProxySetRef, RouteTargetIR, StrategyIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { planLoonDns } from './dns'
 import { loonIssue } from './errors'
@@ -11,6 +11,7 @@ import {
   loonStrategyNoMemberIssue,
 } from './projection'
 import { isSafeLoonPolicyName } from './serializer'
+import { resolveLoonServiceRuleSource } from './serviceRules'
 
 export interface LoonCompatibilityResult {
   supported: boolean
@@ -30,6 +31,7 @@ export function checkLoonCompatibility(
   const inactivePolicyOwners = new Map<string, string>()
   const activeStrategyIds = collectActiveLoonStrategyIds(ir)
   const activeSourceIds = collectActiveSourceIds(ir, activeStrategyIds)
+  const resolvedServiceRoutes: ResolvedServiceRoute[] = []
 
   for (const source of ir.sources) {
     const active = activeSourceIds.has(source.id)
@@ -79,10 +81,16 @@ export function checkLoonCompatibility(
 
   for (const route of ir.routes) {
     if (!Number.isFinite(route.priority)) issues.push(loonIssue('LOON_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route "${route.name}" has a non-finite priority.`, route.id))
-    if (route.matcher.kind === 'service') issues.push(loonIssue(
-      'LOON_SERVICE_RULE_SOURCE_UNPROVEN', 'error', 'service-rule',
-      `Route "${route.name}" references service rules, but ProxyFlow has no audited Loon rule-provider artifact or update contract.`, route.id,
-    ))
+    if (route.matcher.kind === 'service') {
+      for (const serviceId of route.matcher.serviceIds) {
+        const source = resolveLoonServiceRuleSource(ir, serviceId, route.id, issues)
+        if (source) resolvedServiceRoutes.push({
+          routeId: route.id,
+          url: source.url,
+          policy: routeTargetIdentity(route.target),
+        })
+      }
+    }
     else if (route.matcher.kind === 'rule-set') issues.push(loonIssue(
       'LOON_RULE_SOURCE_FORMAT_UNPROVEN', 'error', 'rule-source',
       `Route "${route.name}" references a remote rule set whose Loon format and failure semantics are not proven.`, route.id,
@@ -94,9 +102,65 @@ export function checkLoonCompatibility(
         : `Matcher "${route.matcher.kind}" is outside the lossless routing subset of this Loon foundation.`, route.id,
     ))
   }
+  validateLoonRemoteRuleOrderSemantics(ir, resolvedServiceRoutes, issues, activeStrategyIds)
   validateLoonRouteOrderSemantics(ir, issues, activeStrategyIds)
   issues.push(...planLoonDns(ir.dns).issues)
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+interface ResolvedServiceRoute {
+  routeId: string
+  url: string
+  policy: string
+}
+
+function validateLoonRemoteRuleOrderSemantics(
+  ir: Pick<ProxyFlowIR, 'routes'>,
+  remoteRoutes: readonly ResolvedServiceRoute[],
+  issues: CompatibilityIssue[],
+  activeStrategyIds: ReadonlySet<string>,
+) {
+  if (remoteRoutes.length === 0) return
+  const policiesByUrl = new Map<string, string>()
+  const conflictedUrls = new Set<string>()
+  for (const remote of remoteRoutes) {
+    const existing = policiesByUrl.get(remote.url)
+    if (existing !== undefined && existing !== remote.policy) {
+      if (!conflictedUrls.has(remote.url)) {
+        conflictedUrls.add(remote.url)
+        issues.push(loonIssue(
+          'LOON_SERVICE_RULE_POLICY_CONFLICT', 'error', 'service-rule',
+          `First-party Loon service rule source "${remote.url}" is assigned to more than one policy.`, remote.routeId,
+        ))
+      }
+    } else policiesByUrl.set(remote.url, remote.policy)
+  }
+
+  const nonConflictingPolicies = new Set(remoteRoutes
+    .filter((remote) => !conflictedUrls.has(remote.url))
+    .map((remote) => remote.policy))
+  const hasDifferentRemotePolicies = nonConflictingPolicies.size > 1
+  const hasLocalMatcher = ir.routes.some((route) => (
+    route.target.kind !== 'strategy' || activeStrategyIds.has(route.target.id)
+  ) && isLoonLocalMatcher(route.matcher.kind))
+  if (!hasLocalMatcher && !hasDifferentRemotePolicies) return
+
+  issues.push(loonIssue(
+    'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', 'error', 'remote-rule-order',
+    hasLocalMatcher
+      ? 'Loon precedence between local [Rule] matchers and [Remote Rule] subscriptions is not proven equivalent to Universal priority.'
+      : 'Loon ordering for multiple Remote Rule subscriptions with different policies is not proven when their matchers may overlap.',
+  ))
+}
+
+function routeTargetIdentity(target: RouteTargetIR) {
+  if (target.kind === 'direct') return 'DIRECT'
+  if (target.kind === 'reject') return 'REJECT'
+  return `strategy:${target.id}`
+}
+
+function isLoonLocalMatcher(kind: string) {
+  return isLoonDomainFamilyMatcher(kind) || isLoonIpFamilyMatcher(kind)
 }
 
 /**

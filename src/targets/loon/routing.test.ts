@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ProxyFlowIR, RouteIR, RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
 import { PROXYFLOW_IR_VERSION } from '../../core/ir'
+import { serviceCatalog } from '../../data/serviceCatalog'
 import { checkLoonCompatibility } from './compatibility'
-import { compileLoonRules, planLoonRouting, type LoonRoutingContext } from './routing'
-import { serializeLoonRule } from './serializer'
+import { compileLoonRouting, planLoonRouting, type LoonRoutingContext } from './routing'
+import { serializeLoonRemoteRule, serializeLoonRule } from './serializer'
 
 function route(
   id: string,
@@ -19,25 +20,29 @@ function context(
   finalRoute: ProxyFlowIR['finalRoute'] = { target: { kind: 'strategy', id: 'manual' } },
 ): LoonRoutingContext & { strategyNames: Map<string, string> } {
   return {
-    ir: { routes, finalRoute },
+    ir: { services: structuredClone(serviceCatalog), routes, finalRoute },
     issues: [],
     strategyNames: new Map([['manual', 'Proxy']]),
     compiledStrategyIds: new Set(['manual']),
   }
 }
 
-function compatibilityIR(routes: RouteIR[]): ProxyFlowIR {
+function compatibilityIR(routes: RouteIR[], services: ProxyFlowIR['services'] = []): ProxyFlowIR {
   return {
     version: PROXYFLOW_IR_VERSION,
     metadata: { projectId: 'loon-routing-test', projectName: 'Loon routing test', projectSchemaVersion: 2 },
     sources: [],
     transforms: [],
     strategies: [],
-    services: [],
+    services,
     routes,
     finalRoute: { target: { kind: 'direct' } },
     outputs: [],
   }
+}
+
+function compileLocalRules(input: LoonRoutingContext) {
+  return compileLoonRouting(input).rules
 }
 
 describe('Loon routing', () => {
@@ -77,7 +82,7 @@ describe('Loon routing', () => {
     expect(result.supported).toBe(true)
     expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED' }))
 
-    const plan = planLoonRouting({ routes, finalRoute: { target: { kind: 'direct' } } }, new Map(), new Set())
+    const plan = planLoonRouting({ services: [], routes, finalRoute: { target: { kind: 'direct' } } }, new Map(), new Set())
     expect(plan.issues).toEqual([])
     expect(plan.rules.at(-1)).toEqual({ type: 'FINAL', policy: 'DIRECT' })
     expect(plan.rules.slice(0, -1).map((rule) => rule.payload)).toEqual(
@@ -95,7 +100,7 @@ describe('Loon routing', () => {
       route('tie', { kind: 'domain', value: 'tie.example' }, { kind: 'direct' }, 10),
     ])
 
-    const rules = compileLoonRules(input)
+    const rules = compileLocalRules(input)
     expect(input.issues).toEqual([])
     expect(rules.map(serializeLoonRule)).toEqual([
       'DOMAIN,exact.example,Proxy',
@@ -112,7 +117,7 @@ describe('Loon routing', () => {
       route('ipv6', { kind: 'ip-cidr6', value: '2001:db8::/32' }, { kind: 'direct' }, 20),
       route('ipv4', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'strategy', id: 'manual' }, 10),
     ])
-    const rules = compileLoonRules(input)
+    const rules = compileLocalRules(input)
     expect(input.issues).toEqual([])
     expect(rules.map(serializeLoonRule)).toEqual([
       'IP-CIDR,192.0.2.0/24,Proxy',
@@ -124,6 +129,7 @@ describe('Loon routing', () => {
 
   it('does not guess no-resolve when Universal IR has no such field', () => {
     const plan = planLoonRouting({
+      services: [],
       routes: [
         route('ipv4', { kind: 'ip-cidr', value: '198.51.100.0/24' }, { kind: 'direct' }, 10),
         route('ipv6', { kind: 'ip-cidr6', value: '2001:db8::/32' }, { kind: 'reject' }, 20),
@@ -140,14 +146,13 @@ describe('Loon routing', () => {
   })
 
   it.each([
-    { kind: 'service', serviceIds: ['openai'] },
     { kind: 'port', port: 443 },
     { kind: 'asn', value: 64_496 },
     { kind: 'geo-site', category: 'cn' },
     { kind: 'rule-set', id: 'remote-rules' },
   ] satisfies TrafficMatcherIR[])('blocks unsupported matcher $kind instead of silently dropping it', (matcher) => {
     const input = context([route('unsupported', matcher, { kind: 'direct' }, 10)])
-    const rules = compileLoonRules(input)
+    const rules = compileLocalRules(input)
     expect(rules.map(serializeLoonRule)).toEqual(['final,Proxy'])
     expect(input.issues).toContainEqual(expect.objectContaining({
       target: 'loon', code: matcher.kind === 'asn' ? 'LOON_ROUTE_NO_RESOLVE_UNMODELED' : 'LOON_MATCHER_UNSUPPORTED', severity: 'error', entityId: 'unsupported',
@@ -160,7 +165,7 @@ describe('Loon routing', () => {
     ], { target: { kind: 'strategy', id: 'allocated-only' } })
     input.strategyNames.set('missing', 'Missing')
     input.strategyNames.set('allocated-only', 'Allocated')
-    const rules = compileLoonRules(input)
+    const rules = compileLocalRules(input)
     expect(rules).toEqual([])
     expect(input.issues).toEqual([
       expect.objectContaining({ code: 'LOON_TARGET_REFERENCE_NOT_FOUND', entityId: 'missing' }),
@@ -173,10 +178,140 @@ describe('Loon routing', () => {
       route('direct', { kind: 'domain', value: 'direct.example' }, { kind: 'direct' }, 10),
       route('reject', { kind: 'domain', value: 'reject.example' }, { kind: 'reject' }, 20),
     ], { target: { kind: 'reject' } })
-    expect(compileLoonRules(input).map(serializeLoonRule)).toEqual([
+    expect(compileLocalRules(input).map(serializeLoonRule)).toEqual([
       'DOMAIN,direct.example,DIRECT',
       'DOMAIN,reject.example,REJECT',
       'final,REJECT',
     ])
+  })
+
+  it('lowers one owned service to one typed Remote Rule and keeps FINAL valid', () => {
+    const input = context([
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 10),
+    ], { target: { kind: 'direct' } })
+    const plan = compileLoonRouting(input)
+
+    expect(input.issues).toEqual([])
+    expect(plan.rules.map(serializeLoonRule)).toEqual(['final,DIRECT'])
+    expect(plan.remoteRules.map(serializeLoonRemoteRule)).toEqual([
+      'https://raw.githubusercontent.com/kure29/proxyflow-rules/main/rules/loon/OpenAI.list,policy=Proxy,enabled=true',
+    ])
+  })
+
+  it('preserves OpenAI, Claude, and GitHub serviceIds order within one route', () => {
+    const input = context([
+      route('services', { kind: 'service', serviceIds: ['openai', 'claude', 'github'] }, { kind: 'strategy', id: 'manual' }, 10),
+    ])
+    const plan = compileLoonRouting(input)
+
+    expect(input.issues).toEqual([])
+    expect(plan.remoteRules.map((item) => item.url.split('/').at(-1))).toEqual([
+      'OpenAI.list', 'Claude.list', 'GitHub.list',
+    ])
+  })
+
+  it('preserves stable route priority for same-policy Remote Rules', () => {
+    const input = context([
+      route('later', { kind: 'service', serviceIds: ['github'] }, { kind: 'strategy', id: 'manual' }, 20),
+      route('first', { kind: 'service', serviceIds: ['openai', 'claude'] }, { kind: 'strategy', id: 'manual' }, 10),
+    ])
+    const plan = compileLoonRouting(input)
+
+    expect(input.issues).toEqual([])
+    expect(plan.remoteRules.map((item) => item.url.split('/').at(-1))).toEqual([
+      'OpenAI.list', 'Claude.list', 'GitHub.list',
+    ])
+  })
+
+  it('deduplicates exact service URL and policy duplicates at their first stable position', () => {
+    const input = context([
+      route('later', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 20),
+      route('first', { kind: 'service', serviceIds: ['openai', 'openai'] }, { kind: 'strategy', id: 'manual' }, 10),
+    ])
+    const plan = compileLoonRouting(input)
+
+    expect(input.issues).toEqual([])
+    expect(plan.remoteRules).toHaveLength(1)
+    expect(plan.remoteRules[0]).toEqual(expect.objectContaining({ policy: 'Proxy' }))
+  })
+
+  it('fails closed when the same service URL is assigned to conflicting policies', () => {
+    const input = context([
+      route('policy-a', { kind: 'service', serviceIds: ['openai'] }, { kind: 'strategy', id: 'manual' }, 10),
+      route('policy-b', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 20),
+    ])
+    const plan = compileLoonRouting(input)
+
+    expect(plan.remoteRules).toHaveLength(1)
+    expect(input.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_SERVICE_RULE_POLICY_CONFLICT', severity: 'error', entityId: 'policy-b',
+    }))
+
+    const compatibility = checkLoonCompatibility(compatibilityIR([
+      route('direct', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
+      route('reject', { kind: 'service', serviceIds: ['openai'] }, { kind: 'reject' }, 20),
+    ], structuredClone(serviceCatalog)))
+    expect(compatibility.supported).toBe(false)
+    expect(compatibility.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_SERVICE_RULE_POLICY_CONFLICT', severity: 'error', entityId: 'reject',
+    }))
+    expect(compatibility.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('does not let one service policy conflict hide independent Remote Rule ordering risk', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('openai-direct', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
+      route('openai-reject', { kind: 'service', serviceIds: ['openai'] }, { kind: 'reject' }, 20),
+      route('google-direct', { kind: 'service', serviceIds: ['google'] }, { kind: 'direct' }, 30),
+      route('gemini-reject', { kind: 'service', serviceIds: ['gemini'] }, { kind: 'reject' }, 40),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'LOON_SERVICE_RULE_POLICY_CONFLICT' }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('blocks mixed local and Remote Rule routing without treating FINAL as a conflict', () => {
+    const services = structuredClone(serviceCatalog)
+    const mixed = checkLoonCompatibility(compatibilityIR([
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
+      route('domain', { kind: 'domain-suffix', value: 'example.invalid' }, { kind: 'direct' }, 20),
+    ], services))
+    expect(mixed.supported).toBe(false)
+    expect(mixed.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', severity: 'error', feature: 'remote-rule-order',
+    }))
+
+    const serviceOnly = checkLoonCompatibility(compatibilityIR([
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),
+    ], services))
+    expect(serviceOnly.supported).toBe(true)
+    expect(serviceOnly.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('blocks different-policy Remote Rule subscriptions but supports multiple same-policy assets', () => {
+    const services = structuredClone(serviceCatalog)
+    const different = checkLoonCompatibility(compatibilityIR([
+      route('google', { kind: 'service', serviceIds: ['google'] }, { kind: 'direct' }, 10),
+      route('gemini', { kind: 'service', serviceIds: ['gemini'] }, { kind: 'reject' }, 20),
+    ], services))
+    expect(different.supported).toBe(false)
+    expect(different.issues).toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+
+    const same = checkLoonCompatibility(compatibilityIR([
+      route('openai', { kind: 'service', serviceIds: ['openai', 'claude'] }, { kind: 'direct' }, 10),
+      route('github', { kind: 'service', serviceIds: ['github'] }, { kind: 'direct' }, 20),
+    ], services))
+    expect(same.supported).toBe(true)
+  })
+
+  it('keeps arbitrary custom rule sources blocked after owned service assets are enabled', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('custom', { kind: 'rule-set', id: 'remote-rules' }, { kind: 'direct' }, 10),
+    ]))
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_RULE_SOURCE_FORMAT_UNPROVEN', severity: 'error', entityId: 'custom',
+    }))
   })
 })

@@ -3,6 +3,7 @@ import type {
   LoonQuotedLiteral,
   LoonPolicyEntry,
   LoonProfile,
+  LoonRemoteRule,
   LoonRule,
   LoonScalar,
 } from './model'
@@ -14,6 +15,7 @@ export function serializeLoonProfile(profile: LoonProfile) {
     serializeSection('Proxy', profile.proxies.map(serializeLoonPolicyEntry)),
     serializeSection('Proxy Group', profile.proxyGroups.map(serializeLoonPolicyEntry)),
     serializeSection('Rule', profile.rules.map(serializeLoonRule)),
+    serializeSection('Remote Rule', profile.remoteRules.map(serializeLoonRemoteRule)),
   ].join('\n\n') + '\n'
 }
 
@@ -54,6 +56,32 @@ export function serializeLoonRule(rule: LoonRule) {
     ? [type, serializeLoonPolicyReference(rule.policy)]
     : [type, serializeLoonToken(rule.payload), serializeLoonPolicyReference(rule.policy), ...(rule.noResolve ? ['no-resolve'] : [])]
   return components.join(',')
+}
+
+export function serializeLoonRemoteRule(rule: LoonRemoteRule) {
+  if (rule.enabled !== true) throw new Error('Loon Remote Rules must be explicitly enabled.')
+  if (!isSafeLoonRemoteRuleUrl(rule.url)) {
+    throw new Error('Loon Remote Rule URLs must be absolute HTTPS URLs without credentials, delimiters, whitespace, or control characters.')
+  }
+  return `${rule.url},policy=${serializeLoonPolicyReference(rule.policy)},enabled=true`
+}
+
+export function isSafeLoonRemoteRuleUrl(value: string) {
+  const authority = value.startsWith('https://')
+    ? value.slice('https://'.length).split(/[/?#]/, 1)[0]
+    : ''
+  if (!value
+    || !/^https:\/\/[^/?#]+(?:[/?#]|$)/.test(value)
+    || authority.includes('@')
+    || value !== value.trim()
+    || !/^[\x21-\x7e]+$/.test(value)
+    || /[,"\\]/.test(value)) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password
+  } catch {
+    return false
+  }
 }
 
 export function serializeLoonToken(value: LoonScalar) {
