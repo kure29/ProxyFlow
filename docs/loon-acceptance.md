@@ -1,26 +1,34 @@
 REAL LOON IMPORT: PASSED
 REAL PROXY TRAFFIC: PASSED
-LOON SERVICE RULES: PENDING USER ACCEPTANCE
+LOON SERVICE RULE REAL CLIENT ACCEPTANCE: PASSED
+REMOTE RULE IMPORT: PASSED
+REMOTE RULE FETCH/REFRESH: PASSED
+REMOTE RULE POLICY BINDING: PASSED
+OPENAI TRAFFIC: PASSED
+FINAL DIRECT BEHAVIOR: PASSED
 
 # Loon Real Client Readiness
 
 This document records the developer-only acceptance boundary for the Loon
 compiler. It is not a product launch or a supported-target declaration. It
-records one successful real-client acceptance of the audited materialized
-subset without enabling Loon on formal product surfaces.
+records the successful core materialized-profile acceptance and the separate
+successful OpenAI Service Rule acceptance without enabling Loon on formal
+product surfaces.
 
 ## Baseline
 
 - Repository: `kure29/ProxyFlow`
 - Foundation baseline: merged PR #41, commit `0a16491`
 - Readiness branch: `feat/loon-client-readiness`
+- Service Rules branch: `feat/loon-service-rules`
 - Tested Loon version: **3.5.0 (975)**
 - Tested iOS version: **NOT RECORDED**
 - Import result: **PASSED**
 - Real proxy traffic: **PASSED**
 - Core Loon profile acceptance: **PASSED**
 - First-party Service Rules Foundation: **IMPLEMENTED**
-- First-party Service Rules real-client acceptance: **PENDING**
+- First-party Service Rules deterministic acceptance: **PASSED**
+- First-party Service Rules real-client acceptance: **PASSED** for OpenAI
 
 The compiler continues to consume Universal IR through the existing graph and
 projection pipeline. Loon remains absent from Target selector, New Project,
@@ -59,8 +67,11 @@ The first-party Service Rules evidence is a separate three-source chain:
   `URL,policy=PROXY,enabled=true` entry form.
 
 The first source owns ProxyFlow's asset URLs and content; only the Loon sources
-are authority for target syntax. None of them substitutes for the pending real
-client import, download, refresh, traffic, or failure-behavior observations.
+are authority for target syntax. The user-supplied real-client result separately
+proves import, recognition, fetch/refresh, policy binding, and traffic for the
+audited OpenAI scenario. It does not prove arbitrary ordering, long-duration
+failure behavior, offline cache persistence, or the other nine services
+individually.
 
 ## Checked-in Fixtures
 
@@ -254,7 +265,7 @@ Result: **CORE ACCEPTANCE PASSED**. Product exposure remains disabled.
 
 ## Loon Service Rules Acceptance
 
-Status: **PENDING USER ACCEPTANCE**
+Status: **REAL CLIENT ACCEPTANCE PASSED**
 
 This is an independent acceptance axis. It does not change or revoke the core
 profile result above. The developer-hidden Foundation now resolves Universal
@@ -276,7 +287,7 @@ GEOIP/GEOSITE path outside this catalog.
 The checked-in developer workflow uses the sanitized OpenAI-only
 `fixtures/loon/service-rules-project.json` project and exact
 `fixtures/loon/service-rules.expected.conf` golden without fetching the remote
-asset:
+asset. Its deterministic acceptance is **PASSED**:
 
 ```bash
 npm run loon:service-rules:acceptance
@@ -290,33 +301,72 @@ npm run loon:service-rules:acceptance:local
 ```
 
 Its input remains `tmp/loon-real-subscription.txt`; successful output is
-`tmp/loon-service-rules-acceptance.conf`. It must report aggregate counts,
+`tmp/loon-service-rules-acceptance.conf`. It reports aggregate counts,
 diagnostic code counts, Remote Rule count, and public canonical service IDs
-only. It must never print subscription data, endpoint fields, credentials, or
-the generated configuration body, and it never imports into Loon automatically.
+only. It never prints subscription data, endpoint fields, credentials, or the
+generated configuration body, and it never imports into Loon automatically.
 
-On Loon `3.5.0 (975)`, every item below remains pending until the user records a
-real-client observation:
+### Local service-rule acceptance
 
-1. The configuration imports.
-2. Loon reports no parser error.
-3. The `[Remote Rule]` resource appears.
-4. The OpenAI rule subscription downloads successfully.
-5. Its policy binding resolves to the compiled Loon policy group.
-6. OpenAI traffic uses the intended policy.
-7. Other traffic follows `FINAL`.
-8. Refreshing rule subscriptions succeeds.
-9. No policy reference is dangling.
-10. The first-party asset remains external and updateable.
+The user-run private workflow completed with aggregate-only results:
 
-Not proven by this Foundation or checklist:
+- candidateCount: `1`
+- compatibleEndpointCount: `1`
+- skippedEndpointCount: `0`
+- blockingIssueCount: `0`
+- remoteRuleCount: `1`
+- serviceRuleIds: `OpenAI`
+- result: `COMPILED_LOCAL_ONLY`
+
+The acceptance fixture intentionally selects one compatible real endpoint for
+the OpenAI scenario. This run did not retest all 95 endpoints from the earlier
+core subscription acceptance. The private input and generated artifact remain
+ignored and are not acceptance-record content.
+
+### Real Loon Service Rule Acceptance
+
+- Loon version: `3.5.0 (975)`
+- iOS version: **NOT RECORDED**
+- configuration import: **PASSED**
+- local proxy node representation: **PASSED**
+- first-party OpenAI Remote Rule recognition: **PASSED**
+- policy binding to `Service Proxy`: **PASSED**
+- Remote Rule fetch/refresh: **PASSED**
+- ChatGPT/OpenAI traffic: **PASSED**
+- `FINAL -> DIRECT` unmatched traffic: **PASSED**
+- general non-OpenAI traffic: **PASSED**
+
+This directly exercises the path from the first-party OpenAI service matcher,
+through ProxyFlow's owned Loon asset resolver, to `[Remote Rule]`, external
+`rules/loon/OpenAI.list` owned by `kure29/proxyflow-rules`,
+`policy=Service Proxy`, and a real Loon client. The catalog implements all ten
+first-party services, but only OpenAI was directly exercised in this real-client
+acceptance; deterministic generation and semantic parity tests cover the
+ten-service matrix structurally.
+
+The client displayed `Local Rules: 0` because the service asset is intentionally
+kept under `[Remote Rule]` instead of being expanded into local `[Rule]` lines.
+The separately visible Remote Rule resource refreshed successfully, so the zero
+local-rule count is not missing-rule evidence. The resource appeared without a
+custom name/tag; this is expected because the accepted minimal serializer form
+deliberately omits unproven `tag=` syntax. This acceptance proves that the
+untagged representation works for this audited scenario.
+
+Not proven by this acceptance:
 
 - precedence between local `[Rule]` entries and `[Remote Rule]` resources;
 - ordering between multiple Remote Rule subscriptions with different policies;
+- the same remote service assigned to conflicting policies, which remains a
+  blocker rather than an order-resolved case;
 - overlapping Google and Gemini service ordering;
 - arbitrary interleaving according to Universal priority;
-- HTTP request details, cache/persistence, refresh cadence, and download,
-  refresh, or parse failure behavior.
+- HTTP request method, headers, authentication behavior, and automatic refresh
+  cadence;
+- long-duration download/refresh failure, malformed-list/parse failure, and
+  offline cached-rule persistence;
+- arbitrary user-provided remote rule URLs and generic `rule-set` lowering;
+- native Loon remote proxy sources;
+- direct real-client behavior for the other nine first-party services.
 
 The compiler therefore blocks local matcher plus service combinations and
 different-policy service-route combinations with
@@ -350,8 +400,9 @@ The readiness workflow does not relax any Foundation decision:
 - proxy chains remain unproven;
 - DoT and mixed encrypted/traditional DNS remain unsupported;
 - native Remote Proxy Source format remains unproven;
-- first-party Service Rules lowering is implemented, but its real-client
-  import, load, refresh, failure, and precedence evidence remains pending.
+- the audited OpenAI Service Rule import, recognition, refresh, policy binding,
+  and traffic path has passed real-client acceptance; long-duration failure,
+  offline cache, other-service client behavior, and precedence remain unproven.
 
 Existing diagnostics remain visible, including
 `LOON_PROXY_PROTOCOL_UNSUPPORTED`, `LOON_PROXY_CIPHER_UNSUPPORTED`,
@@ -387,11 +438,13 @@ Resolution fails closed with distinct diagnostics:
 - `LOON_SERVICE_RULE_SOURCE_MISSING` when a catalog service lacks an owned
   Loon asset.
 
-This evidence is sufficient for the checked-in Foundation and sanitized
-compiler acceptance. It is not evidence that Loon has accepted, fetched,
-refreshed, cached, or recovered from failure for these particular resources.
-Those observations remain **PENDING USER ACCEPTANCE**. User-provided arbitrary
-rule sources remain outside the owned path and fail closed.
+This evidence is sufficient for the checked-in Foundation and deterministic
+compiler acceptance. The audited OpenAI resource has also passed real-client
+import, recognition, fetch/refresh, policy binding, and traffic acceptance on
+Loon `3.5.0 (975)`. The result does not establish long-duration failure recovery,
+offline cache persistence, arbitrary ordering, or direct client evidence for the
+other nine assets. User-provided arbitrary rule sources remain outside the owned
+path and fail closed.
 
 ## Mixed Precedence Research
 
@@ -413,7 +466,10 @@ These cases are intentionally not auto-enabled by the fixture:
   username form (and equals outside the fixed quoted credential subset);
 - mixed domain/IP precedence;
 - native remote proxy sources and arbitrary remote rule sources;
-- first-party Remote Rule loading, refresh, persistence, and failure behavior;
+- HTTP request details and automatic refresh cadence for Remote Rule resources;
+- long-duration download/refresh failure, malformed-list/parse failure, and
+  offline persistence;
+- direct real-client behavior for first-party services other than OpenAI;
 - local-vs-remote and different-policy Remote Rule precedence.
 
 Each requires pinned first-party syntax plus real-client acceptance before the
