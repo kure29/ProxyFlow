@@ -29,6 +29,7 @@ product surfaces.
 - First-party Service Rules Foundation: **IMPLEMENTED**
 - First-party Service Rules deterministic acceptance: **PASSED**
 - First-party Service Rules real-client acceptance: **PASSED** for OpenAI
+- Routing Precedence Acceptance: **PENDING** ([dedicated harness and result record](loon-routing-precedence-acceptance.md))
 
 The compiler continues to consume Universal IR through the existing graph and
 projection pipeline. Loon remains absent from Target selector, New Project,

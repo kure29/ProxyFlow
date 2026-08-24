@@ -25,6 +25,8 @@ scenario.
 - First-party Service Rules Foundation: **IMPLEMENTED**
 - Deterministic Service Rules acceptance: **PASSED**
 - Real Loon Service Rules acceptance: **PASSED** for OpenAI on Loon `3.5.0 (975)`
+- Routing precedence acceptance: **PENDING**; a dedicated real-client harness
+  exists, while production fail-closed guards remain unchanged.
 - Tested iOS version: **NOT RECORDED**
 - Product exposure: **NOT ENABLED**
 
@@ -36,6 +38,13 @@ Long-duration failure behavior, offline cache persistence, other-service direct
 client evidence, and ordering remain pending or blocked as stated below. Neither
 axis widens the deferred protocol, serializer, arbitrary remote source, or
 product-exposure boundaries.
+
+Routing precedence remains the main release-readiness semantic blocker for this
+foundation. The acceptance-only profiles in
+[`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md)
+intentionally exercise cases that production rejects; they are generated
+directly through the typed serializer and do not add a compatibility bypass.
+Loon is not product-ready.
 
 The intended pipeline is:
 
