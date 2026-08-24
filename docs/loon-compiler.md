@@ -25,6 +25,9 @@ scenario.
 - First-party Service Rules Foundation: **IMPLEMENTED**
 - Deterministic Service Rules acceptance: **PASSED**
 - Real Loon Service Rules acceptance: **PASSED** for OpenAI on Loon `3.5.0 (975)`
+- Routing precedence acceptance: **PASSED** for the controlled four-profile
+  real-client run; production follow-up review is required and fail-closed
+  guards remain unchanged.
 - Tested iOS version: **NOT RECORDED**
 - Product exposure: **NOT ENABLED**
 
@@ -33,9 +36,17 @@ by the accepted profile. First-party Service Rules are a separate acceptance
 axis: the current typed, untagged OpenAI Remote Rule has passed import,
 fetch/refresh, policy-binding, and traffic checks with `FINAL -> DIRECT`.
 Long-duration failure behavior, offline cache persistence, other-service direct
-client evidence, and ordering remain pending or blocked as stated below. Neither
-axis widens the deferred protocol, serializer, arbitrary remote source, or
-product-exposure boundaries.
+client evidence, and generalized ordering remain pending or blocked as stated
+below. Neither axis widens the deferred protocol, serializer, arbitrary remote
+source, or product-exposure boundaries.
+
+Routing precedence remains a release-readiness semantic blocker for this
+foundation, although the controlled local-vs-Remote and Google/Gemini results
+are ready for a separate follow-up review. The acceptance-only profiles in
+[`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md)
+intentionally exercise cases that production rejects; they are generated
+directly through the typed serializer and do not add a compatibility bypass.
+Loon is not product-ready.
 
 The intended pipeline is:
 
@@ -212,7 +223,7 @@ reuse the Surge evaluator.
 | Logical rules | Loon supports nested `AND`, `OR`, and `NOT`. | IR has no logical matcher tree. | Unsupported | `LOON_LOGICAL_RULE_UNSUPPORTED` (reserved) | [logic_rule.md#L1-L27](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/logic_rule.md#L1-L27) |
 | Protocol / URL / User-Agent | Loon has protocol rules and HTTP URL/UA rules. | No corresponding Universal matcher types. | Unsupported | `LOON_MATCHER_UNSUPPORTED` | [protocol_rule.md#L1-L8](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/protocol_rule.md#L1-L8), [http_rule.md#L1-L12](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/http_rule.md#L1-L12) |
 | Arbitrary Rule Set / remote list | A Loon rule subscription carries a URL and policy, and each downloaded line must use Loon-supported rule syntax. | `RuleSourceIR` may contain a user-controlled URL and format whose ownership, canonical grammar, request behavior, refresh behavior, and failure semantics are not proven. Never treat an arbitrary `.list` as an owned Service Rule. | Unproven | `LOON_RULE_SOURCE_FORMAT_UNPROVEN` | [Current Remote Rule page source](https://github.com/Loon0x00/Loon0x00.github.io/blob/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737/docs/Rule/sub_rule.md#L5-L10) |
-| First-party Service Rules | Loon documents remote rule collections, and its full-profile example uses `[Remote Rule]` with `URL,policy=PROXY,enabled=true`. | Resolve only the ten owned `kure29/proxyflow-rules/rules/loon/*.list` assets from the central catalog, lower each service reference to a typed `LoonRemoteRule`, and serialize no extra remote options. Missing, legacy China, ordering, and policy-conflict cases fail closed. | Foundation and deterministic acceptance passed; OpenAI import, fetch/refresh, policy binding, and traffic passed on Loon `3.5.0 (975)`. Other services were not individually client-tested; ordering and failure/cache boundaries remain. | `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_SERVICE_RULE_POLICY_CONFLICT` | [generated Loon matrix](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/generate-rules.mjs#L129-L209), [validator](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/validate-rules.mjs#L161-L218), [Loon example](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) |
+| First-party Service Rules | Loon documents remote rule collections, and its full-profile example uses `[Remote Rule]` with `URL,policy=PROXY,enabled=true`. | Resolve only the ten owned `kure29/proxyflow-rules/rules/loon/*.list` assets from the central catalog, lower each service reference to a typed `LoonRemoteRule`, and serialize no extra remote options. Missing, legacy-China, arbitrary, and policy-conflict cases fail closed. | Foundation and deterministic acceptance passed; OpenAI import, fetch/refresh, policy binding, and traffic passed on Loon `3.5.0 (975)`. The controlled local-vs-Remote pair observed `LOCAL_FIRST`, and the controlled Google/Gemini pair observed `FIRST_SUBSCRIPTION_WINS`; generalized ordering and failure/cache boundaries remain subject to follow-up review. | `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_SERVICE_RULE_POLICY_CONFLICT` | [generated Loon matrix](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/generate-rules.mjs#L129-L209), [validator](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/validate-rules.mjs#L161-L218), [Loon example](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) |
 | Rule order | Loon gives domain/IP rules special matching behavior and otherwise uses configuration order. | Universal routes carry explicit priority/insertion order. Sorting by matcher type is forbidden. Pure domain-family and pure IP-family sets preserve Universal priority; mixed family precedence is not proven. | Conditional | `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP routes | [rule.md#L5-L11](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/rule.md#L5-L11) |
 
 The route compiler preserves Universal priority order for every emitted pure
@@ -238,12 +249,15 @@ service JSON as the other rule targets; China is intentionally absent. Exact
 duplicate URL-plus-policy references are deduplicated. Reusing one asset with
 different policies blocks with `LOON_SERVICE_RULE_POLICY_CONFLICT`.
 
-Section precedence is not inferred. A service route combined with a non-service
-local matcher, or multiple service routes resolving to different effective
-policies, blocks with `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`. Multiple
-owned service assets may be emitted when they all resolve to the same policy;
-`FINAL` is not considered a conflicting local matcher. This does not prove
-ordering between `[Rule]` and `[Remote Rule]`, disjointness between service
+Section precedence is now supported by direct evidence only for the controlled
+profiles: the local-vs-Remote pair observed local-first behavior, and the
+Google/Gemini pair observed first-subscription behavior in both orderings. A
+service route combined with a non-service local matcher, or multiple service
+routes resolving to different effective policies, still blocks with
+`LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN` pending separate production review.
+Multiple owned service assets may be emitted when they all resolve to the same
+policy; `FINAL` is not considered a conflicting local matcher. The acceptance
+does not prove arbitrary matcher combinations, disjointness between service
 assets, or arbitrary interleaving by Universal priority.
 
 The accepted real-client scenario uses one compatible endpoint, the OpenAI
@@ -252,7 +266,8 @@ configuration imported, the untagged Remote Rule was recognized and refreshed,
 the policy binding resolved, and OpenAI plus unmatched traffic behaved as
 expected. `Local Rules: 0` is correct for this profile because the external list
 stays under `[Remote Rule]`; it is not expanded into local `[Rule]` entries.
-This evidence does not relax either ordering blocker above.
+This evidence does not relax the production ordering guard; the controlled
+precedence results are recorded separately for follow-up review.
 
 ## DNS matrix
 
@@ -438,7 +453,8 @@ phase:
 - Remote Rule HTTP method/headers/authentication and automatic refresh cadence;
 - long-duration download/refresh failure, malformed-list/parse failure, and
   offline cache persistence;
-- local-vs-remote precedence and different-policy Remote Rule ordering.
+- generalized Remote Rule ordering beyond the controlled acceptance pair and
+  the resulting production policy decision.
 
 Until those requirements are proven and modeled, the corresponding rows remain
 fail-closed. No Project schema migration, automatic Loon exposure, version
