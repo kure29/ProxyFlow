@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "metadata": { "projectId": "loon-ip-focused", "projectName": "Loon IP routing focus", "projectSchemaVersion": 2 },
+  "sources": [
+    {
+      "kind": "manual-proxy",
+      "id": "ip-source",
+      "name": "IP Fixture Source",
+      "proxies": [
+        { "kind": "http", "protocol": "http", "id": "ip-http", "name": "IP HTTP", "server": "ip.example.invalid", "port": 8080 }
+      ]
+    }
+  ],
+  "transforms": [],
+  "strategies": [
+    { "kind": "select", "id": "ip-select", "name": "IP Select", "candidates": [{ "kind": "source", "id": "ip-source" }] }
+  ],
+  "services": [],
+  "routes": [
+    { "id": "ip-v4", "name": "IPv4", "matcher": { "kind": "ip-cidr", "value": "192.0.2.0/24" }, "target": { "kind": "strategy", "id": "ip-select" }, "priority": 10 },
+    { "id": "ip-v6", "name": "IPv6", "matcher": { "kind": "ip-cidr6", "value": "2001:db8::/32" }, "target": { "kind": "direct" }, "priority": 20 },
+    { "id": "ip-geo", "name": "GeoIP", "matcher": { "kind": "geo-ip", "countryCode": "US" }, "target": { "kind": "reject" }, "priority": 30 }
+  ],
+  "finalRoute": { "target": { "kind": "strategy", "id": "ip-select" } },
+  "outputs": [{ "id": "ip-output", "name": "Loon", "target": "loon", "enabled": true }]
+}

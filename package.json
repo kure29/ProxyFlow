@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:deployment": "bash scripts/proxyflow.test.sh",
+    "loon:acceptance": "node scripts/generate-loon-acceptance.mjs",
+    "loon:acceptance:local": "node scripts/generate-loon-acceptance.mjs --local",
     "test:watch": "vitest",
     "runtime:build": "vite build --config runtime/vite.config.ts",
     "runtime:start": "node runtime-dist/server.js"

@@ -1,0 +1,141 @@
+{
+  "version": 2,
+  "id": "loon-client-acceptance",
+  "name": "Loon Client Acceptance Fixture",
+  "primaryTarget": "mihomo",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "services": [],
+  "outputs": [{ "id": "loon-output-definition", "target": "loon", "label": "Loon", "status": "coming-soon" }],
+  "graph": {
+    "nodes": [
+      {
+        "id": "acceptance-source",
+        "type": "block",
+        "position": { "x": 0, "y": 0 },
+        "data": {
+          "blockType": "subscription",
+          "category": "source",
+          "title": "Acceptance Nodes",
+          "subtitle": "Sanitized checked-in fixture",
+          "icon": "radio",
+          "enabled": true,
+          "subscriptionInputKind": "paste",
+          "subscriptionContent": "proxies:\n  - name: HTTP Plain\n    type: http\n    server: http.example.com\n    port: 8080\n  - name: HTTPS Credentials\n    type: http\n    server: https.example.com\n    port: 443\n    tls: true\n    sni: https.example.com\n    username: fixture-user\n    password: fixture-password\n  - name: Shadowsocks AES\n    type: ss\n    server: ss-aes.example.com\n    port: 8388\n    cipher: aes-128-gcm\n    password: ss-aes-password\n  - name: Shadowsocks Chacha\n    type: ss\n    server: ss-chacha.example.com\n    port: 8389\n    cipher: chacha20\n    password: ss-chacha-password\n  - name: Shadowsocks Obfs\n    type: ss\n    server: ss-obfs.example.com\n    port: 8390\n    cipher: aes-128-gcm\n    password: ss-obfs-password\n    plugin: simple-obfs\n    plugin-opts:\n      obfs-name: http\n      obfs-host: obfs.example.com\n      obfs-uri: /proxy\n  - name: Trojan TCP\n    type: trojan\n    server: trojan.example.com\n    port: 443\n    password: trojan-password\n    sni: trojan.example.com\n    network: tcp\n  - name: VMess TCP\n    type: vmess\n    server: vmess-tcp.example.com\n    port: 443\n    uuid: 11111111-1111-4111-8111-111111111111\n    alterId: 0\n    cipher: aes-128-gcm\n    network: tcp\n  - name: VMess WS\n    type: vmess\n    server: vmess-ws.example.com\n    port: 443\n    uuid: 22222222-2222-4222-8222-222222222222\n    alterId: 0\n    cipher: aes-128-gcm\n    tls: true\n    sni: vmess-ws.example.com\n    network: ws\n    ws-opts:\n      path: /vmess\n      headers:\n        Host: cdn.example.com\n  - name: VLESS TCP\n    type: vless\n    server: vless-tcp.example.com\n    port: 443\n    uuid: 33333333-3333-4333-8333-333333333333\n    security: tls\n    tls: true\n    sni: vless-tcp.example.com\n    network: tcp\n  - name: VLESS WS\n    type: vless\n    server: vless-ws.example.com\n    port: 443\n    uuid: 44444444-4444-4444-8444-444444444444\n    security: tls\n    tls: true\n    sni: vless-ws.example.com\n    network: ws\n    ws-opts:\n      path: /vless\n      headers:\n        Host: cdn.example.com\n  - name: Hysteria2 Minimal\n    type: hysteria2\n    server: hy2.example.com\n    port: 443\n    password: hy2-password\n    sni: hy2.example.com\n    tls: true\n"
+        }
+      },
+      {
+        "id": "select",
+        "type": "block",
+        "position": { "x": 300, "y": 0 },
+        "data": { "blockType": "manual-select", "category": "strategy", "title": "Select", "subtitle": "Manual selection", "icon": "list" }
+      },
+      {
+        "id": "nested-select",
+        "type": "block",
+        "position": { "x": 600, "y": 0 },
+        "data": { "blockType": "manual-select", "category": "strategy", "title": "Nested Select", "subtitle": "Nested policy group", "icon": "layers" }
+      },
+      {
+        "id": "url-test",
+        "type": "block",
+        "position": { "x": 300, "y": 160 },
+        "data": { "blockType": "auto-select", "category": "strategy", "title": "URL Test", "subtitle": "Deterministic health check", "icon": "gauge", "testUrl": "https://example.com/ping", "interval": 300, "tolerance": 50 }
+      },
+      {
+        "id": "fallback",
+        "type": "block",
+        "position": { "x": 300, "y": 320 },
+        "data": { "blockType": "fallback", "category": "strategy", "title": "Fallback", "subtitle": "Ordered failover", "icon": "arrow-down-up", "testUrl": "https://example.com/ping", "interval": 300 }
+      },
+      {
+        "id": "round-robin",
+        "type": "block",
+        "position": { "x": 300, "y": 480 },
+        "data": { "blockType": "load-balance", "category": "strategy", "title": "Round Robin", "subtitle": "Round-Robin", "icon": "shuffle", "loadBalanceMode": "round-robin" }
+      },
+      {
+        "id": "fixed",
+        "type": "block",
+        "position": { "x": 300, "y": 640 },
+        "data": { "blockType": "fixed-proxy", "category": "strategy", "title": "Fixed", "subtitle": "Single endpoint", "icon": "pin", "proxyId": "__FIRST_COMPATIBLE__" }
+      },
+      {
+        "id": "domain-route",
+        "type": "block",
+        "position": { "x": 900, "y": 0 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Exact Domain", "subtitle": "DOMAIN", "icon": "route", "routeMatcherKind": "domain", "routeMatcherValue": "exact.example.com", "targetKind": "strategy", "targetId": "select", "targetLabel": "Select", "routePriority": 10 }
+      },
+      {
+        "id": "suffix-route",
+        "type": "block",
+        "position": { "x": 900, "y": 100 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Suffix Domain", "subtitle": "DOMAIN-SUFFIX", "icon": "route", "routeMatcherKind": "domain-suffix", "routeMatcherValue": "example.net", "targetKind": "strategy", "targetId": "nested-select", "targetLabel": "Nested Select", "routePriority": 20 }
+      },
+      {
+        "id": "keyword-route",
+        "type": "block",
+        "position": { "x": 900, "y": 200 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Keyword Domain", "subtitle": "DOMAIN-KEYWORD", "icon": "route", "routeMatcherKind": "domain-keyword", "routeMatcherValue": "fixture", "targetKind": "strategy", "targetId": "url-test", "targetLabel": "URL Test", "routePriority": 30 }
+      },
+      {
+        "id": "fallback-route",
+        "type": "block",
+        "position": { "x": 900, "y": 300 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Fallback Domain", "subtitle": "Fallback", "icon": "route", "routeMatcherKind": "domain", "routeMatcherValue": "fallback.example.invalid", "targetKind": "strategy", "targetId": "fallback", "targetLabel": "Fallback", "routePriority": 40 }
+      },
+      {
+        "id": "round-route",
+        "type": "block",
+        "position": { "x": 900, "y": 400 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Round Robin Domain", "subtitle": "Round-Robin", "icon": "route", "routeMatcherKind": "domain", "routeMatcherValue": "round.example.invalid", "targetKind": "strategy", "targetId": "round-robin", "targetLabel": "Round Robin", "routePriority": 50 }
+      },
+      {
+        "id": "fixed-route",
+        "type": "block",
+        "position": { "x": 900, "y": 500 },
+        "data": { "blockType": "custom-rule", "category": "routing", "title": "Fixed Domain", "subtitle": "Fixed", "icon": "route", "routeMatcherKind": "domain", "routeMatcherValue": "fixed.example.invalid", "targetKind": "strategy", "targetId": "fixed", "targetLabel": "Fixed", "routePriority": 60 }
+      },
+      {
+        "id": "final",
+        "type": "block",
+        "position": { "x": 1200, "y": 500 },
+        "data": { "blockType": "final", "category": "routing", "title": "Final", "subtitle": "Final fallback", "icon": "corner-down-right", "targetKind": "strategy", "targetId": "nested-select", "targetLabel": "Nested Select", "protected": true }
+      },
+      {
+        "id": "dns",
+        "type": "block",
+        "position": { "x": 1200, "y": 650 },
+        "data": {
+          "blockType": "dns",
+          "category": "dns",
+          "title": "System DNS",
+          "subtitle": "System resolver",
+          "icon": "globe-2",
+          "dnsResolvers": [{ "id": "system", "name": "System", "kind": "system", "role": "default", "enabled": true }]
+        }
+      },
+      {
+        "id": "output",
+        "type": "block",
+        "position": { "x": 1500, "y": 500 },
+        "data": { "blockType": "output", "category": "output", "title": "Loon Acceptance Output", "subtitle": "Developer-only", "icon": "package-check", "client": "loon", "compatibility": "Pending user acceptance" }
+      }
+    ],
+    "edges": [
+      { "id": "source-select", "source": "acceptance-source", "target": "select", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "select-nested", "source": "select", "target": "nested-select", "type": "smoothstep", "data": { "semantic": "strategy" } },
+      { "id": "source-url-test", "source": "acceptance-source", "target": "url-test", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "source-fallback", "source": "acceptance-source", "target": "fallback", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "source-round-robin", "source": "acceptance-source", "target": "round-robin", "type": "smoothstep", "data": { "semantic": "data" } },
+      { "id": "domain-route", "source": "domain-route", "target": "select", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "suffix-route", "source": "suffix-route", "target": "nested-select", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "keyword-route", "source": "keyword-route", "target": "url-test", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "fallback-route", "source": "fallback-route", "target": "fallback", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "round-route", "source": "round-route", "target": "round-robin", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "fixed-route", "source": "fixed-route", "target": "fixed", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "final-route", "source": "final", "target": "nested-select", "type": "smoothstep", "data": { "semantic": "route" } },
+      { "id": "dns-output", "source": "dns", "target": "output", "type": "smoothstep", "data": { "semantic": "dns" } },
+      { "id": "output-route", "source": "nested-select", "target": "output", "type": "smoothstep", "data": { "semantic": "output" } }
+    ]
+  }
+}

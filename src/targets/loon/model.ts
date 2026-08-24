@@ -1,7 +1,14 @@
-/** A value whose field-specific Loon syntax is an explicit quoted literal. */
+/**
+ * A value whose field-specific Loon syntax is an explicit quoted literal.
+ *
+ * `http-username` is deliberately the only widened grammar: the current
+ * first-party node page shows an HTTP username containing a comma inside
+ * fixed quotes. All other quoted fields use the conservative fixed grammar.
+ */
 export interface LoonQuotedLiteral {
   kind: 'quoted'
   value: string
+  grammar?: 'http-username'
 }
 
 export type LoonScalar = string | number | boolean | LoonQuotedLiteral

@@ -58,10 +58,20 @@ describe('Loon compiler foundation', () => {
     expect(await new LoonCompiler(fixedNow).compile(ir)).toEqual(result)
   })
 
+  it('preserves syntax-safe Unicode proxy, group, and rule policy names end to end', () => {
+    const ir = baseIR([http('proxy-a', '香港01')])
+    ir.strategies[0] = { kind: 'select', id: 'manual', name: '🇭🇰 香港 01', candidates: [{ kind: 'source', id: 'source' }] }
+    const content = success(ir).content
+    expect(content).toContain('香港01 = http,proxy-a.example.invalid,8080')
+    expect(content).toContain('🇭🇰 香港 01 = select,香港01')
+    expect(content).toContain('DOMAIN-SUFFIX,example.invalid,🇭🇰 香港 01')
+    expect(content).toContain('final,🇭🇰 香港 01')
+  })
+
   it('lowers HTTP/HTTPS, SS, simple-obfs and Trojan in stable source order', () => {
     const ss: Extract<ResolvedProxyEndpointIR, { protocol: 'shadowsocks' }> = {
       kind: 'shadowsocks', protocol: 'shadowsocks', id: 'ss', name: 'SS', server: 'ss.example.invalid', port: 443, method: 'aes-128-gcm', password: 'secret',
-      plugin: { name: 'simple-obfs', options: { 'obfs-name': 'tls', 'obfs-host': 'cdn.example.invalid', 'obfs-uri': '/' } },
+      plugin: { name: 'simple-obfs', options: { obfs: 'tls', 'obfs-host': 'cdn.example.invalid' } },
       metadata: { compatibility: { status: 'partial', unsupportedFeatures: ['plugin:simple-obfs'] } },
     }
     const trojan: Extract<ResolvedProxyEndpointIR, { protocol: 'trojan' }> = {
@@ -75,7 +85,7 @@ describe('Loon compiler foundation', () => {
     expect(lines).toEqual([
       'Proxy A = http,proxy-a.example.invalid,8080',
       'HTTPS = https,https.example.invalid,8080,tls-name=sni.example.invalid',
-      'SS = Shadowsocks,ss.example.invalid,443,aes-128-gcm,"secret",obfs-name=tls,obfs-host=cdn.example.invalid,obfs-uri=/,udp=true',
+      'SS = Shadowsocks,ss.example.invalid,443,aes-128-gcm,"secret",obfs-name=tls,obfs-host=cdn.example.invalid,udp=true',
       'Trojan = trojan,trojan.example.invalid,443,"secret",udp=true',
     ])
   })
