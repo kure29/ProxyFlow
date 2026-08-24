@@ -18,6 +18,23 @@ export interface LoonRoutingPlan {
   issues: CompatibilityIssue[]
 }
 
+export interface LoonRouteOrder {
+  priority: number
+  insertionIndex: number
+}
+
+export function compareLoonRouteOrder(left: LoonRouteOrder, right: LoonRouteOrder) {
+  return left.priority - right.priority || left.insertionIndex - right.insertionIndex
+}
+
+export function rankLoonRoutes(routes: readonly ProxyFlowIR['routes'][number][]) {
+  return routes.map((route, index) => ({ route, index }))
+    .sort((left, right) => compareLoonRouteOrder(
+      { priority: left.route.priority, insertionIndex: left.index },
+      { priority: right.route.priority, insertionIndex: right.index },
+    ))
+}
+
 export function planLoonRouting(
   ir: Pick<ProxyFlowIR, 'services' | 'routes' | 'finalRoute'>,
   strategyNames: ReadonlyMap<string, string>,
@@ -29,8 +46,7 @@ export function planLoonRouting(
   const remoteRules: LoonRemoteRule[] = []
   const remoteRuleByUrl = new Map<string, LoonRemoteRule>()
   const conflictedUrls = new Set<string>()
-  const routes = ir.routes.map((route, index) => ({ route, index }))
-    .sort((left, right) => left.route.priority - right.route.priority || left.index - right.index)
+  const routes = rankLoonRoutes(ir.routes)
 
   for (const { route } of routes) {
     if (route.matcher.kind === 'service') {

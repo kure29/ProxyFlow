@@ -12,6 +12,7 @@ import {
 } from './projection'
 import { isSafeLoonPolicyName } from './serializer'
 import { resolveLoonServiceRuleSource } from './serviceRules'
+import { compareLoonRouteOrder, rankLoonRoutes } from './routing'
 
 export interface LoonCompatibilityResult {
   supported: boolean
@@ -79,13 +80,15 @@ export function checkLoonCompatibility(
   }
   validateStrategyCycles(ir.strategies, issues, activeStrategyIds)
 
-  for (const route of ir.routes) {
+  for (const [routeIndex, route] of ir.routes.entries()) {
     if (!Number.isFinite(route.priority)) issues.push(loonIssue('LOON_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route "${route.name}" has a non-finite priority.`, route.id))
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) {
         const source = resolveLoonServiceRuleSource(ir, serviceId, route.id, issues)
         if (source) resolvedServiceRoutes.push({
           routeId: route.id,
+          routeIndex,
+          priority: route.priority,
           url: source.url,
           policy: routeTargetIdentity(route.target),
         })
@@ -110,6 +113,8 @@ export function checkLoonCompatibility(
 
 interface ResolvedServiceRoute {
   routeId: string
+  routeIndex: number
+  priority: number
   url: string
   policy: string
 }
@@ -136,20 +141,39 @@ function validateLoonRemoteRuleOrderSemantics(
     } else policiesByUrl.set(remote.url, remote.policy)
   }
 
-  const nonConflictingPolicies = new Set(remoteRoutes
+  const activeRemoteRoutes = remoteRoutes.filter((remote) => {
+    const route = ir.routes[remote.routeIndex]
+    return route !== undefined && isActiveLoonRoute(route, activeStrategyIds)
+  })
+  const nonConflictingRemoteRoutes = activeRemoteRoutes
     .filter((remote) => !conflictedUrls.has(remote.url))
-    .map((remote) => remote.policy))
-  const hasDifferentRemotePolicies = nonConflictingPolicies.size > 1
-  const hasLocalMatcher = ir.routes.some((route) => (
-    route.target.kind !== 'strategy' || activeStrategyIds.has(route.target.id)
-  ) && isLoonLocalMatcher(route.matcher.kind))
-  if (!hasLocalMatcher && !hasDifferentRemotePolicies) return
-
-  issues.push(loonIssue(
+  const nonConflictingPolicies = new Set(nonConflictingRemoteRoutes.map((remote) => remote.policy))
+  if (nonConflictingPolicies.size > 1) issues.push(loonIssue(
     'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', 'error', 'remote-rule-order',
-    hasLocalMatcher
-      ? 'Loon precedence between local [Rule] matchers and [Remote Rule] subscriptions is not proven equivalent to Universal priority.'
-      : 'Loon ordering for multiple Remote Rule subscriptions with different policies is not proven when their matchers may overlap.',
+    'Loon ordering for multiple Remote Rule subscriptions with different policies is not proven when their matchers may overlap.',
+  ))
+
+  const rankedRoutes = rankLoonRoutes(ir.routes)
+  const activeLocalRoutes = rankedRoutes
+    .filter(({ route }) => isActiveLoonRoute(route, activeStrategyIds) && isLoonLocalMatcher(route.matcher.kind))
+    .map(({ route, index }) => ({ priority: route.priority, insertionIndex: index }))
+
+  // The owned asset matcher sets are not modeled in this IR, so every local
+  // matcher and first-party Remote Rule must be treated as potentially
+  // overlapping. Loon's proven LOCAL_FIRST source precedence is lossless only
+  // when Universal effective order already puts every local route first. This
+  // conservative boundary also avoids inferring that same-policy source order
+  // is irrelevant to Loon's matching/diagnostic behavior.
+  const incompatibleRemote = activeRemoteRoutes.find((remote) => {
+    const remoteOrder = { priority: remote.priority, insertionIndex: remote.routeIndex }
+    return activeLocalRoutes.some((localOrder) => (
+      compareLoonRouteOrder(remoteOrder, localOrder) < 0
+    ))
+  })
+  if (incompatibleRemote) issues.push(loonIssue(
+    'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED', 'error', 'remote-rule-order',
+    'Universal route order requires a first-party Remote Rule to precede a local [Rule] matcher, but Loon is proven LOCAL_FIRST.',
+    incompatibleRemote.routeId,
   ))
 }
 
@@ -157,6 +181,13 @@ function routeTargetIdentity(target: RouteTargetIR) {
   if (target.kind === 'direct') return 'DIRECT'
   if (target.kind === 'reject') return 'REJECT'
   return `strategy:${target.id}`
+}
+
+function isActiveLoonRoute(
+  route: ProxyFlowIR['routes'][number],
+  activeStrategyIds: ReadonlySet<string>,
+) {
+  return route.target.kind !== 'strategy' || activeStrategyIds.has(route.target.id)
 }
 
 function isLoonLocalMatcher(kind: string) {
