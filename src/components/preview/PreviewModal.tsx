@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { AlertTriangle, Braces, Check, Clipboard, Download, FileCode2, Info, LoaderCircle, X } from 'lucide-react'
 import { deduplicateDiagnostics, diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
+import type { PrimaryTarget } from '../../core/capabilities'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
@@ -13,12 +14,13 @@ import { SurgeProjectionSummary } from './SurgeProjectionSummary'
 import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
 import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 
-type PreviewMode = 'mihomo' | 'surge' | 'ir'
+type PreviewMode = 'mihomo' | 'surge' | 'loon' | 'ir'
 type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
   mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const },
   surge: { label: 'Surge', icon: outputDefinitions.find((output) => output.target === 'surge')!.icon, descriptionKey: 'preview.surgeCompiler' as const },
+  loon: { label: 'Loon', icon: outputDefinitions.find((output) => output.target === 'loon')!.icon, descriptionKey: 'preview.loonCompiler' as const },
 } as const
 
 export function PreviewModal() {
@@ -32,21 +34,23 @@ export function PreviewModal() {
   const selectNode = useBuilderStore((state) => state.selectNode)
   const setToast = useBuilderStore((state) => state.setToast)
   const [copied, setCopied] = useState(false)
-  const [mode, setMode] = useState<PreviewMode>('mihomo')
+  const [mode, setMode] = useState<PreviewMode>(() => resolveInitialPreviewMode(previewTarget, primaryTarget))
   const panelRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const { fitView } = useReactFlow()
   const targetCompileEnabled = open && mode !== 'ir'
-  const { graphResult, mihomoState, surgeState } = useProjectCompiles(targetCompileEnabled, {
-    mihomo: mode === 'mihomo', surge: mode === 'surge', singBox: false,
+  const { graphResult, mihomoState, surgeState, loonState } = useProjectCompiles(targetCompileEnabled, {
+    mihomo: mode === 'mihomo', surge: mode === 'surge', loon: mode === 'loon', singBox: false,
     validationTarget: mode === 'ir' ? undefined : mode,
   })
-  const targetState = mode === 'surge' ? surgeState : mihomoState
+  const targetState = mode === 'surge' ? surgeState : mode === 'loon' ? loonState : mihomoState
+  const loonPreviewVisible = primaryTarget === 'loon' || previewTarget === 'loon'
+  const visibleTargetModes = resolveVisiblePreviewTargets(primaryTarget, previewTarget)
   useEffect(() => {
-    const requestedTarget = previewTarget ?? primaryTarget
-    if (open) setMode(isPreviewTarget(requestedTarget) ? requestedTarget : 'mihomo')
-  }, [open, previewTarget, primaryTarget])
+    const requestedTarget = resolvePreviewTarget(previewTarget, primaryTarget)
+    if (open) setMode(isPreviewTarget(requestedTarget) && (requestedTarget !== 'loon' || loonPreviewVisible) ? requestedTarget : 'mihomo')
+  }, [loonPreviewVisible, open, previewTarget, primaryTarget])
   useEffect(() => {
     if (!open) return
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -151,13 +155,14 @@ export function PreviewModal() {
               ? <span><strong>{mode === 'ir' ? t('preview.validIr') : t('preview.compiled')}</strong> {mode === 'ir' ? t('preview.irDerived') : t('preview.compileComplete', { target: targetLabel })}{warningCount > 0 && ` ${t(warningCount === 1 ? 'preview.compatWarning' : 'preview.compatWarnings', { count: warningCount })}`}</span>
               : <span><strong>{failedTitle}</strong> {t('preview.failedCount', { count: Math.max(errors.length, loadError.length) })}</span>}
         </div>
+        {mode === 'loon' && <div className="preview-target-paused" role="status"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: targetLabel })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
         {mode === 'surge' && !loading && <SurgeProjectionSummary result={targetState.result} />}
         {compileSuccess && displayedSuccessIssues.length > 0 && <div className="preview-diagnostics"><DiagnosticPresentationList issues={displayedSuccessIssues} exportable entityNames={entityNames} compact /></div>}
       </div>
       <div className="preview-body">
         <aside>
           <span>{t('preview.mode')}</span>
-          {(Object.keys(targetMeta) as Array<keyof typeof targetMeta>).map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
+          {visibleTargetModes.map((target) => <button className={mode === target ? 'is-active' : ''} key={target} onClick={() => setMode(target)}><b><img src={targetMeta[target].icon} alt="" /></b><div><strong>{targetMeta[target].label}</strong><small>{t(targetMeta[target].descriptionKey)}</small></div>{mode === target && <Check size={13} />}</button>)}
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           {targetCompileEnabled && graphResult.success && <CompatibilitySummary label={targetLabel} state={targetState} warningCount={warningCount} />}
@@ -172,13 +177,28 @@ export function PreviewModal() {
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
-      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : mode === 'surge' ? t('preview.exportConf') : t('preview.exportJson')}</button></div></footer>
+      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : mode === 'surge' ? t('preview.exportConf') : mode === 'loon' ? t('preview.exportLoonConf') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
 }
 
 function isPreviewTarget(value: unknown): value is Exclude<PreviewMode, 'ir'> {
   return typeof value === 'string' && Object.hasOwn(targetMeta, value)
+}
+
+export function resolveInitialPreviewMode(previewTarget: PrimaryTarget | null, primaryTarget: PrimaryTarget | null): PreviewMode {
+  const requestedTarget = resolvePreviewTarget(previewTarget, primaryTarget)
+  return isPreviewTarget(requestedTarget) ? requestedTarget : 'mihomo'
+}
+
+export function resolvePreviewTarget(previewTarget: PrimaryTarget | null, primaryTarget: PrimaryTarget | null): PrimaryTarget | null {
+  return primaryTarget === 'loon' ? 'loon' : previewTarget ?? primaryTarget
+}
+
+export function resolveVisiblePreviewTargets(primaryTarget: PrimaryTarget | null, previewTarget: PrimaryTarget | null) {
+  return primaryTarget === 'loon' || previewTarget === 'loon'
+    ? (Object.keys(targetMeta) as Array<keyof typeof targetMeta>)
+    : (['mihomo', 'surge'] as const)
 }
 
 function CompatibilitySummary({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {

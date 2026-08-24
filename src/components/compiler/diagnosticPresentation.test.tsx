@@ -20,6 +20,20 @@ const surgeMaterialized: StructuredDiagnostic = {
   message: 'Source “Subscription” is materialized from its validated snapshot because its remote format cannot be proven for Surge.',
 }
 
+const loonRemoteProxySourceMaterialized: StructuredDiagnostic = {
+  code: 'LOON_REMOTE_PROXY_SOURCE_MATERIALIZED',
+  severity: 'info',
+  entityId: 'loon-source',
+  message: 'Source “Subscription” is materialized from its validated snapshot because its remote format cannot be proven for Loon.',
+}
+
+const loonProxySetEndpointsSkipped: StructuredDiagnostic = {
+  code: 'LOON_PROXY_SET_ENDPOINTS_SKIPPED',
+  severity: 'warning',
+  entityId: 'loon-strategy',
+  message: 'Loon can use 2 of 3 candidates. 1 incompatible endpoint was skipped.',
+}
+
 describe('human diagnostic presentation', () => {
   beforeEach(() => setCurrentLocale('en-US'))
 
@@ -63,6 +77,30 @@ describe('human diagnostic presentation', () => {
     expect(titleIndex).toBeGreaterThan(-1)
     expect(detailsIndex).toBeGreaterThan(titleIndex)
     expect(codeIndex).toBeGreaterThan(detailsIndex)
+  })
+
+  it('keeps Loon materialized-source information non-blocking and preserves its code and location', () => {
+    const presented = presentDiagnostics([loonRemoteProxySourceMaterialized], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: true,
+    })[0]
+    expect(presented.severity).toBe('info')
+    expect(presented.title).toBe('Export information')
+    expect(presented.impact).not.toContain('blocked')
+    expect(presented.technicalDetails[0].issue.code).toBe('LOON_REMOTE_PROXY_SOURCE_MATERIALIZED')
+    expect(presented.locationIssue?.entityId).toBe('loon-source')
+  })
+
+  it('keeps Loon skipped endpoints non-blocking while describing the compatibility limitation', () => {
+    const presented = presentDiagnostics([loonProxySetEndpointsSkipped], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: true,
+    })[0]
+    expect(presented.severity).toBe('warning')
+    expect(presented.title).toBe('Compatibility limitation')
+    expect(presented.description).toBe('The current target cannot preserve part of this configuration.')
+    expect(presented.impact).toBe('This warning does not block export by itself.')
+    expect(presented.impact).not.toContain('blocked')
+    expect(presented.technicalDetails[0].issue.code).toBe('LOON_PROXY_SET_ENDPOINTS_SKIPPED')
+    expect(presented.locationIssue?.entityId).toBe('loon-strategy')
   })
 
   it('collapses many Mihomo variant rows into one user-meaning group', () => {
@@ -137,5 +175,30 @@ describe('human diagnostic presentation', () => {
       [graphWarning, targetWarning, compilerUnavailable],
       [targetWarning],
     )).toEqual([graphWarning, compilerUnavailable])
+  })
+
+  it('gives Loon blockers evidence-specific unsupported, unproven, routing, and policy copy', () => {
+    const issues: StructuredDiagnostic[] = [
+      { code: 'LOON_PROXY_PROTOCOL_UNSUPPORTED', severity: 'error', entityId: 'proxy-1', message: 'SOCKS5 is unsupported.' },
+      { code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', severity: 'error', entityId: 'remote-rule', message: 'Remote order is unproven.' },
+      { code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', entityId: 'route-order', message: 'Mixed route families are unsupported.' },
+      { code: 'LOON_SERVICE_RULE_POLICY_CONFLICT', severity: 'error', entityId: 'service-rule', message: 'Conflicting policies.' },
+      { code: 'LOON_RULE_SOURCE_FORMAT_UNPROVEN', severity: 'error', entityId: 'rule-source', message: 'Rule source format is unproven.' },
+      { code: 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN', severity: 'error', entityId: 'proxy-source', message: 'Remote source format is unproven.' },
+    ]
+    const presented = presentDiagnostics(issues, {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: false,
+    })
+    expect(presented.map(({ title }) => title)).toEqual([
+      'Loon cannot represent this setting',
+      'Loon remote-rule order is unproven',
+      'Loon routing order cannot be preserved',
+      'Loon service policies conflict',
+      'Loon rule-source format is unproven',
+      'Loon remote proxy-source semantics are unproven',
+    ])
+    expect(presented.every(({ technicalDetails }) => technicalDetails[0].issue.code.startsWith('LOON_'))).toBe(true)
+    expect(presented.find(({ title }) => title.includes('routing'))?.locationIssue?.entityId).toBe('route-order')
+    expect(presented.find(({ title }) => title.includes('service'))?.impact).toContain('blocked')
   })
 })

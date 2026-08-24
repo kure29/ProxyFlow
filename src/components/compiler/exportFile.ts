@@ -1,12 +1,13 @@
 import type { CompileResult } from '../../core/compiler'
 import type { PrimaryTarget } from '../../core/capabilities'
 
-type ExportTarget = Exclude<PrimaryTarget, 'loon'>
+type ExportTarget = PrimaryTarget
 
 export const targetFileMeta = {
   mihomo: { extension: 'yaml', mimeType: 'text/yaml;charset=utf-8', format: 'yaml' },
   surge: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
   'sing-box': { extension: 'json', mimeType: 'application/json;charset=utf-8', format: 'json' },
+  loon: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
 } as const
 
 export type TargetExportFormat = typeof targetFileMeta[ExportTarget]['format']
