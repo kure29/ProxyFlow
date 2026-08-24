@@ -58,6 +58,15 @@ interface SurgeSkippedDetails {
   reasons: Array<{ label: string; count: number }>
 }
 
+type LoonPresentationKind =
+  | 'unsupported'
+  | 'unproven'
+  | 'routingUnsupported'
+  | 'routingUnproven'
+  | 'serviceConflict'
+  | 'sourceUnproven'
+  | 'remoteSourceUnproven'
+
 export function presentDiagnostics(
   issues: readonly StructuredDiagnostic[],
   context: DiagnosticPresentationContext,
@@ -138,7 +147,36 @@ function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentati
   if (issue.code === SURGE_SKIPPED) return presentSurgeSkipped(bucket, context)
   if (issue.code === SURGE_MATERIALIZED) return presentSurgeMaterialized(bucket, context)
   if (issue.code === MIHOMO_VARIANT) return presentMihomoVariant(bucket, context)
+  const loonKind = loonPresentationKind(issue.code)
+  if (loonKind) return presentLoon(bucket, context, loonKind)
   return presentGeneric(bucket, context)
+}
+
+function loonPresentationKind(code: string): LoonPresentationKind | undefined {
+  if (!code.startsWith('LOON_')) return undefined
+  if (code === 'LOON_SERVICE_RULE_POLICY_CONFLICT') return 'serviceConflict'
+  if (code === 'LOON_RULE_SOURCE_FORMAT_UNPROVEN') return 'sourceUnproven'
+  if (code === 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN') return 'remoteSourceUnproven'
+  if (code === 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN') return 'routingUnproven'
+  if (code === 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' || code === 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED') return 'routingUnsupported'
+  if (code.includes('UNPROVEN')) return 'unproven'
+  return 'unsupported'
+}
+
+function presentLoon(
+  bucket: PresentationBucket,
+  context: DiagnosticPresentationContext,
+  kind: LoonPresentationKind,
+): DiagnosticPresentation {
+  const key = `diagnostic.loon.${kind}` as MessageKey
+  return {
+    ...basePresentation(bucket),
+    title: context.t(`${key}.title` as MessageKey),
+    description: context.t(`${key}.description` as MessageKey),
+    impact: context.t(`${key}.impact` as MessageKey),
+    action: context.t(`${key}.action` as MessageKey),
+    reasonSummaries: [],
+  }
 }
 
 function presentSurgeSkipped(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {

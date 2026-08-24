@@ -133,6 +133,32 @@ describe('Workspace target status', () => {
     expect(html).not.toContain('Loon')
   })
 
+  it('keeps an internal Loon Project on the Loon compiler and .conf artifact path', () => {
+    const project = createBlankProject('loon')
+    project.name = 'My Project'
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const loonResult: CompileResult = {
+      ...successResult,
+      content: '[General]\n[Proxy]\n',
+      issues: [],
+    }
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'loon' }),
+      mihomoState: { status: 'idle' },
+      surgeState: { status: 'idle' },
+      singBoxState: { status: 'idle' },
+      loonState: { status: 'success', result: loonResult },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'loon', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+    })))
+    expect(html).toContain('Loon official export is paused')
+    expect(html).toContain('我的代理配置-loon.conf')
+    expect(html).toContain('[General]')
+    expect(html).toContain('Loon profile compiler')
+    expect(html).not.toContain('我的代理配置-mihomo.yaml')
+  })
+
   it('keeps an incompatible Surge target selected, shows the compiler message, and disables export controls', () => {
     const project = createBlankProject('surge')
     project.name = 'Blocked RC'

@@ -1770,6 +1770,7 @@
   .surge-projection-summary article code { min-width: 0; color: var(--color-text-secondary); font-size: 8px; overflow-wrap: anywhere; }
   .surge-projection-summary article span { color: var(--color-text-muted); font-size: 8px; letter-spacing: 0; }
   .surge-projection-summary article p { grid-column: 1 / -1; margin: 0; color: var(--color-text-secondary); font-size: 8px; line-height: 1.45; overflow-wrap: anywhere; }
+  .preview-target-paused { display: flex; align-items: flex-start; gap: 7px; padding: 8px 18px; color: #8c663e; background: #fff8ed; border-bottom: 1px solid #f1e5d2; font-size: 8px; line-height: 1.45; }.preview-target-paused > svg { flex: 0 0 auto; margin-top: 1px; }.preview-target-paused span { display: block; }.preview-target-paused strong { margin-right: 4px; }
   .preview-notice.is-error { color: #a74e4e; background: #fff0f0; border-bottom-color: #efd5d5; }.preview-subheading { margin-top: 7px !important; padding-top: 10px; border-top: 1px solid #e3e5e9; }.preview-compatibility-summary { display: grid; gap: 4px; margin: 2px 0 3px; padding: 7px 6px; border: 1px solid #e3e5e9; border-radius: 7px; background: #fff; }.preview-compatibility-summary > span { color: #9299a4; font-size: 6.5px; font-weight: 780; letter-spacing: .08em; text-transform: uppercase; }.preview-compatibility-row { display: flex; align-items: center; justify-content: space-between; gap: 5px; }.preview-compatibility-row strong { font-size: 7.5px; }.compatibility-status { font-size: 6.5px; font-weight: 760; }.compatibility-status.is-supported { color: #3d9165; }.compatibility-status.is-warning { color: #ad7832; }.compatibility-status.is-loading { color: #6d83a3; }.compatibility-status.is-unavailable, .compatibility-status.is-blocked { color: #b65050; }.preview-stats .bad { color: #b65050; }.code-panel.ir-failed { background: #272a31; }.ir-error-panel { min-height: 0; overflow: auto; padding: 30px; color: #daddE4; }.ir-error-panel > svg { color: #df8c66; }.ir-error-panel h3 { margin: 10px 0 4px; font-size: 15px; }.ir-error-panel > p { margin: 0 0 20px; color: #9299a6; font-size: 9px; }.ir-error-panel > div { display: grid; gap: 8px; }.ir-error-panel article { display: grid; grid-template-columns: 52px 1fr; gap: 4px 10px; padding: 10px; border: 1px solid #3c4049; border-radius: 7px; background: #2d3038; }.ir-error-panel article span { display: flex; align-items: center; gap: 5px; color: #e29272; font-size: 7px; font-weight: 800; text-transform: uppercase; }.ir-error-panel article span em { color: #c8ccd5; font-style: normal; }.ir-error-panel article code { color: #b9dbfa; font-size: 8px; }.ir-error-panel article p { grid-column: 1 / -1; margin: 2px 0 0; color: #a9afba; font-size: 8px; line-height: 1.5; }.ir-error-panel article button { grid-column: 1 / -1; justify-self: start; padding: 4px 0; color: #94c6f4; background: transparent; font-size: 8px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
   .code-panel { min-width: 0; min-height: 0; display: grid; grid-template-rows: 35px minmax(0, 1fr); background: #22252c; }.code-toolbar { display: flex; align-items: center; padding: 0 12px; color: #9da3ae; background: #2a2d34; border-bottom: 1px solid #343840; font-family: "SFMono-Regular", Consolas, monospace; font-size: 8px; }.code-toolbar button { margin-left: auto; display: flex; align-items: center; gap: 5px; color: #aeb4bf; background: transparent; font-size: 7.5px; }.code-toolbar button:hover { color: #fff; }.code-panel pre { min-height: 0; overflow: auto; margin: 0; padding: 17px 20px 28px; color: #d7d9df; font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; line-height: 1.65; tab-size: 2; }.code-panel code { white-space: pre; }
   .preview-modal > footer { display: flex; align-items: center; padding: 0 15px; border-top: 1px solid #e4e6ea; }.preview-modal > footer > span { color: #999fa9; font-size: 7.5px; }.preview-modal > footer > div { margin-left: auto; display: flex; gap: 7px; }
@@ -2690,6 +2691,7 @@
   }
 
   .workspace-export-targets > button,
+  .workspace-export-targets > article,
   .workspace-export-compatibility > article {
     min-width: 0;
     min-height: 132px;
@@ -2714,6 +2716,11 @@
     border-color: var(--color-primary);
     background: var(--color-primary-soft);
     box-shadow: 0 0 0 2px var(--color-focus-ring);
+  }
+
+  .workspace-export-targets > article.workspace-export-internal-target {
+    border-color: var(--color-warning);
+    background: var(--color-warning-soft);
   }
 
   .workspace-export-targets > button > span:not(.workspace-target-icon) {

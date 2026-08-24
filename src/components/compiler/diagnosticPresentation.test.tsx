@@ -138,4 +138,29 @@ describe('human diagnostic presentation', () => {
       [targetWarning],
     )).toEqual([graphWarning, compilerUnavailable])
   })
+
+  it('gives Loon blockers evidence-specific unsupported, unproven, routing, and policy copy', () => {
+    const issues: StructuredDiagnostic[] = [
+      { code: 'LOON_PROXY_PROTOCOL_UNSUPPORTED', severity: 'error', entityId: 'proxy-1', message: 'SOCKS5 is unsupported.' },
+      { code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN', severity: 'error', entityId: 'remote-rule', message: 'Remote order is unproven.' },
+      { code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', entityId: 'route-order', message: 'Mixed route families are unsupported.' },
+      { code: 'LOON_SERVICE_RULE_POLICY_CONFLICT', severity: 'error', entityId: 'service-rule', message: 'Conflicting policies.' },
+      { code: 'LOON_RULE_SOURCE_FORMAT_UNPROVEN', severity: 'error', entityId: 'rule-source', message: 'Rule source format is unproven.' },
+      { code: 'LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN', severity: 'error', entityId: 'proxy-source', message: 'Remote source format is unproven.' },
+    ]
+    const presented = presentDiagnostics(issues, {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: false,
+    })
+    expect(presented.map(({ title }) => title)).toEqual([
+      'Loon cannot represent this setting',
+      'Loon remote-rule order is unproven',
+      'Loon routing order cannot be preserved',
+      'Loon service policies conflict',
+      'Loon rule-source format is unproven',
+      'Loon remote proxy-source semantics are unproven',
+    ])
+    expect(presented.every(({ technicalDetails }) => technicalDetails[0].issue.code.startsWith('LOON_'))).toBe(true)
+    expect(presented.find(({ title }) => title.includes('routing'))?.locationIssue?.entityId).toBe('route-order')
+    expect(presented.find(({ title }) => title.includes('service'))?.impact).toContain('blocked')
+  })
 })
