@@ -1,14 +1,30 @@
 # Loon Compiler Foundation
 
 **Status: Foundation / not product-ready.** Loon is not a production target in
-ProxyFlow 1.1.0. This document records an evidence-backed target audit and the
-fail-closed boundary for the independent `src/targets/loon` backend. It does
-not make Loon available in New Project, Target Switch, Export, or workspace
-target surfaces. There is no real-client acceptance in this phase.
+ProxyFlow 1.1.0. This document records an evidence-backed target audit, the
+fail-closed boundary for the independent `src/targets/loon` backend, and the
+successful acceptance of its audited materialized subset. It does not make
+Loon available in New Project, Target Switch, Export, or workspace target
+surfaces.
 
 The developer-only real-client preparation workflow is documented in
-[`docs/loon-acceptance.md`](loon-acceptance.md); its import status remains
-`REAL LOON IMPORT: PENDING USER ACCEPTANCE`.
+[`docs/loon-acceptance.md`](loon-acceptance.md); its recorded status is
+`REAL LOON IMPORT: PASSED` and `REAL PROXY TRAFFIC: PASSED`.
+
+## Acceptance status
+
+- Compiler Foundation: **IMPLEMENTED**
+- Sanitized deterministic compiler acceptance: **PASSED**
+- Real subscription projection: **PASSED** (`95` candidates, `91` compatible,
+  `4` intentionally skipped, `0` blockers)
+- Real Loon client import: **PASSED** on Loon `3.5.0 (975)`
+- Real proxy traffic: **PASSED**
+- Tested iOS version: **NOT RECORDED**
+- Product exposure: **NOT ENABLED**
+
+The client result validates the materialized subset represented by the profile;
+it does not widen the deferred protocol, routing, serializer, Service Rules,
+or native remote-source boundaries below.
 
 The intended pipeline is:
 
@@ -236,8 +252,9 @@ The serializer must produce UTF-8, LF line endings, deterministic section and
 entry order, and exactly one trailing newline. The target baseline uses
 `[General]`, `[Proxy]`, `[Proxy Group]`, and `[Rule]`; `[General]`, group, and
 rule section evidence is explicit in the audited pages, while the node examples
-imply `[Proxy]` and still require a parser/client fixture before product
-readiness. Section names are based on the Loon manual, not copied from Surge
+imply `[Proxy]` and the readiness record now includes one successful client
+import. This does not make the adapter product-ready. Section names are based
+on the Loon manual, not copied from Surge
 field semantics ([`general.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/general.md#L1-L20), [`policygroup.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/policygroup.md#L1-L6), [`plugin.md`](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/plugin.md#L18-L33)).
 
 The official examples are comma-delimited and quote a fixed set of passwords

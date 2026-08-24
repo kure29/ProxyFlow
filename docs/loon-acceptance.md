@@ -1,19 +1,22 @@
-REAL LOON IMPORT: PENDING USER ACCEPTANCE
+REAL LOON IMPORT: PASSED
+REAL PROXY TRAFFIC: PASSED
 
 # Loon Real Client Readiness
 
 This document records the developer-only acceptance boundary for the Loon
-compiler. It is not a product launch, a supported-target declaration, or proof
-that a real Loon client has accepted an export.
+compiler. It is not a product launch or a supported-target declaration. It
+records one successful real-client acceptance of the audited materialized
+subset without enabling Loon on formal product surfaces.
 
 ## Baseline
 
 - Repository: `kure29/ProxyFlow`
 - Foundation baseline: merged PR #41, commit `0a16491`
 - Readiness branch: `feat/loon-client-readiness`
-- Tested Loon version: **PENDING USER ACCEPTANCE**
-- Tested iOS version: **PENDING USER ACCEPTANCE**
-- Import result: **PENDING**
+- Tested Loon version: **3.5.0 (975)**
+- Tested iOS version: **NOT RECORDED**
+- Import result: **PASSED**
+- Real proxy traffic: **PASSED**
 
 The compiler continues to consume Universal IR through the existing graph and
 projection pipeline. Loon remains absent from Target selector, New Project,
@@ -35,9 +38,9 @@ This is capability evidence for Loon itself, not proof that ProxyFlow's
 Universal IR preserves every field or that this adapter can lower it without
 loss. The current page therefore supersedes stale "Loon does not support" or
 "unproven in Loon" wording, while the adapter may still keep a feature
-`deferred` pending an IR audit and real-client acceptance. In this phase only
-the exact SS2022 AES-128 cipher and SIP003 simple-obfs source lowering have
-been added; Reality, SOCKS5, and AnyTLS remain intentionally deferred.
+`deferred` pending an IR audit and real-client acceptance. The audited
+materialized subset has now passed one real-client import and traffic check;
+Reality, SOCKS5, and AnyTLS remain intentionally deferred.
 
 ## Checked-in Fixtures
 
@@ -145,18 +148,72 @@ Primary findings:
 - Reality endpoints remain intentionally deferred pending a Universal IR and
   exact-lowering audit.
 
-This failed attempt is preserved as `BLOCKED`; the source representation fix is
-followed by `RETEST`, and only a later real-client result can establish
-`PASSED`:
+This failed attempt remains recorded as `BLOCKED`; it is not reclassified after
+the later fix:
 
-`BLOCKED (Attempt 1) -> FIX (source lowering/evidence update) -> RETEST REQUIRED -> PASSED (future client evidence)`
+`BLOCKED (Attempt 1) -> FIX (source lowering/evidence update) -> RETEST (91/95, zero blockers) -> REAL IMPORT PASSED -> REAL TRAFFIC PASSED`
 
 No node names, addresses, subscription URL, passwords, UUIDs, hosts, or tokens
 are recorded here.
 
+## Compatibility Fix #1
+
+The first retest used the following evidence-backed changes without widening
+unproven target capability:
+
+- Syntax-safe UTF-8 policy and node identifiers are preserved. This covers the
+  CJK and flag/emoji candidates used in the real retest; those candidates
+  survived client import, but this is not a guarantee for every Unicode code
+  point. Delimiters, comments, controls, line separators, and outer whitespace
+  remain blocked.
+- SIP003 `simple-obfs` source options `obfs=http|tls` and `obfs-host` lower to
+  Loon `obfs-name=http|tls` and `obfs-host`. No synthetic `obfs-uri` is added;
+  conflicting `obfs` and `obfs-name` values fail closed.
+- The directly evidenced Shadowsocks method
+  `2022-blake3-aes-128-gcm` was added. `2022-blake3-aes-256-gcm` remains
+  outside the audited boundary and continues to report
+  `LOON_PROXY_CIPHER_UNSUPPORTED`.
+- Fixed quoted credentials admit only the directly evidenced safe subset.
+  There is no generic CSV, JSON, or backslash escaping grammar.
+
+## Real Subscription Retest
+
+Status: **COMPILED FOR REAL CLIENT**
+
+The user-run local retest produced aggregate-only results:
+
+- candidates: `95`
+- compatible: `91`
+- skipped: `4`
+- blockers: `0`
+- diagnostic: `LOON_PROXY_SET_ENDPOINTS_SKIPPED` (`4`)
+- result: `COMPILED_LOCAL_ONLY`
+
+The four skipped endpoints are expected compatibility projection outcomes, not
+an acceptance failure: two use the still-blocked SS2022 AES-256 method and two
+carry VLESS Reality intent whose exact Universal-to-Loon lowering remains
+deferred. No endpoint data or private generated profile content is recorded.
+
+## Real Client Acceptance
+
+- Loon version: `3.5.0 (975)`
+- iOS version: **NOT RECORDED**
+- configuration import: **PASSED**
+- compatible proxy inventory (91 endpoints visible): **PASSED**
+- Round-Robin represented by the client as the expected load-balance policy:
+  **PASSED**
+- real proxy traffic: **PASSED**
+
+This records the core materialized-profile acceptance only. It does not claim
+separate validation of every URL Test, Fixed, DNS, route, failure-mode, or
+long-duration balancing behavior.
+
 ## Import Checklist
 
-Record the client and OS versions above before changing `PENDING`.
+The checklist remains a template for future detailed client evidence. The
+explicitly confirmed observations for this closeout are recorded in
+**Real Client Acceptance** above; unconfirmed individual URL Test, Fixed, DNS,
+and route checks remain neutral.
 
 1. The `.conf` imports into Loon.
 2. Loon reports no parser error.
@@ -173,17 +230,18 @@ Record the client and OS versions above before changing `PENDING`.
 13. Unsupported nodes are skipped or blocked according to diagnostics.
 14. No policy reference is dangling.
 
-Result: **PENDING**. No real-client evidence has been supplied in this phase.
+Result: **CORE ACCEPTANCE PASSED**. Product exposure remains disabled.
 
 ## Preserved Foundation Boundaries
 
 The readiness workflow does not relax any Foundation decision:
 
 - mixed domain/IP route precedence remains blocked by
-  `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` until real-client evidence exists;
+  `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` until a deliberate mixed-family
+  precedence fixture proves equivalence to Universal priority;
 - syntax-safe Unicode policy names are preserved for acceptance candidates;
-  extended Unicode/emoji round-trip remains conditional pending real-client
-  evidence;
+  the tested CJK and flag/emoji candidates survived import, while broader
+  Unicode round-trip remains conditional;
 - serializer delimiter, quote, backslash, control-character, and non-policy
   Unicode values remain conservative and can fail with
   `LOON_SERIALIZER_UNSAFE_VALUE`; the current SS2022 example proves `=` and
@@ -240,7 +298,7 @@ therefore contains separate pure domain and pure IP profiles only.
 
 These cases are intentionally not auto-enabled by the fixture:
 
-- extended Unicode/emoji policy-name round-trip;
+- Unicode beyond the tested CJK and flag/emoji candidates;
 - password punctuation beyond the proven quoted `=`/`:` case and the HTTP
   username comma form;
 - query-like paths and spaces;
