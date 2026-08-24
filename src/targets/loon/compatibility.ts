@@ -154,19 +154,38 @@ function validateLoonRemoteRuleOrderSemantics(
   ))
 
   const rankedRoutes = rankLoonRoutes(ir.routes)
-  const activeLocalRoutes = rankedRoutes
-    .filter(({ route }) => isActiveLoonRoute(route, activeStrategyIds) && isLoonLocalMatcher(route.matcher.kind))
-    .map(({ route, index }) => ({ priority: route.priority, insertionIndex: index }))
+  const activeDomainLocalRoutes = rankedRoutes
+    .filter(({ route }) => isActiveLoonRoute(route, activeStrategyIds) && isLoonDomainFamilyMatcher(route.matcher.kind))
+    .map(({ route, index }) => ({ priority: route.priority, insertionIndex: index, routeId: route.id }))
+  const activeIpLocalRoutes = rankedRoutes
+    .filter(({ route }) => isActiveLoonRoute(route, activeStrategyIds) && isLoonIpFamilyMatcher(route.matcher.kind))
+    .map(({ route }) => ({ routeId: route.id }))
 
-  // The owned asset matcher sets are not modeled in this IR, so every local
-  // matcher and first-party Remote Rule must be treated as potentially
-  // overlapping. Loon's proven LOCAL_FIRST source precedence is lossless only
-  // when Universal effective order already puts every local route first. This
-  // conservative boundary also avoids inferring that same-policy source order
-  // is irrelevant to Loon's matching/diagnostic behavior.
+  // The Remote Rule matcher family is opaque to Universal IR. Loon's
+  // documented domain-before-IP matching therefore does not prove that an
+  // active IP-family local rule preserves Universal intent against a Remote
+  // Rule, even when the local route has the lower Universal priority. If a
+  // domain-family local route is also present, the existing mixed-family
+  // validator owns the single route-order blocker instead of emitting a
+  // duplicate diagnostic here.
+  if (activeRemoteRoutes.length > 0 && activeIpLocalRoutes.length > 0 && activeDomainLocalRoutes.length === 0) {
+    issues.push(loonIssue(
+      'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', 'error', 'route-order',
+      'Loon domain/IP matcher-family precedence is not proven when an active IP-family local rule coexists with an opaque first-party Remote Rule.',
+      activeIpLocalRoutes[0].routeId,
+    ))
+  }
+
+  // The owned asset matcher sets are not modeled in this IR, so every active
+  // domain-family local matcher and first-party Remote Rule must be treated as
+  // potentially overlapping. Loon's proven LOCAL_FIRST source precedence is
+  // lossless only when Universal effective order already puts every domain
+  // local route first. This conservative boundary also avoids inferring that
+  // same-policy source order is irrelevant to Loon's matching/diagnostic
+  // behavior.
   const incompatibleRemote = activeRemoteRoutes.find((remote) => {
     const remoteOrder = { priority: remote.priority, insertionIndex: remote.routeIndex }
-    return activeLocalRoutes.some((localOrder) => (
+    return activeDomainLocalRoutes.some((localOrder) => (
       compareLoonRouteOrder(remoteOrder, localOrder) < 0
     ))
   })
@@ -188,10 +207,6 @@ function isActiveLoonRoute(
   activeStrategyIds: ReadonlySet<string>,
 ) {
   return route.target.kind !== 'strategy' || activeStrategyIds.has(route.target.id)
-}
-
-function isLoonLocalMatcher(kind: string) {
-  return isLoonDomainFamilyMatcher(kind) || isLoonIpFamilyMatcher(kind)
 }
 
 /**

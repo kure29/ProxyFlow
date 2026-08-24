@@ -288,6 +288,36 @@ describe('Loon routing', () => {
     expect(serviceOnly.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
   })
 
+  it.each([
+    { label: 'IP-CIDR', matcher: { kind: 'ip-cidr', value: '192.0.2.0/24' } as const },
+    { label: 'IP-CIDR6', matcher: { kind: 'ip-cidr6', value: '2001:db8::/32' } as const },
+    { label: 'GEOIP', matcher: { kind: 'geo-ip', countryCode: 'US' } as const },
+  ])('blocks active $label local plus a first-party Remote Rule at route-order boundary', ({ matcher }) => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('ip-local', matcher, { kind: 'direct' }, 10),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 20),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', feature: 'route-order', entityId: 'ip-local',
+    }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
+  })
+
+  it('keeps the existing single mixed-family blocker when an opaque Remote Rule is also present', () => {
+    const result = checkLoonCompatibility(compatibilityIR([
+      route('domain-local', { kind: 'domain', value: 'local.example.invalid' }, { kind: 'direct' }, 10),
+      route('ip-local', { kind: 'ip-cidr', value: '192.0.2.0/24' }, { kind: 'direct' }, 20),
+      route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 30),
+    ], structuredClone(serviceCatalog)))
+
+    expect(result.supported).toBe(false)
+    expect(result.issues.filter((issue) => issue.code === 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')).toHaveLength(1)
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
+  })
+
   it('blocks Remote-before-local intent as a known LOCAL_FIRST incompatibility', () => {
     const result = checkLoonCompatibility(compatibilityIR([
       route('openai', { kind: 'service', serviceIds: ['openai'] }, { kind: 'direct' }, 10),

@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { GraphNode, ProxyFlowProject } from '../../types/project'
+import type { GraphNode, ProxyFlowProject, RouteMatcherKind } from '../../types/project'
 import projectText from '../../../fixtures/loon/service-rules-project.json?raw'
 import { compileLoonAcceptanceProject } from './acceptance'
 
 const baseProject = JSON.parse(projectText) as ProxyFlowProject
+type LocalMatcherKind = Extract<RouteMatcherKind, 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'geo-ip'>
 
-function precedenceProject(servicePriority: number, localPriority: number) {
+function precedenceProject(
+  servicePriority: number,
+  localPriority: number,
+  localMatcherKind: LocalMatcherKind = 'domain',
+  localMatcherValue = 'local.example.invalid',
+) {
   const project = structuredClone(baseProject)
   const serviceRoute = project.graph.nodes.find((node) => node.id === 'openai-route')
   if (!serviceRoute) throw new Error('service route fixture missing')
@@ -19,10 +25,10 @@ function precedenceProject(servicePriority: number, localPriority: number) {
       blockType: 'custom-rule',
       category: 'routing',
       title: 'Local',
-      subtitle: 'Local domain matcher',
+      subtitle: 'Local matcher',
       icon: 'route',
-      routeMatcherKind: 'domain',
-      routeMatcherValue: 'local.example.invalid',
+      routeMatcherKind: localMatcherKind,
+      routeMatcherValue: localMatcherValue,
       targetKind: 'direct',
       targetId: 'DIRECT',
       targetLabel: 'DIRECT',
@@ -67,6 +73,18 @@ describe('Loon local/Remote precedence graph-to-target boundary', () => {
     expect(result.loon?.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN' }))
   })
 
+  it('rejects a Project → Graph/IR → Loon active IP-local plus Remote profile', () => {
+    const result = compileLoonAcceptanceProject(precedenceProject(20, 10, 'ip-cidr', '192.0.2.0/24'))
+
+    expect(result.graph.success).toBe(true)
+    expect(result.loon?.success).toBe(false)
+    expect(result.loon?.content).toBe('')
+    expect(result.loon?.issues).toContainEqual(expect.objectContaining({
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', feature: 'route-order', entityId: 'local-route',
+    }))
+    expect(result.loon?.issues).not.toContainEqual(expect.objectContaining({ code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED' }))
+  })
+
   it('does not let a disabled Remote route manufacture a precedence blocker', () => {
     const project = precedenceProject(10, 20)
     project.graph.nodes.find((node) => node.id === 'openai-route')!.data.disabled = true
@@ -77,6 +95,32 @@ describe('Loon local/Remote precedence graph-to-target boundary', () => {
     expect(result.loon?.success).toBe(true)
     expect(result.loon?.issues).not.toContainEqual(expect.objectContaining({
       code: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED',
+    }))
+  })
+
+  it('does not let a disabled IP-local route manufacture a route-order blocker', () => {
+    const project = precedenceProject(20, 10, 'ip-cidr', '192.0.2.0/24')
+    project.graph.nodes.find((node) => node.id === 'local-route')!.data.disabled = true
+
+    const result = compileLoonAcceptanceProject(project)
+    expect(result.graph.success).toBe(true)
+    expect(result.graph.ir?.routes.map((route) => route.id)).toEqual(['openai-route'])
+    expect(result.loon?.success).toBe(true)
+    expect(result.loon?.issues).not.toContainEqual(expect.objectContaining({
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED',
+    }))
+  })
+
+  it('does not let a disabled Remote route manufacture a blocker for active IP-local routing', () => {
+    const project = precedenceProject(10, 20, 'ip-cidr', '192.0.2.0/24')
+    project.graph.nodes.find((node) => node.id === 'openai-route')!.data.disabled = true
+
+    const result = compileLoonAcceptanceProject(project)
+    expect(result.graph.success).toBe(true)
+    expect(result.graph.ir?.routes.map((route) => route.id)).toEqual(['local-route'])
+    expect(result.loon?.success).toBe(true)
+    expect(result.loon?.issues).not.toContainEqual(expect.objectContaining({
+      code: 'LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED',
     }))
   })
 })

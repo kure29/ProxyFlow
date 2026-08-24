@@ -13,12 +13,16 @@ describe('Loon capability boundary', () => {
       .toBe('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED')
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'Routing baseline')?.reason)
       .toContain('LOCAL_FIRST')
+    expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'Routing baseline')?.reason)
+      .toContain('IP-family local plus Remote remains blocked')
     expect(LOON_CAPABILITIES.serviceRules).toEqual({ firstParty: 'conditional', arbitrary: 'unproven' })
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'First-party Service Rules')).toMatchObject({
       status: 'conditional', diagnostic: 'LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN',
     })
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'First-party Service Rules')?.reason)
       .toContain('Remote-before-Local')
+    expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'First-party Service Rules')?.reason)
+      .toContain('IP-family local plus Remote')
     expect(LOON_OFFICIAL_REFERENCES.currentNode).toBe('https://nsloon.app/docs/Node/')
     expect(LOON_CAPABILITY_MATRIX.find((entry) => entry.feature === 'SOCKS5')?.status).toBe('deferred')
   })

@@ -27,9 +27,11 @@ scenario.
 - Real Loon Service Rules acceptance: **PASSED** for OpenAI on Loon `3.5.0 (975)`
 - Routing precedence acceptance: **PASSED** for the controlled four-profile
   real-client run. The proven `LOCAL_FIRST` result now permits a conditional
-  local-plus-Remote lowering only when Universal effective order places every
-  potentially overlapping local domain/IP route before every service route;
-  Remote-before-Local remains fail-closed.
+  domain-family local-plus-Remote lowering only when Universal effective order
+  places every potentially overlapping local domain route before every service
+  route. IP-family local plus Remote remains fail-closed because the accepted
+  evidence does not prove matcher-family precedence; Remote-before-Local also
+  remains fail-closed.
 - Tested iOS version: **NOT RECORDED**
 - Product exposure: **NOT ENABLED**
 
@@ -43,15 +45,16 @@ below. Neither axis widens the deferred protocol, serializer, arbitrary remote
 source, or product-exposure boundaries.
 
 Routing precedence remains a release-readiness semantic boundary for this
-foundation. The controlled local-vs-Remote result proves `LOCAL_FIRST`, while
-the Google/Gemini result is evidence only for that controlled overlap. The
-acceptance-only profiles in
+foundation. The controlled local-vs-Remote result proves `LOCAL_FIRST` for the
+tested domain pair, while the Google/Gemini result is evidence only for that
+controlled overlap. The acceptance harness includes both the accepted
+Local-vs-Remote domain pair and the controlled Remote-vs-Remote profiles in
 [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md)
-intentionally exercise the unresolved Remote-vs-Remote cases that production
-still rejects; they are generated directly through the typed serializer and do
-not add a compatibility bypass.
-Production still fails closed for Remote-before-Local order and for generalized
-different-policy Remote-vs-Remote ordering. Loon is not product-ready.
+and is generated directly through the typed serializer; it does not add a
+compatibility bypass. Production still fails closed for IP-family
+Local-vs-Remote matcher-family precedence, Remote-before-Local order, and
+generalized different-policy Remote-vs-Remote ordering.
+Loon is not product-ready.
 
 The intended pipeline is:
 
@@ -228,7 +231,7 @@ reuse the Surge evaluator.
 | Logical rules | Loon supports nested `AND`, `OR`, and `NOT`. | IR has no logical matcher tree. | Unsupported | `LOON_LOGICAL_RULE_UNSUPPORTED` (reserved) | [logic_rule.md#L1-L27](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/logic_rule.md#L1-L27) |
 | Protocol / URL / User-Agent | Loon has protocol rules and HTTP URL/UA rules. | No corresponding Universal matcher types. | Unsupported | `LOON_MATCHER_UNSUPPORTED` | [protocol_rule.md#L1-L8](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/protocol_rule.md#L1-L8), [http_rule.md#L1-L12](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/http_rule.md#L1-L12) |
 | Arbitrary Rule Set / remote list | A Loon rule subscription carries a URL and policy, and each downloaded line must use Loon-supported rule syntax. | `RuleSourceIR` may contain a user-controlled URL and format whose ownership, canonical grammar, request behavior, refresh behavior, and failure semantics are not proven. Never treat an arbitrary `.list` as an owned Service Rule. | Unproven | `LOON_RULE_SOURCE_FORMAT_UNPROVEN` | [Current Remote Rule page source](https://github.com/Loon0x00/Loon0x00.github.io/blob/65292c2089fb3fd8b43a8dfbeeaa5f286d7cc737/docs/Rule/sub_rule.md#L5-L10) |
-| First-party Service Rules | Loon documents remote rule collections, and its full-profile example uses `[Remote Rule]` with `URL,policy=PROXY,enabled=true`. | Resolve only the ten owned `kure29/proxyflow-rules/rules/loon/*.list` assets from the central catalog, lower each service reference to a typed `LoonRemoteRule`, and serialize no extra remote options. Missing, legacy-China, arbitrary, and policy-conflict cases fail closed. A local-plus-Remote profile is conditionally supported only when Universal effective order (priority ascending, stable IR-array index tie-break) places every potentially overlapping local domain/IP route before every service route. | Foundation and deterministic acceptance passed; OpenAI import, fetch/refresh, policy binding, and traffic passed on Loon `3.5.0 (975)`. The controlled local-vs-Remote pair proved `LOCAL_FIRST`; the controlled Google/Gemini pair remains narrow evidence, while different-policy Remote-vs-Remote ordering and failure/cache boundaries remain unproven. | `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_SERVICE_RULE_POLICY_CONFLICT` | [generated Loon matrix](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/generate-rules.mjs#L129-L209), [validator](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/validate-rules.mjs#L161-L218), [Loon example](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) |
+| First-party Service Rules | Loon documents remote rule collections, and its full-profile example uses `[Remote Rule]` with `URL,policy=PROXY,enabled=true`. | Resolve only the ten owned `kure29/proxyflow-rules/rules/loon/*.list` assets from the central catalog, lower each service reference to a typed `LoonRemoteRule`, and serialize no extra remote options. Missing, legacy-China, arbitrary, and policy-conflict cases fail closed. Only domain-family local matchers may coexist with a first-party Remote Rule when Universal effective order (priority ascending, stable IR-array index tie-break) places every potentially overlapping local domain route before every service route. Active IP-family local plus opaque Remote Rule remains blocked by matcher-family precedence. | Foundation and deterministic acceptance passed; OpenAI import, fetch/refresh, policy binding, and traffic passed on Loon `3.5.0 (975)`. The controlled local-vs-Remote pair proved `LOCAL_FIRST` for a local `DOMAIN` matcher; the controlled Google/Gemini pair remains narrow evidence, while IP-family Local-vs-Remote and different-policy Remote-vs-Remote ordering remain unproven. | `LOON_SERVICE_RULE_NOT_FOUND`, `LOON_LEGACY_SERVICE_RULE_UNSUPPORTED`, `LOON_SERVICE_RULE_SOURCE_MISSING`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED`, `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`, `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`, `LOON_SERVICE_RULE_POLICY_CONFLICT` | [generated Loon matrix](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/generate-rules.mjs#L129-L209), [validator](https://github.com/kure29/proxyflow-rules/blob/27d38e44282115e071d19c846c17e14e6d2e584b/scripts/validate-rules.mjs#L161-L218), [Loon example](https://github.com/Loon0x00/LoonExampleConfig/blob/dfbfc0b74dd689d9d76d5b6da7fe3778791c0710/example.conf#L101-L105) |
 | Rule order | Loon gives domain/IP rules special matching behavior and otherwise uses configuration order. | Universal routes carry explicit priority/insertion order. Sorting by matcher type is forbidden. Pure domain-family and pure IP-family sets preserve Universal priority; mixed family precedence is not proven. | Conditional | `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP routes | [rule.md#L5-L11](https://github.com/Loon0x00/LoonManual/blob/4311d0030fe3065d4664b403a32010f083b99273/docs/cn/rule.md#L5-L11) |
 
 The route compiler preserves Universal priority order for every emitted pure
@@ -254,13 +257,15 @@ service JSON as the other rule targets; China is intentionally absent. Exact
 duplicate URL-plus-policy references are deduplicated. Reusing one asset with
 different policies blocks with `LOON_SERVICE_RULE_POLICY_CONFLICT`.
 
-Section precedence is conditionally supported by the controlled evidence. Loon
-is proven `LOCAL_FIRST`; therefore a local-plus-Remote profile is lowered only
-when Universal effective order places every potentially overlapping local
-domain/IP route before every service route. Effective order is Universal
-priority ascending with the stable IR-array index as the tie-break. If any
-service route would precede a potentially overlapping local route, compilation
-fails closed with
+Section precedence is conditionally supported by the controlled evidence. The
+accepted Local-vs-Remote fixture used a local `DOMAIN` matcher, so Loon's
+proven `LOCAL_FIRST` result is applied only to domain-family local matchers
+(`domain`, `domain-suffix`, and `domain-keyword`). Such a profile is lowered
+only when Universal effective order places every potentially overlapping local
+domain route before every service route. Effective order is Universal priority
+ascending with the stable IR-array index as the tie-break. If any service route
+would precede a potentially overlapping domain local route, compilation fails
+closed with
 `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNSUPPORTED`; the adapter
 does not reorder routes or guess a Loon precedence rule. Multiple Remote Rule
 subscriptions with different effective policies remain generalized
@@ -269,8 +274,12 @@ Remote-vs-Remote evidence gaps and block with
 be emitted when they all resolve to the same policy; `FINAL` is not considered
 a conflicting local matcher. Same-service conflicting policies continue to
 block with `LOON_SERVICE_RULE_POLICY_CONFLICT`, arbitrary rule sets continue to
-block with `LOON_RULE_SOURCE_FORMAT_UNPROVEN`, and mixed domain/IP families
-continue to block with `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`.
+block with `LOON_RULE_SOURCE_FORMAT_UNPROVEN`. An active IP-family local
+matcher (`ip-cidr`, `ip-cidr6`, or `geo-ip`) plus any opaque first-party
+Remote Rule remains blocked with `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`,
+because Loon's documented domain-before-IP behavior does not prove that
+source priority preserves Universal intent for that combination. Mixed
+domain/IP local families continue to use the same route-order blocker.
 
 The accepted real-client scenario uses one compatible endpoint, the OpenAI
 asset, `policy=Service Proxy`, and `FINAL -> DIRECT` on Loon `3.5.0 (975)`. The
