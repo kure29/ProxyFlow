@@ -18,10 +18,12 @@ export const LOON_CAPABILITY_MATRIX: readonly LoonCapabilityDecision[] = [
   { feature: 'HTTP', status: 'supported', reason: 'Bare HTTP and exact positional credentials are documented.', officialReference: `${MANUAL}/node.md#L61-L64` },
   { feature: 'HTTPS', status: 'conditional', reason: 'Ordinary TLS, SNI, and certificate skipping are represented; fingerprints, ALPN, and Reality are not proven in the HTTPS syntax.', officialReference: `${MANUAL}/node.md#L66-L70`, diagnostic: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED' },
   { feature: 'Shadowsocks', status: 'conditional', reason: 'A Loon-owned legacy cipher boundary and simple-obfs lowering are proven; unmodeled option intent blocks.', officialReference: `${MANUAL}/node.md#L43-L52`, diagnostic: 'LOON_PROXY_CIPHER_UNSUPPORTED' },
+  { feature: 'Shadowsocks simple-obfs', status: 'conditional', reason: 'Canonical simple-obfs mode, host, and URI options are lowered independently; other plugins remain blocked.', officialReference: `${MANUAL}/node.md#L49-L52`, diagnostic: 'LOON_PROXY_VARIANT_UNSUPPORTED' },
   { feature: 'Trojan', status: 'conditional', reason: 'Plain TLS with TCP/WS/HTTP transport, SNI, ALPN, and certificate skipping is lowered.', officialReference: `${MANUAL}/node.md#L120-L130`, diagnostic: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED' },
   { feature: 'VMess', status: 'conditional', reason: 'Only explicit alterId plus documented TCP/WS/HTTP fields are lowered; omission never defaults silently.', officialReference: `${MANUAL}/node.md#L72-L94`, diagnostic: 'LOON_VMESS_VARIANT_UNSUPPORTED' },
   { feature: 'VLESS', status: 'conditional', reason: 'Basic TCP/WS/HTTP and ordinary TLS subset only; Reality, Vision, flow, and modern transports fail closed.', officialReference: `${MANUAL}/node.md#L96-L118`, diagnostic: 'LOON_VLESS_VARIANT_UNSUPPORTED' },
   { feature: 'Hysteria2', status: 'conditional', reason: 'Minimal password/TLS/SNI subset only; obfs, bandwidth, and hopping fields are deferred.', officialReference: `${MANUAL}/node.md#L135-L137`, diagnostic: 'LOON_HYSTERIA2_VARIANT_UNSUPPORTED' },
+  { feature: 'SOCKS5', status: 'unproven', reason: 'No SOCKS5 node syntax is established in the pinned first-party protocol pages.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'TUIC', status: 'deferred', reason: 'No Universal-to-Loon exact syntax audit is in this foundation.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'AnyTLS', status: 'deferred', reason: 'No Universal-to-Loon exact syntax audit is in this foundation.', officialReference: `${MANUAL}/node.md#L15-L39`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
   { feature: 'WireGuard', status: 'deferred', reason: 'Loon has native fields, but Universal IR has no WireGuard endpoint model.', officialReference: `${MANUAL}/node.md#L132-L133`, diagnostic: 'LOON_PROXY_PROTOCOL_UNSUPPORTED' },
@@ -59,5 +61,7 @@ export const LOON_CAPABILITIES = {
 } as const
 
 export function loonProtocolCapability(endpoint: ResolvedProxyEndpointIR) {
+  // HTTPS is represented in the Universal IR as HTTP plus enabled TLS.
+  if (endpoint.protocol === 'http' && endpoint.tls?.enabled === true) return 'conditional' as const
   return LOON_CAPABILITIES.protocols[endpoint.protocol as keyof typeof LOON_CAPABILITIES.protocols] ?? 'unsupported'
 }
