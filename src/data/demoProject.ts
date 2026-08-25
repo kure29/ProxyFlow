@@ -28,7 +28,7 @@ export const outputDefinitions: OutputDefinition[] = [
   { id: 'surge', target: 'surge', label: 'Surge', status: 'supported', ...miniIcon('surge') },
   { id: 'loon', target: 'loon', label: 'Loon', status: 'supported', ...miniIcon('loon') },
   { id: 'quantumult-x', target: 'quantumult-x', label: 'Quantumult X', status: 'coming-soon', ...miniIcon('quantumultx', 'quanX') },
-  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'coming-soon', ...miniIcon('shadowrocket') },
+  { id: 'shadowrocket', target: 'shadowrocket', label: 'Shadowrocket', status: 'paused', ...miniIcon('shadowrocket') },
   { id: 'stash', target: 'stash', label: 'Stash', status: 'coming-soon', ...miniIcon('stash') },
 ]
 

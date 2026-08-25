@@ -517,6 +517,19 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().toProject().version).toBe(project.version)
   })
 
+  it('hydrates a paused Shadowrocket project without losing target identity or history safety', () => {
+    const project = createBlankProject('shadowrocket')
+    const graph = structuredClone(project.graph)
+    useBuilderStore.getState().hydrate(JSON.parse(JSON.stringify(project)))
+    expect(useBuilderStore.getState().primaryTarget).toBe('shadowrocket')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('shadowrocket')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.compatibility).toBe('Paused')
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graph)
+    useBuilderStore.getState().setPrimaryTarget('mihomo')
+    useBuilderStore.getState().undo()
+    expect(useBuilderStore.getState().primaryTarget).toBe('shadowrocket')
+  })
+
   it.each(['surge', 'sing-box'] as const)('preserves %s ↔ Loon internal target transitions with history', (start) => {
     const project = createBlankProject(start)
     const graph = structuredClone(project.graph)

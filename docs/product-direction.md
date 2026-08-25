@@ -66,7 +66,10 @@ Current target status:
   tests, and Universal IR infrastructure remain available for regression and
   possible future use. Historical Projects load without data loss, can switch
   to a supported target, and retain their target-specific data.
-- Stash, Shadowrocket, and Quantumult X: Planned.
+- Shadowrocket: Compiler foundation registered but product export remains
+  paused pending the evidence and real-client gates in
+  [`shadowrocket-rc-readiness.md`](shadowrocket-rc-readiness.md). Stash and
+  Quantumult X remain planned.
 
 Subscription Request Profile is independent from Export Target. Auto, Mihomo,
 sing-box, and Generic request profiles remain available.

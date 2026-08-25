@@ -4,7 +4,7 @@ import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
   it('keeps all compiler targets registered while exposing release-ready product targets', () => {
-    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box', 'loon'])
+    expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box', 'loon', 'shadowrocket'])
     expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge', 'loon'])
     expect(PRODUCT_TARGETS).not.toContain('sing-box')
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
@@ -16,10 +16,12 @@ describe('target capability registry', () => {
     expect(getTargetCapabilities('loon').productStatus).toBe('supported')
     expect(getTargetCapabilities('loon').label).toBe('Loon')
     expect(isPrimaryTarget('loon')).toBe(true)
+    expect(isPrimaryTarget('shadowrocket')).toBe(true)
     expect(isPrimaryTarget('future-target')).toBe(false)
     expect(resolveActiveProductTarget('surge')).toBe('surge')
     expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
     expect(resolveActiveProductTarget('loon')).toBe('loon')
+    expect(resolveActiveProductTarget('shadowrocket')).toBe('mihomo')
     expect(DEFAULT_PRODUCT_TARGET).toBe('mihomo')
   })
 

@@ -4,7 +4,7 @@ import type { GraphEdge, GraphNode, ProxyFlowProject } from '../types/project'
 import { outputDefinitions } from './demoProject'
 import { serviceCatalog } from './serviceCatalog'
 import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
-import { getTargetCapabilities, type PrimaryTarget } from '../core/capabilities'
+import { getTargetCapabilities, outputCompatibilityForTarget, type PrimaryTarget } from '../core/capabilities'
 
 const finalNode: GraphNode = {
   id: 'final-route',
@@ -22,7 +22,7 @@ const outputNode = (primaryTarget: PrimaryTarget): GraphNode => ({
   position: { x: 1080, y: 260 },
   data: {
     blockType: 'output', category: 'output', title: `${getTargetCapabilities(primaryTarget).label} Output`, subtitle: '等待编译', subtitleKey: 'demo.blank.outputSubtitle', icon: 'package-check',
-    client: primaryTarget, compatibility: 'Supported', protected: true,
+    client: primaryTarget, compatibility: outputCompatibilityForTarget(primaryTarget), protected: true,
     ...(primaryTarget === 'mihomo' ? { mihomoProfile: createMihomoStarterProfile() } : {}),
   },
 })

@@ -8,6 +8,7 @@ export const targetFileMeta = {
   surge: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
   'sing-box': { extension: 'json', mimeType: 'application/json;charset=utf-8', format: 'json' },
   loon: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
+  shadowrocket: { extension: 'conf', mimeType: 'text/plain;charset=utf-8', format: 'ini' },
 } as const
 
 export type TargetExportFormat = typeof targetFileMeta[ExportTarget]['format']

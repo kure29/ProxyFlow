@@ -13,6 +13,11 @@ describe('i18n runtime', () => {
     expect(translate('zh-CN', 'inspector.includeRegion')).toBe('包含地区')
   })
 
+  it('localizes paused target diagnostics without hardcoding a product name', () => {
+    expect(translate('en-US', 'compiler.targetPaused', { target: 'Shadowrocket' })).toContain('Shadowrocket official export is paused')
+    expect(translate('zh-CN', 'compiler.targetPaused', { target: 'Shadowrocket' })).toContain('Shadowrocket 正式导出已暂停')
+  })
+
   it('localizes keyed demo content while preserving user-authored content', () => {
     const project = structuredClone(demoProject)
     project.graph.nodes[0].data.title = 'My custom 香港 node'

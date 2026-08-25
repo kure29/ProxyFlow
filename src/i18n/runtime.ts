@@ -297,6 +297,7 @@ const issueCopy: Record<string, Record<Locale, string>> = {
   ROUTE_ASN_INVALID: { 'en-US': 'ASN must be a positive 32-bit number.', 'zh-CN': 'ASN 必须是正的 32 位数字。' },
   ROUTE_GEO_INVALID: { 'en-US': 'The GeoIP or GeoSite matcher value is invalid.', 'zh-CN': 'GeoIP 或 GeoSite 匹配值无效。' },
   TARGET_PRODUCT_SUPPORT_PAUSED: { 'en-US': 'sing-box official export is paused. Switch this Project to Mihomo to continue.', 'zh-CN': 'sing-box 正式导出已暂停，请将此项目切换到 Mihomo 后继续。' },
+  SHADOWROCKET_PRODUCT_SUPPORT_PAUSED: { 'en-US': 'Shadowrocket official export is paused. Switch this Project to Mihomo to continue.', 'zh-CN': 'Shadowrocket 正式导出已暂停，请将此项目切换到 Mihomo 后继续。' },
   ROUTE_RULE_SET_NOT_FOUND: { 'en-US': 'The referenced rule set does not exist.', 'zh-CN': '引用的规则集不存在。' },
   ROUTE_RULE_SET_AMBIGUOUS: { 'en-US': 'The referenced rule set ID is defined more than once.', 'zh-CN': '引用的规则集 ID 定义了多个来源。' },
   AUTO_SELECT_MISSING_SOURCE: { 'en-US': 'This auto-select strategy has no proxy source.', 'zh-CN': '该自动选择策略尚未连接节点来源。' },

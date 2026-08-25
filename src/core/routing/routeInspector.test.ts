@@ -64,7 +64,7 @@ describe('route inspector', () => {
     expect(graph.success).toBe(true)
     const result = inspectRoute(graph.ir!, { hostname: 'example.com' })
     expect(result.target?.strategy?.kind).toBe('fallback')
-    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'supported', surge: 'supported', 'sing-box': 'unsupported', loon: 'supported' })
+    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'supported', surge: 'supported', 'sing-box': 'unsupported', loon: 'supported', shadowrocket: 'unknown' })
   })
 
   it('does not present an unhydrated subscription as a usable strategy candidate', () => {
@@ -77,7 +77,7 @@ describe('route inspector', () => {
     }
     const result = inspectRoute(emptySourceIr, { serviceId: 'openai' })
     expect(result.target?.strategy?.candidateCount).toBe(0)
-    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', surge: 'unsupported', 'sing-box': 'unsupported', loon: 'unsupported' })
+    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', surge: 'unsupported', 'sing-box': 'unsupported', loon: 'unsupported', shadowrocket: 'unsupported' })
   })
 
   it('counts materialized transform output instead of the upstream source size', () => {
@@ -94,6 +94,6 @@ describe('route inspector', () => {
     }
     const result = inspectRoute(filteredIr, { serviceId: 'openai' })
     expect(result.target?.strategy).toEqual(expect.objectContaining({ candidatePath: ['Empty filter'], candidateCount: 0 }))
-    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', surge: 'unsupported', 'sing-box': 'unsupported', loon: 'unsupported' })
+    expect(result.target?.strategy?.targetSupport).toEqual({ mihomo: 'unsupported', surge: 'unsupported', 'sing-box': 'unsupported', loon: 'unsupported', shadowrocket: 'unsupported' })
   })
 })

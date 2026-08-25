@@ -67,6 +67,8 @@ type LoonPresentationKind =
   | 'sourceUnproven'
   | 'remoteSourceUnproven'
 
+type ShadowrocketPresentationKind = 'unsupported' | 'unproven' | 'paused'
+
 export function presentDiagnostics(
   issues: readonly StructuredDiagnostic[],
   context: DiagnosticPresentationContext,
@@ -149,7 +151,27 @@ function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentati
   if (issue.code === MIHOMO_VARIANT) return presentMihomoVariant(bucket, context)
   const loonKind = loonPresentationKind(issue)
   if (loonKind) return presentLoon(bucket, context, loonKind)
+  const shadowrocketKind = shadowrocketPresentationKind(issue)
+  if (shadowrocketKind) return presentShadowrocket(bucket, context, shadowrocketKind)
   return presentGeneric(bucket, context)
+}
+
+function shadowrocketPresentationKind(issue: StructuredDiagnostic): ShadowrocketPresentationKind | undefined {
+  if (!issue.code.startsWith('SHADOWROCKET_') || issue.severity !== 'error') return undefined
+  if (issue.code === 'SHADOWROCKET_PRODUCT_SUPPORT_PAUSED') return 'paused'
+  return issue.code.includes('UNPROVEN') ? 'unproven' : 'unsupported'
+}
+
+function presentShadowrocket(bucket: PresentationBucket, context: DiagnosticPresentationContext, kind: ShadowrocketPresentationKind): DiagnosticPresentation {
+  const key = `diagnostic.shadowrocket.${kind}` as MessageKey
+  return {
+    ...basePresentation(bucket),
+    title: context.t(`${key}.title` as MessageKey),
+    description: context.t(`${key}.description` as MessageKey),
+    impact: context.t(`${key}.impact` as MessageKey),
+    action: context.t(`${key}.action` as MessageKey),
+    reasonSummaries: [],
+  }
 }
 
 function loonPresentationKind(issue: StructuredDiagnostic): LoonPresentationKind | undefined {

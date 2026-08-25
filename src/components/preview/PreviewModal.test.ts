@@ -15,5 +15,8 @@ describe('Preview compatibility summary', () => {
     expect(resolveVisiblePreviewTargets('surge', null)).toEqual(['mihomo', 'surge', 'loon'])
     expect(resolveVisiblePreviewTargets('sing-box', null)).not.toContain('sing-box')
     expect(shouldShowPreviewPausedWarning('loon')).toBe(false)
+    expect(resolveVisiblePreviewTargets('shadowrocket', null)).toEqual(['mihomo', 'surge', 'loon', 'shadowrocket'])
+    expect(resolvePreviewTarget(null, 'shadowrocket')).toBe('shadowrocket')
+    expect(shouldShowPreviewPausedWarning('shadowrocket')).toBe(true)
   })
 })

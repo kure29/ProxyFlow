@@ -14,13 +14,14 @@ import { SurgeProjectionSummary } from './SurgeProjectionSummary'
 import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
 import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 
-type PreviewMode = 'mihomo' | 'surge' | 'loon' | 'ir'
+type PreviewMode = 'mihomo' | 'surge' | 'loon' | 'shadowrocket' | 'ir'
 type DisplayIssue = StructuredDiagnostic
 
 const targetMeta = {
   mihomo: { label: 'Mihomo', icon: '/third-party/mihomo-party/icon.png', descriptionKey: 'preview.yamlCompiler' as const },
   surge: { label: 'Surge', icon: outputDefinitions.find((output) => output.target === 'surge')!.icon, descriptionKey: 'preview.surgeCompiler' as const },
   loon: { label: 'Loon', icon: outputDefinitions.find((output) => output.target === 'loon')!.icon, descriptionKey: 'preview.loonCompiler' as const },
+  shadowrocket: { label: 'Shadowrocket', icon: outputDefinitions.find((output) => output.target === 'shadowrocket')!.icon, descriptionKey: 'preview.shadowrocketCompiler' as const },
 } as const
 
 export function PreviewModal() {
@@ -40,11 +41,11 @@ export function PreviewModal() {
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const { fitView } = useReactFlow()
   const targetCompileEnabled = open && mode !== 'ir'
-  const { graphResult, mihomoState, surgeState, loonState } = useProjectCompiles(targetCompileEnabled, {
-    mihomo: mode === 'mihomo', surge: mode === 'surge', loon: mode === 'loon', singBox: false,
+  const { graphResult, mihomoState, surgeState, loonState, shadowrocketState } = useProjectCompiles(targetCompileEnabled, {
+    mihomo: mode === 'mihomo', surge: mode === 'surge', loon: mode === 'loon', shadowrocket: mode === 'shadowrocket', singBox: false,
     validationTarget: mode === 'ir' ? undefined : mode,
   })
-  const targetState = mode === 'surge' ? surgeState : mode === 'loon' ? loonState : mihomoState
+  const targetState = mode === 'surge' ? surgeState : mode === 'loon' ? loonState : mode === 'shadowrocket' ? shadowrocketState : mihomoState
   const visibleTargetModes = resolveVisiblePreviewTargets(primaryTarget, previewTarget)
   useEffect(() => {
     const requestedTarget = resolvePreviewTarget(previewTarget, primaryTarget)
@@ -176,7 +177,7 @@ export function PreviewModal() {
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
-      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : mode === 'surge' ? t('preview.exportConf') : mode === 'loon' ? t('preview.exportLoonConf') : t('preview.exportJson')}</button></div></footer>
+      <footer><span>{mode === 'ir' ? t('preview.irFooter') : t('preview.targetFooter', { target: targetLabel })}</span><div><button className="secondary-action" onClick={() => setOpen(false)}>{t('preview.close')}</button><button className="primary-action" onClick={download} disabled={!compileSuccess}><Download size={15} /> {mode === 'mihomo' ? t('preview.exportYaml') : mode === 'surge' ? t('preview.exportConf') : mode === 'loon' ? t('preview.exportLoonConf') : mode === 'shadowrocket' ? t('preview.exportShadowrocketConf') : t('preview.exportJson')}</button></div></footer>
     </section>
   </div>
 }
@@ -191,17 +192,18 @@ export function resolveInitialPreviewMode(previewTarget: PrimaryTarget | null, p
 }
 
 export function resolvePreviewTarget(previewTarget: PrimaryTarget | null, primaryTarget: PrimaryTarget | null): PrimaryTarget | null {
-  return primaryTarget === 'loon' ? 'loon' : previewTarget ?? primaryTarget
+  return primaryTarget === 'loon' || primaryTarget === 'shadowrocket' ? primaryTarget : previewTarget ?? primaryTarget
 }
 
 export function resolveVisiblePreviewTargets(primaryTarget: PrimaryTarget | null, previewTarget: PrimaryTarget | null) {
-  void primaryTarget
   void previewTarget
-  return PRODUCT_TARGETS.filter((target) => Object.hasOwn(targetMeta, target))
+  const visible: Array<Exclude<PreviewMode, 'ir'>> = PRODUCT_TARGETS.filter(isPreviewTarget)
+  if (primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused' && isPreviewTarget(primaryTarget) && !visible.includes(primaryTarget)) visible.push(primaryTarget)
+  return visible
 }
 
 export function shouldShowPreviewPausedWarning(mode: PreviewMode) {
-  return mode === 'loon' && getTargetCapabilities('loon').productStatus === 'paused'
+  return (mode === 'loon' || mode === 'shadowrocket') && getTargetCapabilities(mode).productStatus === 'paused'
 }
 
 function CompatibilitySummary({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {

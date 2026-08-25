@@ -20,5 +20,10 @@ if (!compilerRegistry.has('loon')) compilerRegistry.register('loon', async () =>
   return new LoonCompiler()
 })
 
+if (!compilerRegistry.has('shadowrocket')) compilerRegistry.register('shadowrocket', async () => {
+  const { ShadowrocketCompiler } = await import('../../targets/shadowrocket')
+  return new ShadowrocketCompiler()
+})
+
 export * from './compilerTypes'
 export * from './diagnostics'

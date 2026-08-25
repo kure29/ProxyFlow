@@ -10,6 +10,7 @@ describe('CompilerRegistry', () => {
     expect((await compilerRegistry.load('sing-box'))?.target).toBe('sing-box')
     expect((await compilerRegistry.load('surge'))?.target).toBe('surge')
     expect((await compilerRegistry.load('loon'))?.target).toBe('loon')
+    expect((await compilerRegistry.load('shadowrocket'))?.target).toBe('shadowrocket')
   })
 
   it('deduplicates concurrent loads and retries after a loader failure', async () => {

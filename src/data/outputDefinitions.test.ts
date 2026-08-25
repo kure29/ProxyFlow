@@ -7,6 +7,7 @@ describe('output definitions', () => {
     expect(outputDefinitions.find(({ target }) => target === 'sing-box')?.status).toBe('paused')
     expect(outputDefinitions.find(({ target }) => target === 'surge')?.status).toBe('supported')
     expect(outputDefinitions.find(({ target }) => target === 'loon')?.status).toBe('supported')
+    expect(outputDefinitions.find(({ target }) => target === 'shadowrocket')?.status).toBe('paused')
     expect(outputDefinitions.some(({ status }) => status !== 'supported')).toBe(true)
   })
 })
