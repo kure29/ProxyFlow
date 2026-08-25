@@ -79,6 +79,8 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
     expect(stderr).toBe('')
     expect(stdout).toContain('profile=routing-overlap status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('profile=routing-inverted status=COMPILED_LOCAL_ONLY')
+    expect(stdout).toContain('profile=routing-geoip-only status=COMPILED_LOCAL_ONLY')
+    expect(stdout).toContain('profile=routing-ipcidr-only status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('behavioralEvidence=SYNTAX_IMPORT_ONLY')
     expect(stdout).not.toContain('http://')
     expect(stdout).not.toContain('https://')
@@ -113,6 +115,28 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
     expect(partial.stdout).toContain('GEOIP:HUMAN_INPUT_READY')
     expect(partial.stdout).not.toContain('controlled.example')
     expect(partial.stdout).not.toContain('198.51.100.9')
+
+    const geoipProbe = await execFileAsync(process.execPath, [
+      script,
+      '--profile', 'routing-geoip-only',
+      '--routing-ipv4', '219.78.242.109',
+      '--routing-geoip-country', 'HK',
+    ], { cwd: root })
+    expect(geoipProbe.stderr).toBe('')
+    expect(geoipProbe.stdout).toContain('profile=routing-geoip-only candidateCount=0')
+    expect(geoipProbe.stdout).toContain('behavioralEvidence=HUMAN_INPUT_READY')
+    expect(geoipProbe.stdout).not.toContain('219.78.242.109')
+    expect(geoipProbe.stdout).not.toContain('HK')
+
+    const ipcidrProbe = await execFileAsync(process.execPath, [
+      script,
+      '--profile', 'routing-ipcidr-only',
+      '--routing-ipv4', '219.78.242.109',
+    ], { cwd: root })
+    expect(ipcidrProbe.stderr).toBe('')
+    expect(ipcidrProbe.stdout).toContain('profile=routing-ipcidr-only candidateCount=0')
+    expect(ipcidrProbe.stdout).toContain('behavioralEvidence=HUMAN_INPUT_READY')
+    expect(ipcidrProbe.stdout).not.toContain('219.78.242.109')
 
     const dns = await execFileAsync(process.execPath, [script, '--profile', 'dns', '--dns-server', '1.1.1.1'], { cwd: root })
     expect(dns.stderr).toBe('')

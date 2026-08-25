@@ -55,13 +55,17 @@ describe('Shadowrocket local acceptance profiles', () => {
   it('generates separate strategy, routing, and DNS profiles without adding production semantics', () => {
     const profiles = compileShadowrocketLocalProfiles(localInput, 'all')
     expect(profiles.map(({ profile }) => profile)).toEqual([
-      'core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'dns-system', 'dns-udp', 'subscription',
+      'core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only', 'dns-system', 'dns-udp', 'subscription',
     ])
     for (const profile of profiles) expect(profile.result?.success, profile.profile).toBe(true)
     expect(profiles.find(({ profile }) => profile === 'url-test')?.result?.content).toContain('url-test')
     expect(profiles.find(({ profile }) => profile === 'fallback')?.result?.content).toContain('fallback')
     expect(profiles.find(({ profile }) => profile === 'load-balance')?.result?.content).toContain('load-balance')
     expect(profiles.find(({ profile }) => profile === 'routing-overlap')?.result?.content).toContain('DOMAIN-SUFFIX')
+    expect(profiles.find(({ profile }) => profile === 'routing-geoip-only')?.result?.content).toContain('GEOIP,US,DIRECT')
+    expect(profiles.find(({ profile }) => profile === 'routing-geoip-only')?.result?.content).toContain('FINAL,REJECT')
+    expect(profiles.find(({ profile }) => profile === 'routing-ipcidr-only')?.result?.content).toContain('IP-CIDR,192.0.2.0/24,DIRECT')
+    expect(profiles.find(({ profile }) => profile === 'routing-ipcidr-only')?.result?.content).toContain('FINAL,REJECT')
     expect(profiles.find(({ profile }) => profile === 'dns-system')?.result?.content).toContain('dns-server = system')
     expect(profiles.find(({ profile }) => profile === 'dns-udp')?.result?.content).toContain('dns-server = 192.0.2.53:53')
   })
@@ -97,6 +101,18 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(inverted.indexOf('GEOIP,CA,DIRECT')).toBeLessThan(inverted.indexOf('IP-CIDR,198.51.100.9/32,REJECT'))
   })
 
+  it('keeps isolated routing probes independent from mixed precedence experiments', () => {
+    const ipv4 = '219.78.242.109'
+    const country = 'HK'
+    const geoip = compileShadowrocketLocalProfile('routing-geoip-only', undefined, undefined, { routing: { ipv4, geoipCountry: country } }).result?.content ?? ''
+    const ipcidr = compileShadowrocketLocalProfile('routing-ipcidr-only', undefined, undefined, { routing: { ipv4 } }).result?.content ?? ''
+    expect(geoip).toContain('GEOIP,HK,DIRECT')
+    expect(geoip).toContain('FINAL,REJECT')
+    expect(geoip).not.toContain('219.78.242.109')
+    expect(ipcidr).toContain('IP-CIDR,219.78.242.109/32,DIRECT')
+    expect(ipcidr).toContain('FINAL,REJECT')
+  })
+
   it('rejects hostnames, malformed IPv4/IPv6, ports, and control characters', () => {
     expect(validateShadowrocketLocalDnsServer('dns.example')).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' })
     expect(validateShadowrocketLocalDnsServer('1.1.1.1:abc')).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' })
@@ -114,6 +130,8 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(localBehavioralEvidenceMode('dns-udp', { dnsServer: '1.1.1.1:53' })).toBe('HUMAN_INPUT_READY')
     expect(localBehavioralEvidenceMode('routing-overlap', { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } })).toBe('HUMAN_INPUT_READY')
     expect(localBehavioralEvidenceMode('routing-overlap', { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', geoipCountry: 'CA' } })).toBe('PARTIAL_HUMAN_INPUT_READY')
+    expect(localBehavioralEvidenceMode('routing-geoip-only', { routing: { ipv4: '219.78.242.109', geoipCountry: 'HK' } })).toBe('HUMAN_INPUT_READY')
+    expect(localBehavioralEvidenceMode('routing-ipcidr-only', { routing: { ipv4: '219.78.242.109' } })).toBe('HUMAN_INPUT_READY')
     expect(localBehavioralEvidenceMode('url-test', { healthUrl: 'https://health.example/ok' })).toBe('HUMAN_INPUT_READY')
   })
 

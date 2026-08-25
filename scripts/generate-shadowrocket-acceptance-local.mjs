@@ -9,9 +9,9 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputRoot = path.join(os.tmpdir(), 'proxyflow-shadowrocket-acceptance')
-const profiles = new Set(['core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'dns-system', 'dns-udp', 'subscription', 'routing', 'dns', 'all'])
+const profiles = new Set(['core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only', 'dns-system', 'dns-udp', 'subscription', 'routing', 'dns', 'all'])
 const inputProfiles = new Set(['core', 'url-test', 'fallback', 'load-balance', 'subscription', 'all'])
-const routingProfiles = new Set(['routing', 'routing-overlap', 'routing-inverted', 'all'])
+const routingProfiles = new Set(['routing', 'routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only', 'all'])
 const dnsProfiles = new Set(['dns', 'dns-system', 'dns-udp', 'all'])
 const strategyHealthProfiles = new Set(['url-test', 'fallback', 'all'])
 
@@ -200,7 +200,7 @@ function printInputSummary(summary) {
 }
 
 function printProfileSummary(item, mode, routingEvidence) {
-  const routingEvidenceSuffix = item.profile === 'routing-overlap' || item.profile === 'routing-inverted'
+  const routingEvidenceSuffix = item.profile.startsWith('routing-')
     ? ` routingEvidence=${formatRoutingEvidence(routingEvidence)}`
     : ''
   process.stdout.write(`profile=${item.profile} candidateCount=${item.summary.candidateCount} compatibleCount=${item.summary.compatibleEndpointCount} skippedCount=${item.summary.skippedEndpointCount} blockerCount=${item.summary.blockingIssueCount} diagnosticCodeCounts=${formatCounts(item.summary.issueCodeCounts)} behavioralEvidence=${mode}${routingEvidenceSuffix}\n`)
@@ -210,6 +210,8 @@ function behaviorMode(profile, inputs) {
   if ((profile === 'url-test' || profile === 'fallback') && !inputs.suppliedHealthUrl) return 'SYNTAX_IMPORT_ONLY'
   if (profile === 'dns-udp' && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
   if ((profile === 'dns-system') && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-geoip-only') return inputs.routingEvidence?.geoip === 'HUMAN_INPUT_READY' ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-ipcidr-only') return inputs.routingEvidence?.ipv4 === 'HUMAN_INPUT_READY' ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY'
   if (profile === 'routing-overlap' || profile === 'routing-inverted') {
     const statuses = Object.values(inputs.routingEvidence ?? {})
     if (statuses.every((status) => status === 'HUMAN_INPUT_READY')) return 'HUMAN_INPUT_READY'
@@ -258,7 +260,8 @@ function printHelp() {
     '--routing-ipv4 IPv4, --routing-ipv6 IPv6, --routing-geoip-country CC',
     '',
     'Profiles: all, core, url-test, fallback, load-balance, subscription, routing, dns,',
-    '         routing-overlap, routing-inverted, dns-system, dns-udp',
+    '         routing-overlap, routing-inverted, routing-geoip-only, routing-ipcidr-only,',
+    '         dns-system, dns-udp',
     '',
     'Input must be a local file under the OS temporary directory. Documentation-only',
     'defaults are labeled SYNTAX_IMPORT_ONLY; the harness never fetches URLs, imports',

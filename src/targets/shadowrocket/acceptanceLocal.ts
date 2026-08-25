@@ -11,6 +11,8 @@ export const SHADOWROCKET_LOCAL_PROFILES = [
   'load-balance',
   'routing-overlap',
   'routing-inverted',
+  'routing-geoip-only',
+  'routing-ipcidr-only',
   'dns-system',
   'dns-udp',
   'subscription',
@@ -19,6 +21,9 @@ export const SHADOWROCKET_LOCAL_PROFILES = [
 export type ShadowrocketLocalProfile = typeof SHADOWROCKET_LOCAL_PROFILES[number]
 
 export type ShadowrocketLocalProfileRequest = ShadowrocketLocalProfile | 'routing' | 'dns' | 'all'
+
+type ShadowrocketLocalRoutingProfile = Extract<ShadowrocketLocalProfile, 'routing-overlap' | 'routing-inverted' | 'routing-geoip-only' | 'routing-ipcidr-only'>
+type ShadowrocketLocalRoutingExperimentProfile = Extract<ShadowrocketLocalProfile, 'routing-overlap' | 'routing-inverted'>
 
 export const SHADOWROCKET_LOCAL_DEFAULT_HEALTH_URL = 'https://your-controlled-health-endpoint.example/health'
 export const SHADOWROCKET_LOCAL_DEFAULT_DNS_SERVER = '192.0.2.53:53'
@@ -138,6 +143,8 @@ export function localRoutingEvidenceReadiness(options: ShadowrocketLocalCompileO
 export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, options: ShadowrocketLocalCompileOptions = {}): ShadowrocketLocalEvidenceStatus {
   if ((profile === 'url-test' || profile === 'fallback') && options.healthUrl === undefined) return 'SYNTAX_IMPORT_ONLY'
   if (profile === 'dns-udp' && options.dnsServer === undefined) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-geoip-only') return localRoutingEvidenceReadiness(options).geoip === 'HUMAN_INPUT_READY' ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-ipcidr-only') return localRoutingEvidenceReadiness(options).ipv4 === 'HUMAN_INPUT_READY' ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY'
   if (profile === 'routing-overlap' || profile === 'routing-inverted') {
     const evidence = localRoutingEvidenceReadiness(options)
     const statuses = Object.values(evidence)
@@ -150,7 +157,7 @@ export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, o
 
 export function expandShadowrocketLocalProfiles(request: ShadowrocketLocalProfileRequest): ShadowrocketLocalProfile[] {
   if (request === 'all') return [...SHADOWROCKET_LOCAL_PROFILES]
-  if (request === 'routing') return ['routing-overlap', 'routing-inverted']
+  if (request === 'routing') return ['routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only']
   if (request === 'dns') return ['dns-system', 'dns-udp']
   return [request]
 }
@@ -179,7 +186,7 @@ export function compileShadowrocketLocalProfile(
     const dns = validateShadowrocketLocalDnsServer(options.dnsServer)
     if (!dns.ok) return blockedLocalCompilation(profile, undefined, [dns.code])
   }
-  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && options.routing) {
+  if (isRoutingProfile(profile) && options.routing) {
     const routing = validateShadowrocketLocalRoutingValues(options.routing)
     if (!routing.ok) return blockedLocalCompilation(profile, undefined, [routing.code])
   }
@@ -215,6 +222,7 @@ export function compileShadowrocketLocalProfile(
 
 function buildProject(profile: ShadowrocketLocalProfile, content: string | undefined, options: ShadowrocketLocalCompileOptions): ProxyFlowProject {
   if (profile === 'routing-overlap' || profile === 'routing-inverted') return buildRoutingProject(profile, options.routing)
+  if (profile === 'routing-geoip-only' || profile === 'routing-ipcidr-only') return buildRoutingProbeProject(profile, options.routing)
   if (profile === 'dns-system' || profile === 'dns-udp') return buildDnsProject(profile, options.dnsServer)
 
   const strategy = strategyNode(profile, options.healthUrl)
@@ -254,7 +262,7 @@ function sourceNode(content?: string) {
   })
 }
 
-function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted', supplied?: ShadowrocketLocalRoutingValues) {
+function buildRoutingProject(profile: ShadowrocketLocalRoutingExperimentProfile, supplied?: ShadowrocketLocalRoutingValues) {
   const routing = validateShadowrocketLocalRoutingValues(supplied ?? {})
   if (!routing.ok) throw new Error(routing.code)
   const invert = profile === 'routing-inverted'
@@ -278,6 +286,24 @@ function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted', su
   }))
   const final = node('shadowrocket-local-final', 'final', 'routing', { title: 'Final', targetKind: 'direct', targetLabel: 'DIRECT' })
   return project(`shadowrocket-local-${profile}`, [...routes, final, outputNode()], [])
+}
+
+function buildRoutingProbeProject(profile: Extract<ShadowrocketLocalRoutingProfile, 'routing-geoip-only' | 'routing-ipcidr-only'>, supplied?: ShadowrocketLocalRoutingValues) {
+  const routing = validateShadowrocketLocalRoutingValues(supplied ?? {})
+  if (!routing.ok) throw new Error(routing.code)
+  const values = routing.value
+  const matcher = profile === 'routing-geoip-only'
+    ? { kind: 'geo-ip' as const, value: values.geoipCountry }
+    : { kind: 'ip-cidr' as const, value: supplied?.ipv4 ? `${values.ipv4}/32` : '192.0.2.0/24' }
+  const route = node('shadowrocket-local-route-1', 'custom-rule', 'routing', {
+    title: `Controlled ${matcher.kind} probe`,
+    routeMatcherKind: matcher.kind,
+    routeMatcherValue: matcher.value,
+    targetKind: 'direct',
+    routePriority: 10,
+  })
+  const final = node('shadowrocket-local-final', 'final', 'routing', { title: 'Final', targetKind: 'reject', targetLabel: 'REJECT' })
+  return project(`shadowrocket-local-${profile}`, [route, final, outputNode()], [])
 }
 
 function buildDnsProject(profile: 'dns-system' | 'dns-udp', suppliedServer?: string) {
@@ -407,6 +433,13 @@ export function summarizeParsedSubscription(parsed: SubscriptionParseResult) {
 function isValidIpv4Literal(value: string): boolean {
   if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) return false
   return value.split('.').every((part) => (part.length === 1 || part[0] !== '0') && Number(part) <= 255)
+}
+
+function isRoutingProfile(profile: ShadowrocketLocalProfile): profile is ShadowrocketLocalRoutingProfile {
+  return profile === 'routing-overlap'
+    || profile === 'routing-inverted'
+    || profile === 'routing-geoip-only'
+    || profile === 'routing-ipcidr-only'
 }
 
 function isValidIpv6Literal(value: string): boolean {

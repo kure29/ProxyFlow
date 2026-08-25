@@ -130,6 +130,8 @@ npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowro
 npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --profile load-balance
 npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --profile subscription
 npm run shadowrocket:acceptance:local -- --profile routing --routing-domain <domain> --routing-ipv4 <IPv4> --routing-ipv6 <IPv6> --routing-geoip-country <CC>
+npm run shadowrocket:acceptance:local -- --profile routing-geoip-only --routing-ipv4 <IPv4> --routing-geoip-country <CC>
+npm run shadowrocket:acceptance:local -- --profile routing-ipcidr-only --routing-ipv4 <IPv4>
 npm run shadowrocket:acceptance:local -- --profile dns --dns-server <IPv4[:port]>
 ```
 
@@ -138,6 +140,7 @@ endpoints. The harness never duplicates an endpoint to manufacture a
 two-member test. The materialized-subscription profile requires at least one
 endpoint and reports only aggregate counts. `routing` and `dns` use controlled
 DIRECT/REJECT or resolver inputs and do not require private credentials.
+The isolated routing probes require no subscription input.
 
 ## Profile set and human observations
 
@@ -201,6 +204,43 @@ traffic discriminator (or an explicit Shadowrocket matched-rule observation if
 the client exposes one). These profiles prove only the tested matcher
 combinations and orderings; they do not prove port, ASN, GEO-SITE, rule-set, or
 first-party Service Rule support.
+
+### Isolated routing probes
+
+The mixed IP-CIDR/GEOIP precedence result is deliberately **UNRESOLVED** until
+the client's own GEOIP classification is independently observed. Do not infer
+GEOIP classification from physical server location, an external geolocation
+service, DNS/DDNS, or provider metadata.
+
+`routing-geoip-only.conf` contains only:
+
+```text
+GEOIP,<country>,DIRECT
+FINAL,REJECT
+```
+
+The controlled IPv4 is used only as the human's test destination; it is not
+written into this profile's generated rule. Test `http://<controlled-IPv4>/` in
+Shadowrocket. Record a GEOIP standalone PASS only when the client's rule test
+reports `GEOIP -> DIRECT`. If it reaches `FINAL -> REJECT`, the client's GEOIP
+database did not classify that address as the supplied country, and the mixed
+precedence experiment remains unresolved.
+
+`routing-ipcidr-only.conf` contains only:
+
+```text
+IP-CIDR,<controlled-IPv4>/32,DIRECT
+FINAL,REJECT
+```
+
+Test the same `http://<controlled-IPv4>/` destination. Record an IP-CIDR
+standalone PASS only when Shadowrocket reports `IP-CIDR -> DIRECT`. This
+establishes standalone IP-CIDR behavior independently; it does not by itself
+prove precedence against GEOIP.
+
+Only after GEOIP standalone PASS may an inverted mixed-profile result that
+still selects IP-CIDR be interpreted as a target-specific ordering observation.
+No production routing semantic conclusion is made by this harness checkpoint.
 
 ### DNS profiles
 
@@ -295,6 +335,26 @@ Human confirmed IPv4 belongs to GeoIP country: YES | NO | NOT RUN
 IPv6:
 Syntax/import: PASSED | FAILED | NOT RUN
 Behavior result: NOT RUN unless a real controlled IPv6 is supplied
+
+GEOIP standalone probe:
+Profile SHA-256:
+Syntax/import: PASSED | FAILED | NOT RUN
+Observed matcher:
+Observed policy:
+Result: PASSED | FAILED | NOT RUN
+
+IP-CIDR standalone probe:
+Profile SHA-256:
+Syntax/import: PASSED | FAILED | NOT RUN
+Observed matcher:
+Observed policy:
+Result: PASSED | FAILED | NOT RUN
+
+Mixed IP-CIDR / GEOIP precedence:
+Status: UNRESOLVED until GEOIP standalone acceptance is confirmed
+Baseline observed winner:
+Inverted observed winner:
+Result: PASSED | FAILED | UNRESOLVED | NOT RUN
 
 DNS system profile:
 SHA-256:
