@@ -1,29 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapabilities, isPrimaryTarget, resolveActiveProductTarget, strategyCapabilityForBlockType } from './targetCapabilities'
+import { DEFAULT_PRODUCT_TARGET, PRIMARY_TARGETS, PRODUCT_TARGETS, capabilityIsAvailable, getTargetCapabilities, isPrimaryTarget, resolveActiveProductTarget, strategyCapabilityForBlockType } from './targetCapabilities'
 import { proxyCompatibilityForTarget } from './proxyCompatibility'
 
 describe('target capability registry', () => {
   it('keeps all compiler targets registered while exposing release-ready product targets', () => {
     expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box', 'loon'])
-    expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge'])
+    expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge', 'loon'])
+    expect(PRODUCT_TARGETS).not.toContain('sing-box')
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
     expect(getTargetCapabilities('surge').baselineVersion).toBe('iOS 5.22+ / Mac 6.9+')
     expect(getTargetCapabilities('sing-box').baselineVersion).toBe('v1.13.18')
     expect(getTargetCapabilities('mihomo').productStatus).toBe('supported')
     expect(getTargetCapabilities('surge').productStatus).toBe('supported')
     expect(getTargetCapabilities('sing-box').productStatus).toBe('paused')
-    expect(getTargetCapabilities('loon').productStatus).toBe('paused')
+    expect(getTargetCapabilities('loon').productStatus).toBe('supported')
     expect(getTargetCapabilities('loon').label).toBe('Loon')
     expect(isPrimaryTarget('loon')).toBe(true)
     expect(isPrimaryTarget('future-target')).toBe(false)
     expect(resolveActiveProductTarget('surge')).toBe('surge')
     expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
-    expect(resolveActiveProductTarget('loon')).toBe('mihomo')
+    expect(resolveActiveProductTarget('loon')).toBe('loon')
+    expect(DEFAULT_PRODUCT_TARGET).toBe('mihomo')
   })
 
-  it('keeps Loon capability declarations conservative and out of product exposure', () => {
+  it('keeps Loon capability declarations conservative after product exposure', () => {
     const loon = getTargetCapabilities('loon')
-    expect(PRODUCT_TARGETS).not.toContain('loon')
+    expect(PRODUCT_TARGETS).toContain('loon')
     expect(loon.protocols.http).toEqual(expect.objectContaining({
       status: 'partial', reason: 'LOON_PROXY_TLS_VARIANT_UNSUPPORTED',
       notes: 'Bare HTTP is supported; HTTPS is limited to the validated TLS subset.',

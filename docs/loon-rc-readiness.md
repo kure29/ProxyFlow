@@ -1,34 +1,33 @@
 # Loon Release Candidate Readiness Audit
 
-Audit date: 2026-08-24
+Audit date: 2026-08-25
 Repository: `kure29/ProxyFlow`
-Audited branch: `audit/loon-rc-readiness`
-Audited baseline: `b408f0f01855b86c1983d05d42c142793eac7275` (`origin/main`)
-Product version: `1.1.0`
+Audited branch: `feat/loon-product-exposure`
+Audited baseline: `3c29711962cd5d1b38dc19a8c06cb7b51f659fcb` (`origin/main`)
+Product version: `1.2.0`
 
-This is a documentation-only audit. It does not expose Loon, change compiler
-semantics, change the Project or Universal IR schema, bump the version, or
-reopen any historical acceptance result. The pinned official Loon evidence used
-by the foundation is LoonManual commit
+This readiness record documents the completed product-exposure change and its
+v1.2.0 release boundary. It does not change compiler semantics, the Project or
+Universal IR schema, or any historical acceptance result. The pinned official
+Loon evidence used by the foundation is LoonManual commit
 [`4311d0030fe3065d4664b403a32010f083b99273`](https://github.com/Loon0x00/LoonManual/commit/4311d0030fe3065d4664b403a32010f083b99273).
 
 ## 1. Executive summary
 
-**Decision: NOT READY FOR PRODUCT EXPOSURE.**
+**Decision: READY FOR PRODUCT EXPOSURE (evidence-bounded).**
 
-The independent Loon backend is materially ready as a developer-only,
-evidence-bounded compiler foundation. It has deterministic IR lowering,
+The independent Loon backend is materially ready as an evidence-bounded
+compiler foundation. It has deterministic IR lowering,
 conservative serialization, explicit compatibility diagnostics, and real-client
-evidence for the audited materialized subset. The accepted baseline is not the
-same thing as a user-selectable product target.
+evidence for the audited materialized subset. Product exposure does not expand
+that accepted evidence boundary.
 
-The release blockers are product-path blockers, not a request to implement every
-Loon-native feature. Today a user cannot select Loon through the ordinary target
-registry, create or switch a valid Loon Project, preview it through the target
-compiler pipeline, or export a correctly identified Loon artifact. Adding Loon to
-one picker without the rest of the plumbing would create invalid metadata and
-fallback behavior. Export also needs a current-result gate before exposure so a
-previous successful artifact cannot survive a graph/target transition.
+The product-path blockers are now addressed end to end. Loon is selectable
+through the ordinary target registry, can be created and switched as a normal
+Project, appears in Preview and Workspace Export, and uses a correctly
+identified current-result artifact. The exposure is deliberately evidence
+bounded: unsupported or unproven Loon intent still fails closed instead of
+being presented as equivalent.
 
 The compiler's unsupported protocol, DNS, routing, remote-source, and serializer
 cases fail closed. Those are accepted limitations or deferred scope when the
@@ -37,45 +36,66 @@ by themselves, reasons to broaden the Foundation allowlist.
 
 ## 1a. Paused integration follow-up (2026-08-25)
 
-The lifecycle blocker is now addressed internally without changing the release
-decision. Loon is registered as a complete `PrimaryTarget` with
+At this earlier paused stage, the lifecycle blocker was addressed internally
+without changing the release decision. Loon was registered as a complete
+`PrimaryTarget` with
 `productStatus: 'paused'`, a central evidence-bounded capability profile, and a
 lazy compiler-registry loader. Projects can be created by internal code,
 resolved from explicit or legacy output metadata, persisted, hydrated, switched,
 and undone/redone without graph loss. The compile hook also maintains a real
 Loon compiler state and uses that state for paused-target health diagnostics.
 
-`PRODUCT_TARGETS` remains exactly Mihomo and Surge, so Loon is still absent from
-ordinary New Project and target switching. At this point Preview/export
+At that stage `PRODUCT_TARGETS` remained exactly Mihomo and Surge, so Loon was
+absent from ordinary New Project and target switching. Preview/export
 integration remained a separate follow-up; no schema or version change was
 made.
 
 ## 1b. Paused preview/export follow-up (2026-08-25)
 
-The internal Preview and Export path is now implemented without changing that
-public decision. An explicitly loaded Loon Project selects `loonState` for
-Preview and Workspace Export, renders the real Loon profile content, and uses
+At the second paused stage, the internal Preview and Export path was
+implemented without changing the public decision. An explicitly loaded Loon
+Project selected `loonState` for Preview and Workspace Export, rendered the real
+Loon profile content, and used
 the evidence-bounded `.conf` artifact metadata (`text/plain;charset=utf-8`,
-INI). Loon remains visible only as an internal current-target state/banner;
-ordinary target cards still iterate `PRODUCT_TARGETS`.
+INI). Loon remained visible only as an internal current-target state/banner;
+ordinary target cards still iterated `PRODUCT_TARGETS`.
 
-`useTargetCompile` now hides stored results as soon as any compile request
+`useTargetCompile` hid stored results as soon as any compile request
 identity changes (IR, target, options, or enabled state), while its cancellation
-guard still prevents late asynchronous results from replacing a newer request.
+guard still prevented late asynchronous results from replacing a newer request.
 Failed, empty, disabled, missing-input, and loading states therefore cannot
-produce a stale Preview/Export artifact. Loon diagnostic presentations now
+produce a stale Preview/Export artifact. Loon diagnostic presentations then
 separate unsupported intent, unproven equivalence, routing-order uncertainty,
 service-policy conflicts, and unproven rule/remote-source formats while keeping
 technical codes and Locate behavior intact.
 
-This is an internal safety gate, not a product release: Loon remains paused,
-absent from ordinary pickers, and the repository version/schema remain 1.1.0/V2.
+This was an internal safety gate before product exposure; the repository
+version/schema remain 1.1.0/V2.
+
+## 1c. Product exposure and CI hardening (2026-08-25)
+
+The product gate is now complete. Loon is a supported `PrimaryTarget` and
+`PRODUCT_TARGETS` is exactly Mihomo, Surge, and Loon; sing-box remains a
+registered paused target and is not publicly exposed. Mihomo remains the
+`DEFAULT_PRODUCT_TARGET`.
+
+New Project, ordinary Target Switch, Preview, Workspace Export, and Project
+Health all use the central product registry. Loon Preview and Export continue to
+use `loonState` and the accepted `.conf` / INI / `text/plain;charset=utf-8`
+artifact contract. The paused/internal-only Loon cards and paused Preview copy
+were removed or gated by actual product status, so Loon is rendered once in
+each ordinary target list.
+
+The CI verify job now runs base, Service Rules, and routing-precedence Loon
+acceptance, then checks `git diff --exit-code -- fixtures/loon` so both the
+top-level and nested precedence fixtures cannot drift. No compiler semantics,
+allowlists, schema, Runtime, version, or mutable owned rule URL policy changed.
 
 ## 2. Current accepted baseline
 
 | Item | Accepted fact | Evidence |
 | --- | --- | --- |
-| Product target status | Mihomo and Surge are the only officially exposed targets; Loon is developer-hidden. | [`docs/loon-compiler.md`](loon-compiler.md#L1-L8), [`docs/releases/1.1.0.md`](releases/1.1.0.md#L1-L5) |
+| Product target status | Mihomo, Surge, and Loon are officially exposed; Loon remains evidence-bounded. sing-box is registered but paused and hidden. | [`src/core/capabilities/targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts), [`src/data/demoProject.ts`](../src/data/demoProject.ts) |
 | Loon client | Loon `3.5.0 (975)`; iOS version was not recorded. | [`docs/loon-acceptance.md`](loon-acceptance.md#L234-L247) |
 | Real subscription | 95 candidates, 91 compatible, 4 intentionally skipped, 0 blockers. Skips were 2 SS2022 AES-256 and 2 VLESS Reality. | [`docs/loon-acceptance.md`](loon-acceptance.md#L216-L232) |
 | Core client result | Real import and real proxy traffic passed. | [`docs/loon-acceptance.md`](loon-acceptance.md#L234-L247) |
@@ -83,9 +103,9 @@ absent from ordinary pickers, and the repository version/schema remain 1.1.0/V2.
 | Routing evidence | Controlled local-vs-Remote result is `LOCAL_FIRST`; controlled Google/Gemini Remote-vs-Remote result is `FIRST_SUBSCRIPTION_WINS`. These results are narrow and do not generalize. | [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md#L52-L91) |
 | Production routing boundary | Domain-family Local-before-Remote is conditional; Remote-before-local, IP-family local plus Remote, mixed domain/IP families, and generalized different-policy Remote-vs-Remote remain fail-closed. | [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md#L110-L141), [`src/targets/loon/compatibility.ts`](../src/targets/loon/compatibility.ts#L122-L237) |
 
-## 3. Product exposure prerequisites
+## 3. Product exposure safety gates
 
-Before Loon can become an ordinary target, all of the following must be true:
+The following gates define the evidence-bounded ordinary product path:
 
 1. A complete central capability profile and lazy compiler-registry loader must
    agree on the target id, version, status, capabilities, and ordering.
@@ -95,28 +115,27 @@ Before Loon can become an ordinary target, all of the following must be true:
    artifact identity to the current graph/result generation.
 4. Incompatible or unproven intent must be visible and actionable in the UI;
    no fallback to Mihomo may make a Loon Project appear valid.
-5. CI must protect the checked-in Loon acceptance and precedence evidence that is
-   currently only available as local npm scripts.
+5. CI must protect the checked-in Loon acceptance and precedence evidence with
+   deterministic scripts and fixture drift checks.
 
-The first four are exposure safety gates. Optional native protocols and broader
-real-client coverage can follow a separate, explicitly documented release plan.
+These exposure safety gates are addressed in this PR. Optional native protocols
+and broader real-client coverage remain separate, explicitly documented work.
 
 ## 4. Target Registry audit
 
 ### Observed path
 
-- At the audit baseline, [`PRIMARY_TARGETS`](../src/core/capabilities/targetCapabilities.ts#L6-L10)
-  contained only `mihomo`, `surge`, and `sing-box`. The paused integration now
-  adds `loon`; `PRODUCT_TARGETS` still filters only profiles whose
-  `productStatus` is `supported` ([lines 420-426](../src/core/capabilities/targetCapabilities.ts#L420-L426)).
-- The central `targetCapabilityRegistry` now has a complete paused `loon` key.
+- [`PRIMARY_TARGETS`](../src/core/capabilities/targetCapabilities.ts#L6-L10)
+  contains `mihomo`, `surge`, `sing-box`, and `loon`; `PRODUCT_TARGETS` filters
+  the central profiles whose `productStatus` is `supported`.
+- The central `targetCapabilityRegistry` now has a complete supported `loon` key.
   Its profile is deliberately conservative: unproven protocol, routing,
   rule-source, DNS, chain, and remote-source cases remain `partial` or
   `unsupported` with the existing Loon diagnostics.
 - `TargetClient` includes `loon`, but this wider output union is not a product
   registry ([`src/types/output.ts`](../src/types/output.ts#L1-L8)).
-- `outputDefinitions` contains Loon only as `coming-soon`; supported production
-  definitions filter it out ([`src/data/demoProject.ts`](../src/data/demoProject.ts#L25-L35)).
+- `outputDefinitions` and `productionOutputDefinitions` include Loon as a
+  supported output ([`src/data/demoProject.ts`](../src/data/demoProject.ts#L25-L35)).
 - The compiler registry lazily registers Mihomo, sing-box, Surge, and the
   internal Loon compiler ([`src/core/compiler/index.ts`](../src/core/compiler/index.ts#L1-L23)).
 - The target-local matrix in [`src/targets/loon/capabilities.ts`](../src/targets/loon/capabilities.ts#L18-L44)
@@ -124,10 +143,9 @@ real-client coverage can follow a separate, explicitly documented release plan.
 
 ### Finding
 
-The internal registry/lazy-loader blocker is **ADDRESSED**. Product exposure is
-still **BLOCKED by design** because Loon remains paused and is not in
-`PRODUCT_TARGETS`; a direct `src/targets/loon` compiler still does not make Loon
-a selectable product target.
+**Finding: ADDRESSED.** Loon is supported in the central product registry,
+appears in `PRODUCT_TARGETS` in ordinary order, and continues to use the same
+lazy compiler and conservative capability matrix.
 
 ## 5. New Project audit
 
@@ -138,8 +156,8 @@ Mihomo ([`src/components/workspace/NewProjectDialog.tsx`](../src/components/work
 from the central registry, and keeps Mihomo-only DNS/profile defaults
 ([`src/data/newProject.ts`](../src/data/newProject.ts#L7-L27),
 [`#L56-L69`](../src/data/newProject.ts#L56-L69)). Internal Loon projects are
-therefore structurally valid while the ordinary picker still offers Mihomo and
-Surge only.
+therefore structurally valid while the ordinary picker now offers Mihomo, Surge,
+and Loon.
 
 `resolveProjectPrimaryTarget` accepts registered `isPrimaryTarget` values,
 including explicit and legacy Loon metadata, while unknown values remain
@@ -155,10 +173,9 @@ the existing target-required recovery label for unknown metadata
 Hydration continues to normalize unknown metadata to the explicit recovery path
 without rewriting the graph.
 
-**Paused integration answer:** internal lifecycle plumbing is **READY** and the
-existing schema remains sufficient (`PROJECT_SCHEMA_VERSION = 2`). **NO** to
-ordinary picker exposure: Loon is intentionally excluded until Preview/export
-and their current-result gates are addressed in a separate change.
+**Product exposure answer: ADDRESSED.** The existing schema remains sufficient
+(`PROJECT_SCHEMA_VERSION = 2`), Mihomo remains the default, and Loon is now
+offered by the ordinary picker without rewriting lifecycle logic.
 
 ## 6. Target Switch audit
 
@@ -178,37 +195,34 @@ to fall back to the default product target for non-product metadata
 ([`src/components/compiler/useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L19-L57),
 [`src/core/capabilities/targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L345-L351)).
 
-**Finding:** current supported-target switching is ready/no action while Loon is
-hidden. The Loon path is **BLOCKED** until state, compiler recomputation,
-target-specific settings, and persistence are made atomic and tested. Exposing a
-button alone could silently fall back to Mihomo or leave output/primary-target
-intent inconsistent.
+**Finding: ADDRESSED.** Target Switch now offers Mihomo, Surge, and Loon through
+the normal registry path. Loon transitions retain target identity and compiler
+state without the historical paused-target fallback or duplicate card.
 
 ## 7. Preview audit
 
-`PreviewMode` now includes `loon`, with metadata and an explicit visibility gate
-in [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx). The Loon
-mode is shown only when the loaded Project is internally targeted at Loon or an
-explicit internal preview target requests Loon; ordinary Mihomo/Surge previews
-do not offer it. The hook requests `loonState` and validates with `loon`, so a
-valid internal Loon target cannot fall back to Mihomo.
+`PreviewMode` now includes `loon`, with metadata derived from the supported
+product registry in [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx).
+Ordinary Mihomo, Surge, and Loon previews expose the same supported compiler
+choices; sing-box remains absent. The hook requests `loonState` and validates
+with `loon`, so a Loon target cannot fall back to Mihomo.
 
 For every target, graph/compile errors produce an issue log, and copy/download
 are disabled unless the current mode reports compile success. Loon uses the
 same plain-text code panel and an explicit `Export Loon .conf` action. The
-paused warning remains visible while the internal result is inspected.
+paused warning remains available only for genuinely paused targets.
 
-**Finding:** Loon preview mode, compiler state, label, syntax, and stale-result
-gating are **ADDRESSED INTERNALLY**. Existing blocked-preview gating remains
-**READY / NO ACTION**. Public product exposure remains paused.
+**Finding: ADDRESSED.** Loon resolves normally in Preview, and supported Loon
+does not display paused-product copy. Existing blocked-preview and stale-result
+gates remain intact.
 
 ## 8. Export audit
 
 `targetFileMeta` now includes Loon as `.conf`, `text/plain;charset=utf-8`, and
 INI format. `buildTargetExportArtifact` rejects failed or empty results, and
-the internal Loon Workspace Export path uses the Loon state/result identity
-instead of resolving the paused target to Mihomo. The ordinary target cards
-still iterate `PRODUCT_TARGETS` only.
+Workspace Export uses the Loon state/result identity instead of resolving Loon
+to Mihomo. The ordinary target cards iterate `PRODUCT_TARGETS` once, without an
+internal duplicate Loon card.
 
 `useTargetCompile` now assigns a request identity to IR, target, options, and
 enabled state. A transition immediately hides stored results, including when a
@@ -216,10 +230,9 @@ target changes from Mihomo to Loon or when compilation is disabled/missing.
 Effect cancellation still prevents an older asynchronous request from
 overwriting a newer one.
 
-**Finding:** Loon extension/MIME/target identity and current-result export
-gating are **ADDRESSED INTERNALLY**. Existing failed-result/empty-content
-gating is **READY / NO ACTION**. Do not claim that the paused product currently
-supports ordinary Loon selection.
+**Finding: ADDRESSED.** Loon is an ordinary export target with the existing
+`.conf` / `text/plain;charset=utf-8` / INI contract. Failed, empty, disabled,
+and stale-result gates remain unchanged.
 
 ## 9. Compatibility UX audit
 
@@ -238,8 +251,8 @@ Technical codes, severity, entity/node identity, and Locate behavior remain in
 the collapsed technical details and location mapping. The UI therefore explains
 why an evidence boundary blocks export without hiding the stable compiler code.
 
-**Status:** **ADDRESSED INTERNALLY**. This does not widen any compiler allowlist
-or make Loon a selectable product target.
+**Status: ADDRESSED.** This does not widen any compiler allowlist; non-blocking
+Loon warning/info diagnostics remain non-blocking after exposure.
 
 ## 10. Capability matrix audit
 
@@ -368,39 +381,36 @@ endpoint is silently rewritten.
   ([`serializer.ts`](../src/targets/loon/serializer.ts#L126-L185),
   [`compatibility.ts`](../src/targets/loon/compatibility.ts#L301-L308)).
 - Existing export tests prove failed/empty results do not produce artifacts. The
-  current-result/stale-result issue in section 8 remains a release gate before a
-  Loon artifact can be exposed.
+  current-result/stale-result gate in section 8 remains active for every exposed
+  target, including Loon.
 - No private subscription, credential, screenshot, or forbidden temporary file
   was read for this audit. Acceptance evidence is aggregate/textual only.
-- Remote service URLs are owned but mutable on `main`; pinning generated assets
-  or an immutable release manifest is recommended before a production exposure.
+- Remote service URLs are owned but mutable on `main`; the URL policy is
+  unchanged in this PR. Immutable pinning versus independent rule updates is a
+  deferred cross-target supply-chain design decision, not a silent Loon change.
 
 ## 14. Deployment / CI audit
 
 `.github/workflows/ci.yml` runs `npm ci`, the full test suite, client build,
-runtime build, deployment tests, `npm run loon:acceptance`, fixture drift check,
-and Docker Compose validation ([`ci.yml`](../.github/workflows/ci.yml#L19-L29)).
+runtime build, deployment tests, base/service-rule/precedence Loon acceptance,
+the complete `fixtures/loon` drift check, and Docker Compose validation
+([`ci.yml`](../.github/workflows/ci.yml#L19-L31)).
 `.github/workflows/container.yml` runs the general test/build/deployment path but
 does not run Loon acceptance ([`container.yml`](../.github/workflows/container.yml#L24-L32)).
 
-The following scripts exist locally but are not explicit GitHub Actions steps:
-
-- `npm run loon:service-rules:acceptance`
-- `npm run loon:precedence:acceptance`
-
-Their absence is a **SHOULD FIX BEFORE 1.2.0** coverage gap. A locally available
-script is not CI protection. Any future exposure gate should run deterministic
-service-rule and precedence acceptance, verify checked-in golden drift, and keep
-real-client evidence as a separately recorded/manual acceptance axis.
+The verify job now runs both deterministic acceptance scripts explicitly after
+the base acceptance and checks `git diff --exit-code -- fixtures/loon`. This
+covers the top-level golden files and the nested precedence fixtures while
+keeping real-client evidence as a separately recorded/manual acceptance axis.
 
 ### Verification run for this audit
 
-The following commands were run from the clean baseline before this document was
-added. All exited successfully:
+The following commands were run from the clean exposure branch. All exited
+successfully:
 
 | Command | Result |
 | --- | --- |
-| `npm test -- --run` | 107 test files, 1118 tests passed |
+| `npm test -- --run` | 107 test files, 1121 tests passed |
 | `npm run test:deployment` | 40/40 deployment tests passed |
 | `npm run build` | Passed; Vite client build completed |
 | `npm run runtime:build` | Passed; Runtime bundle completed |
@@ -408,7 +418,7 @@ added. All exited successfully:
 | `npm run loon:acceptance` | Passed; 11 sanitized candidates, 0 blockers; fixture generated |
 | `npm run loon:service-rules:acceptance` | Passed; one OpenAI Remote Rule; fixture generated |
 | `npm run loon:precedence:acceptance` | Passed; four profiles; no private data required |
-| `git diff --check` | Passed after the docs-only change |
+| `git diff --check` | Passed |
 
 Acceptance scripts wrote only their existing ignored/generated artifacts. No
 private subscription or credential file was opened.
@@ -417,15 +427,15 @@ private subscription or credential file was opened.
 
 | Area | Current Status | Evidence | User Impact | Classification | Required Action |
 | --- | --- | --- | --- | --- | --- |
-| Target Registry / compiler registration | Loon is now a complete central paused profile with a lazy compiler loader; it remains absent from product targets. | [`targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L6-L53), [`compiler/index.ts`](../src/core/compiler/index.ts#L1-L23), registry test. | No ordinary product path can select Loon; internal code can resolve and compile it. | ADDRESSED INTERNALLY | Keep `productStatus: 'paused'` and `PRODUCT_TARGETS` exposure unchanged until downstream gates pass. |
-| New Project / persistence plumbing | Internal creation, resolver, storage round-trip, hydration, unknown-target recovery, and overview rendering now handle registered Loon safely. | [`NewProjectDialog.tsx`](../src/components/workspace/NewProjectDialog.tsx#L22-L43), [`newProject.ts`](../src/data/newProject.ts#L7-L69), [`primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25), [`projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107), [`ProjectOverview.tsx`](../src/components/workspace/ProjectOverview.tsx#L161-L168). | A paused Loon Project can survive internal lifecycle operations without graph loss; ordinary creation remains hidden. | ADDRESSED INTERNALLY | Keep the existing schema and recovery behavior; do not expose the picker in this phase. |
-| Target Switch / state consistency | Internal target switching, low-level output edits, compiler state selection, hydration, and undo/redo keep registered target metadata synchronized; UI still iterates product targets only. | [`WorkspaceTargets.tsx`](../src/components/workspace/WorkspaceTargets.tsx#L32-L90), [`useBuilderStore.ts`](../src/store/useBuilderStore.ts#L450-L463), [`#L597-L620`](../src/store/useBuilderStore.ts#L597-L620). | Internal transitions preserve intent and graph state without reporting another target's compiler state. | ADDRESSED INTERNALLY | Keep paused-target messaging and do not add Loon to ordinary switch cards. |
-| Preview pipeline | Internal Preview now has a gated Loon mode, real `loonState`, Loon validation, plain-text rendering, paused warning, and `.conf` action; ordinary Mihomo/Surge previews do not offer Loon. | [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx), [`useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L32-L61). | A loaded paused Loon Project can be inspected without Mihomo fallback; public selection remains paused. | ADDRESSED INTERNALLY | Keep the visibility gate and do not add Loon to ordinary product pickers. |
-| Export metadata and current-result gate | Loon uses `.conf`/`text/plain;charset=utf-8`/INI metadata; request identity hides stale IR/target/options/enabled results and async cancellation prevents late overwrite. | [`exportFile.ts`](../src/components/compiler/exportFile.ts), [`useTargetCompile.ts`](../src/components/compiler/useTargetCompile.ts), export panel. | Internal copy/download cannot expose a previous target’s successful artifact during a transition. | ADDRESSED INTERNALLY | Preserve failed/empty rejection and current-request identity before any future public exposure. |
-| Compatibility UX | Loon presentations distinguish unsupported and unproven behavior, routing order, service-policy conflict, rule-source format, and remote proxy-source format while retaining technical details and Locate. | [`diagnosticPresentation.ts`](../src/components/compiler/diagnosticPresentation.ts), [`DiagnosticPresentationList.tsx`](../src/components/compiler/DiagnosticPresentationList.tsx). | Evidence boundaries are actionable without hiding stable compiler codes. | ADDRESSED INTERNALLY | Keep centralized i18n mapping; do not widen compiler allowlists. |
-| CI acceptance coverage | CI runs `loon:acceptance` but not the service-rules or precedence acceptance scripts. | [`ci.yml`](../.github/workflows/ci.yml#L19-L29); package scripts. | Regressions in the newest evidence boundaries may pass CI unnoticed. | SHOULD FIX BEFORE 1.2.0 | Add deterministic service-rule and precedence jobs plus golden drift checks to the exposure gate. |
-| First-party Service Rule client breadth | Ten assets have deterministic parity; only OpenAI has real-client acceptance. | [`serviceRuleAssets.ts`](../src/data/serviceRuleAssets.ts#L1-L17), [`loon-acceptance.md`](loon-acceptance.md#L324-L355). | Other services could differ in client matching/refresh behavior despite valid generated bytes. | SHOULD FIX BEFORE 1.2.0 | Run sanitized real-client acceptance for a representative/broader service set; do not claim all ten today. |
-| Mutable owned rule URLs | Asset URLs use the rules repository `main` branch. | [`serviceRuleAssets.ts`](../src/data/serviceRuleAssets.ts#L1-L14). | A later upstream change can alter a fetched production rule list without a ProxyFlow release. | SHOULD FIX BEFORE 1.2.0 | Pin an immutable commit/release manifest and verify generated content hashes. |
+| Target Registry / compiler registration | Loon is a complete central supported profile with a lazy compiler loader; `PRODUCT_TARGETS` is Mihomo, Surge, Loon. | [`targetCapabilities.ts`](../src/core/capabilities/targetCapabilities.ts#L6-L53), [`compiler/index.ts`](../src/core/compiler/index.ts#L1-L23), registry test. | Ordinary product paths select Loon while deferred capabilities remain fail-closed. | ADDRESSED | Keep the central status/order and conservative capability matrix. |
+| New Project / persistence plumbing | Creation, resolver, storage round-trip, hydration, unknown-target recovery, and overview rendering handle registered Loon safely. | [`NewProjectDialog.tsx`](../src/components/workspace/NewProjectDialog.tsx#L22-L43), [`newProject.ts`](../src/data/newProject.ts#L7-L69), [`primaryTarget.ts`](../src/core/project/primaryTarget.ts#L12-L25), [`projectStorage.ts`](../src/storage/projectStorage.ts#L90-L107), [`ProjectOverview.tsx`](../src/components/workspace/ProjectOverview.tsx#L161-L168). | Loon is selectable without graph loss; Mihomo remains the default. | ADDRESSED | Preserve the existing schema and recovery behavior. |
+| Target Switch / state consistency | Ordinary target switching, low-level output edits, compiler state selection, hydration, and undo/redo keep registered target metadata synchronized. | [`WorkspaceTargets.tsx`](../src/components/workspace/WorkspaceTargets.tsx#L32-L90), [`useBuilderStore.ts`](../src/store/useBuilderStore.ts#L450-L463), [`#L597-L620`](../src/store/useBuilderStore.ts#L597-L620). | Mihomo ↔ Surge ↔ Loon transitions retain target identity and do not duplicate cards. | ADDRESSED | Keep paused-target messaging for sing-box only. |
+| Preview pipeline | Preview derives visible compiler modes from supported product targets and includes real `loonState`; sing-box remains hidden. | [`PreviewModal.tsx`](../src/components/preview/PreviewModal.tsx), [`useProjectCompiles.ts`](../src/components/compiler/useProjectCompiles.ts#L32-L61). | Loon Preview resolves normally without paused-product copy or Mihomo fallback. | ADDRESSED | Preserve current-result and blocked-preview gates. |
+| Export metadata and current-result gate | Loon uses `.conf`/`text/plain;charset=utf-8`/INI metadata; request identity hides stale IR/target/options/enabled results and async cancellation prevents late overwrite. | [`exportFile.ts`](../src/components/compiler/exportFile.ts), [`useTargetCompile.ts`](../src/components/compiler/useTargetCompile.ts), export panel. | Public Loon copy/download cannot expose a previous target’s successful artifact during a transition. | ADDRESSED | Preserve failed/empty rejection and current-request identity. |
+| Compatibility UX | Loon presentations distinguish unsupported and unproven behavior, routing order, service-policy conflict, rule-source format, and remote proxy-source format while retaining technical details and Locate. | [`diagnosticPresentation.ts`](../src/components/compiler/diagnosticPresentation.ts), [`DiagnosticPresentationList.tsx`](../src/components/compiler/DiagnosticPresentationList.tsx). | Evidence boundaries are actionable without hiding stable compiler codes. | ADDRESSED | Keep centralized i18n mapping; do not widen compiler allowlists. |
+| CI acceptance coverage | CI runs base, service-rules, and precedence acceptance, then checks all tracked `fixtures/loon` output for drift. | [`ci.yml`](../.github/workflows/ci.yml#L19-L31); package scripts. | Regressions in the newest evidence boundaries are covered by the exposure gate. | ADDRESSED | Keep the deterministic checks and separate real-client evidence. |
+| First-party Service Rule client breadth | Ten assets have deterministic parity; only OpenAI has real-client acceptance. | [`serviceRuleAssets.ts`](../src/data/serviceRuleAssets.ts#L1-L17), [`loon-acceptance.md`](loon-acceptance.md#L324-L355). | Other services could differ in client matching/refresh behavior despite valid generated bytes. | DEFERRED | Broader sanitized real-client acceptance is valuable follow-up evidence; do not claim all ten today. |
+| Mutable owned rule URLs | Asset URLs use the rules repository `main` branch. | [`serviceRuleAssets.ts`](../src/data/serviceRuleAssets.ts#L1-L14). | A later upstream change can alter a fetched production rule list without a ProxyFlow release. | DEFERRED | Cross-target supply-chain design follow-up: decide a shared immutable asset/update policy and verify generated content hashes; do not silently pin Loon-only URLs here. |
 | Supported protocol subset | HTTP and selected conditional protocols compile; unsupported variants fail with explicit diagnostics. | [`proxies.ts`](../src/targets/loon/proxies.ts#L34-L91), [`compiler.ts`](../src/targets/loon/compiler.ts#L64-L74). | Users cannot use optional variants, but no silent downgrade occurs. | ACCEPTED LIMITATION | Document the exact subset and keep blocked export behavior. |
 | Strategy semantics | Select/URL Test/Fixed/Round-Robin subset works; fallback tolerance, PCC, and active chains block. | [`compatibility.ts`](../src/targets/loon/compatibility.ts#L253-L299), strategy tests. | Some strategy intents cannot be exported. | ACCEPTED LIMITATION | Keep fail-closed diagnostics; do not claim statistical or failover equivalence. |
 | Domain/IP and Local/Remote precedence | Pure families preserve Universal order; mixed families, IP+Remote, and Remote-before-local block. | [`compatibility.ts`](../src/targets/loon/compatibility.ts#L122-L237), precedence tests/docs. | Some route graphs cannot compile; accepted graphs cannot silently reorder. | ACCEPTED LIMITATION | Preserve guards and expose the conditional rule in UX/docs. |
@@ -434,20 +444,20 @@ private subscription or credential file was opened.
 | Arbitrary rule sets / native Remote Proxy Source | URL-plus-policy syntax is known, but arbitrary list grammar, HTTP behavior, refresh/cache/failure semantics are not proven. | [`docs/loon-compiler.md`](loon-compiler.md#L320-L365), `LOON_RULE_SOURCE_FORMAT_UNPROVEN` and `LOON_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN`. | User-provided remote sources remain unavailable; copying Surge format would be unsafe. | DEFERRED | Require a checked-in artifact, deterministic generator, matcher-parity tests, and real-client import/update/failure evidence before implementation. |
 | Generalized Remote-vs-Remote semantics | One controlled Google/Gemini pair shows first-subscription-wins; generalized different-policy overlap remains unproven. | [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md#L68-L121). | Broader conflicting remote combinations remain blocked. | DEFERRED | Gather new real-client fixtures before changing `LOON_REMOTE_RULE_ORDER_SEMANTICS_UNPROVEN`. |
 | Optional native protocol expansion | Reality/Vision/flow, SS2022 AES-256, SOCKS5, AnyTLS, TUIC, SSR, WireGuard, custom JS, and Proxy Chain are outside the current IR/lowering phase. | [`src/targets/loon/capabilities.ts`](../src/targets/loon/capabilities.ts#L19-L43), protocol tests. | Feature breadth is incomplete but blocked safely. | DEFERRED | Design a separate IR/evidence PR for each family; no coercion or silent fallback. |
-| Existing fail-closed compiler/export behavior | Failed Loon compile returns empty content; existing target export rejects failed/empty results; inactive inventory and partial pools are isolated. | [`compiler.ts`](../src/targets/loon/compiler.ts#L27-L74), [`exportFile.ts`](../src/components/compiler/exportFile.ts#L18-L29), projection tests. | Current developer-only workflows do not emit partial configs. | READY / NO ACTION | Preserve these invariants while wiring product exposure. |
+| Existing fail-closed compiler/export behavior | Failed Loon compile returns empty content; target export rejects failed/empty results; inactive inventory and partial pools are isolated. | [`compiler.ts`](../src/targets/loon/compiler.ts#L27-L74), [`exportFile.ts`](../src/components/compiler/exportFile.ts#L18-L29), projection tests. | Supported Loon workflows do not emit partial configs. | READY / NO ACTION | Preserve these invariants. |
 | Schema shape / version | `primaryTarget?: PrimaryTarget` and schema V2 already exist; no new field is inherently required for initial exposure. | [`src/types/project.ts`](../src/types/project.ts#L166-L178), [`src/core/project/version.ts`](../src/core/project/version.ts#L1-L15). | A target can reuse the existing shape once validation/registry plumbing is complete. | READY / NO ACTION | Avoid a speculative schema bump; add only evidenced target-specific settings. |
 
-Matrix row counts: **MUST FIX BEFORE EXPOSURE 0**; **ADDRESSED INTERNALLY 6**;
-**SHOULD FIX BEFORE 1.2.0 3**; **ACCEPTED LIMITATION 5**; **DEFERRED 3**;
+Matrix row counts: **MUST FIX BEFORE EXPOSURE 0**; **ADDRESSED 7**;
+**SHOULD FIX BEFORE 1.2.0 0**; **ACCEPTED LIMITATION 5**; **DEFERRED 5**;
 **READY / NO ACTION 2**.
 
 ## 16. Recommended implementation sequence
 
-The first three items below describe the staged work recorded by this audit.
-Registry/lifecycle work and the paused Preview/Export safety path are now
-implemented internally; the public exposure gate remains intentionally open.
+The staged work recorded by this audit is complete through product exposure.
+The remaining items are evidence-bounded follow-ups and must not widen the
+compiler without new proof.
 
-### PR A — Loon product integration plumbing
+### PR A — Loon product integration plumbing (completed)
 
 - **Goal:** Add a complete central capability profile, product status/order,
   target metadata, and lazy compiler loader while keeping the feature flag
@@ -457,37 +467,29 @@ implemented internally; the public exposure gate remains intentionally open.
 - **Out of scope:** No public exposure, protocol expansion, or schema bump by
   assumption.
 
-### PR B — Project lifecycle and target-state integrity
+### PR B — Project lifecycle and target-state integrity (completed)
 
 - **Goal:** Extend New Project, hydration/resolution, persistence, target switch,
   target-specific defaults, output node synchronization, and undo/redo for Loon.
 - **Why:** Resolves invalid-picker, fallback, and target-intent corruption risks.
 - **Out of scope:** Do not rewrite graph semantics or coerce unsupported fields.
 
-### PR C — Preview/export safety and compatibility UX (addressed internally)
+### PR C — Product exposure and CI hardening (this change)
 
-- **Goal:** Add Loon preview/compiler state, evidence-backed artifact metadata,
-  current-result identity gating, stale transition tests, and localized Loon
-  diagnostic presentations.
-- **Why:** Resolves the preview/export safety items and makes fail-closed limits
-  actionable without exposing Loon as an ordinary product target.
-- **Out of scope:** No widening of compiler allowlists.
+- **Goal:** Enable Loon as a supported product target across New Project, Target
+  Switch, Preview, Workspace Export, Project Health, and CI fixture checks.
+- **Why:** Completes the ordinary product path while preserving the
+  evidence-bounded compiler and current-result safety gates.
+- **Status:** **ADDRESSED.** No widening of compiler allowlists.
 
-### PR D — Evidence and CI hardening
+### Follow-up — Evidence and supply-chain hardening
 
-- **Goal:** Run service-rules and precedence acceptance in CI, pin owned rule
-  assets or hashes, and add broader sanitized real-client Service Rule checks.
-- **Why:** Closes the 1.2.0 evidence/supply-chain quality gaps.
+- **Goal:** Pin owned rule assets or hashes and add broader sanitized real-client
+  Service Rule checks; CI acceptance and fixture drift protection are already
+  addressed here.
+- **Why:** Closes the remaining 1.2.0 evidence/supply-chain quality gaps.
 - **Out of scope:** Do not claim all ten services are real-client proven until
   each result is recorded.
-
-### PR E — Explicit exposure gate
-
-- **Goal:** After PRs A–D pass, add a narrowly reviewed feature-flag change that
-  makes Loon selectable and update public product documentation.
-- **Why:** Only then is the ordinary product path end-to-end and auditable.
-- **Out of scope:** No merge/ready action belongs to this audit; deferred native
-  protocols and generalized Remote semantics remain unavailable.
 
 ### Post-1.2.0 deferred work
 
@@ -499,14 +501,12 @@ separate evidence-and-IR projects rather than bundling them into exposure.
 
 This audit does not:
 
-- make Loon an ordinary selectable product target or add it to `PRODUCT_TARGETS`,
-  New Project, or Target Switch cards (internal paused Preview/Export support is
-  now present);
-- change the already-registered Loon compiler semantics or public product status;
+- widen the already-registered Loon compiler semantics, protocol allowlists, or
+  public capability claims;
 - change projection semantics, inactive inventory isolation, partial-pool skip
   behavior, `FINAL`, DNS boundaries, remote-source boundaries, Project schema,
-  compiler registry behavior, UI exposure, Mihomo, Surge, sing-box, Runtime, or
-  version;
+  compiler registry behavior beyond product exposure, Mihomo, Surge, sing-box,
+  Runtime, or version;
 - modify or reinterpret [`docs/loon-routing-precedence-acceptance.md`](loon-routing-precedence-acceptance.md),
   its fixtures, generator, or acceptance implementation;
 - implement Reality, Vision/flow, SS2022 AES-256, SOCKS5, AnyTLS, TUIC, SSR,
@@ -517,4 +517,4 @@ This audit does not:
 - claim real-client evidence for the nine non-OpenAI service assets;
 - inspect private subscription/credential data or the forbidden temporary files.
 
-**NOT READY FOR PRODUCT EXPOSURE**
+**READY FOR PRODUCT EXPOSURE (evidence-bounded)**

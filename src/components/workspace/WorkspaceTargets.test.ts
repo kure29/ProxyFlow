@@ -100,6 +100,7 @@ describe('Workspace target status', () => {
       mihomoState: current === 'mihomo' ? { status: 'success', result: successResult } : { status: 'idle' },
       surgeState: current === 'surge' ? { status: 'success', result: successResult } : { status: 'idle' },
       singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(TargetSwitchDialog, {
       open: true, current, compiles, onClose: () => undefined, onSelect: () => undefined,
@@ -111,7 +112,7 @@ describe('Workspace target status', () => {
     expect((html.match(/class="spin"/g) ?? [])).toHaveLength(0)
   })
 
-  it('shows Mihomo and Surge target cards while explaining a preserved historical sing-box Project', () => {
+  it('shows each supported product target once while explaining a preserved historical sing-box Project', () => {
     const project = createBlankProject('sing-box')
     useBuilderStore.getState().hydrate(structuredClone(project))
     const compiles = {
@@ -119,6 +120,7 @@ describe('Workspace target status', () => {
       mihomoState: { status: 'success', result: successResult },
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'sing-box',
@@ -128,12 +130,13 @@ describe('Workspace target status', () => {
     })))
     expect(html).toContain('sing-box official export is paused')
     expect(html).not.toContain('/third-party/sing-box/icon.svg')
-    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(4)
+    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(6)
     expect(html).toContain('Surge')
-    expect(html).not.toContain('Loon')
+    expect(html).toContain('Loon')
+    expect((html.match(/loon\.png/g) ?? [])).toHaveLength(4)
   })
 
-  it('keeps an internal Loon Project on the Loon compiler and .conf artifact path', () => {
+  it('keeps a supported Loon Project on the Loon compiler and .conf artifact path', () => {
     const project = createBlankProject('loon')
     project.name = 'My Project'
     useBuilderStore.getState().hydrate(structuredClone(project))
@@ -152,11 +155,13 @@ describe('Workspace target status', () => {
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'loon', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
     })))
-    expect(html).toContain('Loon official export is paused')
+    expect(html).not.toContain('Loon official export is paused')
     expect(html).toContain('我的代理配置-loon.conf')
     expect(html).toContain('[General]')
     expect(html).toContain('Loon profile compiler')
     expect(html).not.toContain('我的代理配置-mihomo.yaml')
+    expect(html).not.toContain('workspace-export-internal-target')
+    expect((html.match(/loon\.png/g) ?? [])).toHaveLength(4)
   })
 
   it('keeps an incompatible Surge target selected, shows the compiler message, and disables export controls', () => {
@@ -168,6 +173,7 @@ describe('Workspace target status', () => {
       mihomoState: { status: 'idle' },
       surgeState: { status: 'error', result: surgeBlockedResult },
       singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
@@ -202,6 +208,7 @@ describe('Workspace target status', () => {
       mihomoState: { status: 'idle' },
       surgeState: { status: 'success', result: surgeResult },
       singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
@@ -229,6 +236,7 @@ describe('Workspace target status', () => {
       mihomoState: { status: 'success', result: successResult },
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'mihomo', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,

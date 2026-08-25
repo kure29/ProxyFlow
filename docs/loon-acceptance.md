@@ -9,11 +9,12 @@ FINAL DIRECT BEHAVIOR: PASSED
 
 # Loon Real Client Readiness
 
-This document records the developer-only acceptance boundary for the Loon
-compiler. It is not a product launch or a supported-target declaration. It
-records the successful core materialized-profile acceptance and the separate
-successful OpenAI Service Rule acceptance without enabling Loon on formal
-product surfaces.
+This document records the developer-only acceptance boundary captured before
+the Loon product-exposure change. It is not itself a product launch or a
+complete supported-target declaration. ProxyFlow 1.2.0 now exposes Loon as a
+supported evidence-bounded target; this record preserves the successful core
+materialized-profile and OpenAI Service Rule acceptance without rewriting those
+historical facts as though Loon had always been public.
 
 ## Baseline
 
@@ -37,9 +38,10 @@ product surfaces.
   plus Remote remains fail-closed; Remote-before-Local also remains fail-closed.
 
 The compiler continues to consume Universal IR through the existing graph and
-projection pipeline. Loon remains absent from Target selector, New Project,
-Export, Preview, compiler registry, and formal product UI surfaces. There is no
-version bump, release, tag, merge, or container publish in this phase.
+projection pipeline. At the time of this acceptance run, Loon remained absent
+from Target selector, New Project, Export, Preview, compiler registry, and
+formal product UI surfaces. The later product-exposure and release-preparation
+changes are recorded in the readiness and release documents.
 
 ## Evidence Baseline
 
@@ -267,14 +269,16 @@ and route checks remain neutral.
 13. Unsupported nodes are skipped or blocked according to diagnostics.
 14. No policy reference is dangling.
 
-Result: **CORE ACCEPTANCE PASSED**. Product exposure remains disabled.
+Result: **CORE ACCEPTANCE PASSED**. At the time of this acceptance record,
+product exposure remained disabled; current product status is documented in
+the 1.2.0 release notes.
 
 ## Loon Service Rules Acceptance
 
 Status: **REAL CLIENT ACCEPTANCE PASSED**
 
 This is an independent acceptance axis. It does not change or revoke the core
-profile result above. The developer-hidden Foundation now resolves Universal
+profile result above. The Foundation acceptance path resolves Universal
 service matchers only through ProxyFlow's owned Loon asset catalog, lowers them
 to typed `LoonRemoteRule` entries, and serializes the directly evidenced form:
 

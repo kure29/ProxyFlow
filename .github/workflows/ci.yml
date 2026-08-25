@@ -22,7 +22,9 @@ jobs:
       - run: npm run runtime:build
       - run: npm run test:deployment
       - run: npm run loon:acceptance
-      - run: git diff --exit-code -- fixtures/loon/*.expected.conf
+      - run: npm run loon:service-rules:acceptance
+      - run: npm run loon:precedence:acceptance
+      - run: git diff --exit-code -- fixtures/loon
       - run: docker compose config --quiet
         env:
           PROXYFLOW_RUNTIME_TOKEN: fictional-ci-token-123456789

@@ -1,13 +1,14 @@
 # Loon Compiler Foundation
 
-**Status: Foundation / not product-ready.** Loon is not a production target in
-ProxyFlow 1.1.0. This document records an evidence-backed target audit, the
-fail-closed boundary for the independent `src/targets/loon` backend, and the
-successful acceptance of its audited materialized subset. It does not make
-Loon available in New Project, Target Switch, Export, or workspace target
-surfaces.
+**Status: Supported product target / evidence-bounded compiler.** Loon is a
+supported production target in ProxyFlow 1.2.0. This document records an
+evidence-backed target audit, the fail-closed boundary for the independent
+`src/targets/loon` backend, and the successful acceptance of its audited
+materialized subset. Loon is available through New Project, Target Switch,
+Preview, Workspace Export, and Project Health, while unsupported or unproven
+intent remains blocked.
 
-The developer-only real-client preparation workflow is documented in
+The real-client acceptance workflow is documented in
 [`docs/loon-acceptance.md`](loon-acceptance.md); its recorded status is
 `REAL LOON IMPORT: PASSED`, `REAL PROXY TRAFFIC: PASSED`, and
 `LOON SERVICE RULE REAL CLIENT ACCEPTANCE: PASSED` for the audited OpenAI
@@ -33,7 +34,7 @@ scenario.
   evidence does not prove matcher-family precedence; Remote-before-Local also
   remains fail-closed.
 - Tested iOS version: **NOT RECORDED**
-- Product exposure: **NOT ENABLED**
+- Product exposure: **ENABLED (EVIDENCE-BOUNDED)**
 
 The recorded client result validates the core materialized subset represented
 by the accepted profile. First-party Service Rules are a separate acceptance
@@ -54,7 +55,8 @@ and is generated directly through the typed serializer; it does not add a
 compatibility bypass. Production still fails closed for IP-family
 Local-vs-Remote matcher-family precedence, Remote-before-Local order, and
 generalized different-policy Remote-vs-Remote ordering.
-Loon is not product-ready.
+Loon is product-ready for the documented evidence-bounded subset; unsupported
+or unproven semantics continue to fail closed.
 
 The intended pipeline is:
 

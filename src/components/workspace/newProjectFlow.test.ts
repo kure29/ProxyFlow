@@ -17,7 +17,7 @@ describe('client-first new project flow', () => {
     expect(sourceBlockForNewProject('empty')).toBeUndefined()
   })
 
-  it('offers Mihomo and Surge while keeping Mihomo selected by default', () => {
+  it('offers Mihomo, Surge, and Loon while keeping Mihomo selected by default', () => {
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(NewProjectDialog, {
       open: true,
       onClose: () => undefined,
@@ -26,10 +26,11 @@ describe('client-first new project flow', () => {
     })))
     expect(html).toContain('Mihomo')
     expect(html).toContain('Surge')
+    expect(html).toContain('Loon')
     expect(html).toContain('Surge profile export with strict compatibility checks.')
     expect(html).not.toContain('sing-box')
-    expect(html).not.toContain('Loon')
-    expect((html.match(/target-choice-icon/g) ?? [])).toHaveLength(2)
+    expect(html).not.toContain('coming soon')
+    expect((html.match(/target-choice-icon/g) ?? [])).toHaveLength(3)
     expect(html).toMatch(/is-selected[^>]*>[\s\S]*?Mihomo/)
   })
 })

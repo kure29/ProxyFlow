@@ -6,7 +6,7 @@ import type { SubscriptionRequestProfile } from '../subscription'
 export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box', 'loon'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
-export type ProductTarget = Exclude<PrimaryTarget, 'sing-box' | 'loon'>
+export type ProductTarget = Exclude<PrimaryTarget, 'sing-box'>
 export type TargetProductStatus = 'supported' | 'paused'
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
@@ -326,7 +326,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     target: 'loon',
     label: 'Loon',
     baselineVersion: '3.5.0 (975)',
-    productStatus: 'paused',
+    productStatus: 'supported',
     protocols: {
       http: partial('LOON_PROXY_TLS_VARIANT_UNSUPPORTED', 'Bare HTTP is supported; HTTPS is limited to the validated TLS subset.'),
       socks5: unsupported('LOON_PROXY_PROTOCOL_UNSUPPORTED'),
