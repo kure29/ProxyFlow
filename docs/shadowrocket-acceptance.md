@@ -184,6 +184,37 @@ fallback behavioral PASS requires that observed health use and policy outcome;
 the generated file alone is never a behavior PASS. Do not claim semantics
 outside the profile's exact emitted fields.
 
+### Recorded real-client evidence
+
+The following sanitized results are pinned only to Shadowrocket 2.2.65 build
+2615:
+
+- Core profile SHA-256
+  `f909cb7130eef5bcb4ab986cfcd8ece1003f71afc77c842699a7093365f525ef`:
+  import PASSED; two Shadowsocks `aes-256-gcm` endpoints and the select group
+  were recognized; both members were selectable; real proxy traffic and FINAL
+  behavior PASSED.
+- Materialized subscription profile SHA-256
+  `a4babc7d0853a10ed2ace1dcd6e95377de55f90a6143e116bd7ae478a53ea53b`:
+  2 candidates, 2 compatible, 0 skipped, 0 blockers; import, endpoint
+  recognition, latency tests, and real proxy traffic PASSED.
+- URL-test profile SHA-256
+  `e0e34f2b2178c0ae6132c167d3e343469121f50c2b2985d52bee7d7ee9bbb4c3`:
+  import, health checks using `https://www.gstatic.com/generate_204`, automatic
+  selection, and real traffic PASSED for the exact emitted subset.
+- Fallback profile SHA-256
+  `0cae2d1f694f7400c9becd06e540291e3f323b0fd20a17ce293f0f645bd33d7a`:
+  import, timeout of an intentionally unavailable member, healthy-member
+  selection, and continued real traffic PASSED for the exact emitted subset.
+- Load-balance profile SHA-256
+  `4d320a73bed645ac7c1dea1cc6bfd47fde0f86b15d77ee15b7fbbe73f62d673d`:
+  import, recognition of two members, traffic on both members, and observed
+  round-robin behavior PASSED. No exact long-term 50/50 distribution claim is
+  made.
+
+These results do not widen protocol, strategy, health, or distribution claims
+beyond the exact fields emitted in each profile.
+
 ### Routing precedence profiles
 
 The historical profiles `routing-overlap.conf` and `routing-inverted.conf`
@@ -220,6 +251,10 @@ prove port, ASN, GEO-SITE, rule-set, or first-party Service Rule support.
 
 The following record is limited to Shadowrocket 2.2.65 build 2615:
 
+- DOMAIN-family baseline (`DOMAIN -> REJECT`, `DOMAIN-SUFFIX -> DIRECT`)
+  observed `DOMAIN / REJECT`; inverted priority with unchanged policies
+  observed `DOMAIN-SUFFIX / DIRECT`. DOMAIN versus DOMAIN-SUFFIX precedence
+  `PASSED` for the tested domain-family subset.
 - `routing-geoip-only.conf`, SHA-256
   `5befaa09cb824af60c9a74cc6f4d5dec3972b52a8dc894eceea54bc8df78b083`:
   syntax/import recorded; rule test observed `GEOIP -> DIRECT`; standalone
@@ -240,10 +275,9 @@ syntax/import-only with behavior `NOT RUN`.
 
 ### Isolated routing probes
 
-The mixed IP-CIDR/GEOIP precedence result is deliberately **UNRESOLVED** until
-the client's own GEOIP classification is independently observed. Do not infer
-GEOIP classification from physical server location, an external geolocation
-service, DNS/DDNS, or provider metadata.
+The client's own GEOIP classification has now been independently observed for
+the pinned build. Do not infer GEOIP classification from physical server
+location, an external geolocation service, DNS/DDNS, or provider metadata.
 
 `routing-geoip-only.conf` contains only:
 
@@ -271,9 +305,11 @@ standalone PASS only when Shadowrocket reports `IP-CIDR -> DIRECT`. This
 establishes standalone IP-CIDR behavior independently; it does not by itself
 prove precedence against GEOIP.
 
-Only after GEOIP standalone PASS may an inverted mixed-profile result that
-still selects IP-CIDR be interpreted as a target-specific ordering observation.
-No production routing semantic conclusion is made by this harness checkpoint.
+Because standalone GEOIP and IP-CIDR both PASSED while the inverted mixed
+profile still selected IP-CIDR, the target-local
+`SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` boundary is validated for
+Shadowrocket 2.2.65 build 2615. Mixed IP/GEO profiles fail closed; no
+production reorder, downgrade, or flattening is attempted.
 
 ### DNS profiles
 
@@ -287,6 +323,16 @@ Record DNS syntax/import separately from DNS real-resolver behavior. A DNS
 behavior PASS requires a human-supplied, reachable UDP resolver and an observed
 client result. The documentation-only default can prove syntax/import only.
 Do not add or claim DoH/DoT behavior; those mappings remain unsupported.
+
+The pinned DNS observations for Shadowrocket 2.2.65 build 2615 are:
+
+- `dns-system.conf`: syntax/import PASSED; general DNS-dependent browsing and
+  connectivity PASSED. No specific system resolver address is claimed.
+- `dns-udp.conf`: syntax/import, recognition of the human-supplied
+  `1.1.1.1:53` resolver, successful answers, and normal browsing PASSED.
+
+The UDP result proves the exact emitted IPv4 UDP resolver form and does not
+prove encrypted resolver forms or other resolver roles.
 
 ### Materialized subscription
 
