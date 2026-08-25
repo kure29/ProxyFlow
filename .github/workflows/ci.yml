@@ -25,6 +25,8 @@ jobs:
       - run: npm run loon:service-rules:acceptance
       - run: npm run loon:precedence:acceptance
       - run: git diff --exit-code -- fixtures/loon
+      - run: npm run shadowrocket:acceptance
+      - run: git diff --exit-code -- fixtures/shadowrocket
       - run: docker compose config --quiet
         env:
           PROXYFLOW_RUNTIME_TOKEN: fictional-ci-token-123456789

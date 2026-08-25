@@ -13,6 +13,7 @@
     "loon:service-rules:acceptance": "node scripts/generate-loon-service-rules-acceptance.mjs",
     "loon:service-rules:acceptance:local": "node scripts/generate-loon-service-rules-acceptance.mjs --local",
     "loon:precedence:acceptance": "node scripts/generate-loon-routing-precedence-acceptance.mjs",
+    "shadowrocket:acceptance": "node scripts/generate-shadowrocket-acceptance.mjs",
     "test:watch": "vitest",
     "runtime:build": "vite build --config runtime/vite.config.ts",
     "runtime:start": "node runtime-dist/server.js"
