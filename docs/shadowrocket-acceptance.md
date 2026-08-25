@@ -43,8 +43,15 @@ Generate all acceptance profiles with:
 npm run shadowrocket:acceptance:local -- \
   --input /private/tmp/proxyflow-shadowrocket-input.txt \
   --health-url https://your-controlled-health-endpoint.example/health \
+  --dns-server 192.0.2.53:53 \
   --profile all
 ```
+
+`https://your-controlled-health-endpoint.example/health` and
+`192.0.2.53:53` are placeholders/documentation defaults only. Replace them
+with a real reachable HTTP(S) health endpoint and a real reachable IPv4 UDP
+DNS resolver for behavioral acceptance. The harness never fetches either
+value during generation.
 
 The harness accepts only a local file path under the OS temporary directory.
 It fails closed for missing, malformed, oversized, URL, repository, or Git
@@ -66,21 +73,45 @@ the generated private artifact path, and that artifact's own SHA-256. It never
 prints endpoint names, hosts, ports, credentials, UUIDs, passwords, subscription
 contents, or private node bodies. A blocked profile produces no artifact.
 
-For `url-test` and `fallback`, `--health-url` is required. Supply a controlled
-HTTP(S) health endpoint that the human can intentionally exercise; the harness
-validates the URL but never fetches it. It rejects credentials, fragments, and
-control characters in that value. `load-balance` does not use a health URL.
+For `url-test` and `fallback`, omitting `--health-url` keeps the placeholder and
+labels the artifact `SYNTAX_IMPORT_ONLY`. Supply a controlled HTTP(S) health
+endpoint that the human can intentionally exercise for `HUMAN_INPUT_READY`.
+The harness validates the URL but never fetches it. It rejects credentials,
+fragments, and control characters in that value. `load-balance` does not use a
+health URL.
+
+For DNS, `--dns-server IPv4[:port]` accepts only a literal IPv4 address and an
+optional port (default `53`). Hostnames, IPv6, credentials, DoH, and DoT are
+rejected. Omitting the argument preserves the documentation-only UDP default
+and labels the artifact `SYNTAX_IMPORT_ONLY`; a real resolver value prepares
+the artifact for human behavioral testing but does not itself prove behavior.
+
+For routing, supply all four controlled destinations when behavioral testing is
+intended:
+
+```text
+--routing-domain <domain>
+--routing-ipv4 <IPv4>
+--routing-ipv6 <IPv6>
+--routing-geoip-country <CC>
+```
+
+The values are used only in generated private artifacts. Partial or omitted
+values preserve the documentation defaults and label routing artifacts
+`SYNTAX_IMPORT_ONLY`. The IPv4/IPv6 values are lowered to exact `/32` and
+`/128` matchers; deterministic mode retains the checked-in-style
+`192.0.2.0/24` and `2001:db8::/32` values.
 
 Run one profile at a time when a narrower experiment is useful:
 
 ```bash
 npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --profile core
-npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url https://your-controlled-health-endpoint.example/health --profile url-test
-npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url https://your-controlled-health-endpoint.example/health --profile fallback
+npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url <real-health-url> --profile url-test
+npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url <real-health-url> --profile fallback
 npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --profile load-balance
 npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --profile subscription
-npm run shadowrocket:acceptance:local -- --profile routing
-npm run shadowrocket:acceptance:local -- --profile dns
+npm run shadowrocket:acceptance:local -- --profile routing --routing-domain <domain> --routing-ipv4 <IPv4> --routing-ipv6 <IPv6> --routing-geoip-country <CC>
+npm run shadowrocket:acceptance:local -- --profile dns --dns-server <IPv4[:port]>
 ```
 
 The core and strategy profiles require at least two distinct materialized
@@ -100,8 +131,9 @@ Profile: `core.conf`
 
 - Universal intent: a materialized local subscription feeding a two-or-more-member `select` group with FINAL targeting that group.
 - Expected syntax: each compatible endpoint is emitted once, followed by a `select` group and FINAL.
-- Human steps: import the profile, confirm the endpoints and group, select each meaningfully distinct member, send a controlled request through the selected member, and compare with a direct control request.
-- PASS proves only import, endpoint recognition, select retention, FINAL selection, and the tested traffic path for that exact profile.
+- Syntax/import evidence: import the profile and confirm the endpoints, group, and FINAL. Record this separately from traffic.
+- Behavioral evidence: select each meaningfully distinct member, send a controlled request through the selected member, and compare with a direct control request.
+- A traffic PASS requires the DIRECT-versus-proxy observation; import alone cannot be recorded as proxy behavior PASSED.
 - FAIL disproves the corresponding claim for the tested Shadowrocket version/build; it does not justify widening the adapter.
 
 ### Strategy profiles
@@ -114,10 +146,12 @@ currently implemented conditional mappings:
 - `fallback`: ordered fallback with explicit health URL and interval; no tolerance intent is added.
 - `load-balance`: explicit `round-robin`; consistent-hash remains blocked by the production compiler.
 
-For each profile, record the exact group syntax, the member chosen by the
-client, the test interval/health result where visible, and whether the observed
-behavior matches the Universal intent. Do not claim semantics outside the
-profile's exact emitted fields.
+For each profile, record syntax/import first. Then replace the health placeholder
+with a reachable endpoint where needed, observe Shadowrocket actually use that
+health endpoint, and record the selected member/fallback order. A URL-test or
+fallback behavioral PASS requires that observed health use and policy outcome;
+the generated file alone is never a behavior PASS. Do not claim semantics
+outside the profile's exact emitted fields.
 
 ### Routing precedence profiles
 
@@ -127,9 +161,13 @@ GEOIP. The first profile uses the baseline priority order; the second inverts
 the relevant priorities/policies so the observation is discriminating. Both
 preserve Universal ordering: priority ascending, then stable IR insertion order.
 
-Exercise a controlled request for each matcher and record the observed winner.
-These profiles prove only the tested matcher combinations and orderings; they
-do not prove port, ASN, GEO-SITE, rule-set, or first-party Service Rule support.
+First record rule syntax/import. Then exercise controlled destinations for each
+matcher and record the matched winner plus an observable DIRECT-versus-REJECT
+traffic discriminator (or an explicit Shadowrocket matched-rule observation if
+the client exposes one). An unreachable documentation address is not a routing
+behavior PASS. These profiles prove only the tested matcher combinations and
+orderings; they do not prove port, ASN, GEO-SITE, rule-set, or first-party
+Service Rule support.
 
 ### DNS profiles
 
@@ -137,10 +175,12 @@ Profiles `dns-system.conf` and `dns-udp.conf` contain only the currently
 emitted DNS forms:
 
 - `dns-system`: a system resolver in the global `dns-server` list.
-- `dns-udp`: the controlled IPv4 UDP resolver `192.0.2.53:53`.
+- `dns-udp`: the IPv4 UDP resolver supplied with `--dns-server`, or the documentation-only default `192.0.2.53:53`.
 
-Record whether Shadowrocket recognizes and uses the emitted resolver. Do not
-add or claim DoH/DoT behavior; those mappings remain unsupported.
+Record DNS syntax/import separately from DNS real-resolver behavior. A DNS
+behavior PASS requires a human-supplied, reachable UDP resolver and an observed
+client result. The documentation-only default can prove syntax/import only.
+Do not add or claim DoH/DoT behavior; those mappings remain unsupported.
 
 ### Materialized subscription
 
@@ -156,6 +196,9 @@ Shadowrocket pipeline. Record only the harness aggregates:
 - non-sensitive protocol counts
 - diagnostic code counts
 - artifact SHA-256
+
+Record subscription syntax/import separately from real traffic. A traffic PASS
+requires a successful controlled request through the materialized projection.
 
 Never copy the input, endpoint bodies, or credentials into this document.
 
@@ -179,35 +222,43 @@ Import syntax: PASSED | FAILED | NOT RUN
 
 Core private profile:
 SHA-256:
-Import: PASSED | FAILED | NOT RUN
-Proxy traffic: PASSED | FAILED | NOT RUN
-Select: PASSED | FAILED | NOT RUN
+Syntax/import: PASSED | FAILED | NOT RUN
+Proxy traffic discriminator: PASSED | FAILED | NOT RUN
+Select behavior: PASSED | FAILED | NOT RUN
 
 URL-test profile:
 SHA-256:
-Result: PASSED | FAILED | NOT RUN
+Syntax/import: PASSED | FAILED | NOT RUN
+Health endpoint observed:
+Selected member / behavior: PASSED | FAILED | NOT RUN
 
 Fallback profile:
 SHA-256:
-Result: PASSED | FAILED | NOT RUN
+Syntax/import: PASSED | FAILED | NOT RUN
+Health endpoint observed:
+Fallback behavior: PASSED | FAILED | NOT RUN
 
 Load-balance profile:
 SHA-256:
-Result: PASSED | FAILED | NOT RUN
+Syntax/import: PASSED | FAILED | NOT RUN
+Round-robin behavior: PASSED | FAILED | NOT RUN
 
 Routing precedence profiles:
 <profile name>:
 SHA-256:
+Rule syntax/import: PASSED | FAILED | NOT RUN
 Observed winner:
-Result: PASSED | FAILED | NOT RUN
+Real traffic discriminator: PASSED | FAILED | NOT RUN
 
 DNS system profile:
 SHA-256:
-Result: PASSED | FAILED | NOT RUN
+DNS syntax/import: PASSED | FAILED | NOT RUN
+DNS real resolver behavior: PASSED | FAILED | NOT RUN
 
 DNS IPv4 UDP profile:
 SHA-256:
-Result: PASSED | FAILED | NOT RUN
+DNS syntax/import: PASSED | FAILED | NOT RUN
+DNS real resolver behavior: PASSED | FAILED | NOT RUN
 
 Materialized subscription profile:
 SHA-256:
@@ -215,7 +266,7 @@ Candidates:
 Compatible:
 Skipped:
 Blockers:
-Import: PASSED | FAILED | NOT RUN
+Syntax/import: PASSED | FAILED | NOT RUN
 Real traffic: PASSED | FAILED | NOT RUN
 
 Sanitized observations:
@@ -226,4 +277,5 @@ Remaining unproven boundaries:
 
 The deterministic fixture and every private profile have separate hashes. A
 failed or missing human result keeps the target paused and the relevant
-capability audit item open.
+capability audit item open. Syntax/import acceptance and behavioral acceptance
+must remain separate fields; neither one may be inferred from the other.

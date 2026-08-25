@@ -11,6 +11,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputRoot = path.join(os.tmpdir(), 'proxyflow-shadowrocket-acceptance')
 const profiles = new Set(['core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'dns-system', 'dns-udp', 'subscription', 'routing', 'dns', 'all'])
 const inputProfiles = new Set(['core', 'url-test', 'fallback', 'load-balance', 'subscription', 'all'])
+const routingProfiles = new Set(['routing', 'routing-overlap', 'routing-inverted', 'all'])
+const dnsProfiles = new Set(['dns', 'dns-system', 'dns-udp', 'all'])
+const strategyHealthProfiles = new Set(['url-test', 'fallback', 'all'])
 
 class LocalAcceptanceError extends Error {
   constructor(code) {
@@ -53,13 +56,29 @@ async function main() {
   const needsInput = inputProfiles.has(requested)
   const inputPath = args.input ?? process.env.SHADOWROCKET_LOCAL_INPUT
   if (needsInput && !inputPath) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_INPUT_REQUIRED')
-  const healthUrl = args.healthUrl ?? process.env.SHADOWROCKET_LOCAL_HEALTH_URL
-  if ((requested === 'all' || requested === 'url-test' || requested === 'fallback') && !healthUrl) {
-    throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_HEALTH_URL_REQUIRED')
-  }
-  if (healthUrl && !isSafeHealthUrl(healthUrl)) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_HEALTH_URL_INVALID')
-  const content = inputPath ? await readPrivateInput(inputPath) : undefined
   const acceptance = await loadAcceptanceModule()
+  const suppliedHealthUrl = args.healthUrl ?? process.env.SHADOWROCKET_LOCAL_HEALTH_URL
+  const healthUrl = suppliedHealthUrl ?? (strategyHealthProfiles.has(requested) ? acceptance.SHADOWROCKET_LOCAL_DEFAULT_HEALTH_URL : undefined)
+  if (healthUrl && !isSafeHealthUrl(healthUrl)) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_HEALTH_URL_INVALID')
+  const suppliedDnsServer = args.dnsServer ?? process.env.SHADOWROCKET_LOCAL_DNS_SERVER
+  const dnsServer = suppliedDnsServer ?? (dnsProfiles.has(requested) ? acceptance.SHADOWROCKET_LOCAL_DEFAULT_DNS_SERVER : undefined)
+  if (dnsServer) {
+    const validatedDns = acceptance.validateShadowrocketLocalDnsServer(dnsServer)
+    if (!validatedDns.ok) throw new LocalAcceptanceError(validatedDns.code)
+  }
+  const routingInput = {
+    ...(args.routingDomain ? { domain: args.routingDomain } : {}),
+    ...(args.routingIpv4 ? { ipv4: args.routingIpv4 } : {}),
+    ...(args.routingIpv6 ? { ipv6: args.routingIpv6 } : {}),
+    ...(args.routingGeoipCountry ? { geoipCountry: args.routingGeoipCountry } : {}),
+  }
+  const hasRoutingInput = Object.keys(routingInput).length > 0
+  const hasCompleteRoutingInput = Boolean(args.routingDomain && args.routingIpv4 && args.routingIpv6 && args.routingGeoipCountry)
+  if (hasRoutingInput) {
+    const validatedRouting = acceptance.validateShadowrocketLocalRoutingValues(routingInput)
+    if (!validatedRouting.ok) throw new LocalAcceptanceError(validatedRouting.code)
+  }
+  const content = inputPath ? await readPrivateInput(inputPath) : undefined
   const parsed = content === undefined ? undefined : acceptance.parseShadowrocketLocalInput(content)
   if (parsed?.issues.some((issue) => issue.severity === 'error')) {
     const codes = [...new Set(parsed.issues.filter((issue) => issue.severity === 'error').map((issue) => issue.code))].sort()
@@ -68,10 +87,15 @@ async function main() {
     return
   }
 
-  const results = acceptance.compileShadowrocketLocalProfiles(content, requested, { healthUrl })
+  const compileOptions = {
+    ...(healthUrl ? { healthUrl } : {}),
+    ...(dnsServer ? { dnsServer } : {}),
+    ...(hasRoutingInput ? { routing: routingInput } : {}),
+  }
+  const results = acceptance.compileShadowrocketLocalProfiles(content, requested, compileOptions)
   const blocked = results.filter((item) => !item.graph.success || !item.result?.success)
   if (blocked.length > 0) {
-    for (const item of results) printProfileSummary(item)
+    for (const item of results) printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), hasCompleteRoutingInput }))
     process.stdout.write(`SHADOWROCKET_LOCAL_BLOCKED profileCount=${results.length} blockingProfileCount=${blocked.length}\n`)
     process.exitCode = 1
     return
@@ -90,7 +114,7 @@ async function main() {
   if (parsed) printInputSummary(acceptance.summarizeParsedSubscription(parsed))
   for (const artifact of artifacts) {
     const { item, artifactPath, sha256 } = artifact
-    printProfileSummary(item)
+    printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), hasCompleteRoutingInput }))
     process.stdout.write(`profile=${item.profile} status=COMPILED_LOCAL_ONLY artifact=${artifactPath} sha256=${sha256}\n`)
   }
   process.stdout.write(`SHADOWROCKET_LOCAL_ACCEPTANCE_OK profileCount=${artifacts.length} artifactDir=${outputRoot} privateInputRequired=${needsInput}\n`)
@@ -115,8 +139,38 @@ function parseArgs(args) {
     }
     if (arg === '--health-url') {
       const value = args[++index]
-      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_HEALTH_URL_REQUIRED')
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_HEALTH_URL_INVALID')
       result.healthUrl = value
+      continue
+    }
+    if (arg === '--dns-server') {
+      const value = args[++index]
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_DNS_SERVER_INVALID')
+      result.dnsServer = value
+      continue
+    }
+    if (arg === '--routing-domain') {
+      const value = args[++index]
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_ROUTING_DOMAIN_INVALID')
+      result.routingDomain = value
+      continue
+    }
+    if (arg === '--routing-ipv4') {
+      const value = args[++index]
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_ROUTING_IPV4_INVALID')
+      result.routingIpv4 = value
+      continue
+    }
+    if (arg === '--routing-ipv6') {
+      const value = args[++index]
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_ROUTING_IPV6_INVALID')
+      result.routingIpv6 = value
+      continue
+    }
+    if (arg === '--routing-geoip-country') {
+      const value = args[++index]
+      if (!value) throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_ROUTING_GEOIP_INVALID')
+      result.routingGeoipCountry = value
       continue
     }
     throw new LocalAcceptanceError('SHADOWROCKET_LOCAL_ARGUMENT_INVALID')
@@ -145,8 +199,16 @@ function printInputSummary(summary) {
   process.stdout.write(`input candidateCount=${summary.candidateCount} protocolCounts=${formatCounts(summary.protocolCounts)} diagnosticCodeCounts=${formatCounts(summary.issueCodeCounts)}\n`)
 }
 
-function printProfileSummary(item) {
-  process.stdout.write(`profile=${item.profile} candidateCount=${item.summary.candidateCount} compatibleCount=${item.summary.compatibleEndpointCount} skippedCount=${item.summary.skippedEndpointCount} blockerCount=${item.summary.blockingIssueCount} diagnosticCodeCounts=${formatCounts(item.summary.issueCodeCounts)}\n`)
+function printProfileSummary(item, mode) {
+  process.stdout.write(`profile=${item.profile} candidateCount=${item.summary.candidateCount} compatibleCount=${item.summary.compatibleEndpointCount} skippedCount=${item.summary.skippedEndpointCount} blockerCount=${item.summary.blockingIssueCount} diagnosticCodeCounts=${formatCounts(item.summary.issueCodeCounts)} behavioralEvidence=${mode}\n`)
+}
+
+function behaviorMode(profile, inputs) {
+  if ((profile === 'url-test' || profile === 'fallback') && !inputs.suppliedHealthUrl) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'dns-udp' && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
+  if ((profile === 'dns-system') && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
+  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && !inputs.hasCompleteRoutingInput) return 'SYNTAX_IMPORT_ONLY'
+  return 'HUMAN_INPUT_READY'
 }
 
 function formatCounts(counts) {
@@ -172,13 +234,16 @@ function printHelp() {
   process.stdout.write([
     'Local-only Shadowrocket acceptance harness',
     '',
-    'npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url https://your-controlled-health-endpoint.example/health --profile all',
+    'npm run shadowrocket:acceptance:local -- --input /private/tmp/proxyflow-shadowrocket-input.txt --health-url https://your-controlled-health-endpoint.example/health --dns-server 192.0.2.53:53 --profile all',
+    'Optional real controls: --dns-server IPv4[:port], --routing-domain domain,',
+    '--routing-ipv4 IPv4, --routing-ipv6 IPv6, --routing-geoip-country CC',
     '',
     'Profiles: all, core, url-test, fallback, load-balance, subscription, routing, dns,',
     '         routing-overlap, routing-inverted, dns-system, dns-udp',
     '',
-    'Input must be a local file under the OS temporary directory. The harness never',
-    'fetches URLs, imports into Shadowrocket, or prints private node data.',
+    'Input must be a local file under the OS temporary directory. Documentation-only',
+    'defaults are labeled SYNTAX_IMPORT_ONLY; the harness never fetches URLs, imports',
+    'into Shadowrocket, or prints private node data.',
     '',
   ].join('\n'))
 }

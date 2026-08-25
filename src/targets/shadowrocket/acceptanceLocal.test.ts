@@ -4,8 +4,11 @@ import { compileShadowrocketAcceptance } from './acceptance'
 import {
   compileShadowrocketLocalProfile,
   compileShadowrocketLocalProfiles,
+  localBehavioralEvidenceMode,
   parseShadowrocketLocalInput,
   summarizeParsedSubscription,
+  validateShadowrocketLocalDnsServer,
+  validateShadowrocketLocalRoutingValues,
 } from './acceptanceLocal'
 
 const localInput = [
@@ -60,6 +63,38 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(profiles.find(({ profile }) => profile === 'routing-overlap')?.result?.content).toContain('DOMAIN-SUFFIX')
     expect(profiles.find(({ profile }) => profile === 'dns-system')?.result?.content).toContain('dns-server = system')
     expect(profiles.find(({ profile }) => profile === 'dns-udp')?.result?.content).toContain('dns-server = 192.0.2.53:53')
+  })
+
+  it('accepts human-supplied DNS and routing controls without printing or tracking them', () => {
+    const dns = compileShadowrocketLocalProfile('dns-udp', undefined, undefined, { dnsServer: '1.1.1.1' })
+    expect(dns.result?.content).toContain('dns-server = 1.1.1.1:53')
+    const routing = compileShadowrocketLocalProfiles(undefined, 'routing', {
+      routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' },
+    })
+    expect(routing.every(({ result }) => result?.success)).toBe(true)
+    expect(routing[0].result?.content).toContain('DOMAIN,controlled.example,REJECT')
+    expect(routing[0].result?.content).toContain('IP-CIDR,198.51.100.9/32,REJECT')
+    expect(routing[0].result?.content).toContain('IP-CIDR6,2001:db8:1::9/128,DIRECT')
+    expect(routing[0].result?.content).toContain('GEOIP,CA,REJECT')
+  })
+
+  it('rejects hostnames, malformed IPv4/IPv6, ports, and control characters', () => {
+    expect(validateShadowrocketLocalDnsServer('dns.example')).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' })
+    expect(validateShadowrocketLocalDnsServer('1.1.1.1:abc')).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' })
+    expect(validateShadowrocketLocalDnsServer('1.1.1.1:0')).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' })
+    expect(validateShadowrocketLocalRoutingValues({ ipv4: 'router.example' })).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_IPV4_INVALID' })
+    expect(validateShadowrocketLocalRoutingValues({ ipv6: '2001:::1' })).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_IPV6_INVALID' })
+    expect(validateShadowrocketLocalRoutingValues({ domain: 'https://controlled.example' })).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_DOMAIN_INVALID' })
+    expect(validateShadowrocketLocalRoutingValues({ geoipCountry: 'C\nA' })).toEqual({ ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_GEOIP_INVALID' })
+  })
+
+  it('labels documentation-only defaults as syntax/import-only evidence', () => {
+    expect(localBehavioralEvidenceMode('dns-udp')).toBe('SYNTAX_IMPORT_ONLY')
+    expect(localBehavioralEvidenceMode('routing-overlap')).toBe('SYNTAX_IMPORT_ONLY')
+    expect(localBehavioralEvidenceMode('url-test')).toBe('SYNTAX_IMPORT_ONLY')
+    expect(localBehavioralEvidenceMode('dns-udp', { dnsServer: '1.1.1.1:53' })).toBe('HUMAN_INPUT_READY')
+    expect(localBehavioralEvidenceMode('routing-overlap', { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } })).toBe('HUMAN_INPUT_READY')
+    expect(localBehavioralEvidenceMode('url-test', { healthUrl: 'https://health.example/ok' })).toBe('HUMAN_INPUT_READY')
   })
 
   it('keeps aggregate summaries free of endpoint bodies and credentials', () => {

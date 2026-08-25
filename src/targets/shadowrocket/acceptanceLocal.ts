@@ -20,6 +20,22 @@ export type ShadowrocketLocalProfile = typeof SHADOWROCKET_LOCAL_PROFILES[number
 
 export type ShadowrocketLocalProfileRequest = ShadowrocketLocalProfile | 'routing' | 'dns' | 'all'
 
+export const SHADOWROCKET_LOCAL_DEFAULT_HEALTH_URL = 'https://your-controlled-health-endpoint.example/health'
+export const SHADOWROCKET_LOCAL_DEFAULT_DNS_SERVER = '192.0.2.53:53'
+export const SHADOWROCKET_LOCAL_DEFAULT_ROUTING_VALUES = {
+  domain: 'example.com',
+  ipv4: '192.0.2.1',
+  ipv6: '2001:db8::1',
+  geoipCountry: 'US',
+} as const
+
+export interface ShadowrocketLocalRoutingValues {
+  domain?: string
+  ipv4?: string
+  ipv6?: string
+  geoipCountry?: string
+}
+
 export interface ShadowrocketLocalSummary {
   candidateCount: number
   compatibleEndpointCount: number
@@ -40,7 +56,13 @@ export interface ShadowrocketLocalCompilation {
 export interface ShadowrocketLocalCompileOptions {
   /** Supplied by the human for URL-test/fallback; never fetched by the harness. */
   healthUrl?: string
+  /** Supplied by the human; never persisted in tracked fixtures. */
+  dnsServer?: string
+  /** Supplied by the human; never persisted in tracked fixtures. */
+  routing?: ShadowrocketLocalRoutingValues
 }
+
+export type ShadowrocketLocalValidation<T> = { ok: true; value: T } | { ok: false; code: string }
 
 const fixedNow = () => new Date('2026-08-25T00:00:00.000Z')
 
@@ -56,6 +78,39 @@ export function parseShadowrocketLocalInput(content: string): SubscriptionParseR
     sourceName: 'Private local acceptance input',
     filename: 'shadowrocket-local-input.txt',
   })
+}
+
+export function validateShadowrocketLocalDnsServer(value: string): ShadowrocketLocalValidation<string> {
+  if (typeof value !== 'string' || !value || value !== value.trim() || /[\r\n\u0000-\u001f\u007f\s]/.test(value)) {
+    return { ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' }
+  }
+  const separator = value.indexOf(':')
+  if (separator !== -1 && separator !== value.lastIndexOf(':')) return { ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' }
+  const address = separator === -1 ? value : value.slice(0, separator)
+  const portText = separator === -1 ? '53' : value.slice(separator + 1)
+  if (!isValidIpv4Literal(address) || !/^(?:[1-9]\d{0,4}|0)$/.test(portText)) return { ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' }
+  const port = Number(portText)
+  if (port < 1 || port > 65_535) return { ok: false, code: 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID' }
+  return { ok: true, value: `${address}:${port}` }
+}
+
+export function validateShadowrocketLocalRoutingValues(values: ShadowrocketLocalRoutingValues): ShadowrocketLocalValidation<Required<ShadowrocketLocalRoutingValues>> {
+  const domain = values.domain ?? SHADOWROCKET_LOCAL_DEFAULT_ROUTING_VALUES.domain
+  const ipv4 = values.ipv4 ?? SHADOWROCKET_LOCAL_DEFAULT_ROUTING_VALUES.ipv4
+  const ipv6 = values.ipv6 ?? SHADOWROCKET_LOCAL_DEFAULT_ROUTING_VALUES.ipv6
+  const geoipCountry = values.geoipCountry ?? SHADOWROCKET_LOCAL_DEFAULT_ROUTING_VALUES.geoipCountry
+  if (!isValidRoutingDomain(domain)) return { ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_DOMAIN_INVALID' }
+  if (!isValidIpv4Literal(ipv4)) return { ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_IPV4_INVALID' }
+  if (!isValidIpv6Literal(ipv6)) return { ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_IPV6_INVALID' }
+  if (!/^[A-Za-z]{2}$/.test(geoipCountry) || /[\r\n\u0000-\u001f\u007f]/.test(geoipCountry)) return { ok: false, code: 'SHADOWROCKET_LOCAL_ROUTING_GEOIP_INVALID' }
+  return { ok: true, value: { domain, ipv4, ipv6, geoipCountry: geoipCountry.toUpperCase() } }
+}
+
+export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, options: ShadowrocketLocalCompileOptions = {}): 'SYNTAX_IMPORT_ONLY' | 'HUMAN_INPUT_READY' {
+  if ((profile === 'url-test' || profile === 'fallback') && options.healthUrl === undefined) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'dns-udp' && options.dnsServer === undefined) return 'SYNTAX_IMPORT_ONLY'
+  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && (!options.routing?.domain || !options.routing?.ipv4 || !options.routing?.ipv6 || !options.routing?.geoipCountry)) return 'SYNTAX_IMPORT_ONLY'
+  return 'HUMAN_INPUT_READY'
 }
 
 export function expandShadowrocketLocalProfiles(request: ShadowrocketLocalProfileRequest): ShadowrocketLocalProfile[] {
@@ -85,6 +140,14 @@ export function compileShadowrocketLocalProfile(
   parsedOverride?: SubscriptionParseResult,
   options: ShadowrocketLocalCompileOptions = {},
 ): ShadowrocketLocalCompilation {
+  if ((profile === 'dns-system' || profile === 'dns-udp') && options.dnsServer !== undefined) {
+    const dns = validateShadowrocketLocalDnsServer(options.dnsServer)
+    if (!dns.ok) return blockedLocalCompilation(profile, undefined, [dns.code])
+  }
+  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && options.routing) {
+    const routing = validateShadowrocketLocalRoutingValues(options.routing)
+    if (!routing.ok) return blockedLocalCompilation(profile, undefined, [routing.code])
+  }
   const parsed = content === undefined && shadowrocketLocalProfileNeedsInput(profile)
     ? undefined
     : parsedOverride ?? (content === undefined ? undefined : parseShadowrocketLocalInput(content))
@@ -103,7 +166,7 @@ export function compileShadowrocketLocalProfile(
     }
   }
 
-  const project = buildProject(profile, content, options.healthUrl)
+  const project = buildProject(profile, content, options)
   const snapshot = parsed && content ? createLocalSnapshot(content, parsed) : undefined
   const graph = compileGraph(project, {
     ...(snapshot ? { subscriptionSnapshots: { 'shadowrocket-local-source': snapshot } } : {}),
@@ -115,11 +178,11 @@ export function compileShadowrocketLocalProfile(
   return { profile, graph, result, ...(parsed ? { parsed } : {}), summary }
 }
 
-function buildProject(profile: ShadowrocketLocalProfile, content?: string, healthUrl?: string): ProxyFlowProject {
-  if (profile === 'routing-overlap' || profile === 'routing-inverted') return buildRoutingProject(profile)
-  if (profile === 'dns-system' || profile === 'dns-udp') return buildDnsProject(profile)
+function buildProject(profile: ShadowrocketLocalProfile, content: string | undefined, options: ShadowrocketLocalCompileOptions): ProxyFlowProject {
+  if (profile === 'routing-overlap' || profile === 'routing-inverted') return buildRoutingProject(profile, options.routing)
+  if (profile === 'dns-system' || profile === 'dns-udp') return buildDnsProject(profile, options.dnsServer)
 
-  const strategy = strategyNode(profile, healthUrl)
+  const strategy = strategyNode(profile, options.healthUrl)
   const source = sourceNode(content)
   const final = node('shadowrocket-local-final', 'final', 'routing', {
     title: 'Final', targetId: strategy.id, targetLabel: strategy.data.title, targetKind: 'strategy',
@@ -156,14 +219,17 @@ function sourceNode(content?: string) {
   })
 }
 
-function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted') {
+function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted', supplied?: ShadowrocketLocalRoutingValues) {
+  const routing = validateShadowrocketLocalRoutingValues(supplied ?? {})
+  if (!routing.ok) throw new Error(routing.code)
   const invert = profile === 'routing-inverted'
+  const values = routing.value
   const matchers: Array<{ kind: NonNullable<BlockNodeData['routeMatcherKind']>; value: string; targetKind: 'direct' | 'reject'; priority: number }> = [
-    { kind: 'domain', value: 'example.com', targetKind: invert ? 'direct' : 'reject', priority: invert ? 20 : 10 },
-    { kind: 'domain-suffix', value: 'example.com', targetKind: invert ? 'reject' : 'direct', priority: invert ? 10 : 20 },
-    { kind: 'ip-cidr', value: '192.0.2.0/24', targetKind: invert ? 'direct' : 'reject', priority: invert ? 40 : 30 },
-    { kind: 'ip-cidr6', value: '2001:db8::/32', targetKind: invert ? 'reject' : 'direct', priority: invert ? 30 : 40 },
-    { kind: 'geo-ip', value: 'US', targetKind: invert ? 'direct' : 'reject', priority: 50 },
+    { kind: 'domain', value: values.domain, targetKind: invert ? 'direct' : 'reject', priority: invert ? 20 : 10 },
+    { kind: 'domain-suffix', value: values.domain, targetKind: invert ? 'reject' : 'direct', priority: invert ? 10 : 20 },
+    { kind: 'ip-cidr', value: supplied?.ipv4 ? `${values.ipv4}/32` : '192.0.2.0/24', targetKind: invert ? 'direct' : 'reject', priority: invert ? 40 : 30 },
+    { kind: 'ip-cidr6', value: supplied?.ipv6 ? `${values.ipv6}/128` : '2001:db8::/32', targetKind: invert ? 'reject' : 'direct', priority: invert ? 30 : 40 },
+    { kind: 'geo-ip', value: values.geoipCountry, targetKind: invert ? 'direct' : 'reject', priority: 50 },
   ]
   const routes = matchers.map((matcher, index) => node(`shadowrocket-local-route-${index + 1}`, 'custom-rule', 'routing', {
     title: `Controlled ${matcher.kind}`,
@@ -176,10 +242,13 @@ function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted') {
   return project(`shadowrocket-local-${profile}`, [...routes, final, outputNode()], [])
 }
 
-function buildDnsProject(profile: 'dns-system' | 'dns-udp') {
+function buildDnsProject(profile: 'dns-system' | 'dns-udp', suppliedServer?: string) {
+  const server = suppliedServer === undefined ? SHADOWROCKET_LOCAL_DEFAULT_DNS_SERVER : validateShadowrocketLocalDnsServer(suppliedServer)
+  if (typeof server !== 'string' && !server.ok) throw new Error(server.code)
+  const dnsServer = typeof server === 'string' ? server : server.value
   const dnsResolvers = profile === 'dns-system'
     ? [{ id: 'system', name: 'System', kind: 'system' as const, role: 'default' as const, enabled: true }]
-    : [{ id: 'udp', name: 'IPv4 UDP', kind: 'udp' as const, role: 'default' as const, address: '192.0.2.53:53', enabled: true }]
+    : [{ id: 'udp', name: 'IPv4 UDP', kind: 'udp' as const, role: 'default' as const, address: dnsServer, enabled: true }]
   return project(`shadowrocket-local-${profile}`, [
     node('shadowrocket-local-dns', 'dns', 'dns', { title: profile === 'dns-system' ? 'System DNS' : 'IPv4 UDP DNS', dnsResolvers }),
     node('shadowrocket-local-final', 'final', 'routing', { title: 'Final', targetKind: 'direct', targetLabel: 'DIRECT' }),
@@ -295,4 +364,28 @@ export function summarizeParsedSubscription(parsed: SubscriptionParseResult) {
     protocolCounts: countProtocols(parsed),
     issueCodeCounts: countIssueCodes(parsed.issues),
   }
+}
+
+function isValidIpv4Literal(value: string): boolean {
+  if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) return false
+  return value.split('.').every((part) => (part.length === 1 || part[0] !== '0') && Number(part) <= 255)
+}
+
+function isValidIpv6Literal(value: string): boolean {
+  if (!value || value !== value.trim() || /[\r\n\u0000-\u001f\u007f\s.[\]"',=\\]/.test(value) || value.includes('.')) return false
+  const halves = value.split('::')
+  if (halves.length > 2) return false
+  const count = (part: string) => part ? part.split(':').every((segment) => /^[0-9A-Fa-f]{1,4}$/.test(segment)) ? part.split(':').length : -1 : 0
+  const left = count(halves[0])
+  const right = count(halves.length === 2 ? halves[1] : '')
+  if (left < 0 || right < 0) return false
+  return halves.length === 2 ? left + right < 8 : left === 8
+}
+
+function isValidRoutingDomain(value: string): boolean {
+  return typeof value === 'string'
+    && value === value.trim()
+    && value.length <= 253
+    && /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/.test(value)
+    && !/[\r\n\u0000-\u001f\u007f,=\\"/]/.test(value)
 }

@@ -79,7 +79,43 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
     expect(stderr).toBe('')
     expect(stdout).toContain('profile=routing-overlap status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('profile=routing-inverted status=COMPILED_LOCAL_ONLY')
+    expect(stdout).toContain('behavioralEvidence=SYNTAX_IMPORT_ONLY')
     expect(stdout).not.toContain('http://')
     expect(stdout).not.toContain('https://')
-  })
+
+    const custom = await execFileAsync(process.execPath, [
+      script,
+      '--profile', 'routing',
+      '--routing-domain', 'controlled.example',
+      '--routing-ipv4', '198.51.100.9',
+      '--routing-ipv6', '2001:db8:1::9',
+      '--routing-geoip-country', 'CA',
+    ], { cwd: root })
+    expect(custom.stderr).toBe('')
+    expect(custom.stdout).toContain('behavioralEvidence=HUMAN_INPUT_READY')
+    expect(custom.stdout).not.toContain('controlled.example')
+    expect(custom.stdout).not.toContain('198.51.100.9')
+    expect(custom.stdout).not.toContain('2001:db8:1::9')
+
+    const dns = await execFileAsync(process.execPath, [script, '--profile', 'dns', '--dns-server', '1.1.1.1'], { cwd: root })
+    expect(dns.stderr).toBe('')
+    expect(dns.stdout).toContain('behavioralEvidence=HUMAN_INPUT_READY')
+    expect(dns.stdout).not.toContain('1.1.1.1')
+  }, 20_000)
+
+  it('rejects invalid new arguments without echoing their values', async () => {
+    const cases = [
+      [['--profile', 'dns', '--dns-server', 'dns.example'], 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID', 'dns.example'],
+      [['--profile', 'dns', '--dns-server', '1.1.1.1:0'], 'SHADOWROCKET_LOCAL_DNS_SERVER_INVALID', '1.1.1.1:0'],
+      [['--profile', 'routing', '--routing-ipv4', 'router.example'], 'SHADOWROCKET_LOCAL_ROUTING_IPV4_INVALID', 'router.example'],
+      [['--profile', 'routing', '--routing-ipv6', '2001:::1'], 'SHADOWROCKET_LOCAL_ROUTING_IPV6_INVALID', '2001:::1'],
+      [['--profile', 'routing', '--routing-domain', 'https://controlled.example'], 'SHADOWROCKET_LOCAL_ROUTING_DOMAIN_INVALID', 'https://controlled.example'],
+      [['--profile', 'routing', '--routing-geoip-country', 'C\nA'], 'SHADOWROCKET_LOCAL_ROUTING_GEOIP_INVALID', 'C\nA'],
+    ]
+    for (const [args, code, forbidden] of cases) {
+      const result = await execFileAsync(process.execPath, [script, ...args], { cwd: root }).catch((error) => error)
+      expect(result.stderr).toContain(code)
+      expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).not.toContain(forbidden)
+    }
+  }, 20_000)
 })
