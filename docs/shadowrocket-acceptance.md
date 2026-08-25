@@ -2,7 +2,10 @@
 
 This remains a human-gated workflow. Shadowrocket is registered but paused;
 the local harness does not expose the target, change `productStatus`, import a
-profile into the client, or make a network request.
+profile into the client, or make a network request. A narrow real-client record
+now exists for Shadowrocket 2.2.65 build 2615 covering standalone GEOIP,
+standalone IP-CIDR, and the resulting mixed IP/GEO fail-closed boundary; it is
+not generalized to other versions or builds.
 
 ## Evidence classes
 
@@ -88,7 +91,7 @@ the artifact for human behavioral testing but does not itself prove behavior.
 
 For routing, supply whichever controlled destinations the human can actually
 reach. Readiness is reported per matcher family; missing IPv6 does not block
-DOMAIN, IP-CIDR, or the GEOIP experiment:
+DOMAIN, IP-CIDR, or standalone GEOIP probes:
 
 ```text
 --routing-domain <domain>
@@ -120,6 +123,12 @@ The values are used only in generated private artifacts. Omitted values
 preserve the documentation defaults. The IPv4/IPv6 values are lowered to exact
 `/32` and `/128` matchers when supplied; deterministic mode retains the
 checked-in-style `192.0.2.0/24` and `2001:db8::/32` values.
+
+The `routing` convenience request now emits only the standalone GEOIP and
+IP-CIDR probes. The historical `routing-overlap` and `routing-inverted`
+profiles contain mixed IP/GEO precedence intent and fail closed with
+`SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`; they are not silently
+reordered or downgraded.
 
 Run one profile at a time when a narrower experiment is useful:
 
@@ -177,10 +186,15 @@ outside the profile's exact emitted fields.
 
 ### Routing precedence profiles
 
-Profiles `routing-overlap.conf` and `routing-inverted.conf` contain controlled,
-credential-free experiments for DOMAIN, DOMAIN-SUFFIX, IP-CIDR, IP-CIDR6, and
-GEOIP. Policy assignments stay fixed in both profiles. The inverted profile
-changes only the relevant priorities so the observed winner must change:
+The historical profiles `routing-overlap.conf` and `routing-inverted.conf`
+contain controlled, credential-free experiments for DOMAIN, DOMAIN-SUFFIX,
+IP-CIDR, IP-CIDR6, and GEOIP. They are retained for evidence interpretation,
+but current production compilation fails closed because the tested client did
+not preserve mixed IP/GEO precedence. Policy assignments are not silently
+reordered, downgraded, or flattened.
+
+Before the fail-closed boundary was added, the profiles changed only the
+relevant priorities:
 
 - DOMAIN controlled-domain → `REJECT` priority 10; DOMAIN-SUFFIX → `DIRECT`
   priority 20. The baseline winner is `REJECT`.
@@ -198,12 +212,31 @@ Both profiles preserve Universal ordering: priority ascending, then stable IR
 insertion order. An unreachable documentation address or a failed request by
 itself is not a routing behavior PASS.
 
-First record rule syntax/import. Then exercise controlled destinations for each
-matcher and record the matched winner plus an observable DIRECT-versus-REJECT
-traffic discriminator (or an explicit Shadowrocket matched-rule observation if
-the client exposes one). These profiles prove only the tested matcher
-combinations and orderings; they do not prove port, ASN, GEO-SITE, rule-set, or
-first-party Service Rule support.
+No new mixed profile may be imported from the production compiler. These
+historical artifacts prove only the exact tested observations; they do not
+prove port, ASN, GEO-SITE, rule-set, or first-party Service Rule support.
+
+### Pinned real-client routing evidence
+
+The following record is limited to Shadowrocket 2.2.65 build 2615:
+
+- `routing-geoip-only.conf`, SHA-256
+  `5befaa09cb824af60c9a74cc6f4d5dec3972b52a8dc894eceea54bc8df78b083`:
+  syntax/import recorded; rule test observed `GEOIP -> DIRECT`; standalone
+  GEOIP result `PASSED`.
+- `routing-ipcidr-only.conf`, SHA-256
+  `ec3d0a639cc7e3ed94eb38f2461201f48c428339cf747b10408bc51cbff1bb34`:
+  syntax/import recorded; rule test observed `IP-CIDR -> DIRECT`; standalone
+  IP-CIDR result `PASSED`.
+- Mixed IP-CIDR/GEOIP: baseline observed IP-CIDR/REJECT; inverted emitted
+  GEOIP/DIRECT earlier but still observed IP-CIDR/REJECT. The mixed result is
+  `UNSUPPORTED / FAIL CLOSED` under the target-local diagnostic above.
+
+This evidence does not infer GEOIP classification from physical location,
+external geolocation, DNS/DDNS, or provider metadata. It does not generalize
+to other Shadowrocket versions or builds. DOMAIN versus DOMAIN-SUFFIX remains
+supported only within the tested domain-family boundary. IP-CIDR6 remains
+syntax/import-only with behavior `NOT RUN`.
 
 ### Isolated routing probes
 
@@ -351,10 +384,10 @@ Observed policy:
 Result: PASSED | FAILED | NOT RUN
 
 Mixed IP-CIDR / GEOIP precedence:
-Status: UNRESOLVED until GEOIP standalone acceptance is confirmed
+Status: UNSUPPORTED / FAIL CLOSED (pinned only to Shadowrocket 2.2.65 build 2615)
 Baseline observed winner:
 Inverted observed winner:
-Result: PASSED | FAILED | UNRESOLVED | NOT RUN
+Result: UNSUPPORTED | FAIL CLOSED | NOT RUN
 
 DNS system profile:
 SHA-256:

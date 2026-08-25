@@ -152,6 +152,33 @@ describe('Shadowrocket compiler foundation', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SHADOWROCKET_LOAD_BALANCE_ALGORITHM_UNPROVEN', severity: 'error' }))
   })
 
+  it.each([
+    ['ip-cidr', { kind: 'ip-cidr', value: '198.51.100.9/32' }],
+    ['ip-cidr6', { kind: 'ip-cidr6', value: '2001:db8::9/128' }],
+  ] as const)('fails closed for mixed %s and GEOIP precedence', (_label, ipMatcher) => {
+    const ir = baseIR()
+    ir.routes = [
+      { id: 'ip', name: 'IP', matcher: ipMatcher, target: { kind: 'reject' }, priority: 10 },
+      { id: 'geo', name: 'GeoIP', matcher: { kind: 'geo-ip', countryCode: 'HK' }, target: { kind: 'direct' }, priority: 20 },
+    ]
+    const result = compileShadowrocket(ir, { now: fixedNow })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED', severity: 'error', entityId: 'ip' }))
+  })
+
+  it('keeps standalone IP-CIDR and GEOIP lowering available', () => {
+    const ir = baseIR()
+    ir.routes = [
+      { id: 'ip', name: 'IP', matcher: { kind: 'ip-cidr', value: '198.51.100.9/32' }, target: { kind: 'direct' }, priority: 10 },
+    ]
+    expect(success(ir).content).toContain('IP-CIDR,198.51.100.9/32,DIRECT')
+    ir.routes = [
+      { id: 'geo', name: 'GeoIP', matcher: { kind: 'geo-ip', countryCode: 'HK' }, target: { kind: 'direct' }, priority: 10 },
+    ]
+    expect(success(ir).content).toContain('GEOIP,HK,DIRECT')
+  })
+
   it('rejects unsafe serializer values and duplicate general keys', () => {
     expect(() => serializeShadowrocketProfile({ general: [{ key: 'dns-server', value: { kind: 'list', items: ['1.1.1.1'] } }, { key: 'DNS-SERVER', value: 'system' }], proxies: [], proxyGroups: [], rules: [] })).toThrow(/Duplicate Shadowrocket/)
     expect(() => serializeShadowrocketProfile({ general: [], proxies: [{ name: 'bad,name', type: 'http', arguments: ['proxy', 80] }], proxyGroups: [], rules: [] })).toThrow(/policy names/)

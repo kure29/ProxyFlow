@@ -57,11 +57,18 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(profiles.map(({ profile }) => profile)).toEqual([
       'core', 'url-test', 'fallback', 'load-balance', 'routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only', 'dns-system', 'dns-udp', 'subscription',
     ])
-    for (const profile of profiles) expect(profile.result?.success, profile.profile).toBe(true)
+    for (const profile of profiles) {
+      if (profile.profile === 'routing-overlap' || profile.profile === 'routing-inverted') {
+        expect(profile.result?.success).toBe(false)
+        expect(profile.summary.issueCodeCounts).toEqual({ SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED: 1 })
+      } else {
+        expect(profile.result?.success, profile.profile).toBe(true)
+      }
+    }
     expect(profiles.find(({ profile }) => profile === 'url-test')?.result?.content).toContain('url-test')
     expect(profiles.find(({ profile }) => profile === 'fallback')?.result?.content).toContain('fallback')
     expect(profiles.find(({ profile }) => profile === 'load-balance')?.result?.content).toContain('load-balance')
-    expect(profiles.find(({ profile }) => profile === 'routing-overlap')?.result?.content).toContain('DOMAIN-SUFFIX')
+    expect(profiles.find(({ profile }) => profile === 'routing-overlap')?.result?.success).toBe(false)
     expect(profiles.find(({ profile }) => profile === 'routing-geoip-only')?.result?.content).toContain('GEOIP,US,DIRECT')
     expect(profiles.find(({ profile }) => profile === 'routing-geoip-only')?.result?.content).toContain('FINAL,REJECT')
     expect(profiles.find(({ profile }) => profile === 'routing-ipcidr-only')?.result?.content).toContain('IP-CIDR,192.0.2.0/24,DIRECT')
@@ -77,28 +84,22 @@ describe('Shadowrocket local acceptance profiles', () => {
       routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' },
     })
     expect(routing.every(({ result }) => result?.success)).toBe(true)
-    expect(routing[0].result?.content).toContain('DOMAIN,controlled.example,REJECT')
-    expect(routing[0].result?.content).toContain('IP-CIDR,198.51.100.9/32,REJECT')
-    expect(routing[0].result?.content).toContain('IP-CIDR6,2001:db8:1::9/128,DIRECT')
-    expect(routing[0].result?.content).toContain('GEOIP,CA,DIRECT')
+    expect(routing.find(({ profile }) => profile === 'routing-geoip-only')?.result?.content).toContain('GEOIP,CA,DIRECT')
+    expect(routing.find(({ profile }) => profile === 'routing-ipcidr-only')?.result?.content).toContain('IP-CIDR,198.51.100.9/32,DIRECT')
+    const mixed = compileShadowrocketLocalProfile('routing-overlap', undefined, undefined, { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } })
+    expect(mixed.graph.success).toBe(true)
+    expect(mixed.result?.success).toBe(false)
+    expect(mixed.summary.issueCodeCounts).toEqual({ SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED: 1 })
   })
 
-  it('keeps routing policy assignments fixed while inverting only precedence priorities', () => {
+  it('fails closed for mixed routing profiles after the observed precedence conflict', () => {
     const options = { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } }
-    const baseline = compileShadowrocketLocalProfile('routing-overlap', undefined, undefined, options).result?.content ?? ''
-    const inverted = compileShadowrocketLocalProfile('routing-inverted', undefined, undefined, options).result?.content ?? ''
-    expect(baseline).toContain('DOMAIN,controlled.example,REJECT')
-    expect(baseline).toContain('DOMAIN-SUFFIX,controlled.example,DIRECT')
-    expect(baseline).toContain('IP-CIDR,198.51.100.9/32,REJECT')
-    expect(baseline).toContain('GEOIP,CA,DIRECT')
-    expect(inverted).toContain('DOMAIN,controlled.example,REJECT')
-    expect(inverted).toContain('DOMAIN-SUFFIX,controlled.example,DIRECT')
-    expect(inverted).toContain('IP-CIDR,198.51.100.9/32,REJECT')
-    expect(inverted).toContain('GEOIP,CA,DIRECT')
-    expect(baseline.indexOf('DOMAIN,controlled.example,REJECT')).toBeLessThan(baseline.indexOf('DOMAIN-SUFFIX,controlled.example,DIRECT'))
-    expect(inverted.indexOf('DOMAIN-SUFFIX,controlled.example,DIRECT')).toBeLessThan(inverted.indexOf('DOMAIN,controlled.example,REJECT'))
-    expect(baseline.indexOf('IP-CIDR,198.51.100.9/32,REJECT')).toBeLessThan(baseline.indexOf('GEOIP,CA,DIRECT'))
-    expect(inverted.indexOf('GEOIP,CA,DIRECT')).toBeLessThan(inverted.indexOf('IP-CIDR,198.51.100.9/32,REJECT'))
+    for (const profile of ['routing-overlap', 'routing-inverted'] as const) {
+      const result = compileShadowrocketLocalProfile(profile, undefined, undefined, options)
+      expect(result.graph.success).toBe(true)
+      expect(result.result?.success).toBe(false)
+      expect(result.summary.issueCodeCounts).toEqual({ SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED: 1 })
+    }
   })
 
   it('keeps isolated routing probes independent from mixed precedence experiments', () => {

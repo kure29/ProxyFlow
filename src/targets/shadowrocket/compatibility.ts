@@ -5,6 +5,7 @@ import { planShadowrocketDns } from './dns'
 import { shadowrocketIssue } from './errors'
 import { createShadowrocketProjectionContext, projectShadowrocketFixedEndpoint, projectShadowrocketProxySet, shadowrocketProxySetProjectionIssues, shadowrocketStrategyNoMemberIssue } from './projection'
 import { isSafeShadowrocketPolicyName } from './serializer'
+import { findShadowrocketCrossFamilyRouteOrderConflicts, SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED } from './routing'
 
 export interface ShadowrocketCompatibilityResult { supported: boolean; issues: CompatibilityIssue[] }
 
@@ -47,6 +48,14 @@ export function checkShadowrocketCompatibility(ir: ProxyFlowIR, projection = cre
   for (const source of ir.sources) if (source.kind === 'provider' || source.kind === 'imported-config' || source.kind === 'subscription' && !source.proxies) issues.push(shadowrocketIssue('SHADOWROCKET_SOURCE_REQUIRES_RESOLVED_PROXIES', activeSourceIds.has(source.id) ? 'error' : 'warning', 'source', `Source "${source.name}" must be materialized to explicit endpoints before Shadowrocket compilation.`, source.id))
   for (const source of ir.sources) if (source.kind === 'subscription' && source.remote?.exportMode === 'remote') issues.push(shadowrocketIssue('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN', activeSourceIds.has(source.id) ? 'error' : 'warning', 'remote-source', `Source "${source.name}" requests native remote proxy export, but Shadowrocket's source contract is not proven.`, source.id))
   for (const route of ir.routes) if (route.matcher.kind === 'service' || route.matcher.kind === 'rule-set' || ['port', 'asn', 'geo-site'].includes(route.matcher.kind)) issues.push(shadowrocketIssue('SHADOWROCKET_MATCHER_UNSUPPORTED', 'error', 'route', `Route matcher "${route.matcher.kind}" is outside the audited Shadowrocket subset.`, route.id))
+  const crossFamilyOrderConflicts = findShadowrocketCrossFamilyRouteOrderConflicts(ir.routes)
+  if (crossFamilyOrderConflicts.length > 0) issues.push(shadowrocketIssue(
+    SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED,
+    'error',
+    'route',
+    'Shadowrocket 2.2.65 build 2615 cannot preserve Universal relative precedence between IP-CIDR/IP-CIDR6 and GEOIP. Mixed IP/GEO routing is unsupported; standalone matcher lowering remains available.',
+    crossFamilyOrderConflicts[0].id,
+  ))
   issues.push(...planShadowrocketDns(ir.dns).issues)
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
 }

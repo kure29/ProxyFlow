@@ -13,14 +13,14 @@ readiness is not a build-only decision. The following blockers must reach zero:
 | Real client import | Blocked | Run the profile-aware local harness, then import the generated private artifact in a real Shadowrocket version; syntax/import is recorded separately. |
 | Real proxy traffic | Blocked | Verify HTTP/SOCKS/SS and each separately accepted protocol using the private core profile and an observable traffic discriminator. |
 | Strategy behavior | Blocked | Verify select, URL test, fallback, and load-balance semantics using separate profiles and a reachable health endpoint where required. |
-| Routing precedence | Blocked | Verify controlled overlapping DOMAIN / DOMAIN-SUFFIX / IP-CIDR / IP-CIDR6 / GEOIP profiles with DIRECT/REJECT or matched-rule evidence. |
+| Routing precedence | Bounded / blocked | DOMAIN versus DOMAIN-SUFFIX ordering is evidenced for Shadowrocket 2.2.65 build 2615; standalone IP-CIDR and GEOIP are passed. Mixed IP-CIDR/IP-CIDR6 + GEOIP precedence is unsupported and fails closed with `SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`; IPv6 behavior remains NOT RUN. |
 | DNS behavior | Blocked | Verify syntax/import separately from a real reachable IPv4 UDP resolver; encrypted resolver mappings remain unsupported. |
 | Service Rules | Blocked | Prove format, refresh, binding, and traffic behavior or keep unsupported. |
 | Remote proxy sources | Blocked | Prove native source contract or keep materialized-only behavior. |
 | Product lifecycle | Paused path only | Persistence, hydration, undo/redo, target transitions, and stale-result protections must be covered by tests. |
 | Preview / Export / Health UX | Paused path only | Verify diagnostics and no stale artifact leakage; paused target must not enter product lists. |
 | CI / build | Local gates passed; CI run pending | Full test, deployment test, production/runtime builds, typecheck, and Shadowrocket fixture drift are configured in both CI workflows. |
-| Documentation | Partial | Deterministic and private local evidence classes are documented; the sanitized acceptance record is still required. |
+| Documentation | Partial | Deterministic/private evidence classes, the pinned 2.2.65 build record, and the mixed IP/GEO fail-closed boundary are documented; the remaining sanitized acceptance record is still required. |
 | Release / version | Not started | Do not bump version, tag, merge, or publish from this goal. |
 
 The recommended next action is to run the human-gated acceptance workflow with
@@ -30,7 +30,7 @@ fail-closed.
 
 ## Local verification snapshot
 
-On 2026-08-25, the worktree passed `npm test` (109 files / 1,140 tests),
+On 2026-08-25, the worktree passed `npm test` (111 files / 1,159 tests),
 `npm run build`, `npm run runtime:build`, `npm run test:deployment` (40 checks),
 `npm run shadowrocket:acceptance`, and `git diff --check`. These checks establish
 deterministic engineering behavior only; they are not a substitute for the

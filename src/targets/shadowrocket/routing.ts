@@ -1,9 +1,39 @@
-import type { ProxyFlowIR, RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
+import type { ProxyFlowIR, RouteIR, RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { shadowrocketIssue } from './errors'
 import type { ShadowrocketRule } from './model'
 
+export const SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED = 'SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'
+
+/**
+ * Shadowrocket 2.2.65 build 2615 did not preserve the Universal winner when
+ * IP-CIDR/IP-CIDR6 and GEOIP rules were reordered. Keep this target-local
+ * boundary explicit so standalone matcher support does not imply mixed-family
+ * precedence support.
+ */
+export function findShadowrocketCrossFamilyRouteOrderConflicts(routes: readonly RouteIR[]): RouteIR[] {
+  const hasIpFamily = routes.some((route) => route.matcher.kind === 'ip-cidr' || route.matcher.kind === 'ip-cidr6')
+  const hasGeoIp = routes.some((route) => route.matcher.kind === 'geo-ip')
+  if (!hasIpFamily || !hasGeoIp) return []
+  return routes.filter((route) => route.matcher.kind === 'ip-cidr' || route.matcher.kind === 'ip-cidr6' || route.matcher.kind === 'geo-ip')
+}
+
+function crossFamilyOrderIssue(entityId: string) {
+  return shadowrocketIssue(
+    SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED,
+    'error',
+    'route',
+    'Shadowrocket 2.2.65 build 2615 cannot preserve Universal relative precedence between IP-CIDR/IP-CIDR6 and GEOIP. Mixed IP/GEO routing is unsupported; standalone matcher lowering remains available.',
+    entityId,
+  )
+}
+
 export function compileShadowrocketRouting(ir: Pick<ProxyFlowIR, 'routes' | 'finalRoute'>, strategyNames: ReadonlyMap<string, string>, compiledStrategyIds: ReadonlySet<string>, blockedStrategyIds: ReadonlySet<string>, issues: CompatibilityIssue[]) {
+  const orderConflicts = findShadowrocketCrossFamilyRouteOrderConflicts(ir.routes)
+  if (orderConflicts.length > 0) {
+    issues.push(crossFamilyOrderIssue(orderConflicts[0].id))
+    return []
+  }
   const rules: ShadowrocketRule[] = []
   const routes = ir.routes.map((route, index) => ({ route, index })).sort((a, b) => a.route.priority - b.route.priority || a.index - b.index)
   for (const { route } of routes) {
@@ -42,4 +72,3 @@ function lowerMatcher(matcher: TrafficMatcherIR): Omit<ShadowrocketRule, 'policy
     default: return undefined
   }
 }
-

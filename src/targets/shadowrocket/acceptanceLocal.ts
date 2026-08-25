@@ -157,7 +157,10 @@ export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, o
 
 export function expandShadowrocketLocalProfiles(request: ShadowrocketLocalProfileRequest): ShadowrocketLocalProfile[] {
   if (request === 'all') return [...SHADOWROCKET_LOCAL_PROFILES]
-  if (request === 'routing') return ['routing-overlap', 'routing-inverted', 'routing-geoip-only', 'routing-ipcidr-only']
+  // Mixed IP/GEO precedence profiles remain available for historical evidence
+  // inspection but are intentionally excluded from the runnable convenience
+  // request because production compatibility now fails them closed.
+  if (request === 'routing') return ['routing-geoip-only', 'routing-ipcidr-only']
   if (request === 'dns') return ['dns-system', 'dns-udp']
   return [request]
 }

@@ -77,8 +77,6 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
   it('generates controlled routing and DNS profiles without private input or network access', async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [script, '--profile', 'routing'], { cwd: root })
     expect(stderr).toBe('')
-    expect(stdout).toContain('profile=routing-overlap status=COMPILED_LOCAL_ONLY')
-    expect(stdout).toContain('profile=routing-inverted status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('profile=routing-geoip-only status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('profile=routing-ipcidr-only status=COMPILED_LOCAL_ONLY')
     expect(stdout).toContain('behavioralEvidence=SYNTAX_IMPORT_ONLY')
@@ -101,12 +99,13 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
 
     const partial = await execFileAsync(process.execPath, [
       script,
-      '--profile', 'routing',
+      '--profile', 'routing-overlap',
       '--routing-domain', 'controlled.example',
       '--routing-ipv4', '198.51.100.9',
       '--routing-geoip-country', 'CA',
-    ], { cwd: root })
+    ], { cwd: root }).catch((error) => error)
     expect(partial.stderr).toBe('')
+    expect(partial.stdout).toContain('SHADOWROCKET_LOCAL_BLOCKED')
     expect(partial.stdout).toContain('behavioralEvidence=PARTIAL_HUMAN_INPUT_READY')
     expect(partial.stdout).toContain('DOMAIN:HUMAN_INPUT_READY')
     expect(partial.stdout).toContain('DOMAIN_SUFFIX:HUMAN_INPUT_READY')

@@ -20,10 +20,13 @@ added to Graph, Project Schema, or Universal IR.
 The repository environment could not retrieve Shadowrocket's public site or
 documentation (the vendor site returned `ERR_CONNECTION_CLOSED` on 2026-08-25;
 the App Store URL redirected to a generic regional landing page without the
-product listing). No real-client observation has been supplied. Consequently
-every mapping below is marked conditional, unproven, or deferred until a human
-supplies a pinned source or acceptance record. The links in the evidence column
-are investigation starting points, not evidence claims.
+product listing). A narrow real-client acceptance record is now pinned to
+Shadowrocket 2.2.65 build 2615 for DOMAIN versus DOMAIN-SUFFIX ordering,
+standalone IP-CIDR, standalone GEOIP, and the mixed IP/GEO fail-closed
+boundary. It is not generalized to other versions or builds. All other
+mappings remain conditional, unproven, or deferred until a human supplies a
+pinned source or acceptance record. The links in the evidence column are
+investigation starting points, not evidence claims.
 
 Candidate authoritative sources to pin at the human gate:
 
@@ -54,8 +57,11 @@ Candidate authoritative sources to pin at the human gate:
 | Load balance | Algorithm and persistence semantics are unproven. | Round-robin/consistent-hash mode. | Serialize explicit mode only after algorithm acceptance; no default guessing. | Conditional | `SHADOWROCKET_STRATEGY_UNPROVEN` | Vendor group syntax + client acceptance |
 | Fixed policy | No independent fixed group is proven. | Fixed proxy strategy. | Lower to one-member select group. | Conditional | `SHADOWROCKET_STRATEGY_UNPROVEN` | Import/selection acceptance |
 | Proxy chain | Hop order/underlying-proxy semantics are unproven. | Ordered chain hops. | Fail closed; no target-specific chain fields or downgrade. | Unsupported | `SHADOWROCKET_PROXY_CHAIN_UNPROVEN` | No pinned evidence |
-| DOMAIN / SUFFIX / KEYWORD | Rule spellings are unproven. | Domain matcher variants. | Preserve Universal priority/insertion order; require precedence acceptance. | Conditional | `SHADOWROCKET_ROUTE_ORDER_UNPROVEN` | Vendor rule syntax + precedence acceptance |
-| IP-CIDR / IP-CIDR6 / GEOIP | Rule spellings and DNS resolution behavior are unproven. | CIDR and country matchers. | Emit only after syntax and no-resolve semantics are proven; current adapter has no no-resolve inference. | Conditional | `SHADOWROCKET_ROUTE_ORDER_UNPROVEN` | Vendor rule syntax + precedence acceptance |
+| DOMAIN / DOMAIN-SUFFIX | Domain-family rule spelling and priority behavior are evidenced only for Shadowrocket 2.2.65 build 2615. | Domain matcher variants. | Preserve Universal priority/insertion order within the tested domain family; do not generalize beyond the pinned build. | Conditional | `SHADOWROCKET_ROUTE_ORDER_UNPROVEN` | Pinned client acceptance: domain baseline/inverted winners |
+| DOMAIN-KEYWORD | Rule spelling and precedence evidence remain unproven. | Domain keyword matcher. | Keep conditional; no inferred relationship to DOMAIN or DOMAIN-SUFFIX. | Conditional | `SHADOWROCKET_ROUTE_ORDER_UNPROVEN` | Vendor rule syntax + acceptance required |
+| IP-CIDR / GEOIP standalone | Standalone matcher behavior is evidenced only for Shadowrocket 2.2.65 build 2615. | CIDR and country matchers. | Lower standalone IP-CIDR and GEOIP only; no mixed-family precedence claim. | Conditional | `SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for mixed use | Pinned standalone probe acceptance |
+| IP-CIDR6 standalone | Syntax/import is retained; real IPv6 behavior is not run. | IPv6 CIDR matcher. | Syntax-only; behavior remains `NOT RUN` without a real controlled IPv6. | Conditional | `SHADOWROCKET_ROUTE_ORDER_UNPROVEN` | Deterministic syntax fixture + human gate |
+| Mixed IP-CIDR/IP-CIDR6 + GEOIP precedence | Shadowrocket 2.2.65 build 2615 did not preserve the Universal winner when emitted order was inverted. | Multiple route priorities across IP and GEO families. | Unsupported; fail closed with no reorder, downgrade, or flattening. | Unsupported | `SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` | Pinned baseline/inverted client observation |
 | Port / ASN / GEO-SITE | IR lacks direction/range/no-resolve semantics or target proof. | Port, ASN, geosite matcher types. | Unsupported. | Unsupported | `SHADOWROCKET_MATCHER_UNSUPPORTED` | Universal IR audit |
 | Rule sets / first-party Service Rules | URL, format, refresh, and failure semantics are unproven. | Rule-set reference and service sources. | Unsupported; never treat an arbitrary URL as equivalent to service intent. | Unproven | `SHADOWROCKET_RULE_SOURCE_UNPROVEN` | Vendor rule-source syntax required |
 | FINAL | Fallback rule spelling is unproven. | Final route target. | Serialize only after import/routing acceptance. | Conditional | `SHADOWROCKET_TARGET_REFERENCE_NOT_FOUND` | Vendor rule syntax + acceptance |
@@ -72,7 +78,8 @@ Candidate authoritative sources to pin at the human gate:
 projection, serializers, strategy/routing/DNS lowering, and diagnostics. The
 serializer rejects duplicate General keys, unsafe names/tokens, control
 characters, and non-finite numbers. Route order is priority ascending with
-stable IR-array tie breaking. Unsupported or unproven intent in an active
+stable IR-array tie breaking. Cross-family IP/GEO precedence is rejected before
+serialization by `SHADOWROCKET_ROUTE_ORDER_SEMANTICS_UNSUPPORTED`. Unsupported or unproven intent in an active
 strategy is an error; rejected endpoint details remain attached to target
 diagnostics even when aggregate projection statistics report skipped
 endpoints. Inactive inventory is retained only as warning-level evidence. No
