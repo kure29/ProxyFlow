@@ -86,8 +86,9 @@ rejected. Omitting the argument preserves the documentation-only UDP default
 and labels the artifact `SYNTAX_IMPORT_ONLY`; a real resolver value prepares
 the artifact for human behavioral testing but does not itself prove behavior.
 
-For routing, supply all four controlled destinations when behavioral testing is
-intended:
+For routing, supply whichever controlled destinations the human can actually
+reach. Readiness is reported per matcher family; missing IPv6 does not block
+DOMAIN, IP-CIDR, or the GEOIP experiment:
 
 ```text
 --routing-domain <domain>
@@ -96,11 +97,29 @@ intended:
 --routing-geoip-country <CC>
 ```
 
-The values are used only in generated private artifacts. Partial or omitted
-values preserve the documentation defaults and label routing artifacts
-`SYNTAX_IMPORT_ONLY`. The IPv4/IPv6 values are lowered to exact `/32` and
-`/128` matchers; deterministic mode retains the checked-in-style
-`192.0.2.0/24` and `2001:db8::/32` values.
+For the common partial-input case (controlled domain, IPv4, and GeoIP country,
+but no reachable IPv6), rerun:
+
+```bash
+npm run shadowrocket:acceptance:local -- \
+  --profile routing \
+  --routing-domain <controlled-domain> \
+  --routing-ipv4 <controlled-IPv4> \
+  --routing-geoip-country <CC>
+```
+
+The output reports `DOMAIN`, `DOMAIN_SUFFIX`, `IP_CIDR`, `IP_CIDR6`, and
+`GEOIP` readiness independently. A supplied domain prepares both domain
+families; a supplied IPv4 prepares IP-CIDR; and a supplied country plus IPv4
+prepares GEOIP. The harness does not perform a GeoIP lookup: the human must
+confirm that the controlled IPv4 belongs to the supplied country and must keep
+that confirmation separate from syntax/import evidence. Without a controlled
+IPv6, IP-CIDR6 remains syntax/import-only and its behavior result is `NOT RUN`.
+
+The values are used only in generated private artifacts. Omitted values
+preserve the documentation defaults. The IPv4/IPv6 values are lowered to exact
+`/32` and `/128` matchers when supplied; deterministic mode retains the
+checked-in-style `192.0.2.0/24` and `2001:db8::/32` values.
 
 Run one profile at a time when a narrower experiment is useful:
 
@@ -157,17 +176,31 @@ outside the profile's exact emitted fields.
 
 Profiles `routing-overlap.conf` and `routing-inverted.conf` contain controlled,
 credential-free experiments for DOMAIN, DOMAIN-SUFFIX, IP-CIDR, IP-CIDR6, and
-GEOIP. The first profile uses the baseline priority order; the second inverts
-the relevant priorities/policies so the observation is discriminating. Both
-preserve Universal ordering: priority ascending, then stable IR insertion order.
+GEOIP. Policy assignments stay fixed in both profiles. The inverted profile
+changes only the relevant priorities so the observed winner must change:
+
+- DOMAIN controlled-domain → `REJECT` priority 10; DOMAIN-SUFFIX → `DIRECT`
+  priority 20. The baseline winner is `REJECT`.
+- In the inverted profile, those priorities are 20 and 10 respectively. The
+  expected winner is `DIRECT`.
+- IP-CIDR controlled IPv4 → `REJECT` priority 30; GEOIP controlled country →
+  `DIRECT` priority 50. The baseline winner is `REJECT`.
+- In the inverted profile, only those priorities become 50 and 30. The
+  expected winner is `DIRECT`, but only after the human confirms that the
+  controlled IPv4 belongs to the supplied country.
+- IP-CIDR6 remains a deterministic syntax fixture unless a real controlled
+  IPv6 is supplied; without one, its behavior result is `NOT RUN`.
+
+Both profiles preserve Universal ordering: priority ascending, then stable IR
+insertion order. An unreachable documentation address or a failed request by
+itself is not a routing behavior PASS.
 
 First record rule syntax/import. Then exercise controlled destinations for each
 matcher and record the matched winner plus an observable DIRECT-versus-REJECT
 traffic discriminator (or an explicit Shadowrocket matched-rule observation if
-the client exposes one). An unreachable documentation address is not a routing
-behavior PASS. These profiles prove only the tested matcher combinations and
-orderings; they do not prove port, ASN, GEO-SITE, rule-set, or first-party
-Service Rule support.
+the client exposes one). These profiles prove only the tested matcher
+combinations and orderings; they do not prove port, ASN, GEO-SITE, rule-set, or
+first-party Service Rule support.
 
 ### DNS profiles
 
@@ -246,9 +279,22 @@ Round-robin behavior: PASSED | FAILED | NOT RUN
 Routing precedence profiles:
 <profile name>:
 SHA-256:
-Rule syntax/import: PASSED | FAILED | NOT RUN
-Observed winner:
-Real traffic discriminator: PASSED | FAILED | NOT RUN
+DOMAIN / DOMAIN-SUFFIX:
+Syntax/import: PASSED | FAILED | NOT RUN
+Baseline winner:
+Inverted winner:
+Behavior result: PASSED | FAILED | NOT RUN
+
+IPv4 / GEOIP:
+Syntax/import: PASSED | FAILED | NOT RUN
+Baseline winner:
+Inverted winner:
+Behavior result: PASSED | FAILED | NOT RUN
+Human confirmed IPv4 belongs to GeoIP country: YES | NO | NOT RUN
+
+IPv6:
+Syntax/import: PASSED | FAILED | NOT RUN
+Behavior result: NOT RUN unless a real controlled IPv6 is supplied
 
 DNS system profile:
 SHA-256:

@@ -63,6 +63,15 @@ export interface ShadowrocketLocalCompileOptions {
 }
 
 export type ShadowrocketLocalValidation<T> = { ok: true; value: T } | { ok: false; code: string }
+export type ShadowrocketLocalEvidenceStatus = 'SYNTAX_IMPORT_ONLY' | 'HUMAN_INPUT_READY' | 'PARTIAL_HUMAN_INPUT_READY' | 'NOT_RUN'
+
+export interface ShadowrocketLocalRoutingEvidenceReadiness {
+  domain: ShadowrocketLocalEvidenceStatus
+  domainSuffix: ShadowrocketLocalEvidenceStatus
+  ipv4: ShadowrocketLocalEvidenceStatus
+  ipv6: ShadowrocketLocalEvidenceStatus
+  geoip: ShadowrocketLocalEvidenceStatus
+}
 
 const fixedNow = () => new Date('2026-08-25T00:00:00.000Z')
 
@@ -106,10 +115,36 @@ export function validateShadowrocketLocalRoutingValues(values: ShadowrocketLocal
   return { ok: true, value: { domain, ipv4, ipv6, geoipCountry: geoipCountry.toUpperCase() } }
 }
 
-export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, options: ShadowrocketLocalCompileOptions = {}): 'SYNTAX_IMPORT_ONLY' | 'HUMAN_INPUT_READY' {
+export function localRoutingEvidenceReadiness(options: ShadowrocketLocalCompileOptions = {}): ShadowrocketLocalRoutingEvidenceReadiness {
+  const routing = options.routing ?? {}
+  const hasDomain = Boolean(routing.domain)
+  const hasIpv4 = Boolean(routing.ipv4)
+  const hasIpv6 = Boolean(routing.ipv6)
+  const hasGeoip = Boolean(routing.geoipCountry)
+  return {
+    domain: hasDomain ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY',
+    domainSuffix: hasDomain ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY',
+    ipv4: hasIpv4 ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY',
+    // The deterministic IPv6 fixture remains import/syntax evidence only. A
+    // real IPv6 behavior result is NOT RUN until the human supplies a target.
+    ipv6: hasIpv6 ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY',
+    // We do not perform a GeoIP lookup. The human must confirm that the
+    // supplied IPv4 is actually in the supplied country before recording a
+    // GEOIP behavior result.
+    geoip: hasIpv4 && hasGeoip ? 'HUMAN_INPUT_READY' : 'SYNTAX_IMPORT_ONLY',
+  }
+}
+
+export function localBehavioralEvidenceMode(profile: ShadowrocketLocalProfile, options: ShadowrocketLocalCompileOptions = {}): ShadowrocketLocalEvidenceStatus {
   if ((profile === 'url-test' || profile === 'fallback') && options.healthUrl === undefined) return 'SYNTAX_IMPORT_ONLY'
   if (profile === 'dns-udp' && options.dnsServer === undefined) return 'SYNTAX_IMPORT_ONLY'
-  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && (!options.routing?.domain || !options.routing?.ipv4 || !options.routing?.ipv6 || !options.routing?.geoipCountry)) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-overlap' || profile === 'routing-inverted') {
+    const evidence = localRoutingEvidenceReadiness(options)
+    const statuses = Object.values(evidence)
+    if (statuses.every((status) => status === 'HUMAN_INPUT_READY')) return 'HUMAN_INPUT_READY'
+    if (statuses.some((status) => status === 'HUMAN_INPUT_READY')) return 'PARTIAL_HUMAN_INPUT_READY'
+    return 'SYNTAX_IMPORT_ONLY'
+  }
   return 'HUMAN_INPUT_READY'
 }
 
@@ -225,11 +260,14 @@ function buildRoutingProject(profile: 'routing-overlap' | 'routing-inverted', su
   const invert = profile === 'routing-inverted'
   const values = routing.value
   const matchers: Array<{ kind: NonNullable<BlockNodeData['routeMatcherKind']>; value: string; targetKind: 'direct' | 'reject'; priority: number }> = [
-    { kind: 'domain', value: values.domain, targetKind: invert ? 'direct' : 'reject', priority: invert ? 20 : 10 },
-    { kind: 'domain-suffix', value: values.domain, targetKind: invert ? 'reject' : 'direct', priority: invert ? 10 : 20 },
-    { kind: 'ip-cidr', value: supplied?.ipv4 ? `${values.ipv4}/32` : '192.0.2.0/24', targetKind: invert ? 'direct' : 'reject', priority: invert ? 40 : 30 },
-    { kind: 'ip-cidr6', value: supplied?.ipv6 ? `${values.ipv6}/128` : '2001:db8::/32', targetKind: invert ? 'reject' : 'direct', priority: invert ? 30 : 40 },
-    { kind: 'geo-ip', value: values.geoipCountry, targetKind: invert ? 'direct' : 'reject', priority: 50 },
+    // Keep policy assignments fixed. The inverted profile changes only
+    // priority so an observed winner change proves precedence rather than a
+    // policy rewrite.
+    { kind: 'domain', value: values.domain, targetKind: 'reject', priority: invert ? 20 : 10 },
+    { kind: 'domain-suffix', value: values.domain, targetKind: 'direct', priority: invert ? 10 : 20 },
+    { kind: 'ip-cidr', value: supplied?.ipv4 ? `${values.ipv4}/32` : '192.0.2.0/24', targetKind: 'reject', priority: invert ? 50 : 30 },
+    { kind: 'ip-cidr6', value: supplied?.ipv6 ? `${values.ipv6}/128` : '2001:db8::/32', targetKind: 'direct', priority: 40 },
+    { kind: 'geo-ip', value: values.geoipCountry, targetKind: 'direct', priority: invert ? 30 : 50 },
   ]
   const routes = matchers.map((matcher, index) => node(`shadowrocket-local-route-${index + 1}`, 'custom-rule', 'routing', {
     title: `Controlled ${matcher.kind}`,

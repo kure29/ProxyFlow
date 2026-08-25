@@ -73,7 +73,7 @@ async function main() {
     ...(args.routingGeoipCountry ? { geoipCountry: args.routingGeoipCountry } : {}),
   }
   const hasRoutingInput = Object.keys(routingInput).length > 0
-  const hasCompleteRoutingInput = Boolean(args.routingDomain && args.routingIpv4 && args.routingIpv6 && args.routingGeoipCountry)
+  const routingEvidence = acceptance.localRoutingEvidenceReadiness({ routing: routingInput })
   if (hasRoutingInput) {
     const validatedRouting = acceptance.validateShadowrocketLocalRoutingValues(routingInput)
     if (!validatedRouting.ok) throw new LocalAcceptanceError(validatedRouting.code)
@@ -95,7 +95,7 @@ async function main() {
   const results = acceptance.compileShadowrocketLocalProfiles(content, requested, compileOptions)
   const blocked = results.filter((item) => !item.graph.success || !item.result?.success)
   if (blocked.length > 0) {
-    for (const item of results) printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), hasCompleteRoutingInput }))
+    for (const item of results) printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), routingEvidence }), routingEvidence)
     process.stdout.write(`SHADOWROCKET_LOCAL_BLOCKED profileCount=${results.length} blockingProfileCount=${blocked.length}\n`)
     process.exitCode = 1
     return
@@ -114,7 +114,7 @@ async function main() {
   if (parsed) printInputSummary(acceptance.summarizeParsedSubscription(parsed))
   for (const artifact of artifacts) {
     const { item, artifactPath, sha256 } = artifact
-    printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), hasCompleteRoutingInput }))
+    printProfileSummary(item, behaviorMode(item.profile, { suppliedHealthUrl: Boolean(suppliedHealthUrl), suppliedDnsServer: Boolean(suppliedDnsServer), routingEvidence }), routingEvidence)
     process.stdout.write(`profile=${item.profile} status=COMPILED_LOCAL_ONLY artifact=${artifactPath} sha256=${sha256}\n`)
   }
   process.stdout.write(`SHADOWROCKET_LOCAL_ACCEPTANCE_OK profileCount=${artifacts.length} artifactDir=${outputRoot} privateInputRequired=${needsInput}\n`)
@@ -199,16 +199,35 @@ function printInputSummary(summary) {
   process.stdout.write(`input candidateCount=${summary.candidateCount} protocolCounts=${formatCounts(summary.protocolCounts)} diagnosticCodeCounts=${formatCounts(summary.issueCodeCounts)}\n`)
 }
 
-function printProfileSummary(item, mode) {
-  process.stdout.write(`profile=${item.profile} candidateCount=${item.summary.candidateCount} compatibleCount=${item.summary.compatibleEndpointCount} skippedCount=${item.summary.skippedEndpointCount} blockerCount=${item.summary.blockingIssueCount} diagnosticCodeCounts=${formatCounts(item.summary.issueCodeCounts)} behavioralEvidence=${mode}\n`)
+function printProfileSummary(item, mode, routingEvidence) {
+  const routingEvidenceSuffix = item.profile === 'routing-overlap' || item.profile === 'routing-inverted'
+    ? ` routingEvidence=${formatRoutingEvidence(routingEvidence)}`
+    : ''
+  process.stdout.write(`profile=${item.profile} candidateCount=${item.summary.candidateCount} compatibleCount=${item.summary.compatibleEndpointCount} skippedCount=${item.summary.skippedEndpointCount} blockerCount=${item.summary.blockingIssueCount} diagnosticCodeCounts=${formatCounts(item.summary.issueCodeCounts)} behavioralEvidence=${mode}${routingEvidenceSuffix}\n`)
 }
 
 function behaviorMode(profile, inputs) {
   if ((profile === 'url-test' || profile === 'fallback') && !inputs.suppliedHealthUrl) return 'SYNTAX_IMPORT_ONLY'
   if (profile === 'dns-udp' && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
   if ((profile === 'dns-system') && !inputs.suppliedDnsServer) return 'SYNTAX_IMPORT_ONLY'
-  if ((profile === 'routing-overlap' || profile === 'routing-inverted') && !inputs.hasCompleteRoutingInput) return 'SYNTAX_IMPORT_ONLY'
+  if (profile === 'routing-overlap' || profile === 'routing-inverted') {
+    const statuses = Object.values(inputs.routingEvidence ?? {})
+    if (statuses.every((status) => status === 'HUMAN_INPUT_READY')) return 'HUMAN_INPUT_READY'
+    if (statuses.some((status) => status === 'HUMAN_INPUT_READY')) return 'PARTIAL_HUMAN_INPUT_READY'
+    return 'SYNTAX_IMPORT_ONLY'
+  }
   return 'HUMAN_INPUT_READY'
+}
+
+function formatRoutingEvidence(evidence) {
+  if (!evidence) return 'none'
+  return [
+    `DOMAIN:${evidence.domain}`,
+    `DOMAIN_SUFFIX:${evidence.domainSuffix}`,
+    `IP_CIDR:${evidence.ipv4}`,
+    `IP_CIDR6:${evidence.ipv6}`,
+    `GEOIP:${evidence.geoip}`,
+  ].join(',')
 }
 
 function formatCounts(counts) {

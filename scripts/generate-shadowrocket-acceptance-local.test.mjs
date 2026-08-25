@@ -97,6 +97,23 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
     expect(custom.stdout).not.toContain('198.51.100.9')
     expect(custom.stdout).not.toContain('2001:db8:1::9')
 
+    const partial = await execFileAsync(process.execPath, [
+      script,
+      '--profile', 'routing',
+      '--routing-domain', 'controlled.example',
+      '--routing-ipv4', '198.51.100.9',
+      '--routing-geoip-country', 'CA',
+    ], { cwd: root })
+    expect(partial.stderr).toBe('')
+    expect(partial.stdout).toContain('behavioralEvidence=PARTIAL_HUMAN_INPUT_READY')
+    expect(partial.stdout).toContain('DOMAIN:HUMAN_INPUT_READY')
+    expect(partial.stdout).toContain('DOMAIN_SUFFIX:HUMAN_INPUT_READY')
+    expect(partial.stdout).toContain('IP_CIDR:HUMAN_INPUT_READY')
+    expect(partial.stdout).toContain('IP_CIDR6:SYNTAX_IMPORT_ONLY')
+    expect(partial.stdout).toContain('GEOIP:HUMAN_INPUT_READY')
+    expect(partial.stdout).not.toContain('controlled.example')
+    expect(partial.stdout).not.toContain('198.51.100.9')
+
     const dns = await execFileAsync(process.execPath, [script, '--profile', 'dns', '--dns-server', '1.1.1.1'], { cwd: root })
     expect(dns.stderr).toBe('')
     expect(dns.stdout).toContain('behavioralEvidence=HUMAN_INPUT_READY')

@@ -4,6 +4,7 @@ import { compileShadowrocketAcceptance } from './acceptance'
 import {
   compileShadowrocketLocalProfile,
   compileShadowrocketLocalProfiles,
+  localRoutingEvidenceReadiness,
   localBehavioralEvidenceMode,
   parseShadowrocketLocalInput,
   summarizeParsedSubscription,
@@ -75,7 +76,25 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(routing[0].result?.content).toContain('DOMAIN,controlled.example,REJECT')
     expect(routing[0].result?.content).toContain('IP-CIDR,198.51.100.9/32,REJECT')
     expect(routing[0].result?.content).toContain('IP-CIDR6,2001:db8:1::9/128,DIRECT')
-    expect(routing[0].result?.content).toContain('GEOIP,CA,REJECT')
+    expect(routing[0].result?.content).toContain('GEOIP,CA,DIRECT')
+  })
+
+  it('keeps routing policy assignments fixed while inverting only precedence priorities', () => {
+    const options = { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } }
+    const baseline = compileShadowrocketLocalProfile('routing-overlap', undefined, undefined, options).result?.content ?? ''
+    const inverted = compileShadowrocketLocalProfile('routing-inverted', undefined, undefined, options).result?.content ?? ''
+    expect(baseline).toContain('DOMAIN,controlled.example,REJECT')
+    expect(baseline).toContain('DOMAIN-SUFFIX,controlled.example,DIRECT')
+    expect(baseline).toContain('IP-CIDR,198.51.100.9/32,REJECT')
+    expect(baseline).toContain('GEOIP,CA,DIRECT')
+    expect(inverted).toContain('DOMAIN,controlled.example,REJECT')
+    expect(inverted).toContain('DOMAIN-SUFFIX,controlled.example,DIRECT')
+    expect(inverted).toContain('IP-CIDR,198.51.100.9/32,REJECT')
+    expect(inverted).toContain('GEOIP,CA,DIRECT')
+    expect(baseline.indexOf('DOMAIN,controlled.example,REJECT')).toBeLessThan(baseline.indexOf('DOMAIN-SUFFIX,controlled.example,DIRECT'))
+    expect(inverted.indexOf('DOMAIN-SUFFIX,controlled.example,DIRECT')).toBeLessThan(inverted.indexOf('DOMAIN,controlled.example,REJECT'))
+    expect(baseline.indexOf('IP-CIDR,198.51.100.9/32,REJECT')).toBeLessThan(baseline.indexOf('GEOIP,CA,DIRECT'))
+    expect(inverted.indexOf('GEOIP,CA,DIRECT')).toBeLessThan(inverted.indexOf('IP-CIDR,198.51.100.9/32,REJECT'))
   })
 
   it('rejects hostnames, malformed IPv4/IPv6, ports, and control characters', () => {
@@ -94,7 +113,25 @@ describe('Shadowrocket local acceptance profiles', () => {
     expect(localBehavioralEvidenceMode('url-test')).toBe('SYNTAX_IMPORT_ONLY')
     expect(localBehavioralEvidenceMode('dns-udp', { dnsServer: '1.1.1.1:53' })).toBe('HUMAN_INPUT_READY')
     expect(localBehavioralEvidenceMode('routing-overlap', { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', ipv6: '2001:db8:1::9', geoipCountry: 'CA' } })).toBe('HUMAN_INPUT_READY')
+    expect(localBehavioralEvidenceMode('routing-overlap', { routing: { domain: 'controlled.example', ipv4: '198.51.100.9', geoipCountry: 'CA' } })).toBe('PARTIAL_HUMAN_INPUT_READY')
     expect(localBehavioralEvidenceMode('url-test', { healthUrl: 'https://health.example/ok' })).toBe('HUMAN_INPUT_READY')
+  })
+
+  it('reports routing evidence readiness independently for each matcher family', () => {
+    expect(localRoutingEvidenceReadiness()).toEqual({
+      domain: 'SYNTAX_IMPORT_ONLY',
+      domainSuffix: 'SYNTAX_IMPORT_ONLY',
+      ipv4: 'SYNTAX_IMPORT_ONLY',
+      ipv6: 'SYNTAX_IMPORT_ONLY',
+      geoip: 'SYNTAX_IMPORT_ONLY',
+    })
+    expect(localRoutingEvidenceReadiness({ routing: { domain: 'controlled.example', ipv4: '198.51.100.9', geoipCountry: 'CA' } })).toEqual({
+      domain: 'HUMAN_INPUT_READY',
+      domainSuffix: 'HUMAN_INPUT_READY',
+      ipv4: 'HUMAN_INPUT_READY',
+      ipv6: 'SYNTAX_IMPORT_ONLY',
+      geoip: 'HUMAN_INPUT_READY',
+    })
   })
 
   it('keeps aggregate summaries free of endpoint bodies and credentials', () => {
