@@ -1,6 +1,6 @@
 # ProxyFlow Product Direction
 
-Status: ProxyFlow 1.1
+Status: ProxyFlow 1.2
 
 This document defines the product boundary used by maintainers, contributors, and future development tasks. It is the default decision record when a proposed feature conflicts with the current product direction.
 
@@ -35,7 +35,7 @@ Every user-facing capability must belong to one of these stages:
 - Strategy: Manual, Auto, and Failover in the basic workflow.
 - Routing: Decide which traffic uses a Strategy, DIRECT, or REJECT.
 - Inspect: Explain matches, exclusions, candidates, and export blockers.
-- Output: Compile and export a Mihomo or Surge configuration.
+- Output: Compile and export a Mihomo, Surge, or Loon configuration.
 
 Subscription lifecycle management supports this workflow, but it is not the product's sole purpose. Target compilation is a core capability, but compiler terminology should not become the primary user interface.
 
@@ -60,11 +60,13 @@ Current target status:
 - Mihomo: Supported production Export Target and the default for new Projects.
 - Surge: Supported production Export Target within its documented fail-closed
   capability subset.
+- Loon: Supported production Export Target within its evidence-bounded,
+  fail-closed capability subset.
 - sing-box: Official export paused. Its parser, compiler, capability, validator,
   tests, and Universal IR infrastructure remain available for regression and
   possible future use. Historical Projects load without data loss, can switch
   to a supported target, and retain their target-specific data.
-- Stash, Loon, Shadowrocket, and Quantumult X: Planned.
+- Stash, Shadowrocket, and Quantumult X: Planned.
 
 Subscription Request Profile is independent from Export Target. Auto, Mihomo,
 sing-box, and Generic request profiles remain available.
@@ -129,7 +131,7 @@ Even after a Runtime Service exists, a user must be able to:
 - use ProxyFlow without an account;
 - use ProxyFlow without connecting to a server;
 - open and edit a Project in the browser;
-- compile and export Mihomo and Surge configurations;
+- compile and export Mihomo, Surge, and Loon configurations;
 - use the local IndexedDB runtime cache;
 - retain local Project access when a Runtime Service is unavailable.
 
@@ -192,7 +194,7 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - A Project has at most one active DNS owner node. That node may hold multiple
   resolver profiles; target-specific resolver roles must use capability-driven
   controls and fail closed when unsupported.
-- Mihomo and Surge are production Export targets. sing-box is paused but
+- Mihomo, Surge, and Loon are production Export targets. sing-box is paused but
   retained below the product surface. Planned targets must not appear as ready
   or actionable before a real compiler path and acceptance evidence exist.
 - Project export must not contain Runtime credentials or cached subscription

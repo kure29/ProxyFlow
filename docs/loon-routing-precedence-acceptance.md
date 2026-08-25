@@ -137,5 +137,7 @@ The following guards remain unchanged in PR #44:
 - `LOON_RULE_SOURCE_FORMAT_UNPROVEN` for arbitrary rule sets;
 - `LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED` for active mixed domain/IP families.
 
-No result is simulated or generalized. Loon remains developer-hidden and
-product exposure remains disabled.
+No result is simulated or generalized. At the time of this PR #44 acceptance
+run, Loon remained developer-hidden and product exposure remained disabled;
+the later product-exposure decision did not widen any of these evidence
+boundaries.

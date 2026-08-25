@@ -4,12 +4,12 @@ Audit date: 2026-08-25
 Repository: `kure29/ProxyFlow`
 Audited branch: `feat/loon-product-exposure`
 Audited baseline: `3c29711962cd5d1b38dc19a8c06cb7b51f659fcb` (`origin/main`)
-Product version: `1.1.0`
+Product version: `1.2.0`
 
-This readiness record documents the completed product-exposure change. It does
-not change compiler semantics, the Project or Universal IR schema, the version,
-or any historical acceptance result. The pinned official Loon evidence used
-by the foundation is LoonManual commit
+This readiness record documents the completed product-exposure change and its
+v1.2.0 release boundary. It does not change compiler semantics, the Project or
+Universal IR schema, or any historical acceptance result. The pinned official
+Loon evidence used by the foundation is LoonManual commit
 [`4311d0030fe3065d4664b403a32010f083b99273`](https://github.com/Loon0x00/LoonManual/commit/4311d0030fe3065d4664b403a32010f083b99273).
 
 ## 1. Executive summary

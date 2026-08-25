@@ -97,7 +97,7 @@ EOF
 #!/usr/bin/env bash
 set -Eeuo pipefail
 [[ "${MOCK_HEALTH_FAIL:-0}" != '1' ]] || exit 22
-version="${MOCK_HEALTH_VERSION_BEFORE:-1.1.0}"
+version="${MOCK_HEALTH_VERSION_BEFORE:-1.2.0}"
 if [[ -n "${MOCK_PULLED_MARKER:-}" && -f "${MOCK_PULLED_MARKER}" ]]; then version="${MOCK_HEALTH_VERSION_AFTER:-${version}}"; fi
 printf '{"ok":true,"service":"proxyflow-runtime","version":"%s","web":"ready","backend":"ready","scheduler":"ready"}\n' "${version}"
 EOF
@@ -126,7 +126,7 @@ MENU_TEST_HOME=''
 MENU_TEST_DATA=''
 MENU_TEST_RUNNING='1'
 MENU_TEST_DOCKER_INFO_FAIL='0'
-MENU_TEST_VERSION='1.1.0'
+MENU_TEST_VERSION='1.2.0'
 MENU_TEST_DOCKER_BIN=''
 
 run_interactive_menu() {
@@ -172,7 +172,7 @@ pass 'No arguments without a TTY show usage without waiting'
 
 run_script "${SCRIPT}" help
 assert_status 0 'Explicit help succeeds'
-assert_output_not_contains 'ProxyFlow Manager v1.1.0' 'Explicit subcommands do not enter the menu'
+assert_output_not_contains 'ProxyFlow Manager v1.2.0' 'Explicit subcommands do not enter the menu'
 pass 'Explicit subcommands bypass the interactive menu'
 
 run_script "${SCRIPT}" unsupported
@@ -194,7 +194,7 @@ MENU_TEST_HOME="${TEMP_ROOT}/menu not installed"
 MENU_TEST_DATA="${TEMP_ROOT}/menu not installed data"
 run_interactive_menu $'0\n'
 assert_status 0 'TTY no-argument menu exits with zero'
-assert_output 'ProxyFlow Manager v1.1.0' 'TTY no-argument execution opens the manager'
+assert_output 'ProxyFlow Manager v1.2.0' 'TTY no-argument execution opens the manager'
 assert_output '状态：Not installed' 'The menu reports a missing installation'
 assert_output '0. 退出' 'The menu includes an explicit exit action'
 pass 'No arguments with a TTY open the interactive menu'
@@ -208,13 +208,13 @@ pass 'The menu accepts zero and q or Q to exit'
 run_interactive_menu $'invalid\n\n0\n'
 assert_status 0 'An invalid choice does not terminate the menu'
 assert_output '无效选择，请输入 0-9。' 'An invalid choice is explained'
-assert_output_count_at_least 'ProxyFlow Manager v1.1.0' 2 'An invalid choice returns to the menu loop'
+assert_output_count_at_least 'ProxyFlow Manager v1.2.0' 2 'An invalid choice returns to the menu loop'
 pass 'Invalid menu choices return to the menu'
 
 run_interactive_menu $'2\n\n0\n'
 assert_status 0 'Unavailable actions do not terminate an uninstalled menu'
 assert_output 'ProxyFlow 尚未安装' 'Uninstalled actions direct the user to Install'
-assert_output_count_at_least 'ProxyFlow Manager v1.1.0' 2 'Uninstalled actions return to the menu'
+assert_output_count_at_least 'ProxyFlow Manager v1.2.0' 2 'Uninstalled actions return to the menu'
 pass 'Not-installed actions remain inside the interactive manager'
 
 MENU_TEST_DOCKER_BIN="${TEMP_ROOT}/missing-menu-docker"
@@ -266,11 +266,11 @@ pass 'Install handles explicit paths, image, and port overrides'
 MENU_TEST_HOME="${INSTALL_HOME}"
 MENU_TEST_DATA="${DATA_DIR}"
 MENU_TEST_RUNNING='1'
-MENU_TEST_VERSION='1.1.0'
+MENU_TEST_VERSION='1.2.0'
 run_interactive_menu $'0\n'
 assert_status 0 'An installed manager menu renders successfully'
 assert_output '状态：Running' 'The menu reports a running container'
-assert_output '版本：1.1.0' 'The menu reads the running version best-effort'
+assert_output '版本：1.2.0' 'The menu reads the running version best-effort'
 assert_output '更新通道：manual pin' 'The menu identifies an explicit image pin'
 assert_output '端口：28431' 'The menu reads the installed port'
 pass 'Menu status reports running version and manual pin state'
@@ -281,7 +281,7 @@ assert_status 0 'A stopped status does not terminate the manager'
 assert_output '状态：Stopped' 'The menu reports a stopped container'
 assert_output 'ProxyFlow: Stopped' 'The existing status action still reports stopped state'
 assert_output '操作未完成（退出码 1）' 'The menu contains the stopped status exit code'
-assert_output_count_at_least 'ProxyFlow Manager v1.1.0' 2 'Stopped status returns to the menu'
+assert_output_count_at_least 'ProxyFlow Manager v1.2.0' 2 'Stopped status returns to the menu'
 pass 'Stopped status stays inside the menu loop'
 
 run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" MOCK_RUNNING=0 PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${INSTALL_HOME}" PROXYFLOW_SKIP_PORT_CHECK=1 "${SCRIPT}" status
@@ -295,7 +295,7 @@ run_interactive_menu $'3\n\n0\n'
 assert_status 0 'An action failure does not terminate the manager'
 assert_output '状态：Unavailable' 'An installed menu reports unavailable Docker state'
 assert_output 'Docker daemon is unavailable' 'The existing action failure remains actionable'
-assert_output_count_at_least 'ProxyFlow Manager v1.1.0' 2 'Action failure returns to the menu'
+assert_output_count_at_least 'ProxyFlow Manager v1.2.0' 2 'Action failure returns to the menu'
 MENU_TEST_DOCKER_INFO_FAIL='0'
 pass 'Interactive action failures are contained without changing CLI errors'
 
@@ -304,7 +304,7 @@ assert_status 0 'Interrupting interactive logs returns successfully'
 assert_output '实时日志' 'The logs action explains live log mode'
 assert_output '按 Ctrl+C 返回菜单' 'The logs action documents its interrupt behavior'
 assert_output '已停止实时日志，返回管理菜单。' 'A logs interrupt returns to the manager'
-assert_output_count_at_least 'ProxyFlow Manager v1.1.0' 2 'Logs interruption rerenders the menu'
+assert_output_count_at_least 'ProxyFlow Manager v1.2.0' 2 'Logs interruption rerenders the menu'
 pass 'Ctrl+C from interactive logs returns to the menu'
 
 : > "${MOCK_DOCKER_LOG}"
@@ -423,7 +423,7 @@ STANDALONE_HOME="${TEMP_ROOT}/standalone home"
 run_script env PATH="${MOCK_BIN}:${PATH}" MOCK_DOCKER_LOG="${MOCK_DOCKER_LOG}" PROXYFLOW_DOCKER_BIN="${MOCK_BIN}/docker" PROXYFLOW_HOME="${STANDALONE_HOME}" PROXYFLOW_DATA_DIR="${TEMP_ROOT}/standalone data" PROXYFLOW_SKIP_PORT_CHECK=1 "${STANDALONE_DIR}/proxyflow.sh" install
 assert_status 0 'Standalone install succeeds without repository files'
 cmp "${REPOSITORY_COMPOSE}" "${STANDALONE_HOME}/compose.yaml" >/dev/null || fail 'Embedded Compose must match repository Compose semantics'
-assert_file_contains "${STANDALONE_HOME}/compose.yaml" '    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.1.0}' 'Embedded Compose uses the immutable 1.1.0 image by default'
+assert_file_contains "${STANDALONE_HOME}/compose.yaml" '    image: ${PROXYFLOW_IMAGE:-ghcr.io/kure29/proxyflow:1.2.0}' 'Embedded Compose uses the immutable 1.2.0 image by default'
 pass 'Standalone script embeds the same Compose contract'
 
 assert_file_contains "${STANDALONE_HOME}/.env" 'PROXYFLOW_IMAGE=ghcr.io/kure29/proxyflow:latest' 'Default install uses the Stable channel image'

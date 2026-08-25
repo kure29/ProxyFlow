@@ -1,6 +1,6 @@
 # sing-box Compiler (Retained)
 
-Product status: official sing-box export remains paused in ProxyFlow 1.1. This
+Product status: official sing-box export remains paused in ProxyFlow 1.2. This
 document describes retained parser/compiler infrastructure, historical Project
 compatibility, and internal regression behavior; it is not a current Export
 Target availability promise.
