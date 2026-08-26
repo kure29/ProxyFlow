@@ -2,11 +2,12 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceProxySummary } from '../../core/workspace'
+import type { TargetProjectionSummary } from '../../core/compiler'
 import { I18nProvider, setCurrentLocale } from '../../i18n'
 import { demoNodes, demoProject } from '../../data/demoProject'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { createWorkspaceProjection } from '../../core/workspace'
-import { collectProxyFilterOptions, ProcessingWorkspace, ProjectHealthWorkspace, resolveRelativeSourceTime } from './WorkspacePages'
+import { collectProxyFilterOptions, ProcessingWorkspace, ProjectHealthWorkspace, resolveRelativeSourceTime, StrategiesWorkspace } from './WorkspacePages'
 import type { CompatibilityIssue } from '../../types/project'
 
 describe('Workspace page presentation helpers', () => {
@@ -136,5 +137,25 @@ describe('Workspace page presentation helpers', () => {
     expect(html).toContain('workspace-step-actions')
     expect(html).toContain('data-mobile-layout="body-toggle-actions"')
     expect(html).toContain('data-action-layout="horizontal"')
+  })
+
+  it('shows target-specific strategy compatibility beside neutral candidate counts', () => {
+    setCurrentLocale('en-US')
+    const item = createWorkspaceProjection(demoProject).strategies[0]
+    const projection: TargetProjectionSummary = {
+      target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13,
+      blockingCount: 1, status: 'blocked', reasons: [],
+      strategies: [{ target: 'surge', strategyId: item.node.id, candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 1, status: 'blocked', reasons: [] }],
+    }
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(StrategiesWorkspace, {
+      items: [item], target: 'surge', runtime: new Map([[item.node.id, { status: 'ready' as const, inputCount: 13, outputCount: 13, removedCount: 0, issues: [] }]]),
+      issues: [], targetProjection: projection,
+      onEdit: () => undefined, onShowFlow: () => undefined, onDuplicate: () => undefined, onDelete: () => undefined,
+    })))
+
+    expect(html).toContain('13 candidates')
+    expect(html).toContain('0 / 13 compatible nodes')
+    expect(html).toContain('Blocked')
+    expect(html).not.toContain('<b class="is-partial">Partial</b>')
   })
 })

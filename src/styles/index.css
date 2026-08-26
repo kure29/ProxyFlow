@@ -992,7 +992,7 @@
   .workspace-status-badge[data-status="healthy"], .workspace-status-badge[data-status="ready"] { color: var(--color-success); }
   .workspace-status-badge[data-status="refreshing"] { color: var(--color-info); }
   .workspace-status-badge[data-status="warning"], .workspace-status-badge[data-status="stale"], .workspace-status-badge[data-status="idle"] { color: var(--color-warning); }
-  .workspace-status-badge[data-status="error"], .workspace-status-badge[data-status="unavailable"] { color: var(--color-danger); }
+  .workspace-status-badge[data-status="error"], .workspace-status-badge[data-status="unavailable"], .workspace-status-badge[data-status="blocked"] { color: var(--color-danger); }
   .workspace-source-lkg { display: flex; align-items: flex-start; gap: var(--space-2); margin: var(--space-2) 0 0; padding: var(--space-2); border-radius: var(--radius-control); color: var(--color-warning); background: var(--color-warning-soft); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
   .workspace-source-lkg svg { flex: 0 0 auto; margin-top: 2px; }
   .workspace-row-actions, .workspace-step-actions { display: flex; align-items: center; gap: var(--space-1); }

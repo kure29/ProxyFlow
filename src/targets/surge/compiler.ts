@@ -8,7 +8,7 @@ import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
 import { composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
-import { createSurgeProjectionContext, surgeProjectionStats, type SurgeProjectionContext } from './projection'
+import { createSurgeProjectionContext, createSurgeTargetProjectionSummary, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
 import { serializeSurgeProfile } from './serializer'
 import { compileSurgeStrategies } from './strategies'
@@ -36,7 +36,9 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const nativeFinalRoute = options.nativeFinalRoute
   const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies)
   issues.push(...compatibility.issues)
-  if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
+  if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(
+    ir, issues, generatedAt, projection,
+  )
 
   const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute)
   compileSurgeStrategies(context)
@@ -46,7 +48,9 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     compileSurgeGeneral(ir),
     planSurgeDns(ir.dns).general,
   ], issues)
-  if (issues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
+  if (issues.some((issue) => issue.severity === 'error')) return failed(
+    ir, issues, generatedAt, projection,
+  )
 
   const content = serializeSurgeProfile({
     general,
@@ -55,6 +59,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     rules,
   })
   const finalIssues = deduplicateDiagnostics(issues)
+  const targetProjection = createSurgeTargetProjectionSummary(ir, projection, finalIssues)
   return {
     success: true,
     content,
@@ -62,15 +67,18 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     generatedAt,
     mock: false,
     stats: compileStats(projection, finalIssues, context.proxies.length, context.registeredProxyIds.size),
+    targetProjection,
   }
 }
 
 function failed(
+  ir: ProxyFlowIR,
   issues: CompileResult['issues'],
   generatedAt: string,
   projection: SurgeProjectionContext,
 ): CompileResult {
   const finalIssues = deduplicateDiagnostics(issues)
+  const targetProjection = createSurgeTargetProjectionSummary(ir, projection, finalIssues)
   return {
     success: false,
     content: '',
@@ -78,6 +86,7 @@ function failed(
     generatedAt,
     mock: false,
     stats: compileStats(projection, finalIssues, 0, 0),
+    ...(targetProjection ? { targetProjection } : {}),
   }
 }
 

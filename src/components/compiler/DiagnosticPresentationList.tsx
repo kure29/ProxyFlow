@@ -1,5 +1,5 @@
 import { ArrowRight, CircleAlert, Info, TriangleAlert } from 'lucide-react'
-import { diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
+import { diagnosticNodeId, type StructuredDiagnostic, type TargetProjectionSummary } from '../../core/compiler'
 import { useI18n } from '../../i18n'
 import { presentDiagnostics } from './diagnosticPresentation'
 
@@ -10,6 +10,7 @@ export function DiagnosticPresentationList({
   availableNodeIds,
   onLocate,
   compact = false,
+  targetProjection,
 }: {
   issues: readonly StructuredDiagnostic[]
   exportable?: boolean
@@ -17,9 +18,10 @@ export function DiagnosticPresentationList({
   availableNodeIds?: ReadonlySet<string>
   onLocate?: (issue: StructuredDiagnostic) => void
   compact?: boolean
+  targetProjection?: TargetProjectionSummary
 }) {
   const { locale, t } = useI18n()
-  const presentations = presentDiagnostics(issues, { locale, t, exportable, entityNames })
+  const presentations = presentDiagnostics(issues, { locale, t, exportable, entityNames, targetProjection })
   if (!presentations.length) return null
 
   return <div className={`diagnostic-presentations${compact ? ' is-compact' : ''}`} role="list" aria-label={t('diagnostic.listLabel')}>
@@ -48,6 +50,9 @@ export function DiagnosticPresentationList({
             <div>{presentation.technicalDetails.map(({ issue, count }, index) => <div key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? 'none'}-${index}`}>
               <span><code>{issue.code}</code>{count > 1 && <em>× {count}</em>}</span>
               <p>{issue.message}</p>
+            </div>)}{presentation.projectionReasons?.map((reason) => <div key={`projection-${reason.code}-${reason.label}`}>
+              <span><code>{reason.code}</code><em>× {reason.endpointCount}</em></span>
+              <p>{reason.label}</p>
             </div>)}</div>
           </details>
           {locatable && onLocate && <button type="button" className="diagnostic-locate" onClick={() => onLocate(presentation.locationIssue!)}>{t('preview.locateNode')}<ArrowRight size={14} /></button>}

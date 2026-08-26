@@ -87,7 +87,7 @@ export function WorkspaceShell({
   const [editorOpen, setEditorOpen] = useState(false)
   const previousSectionRef = useRef(activeSection)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
+  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || activeSection === 'strategies' || targetDialogOpen)
   const activeProductTarget = resolveActiveProductTarget(primaryTarget)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
@@ -110,6 +110,7 @@ export function WorkspaceShell({
     () => stateForTarget(targetCompiles, activeProductTarget).result?.issues ?? [],
     [activeProductTarget, targetCompiles],
   )
+  const activeTargetProjection = stateForTarget(targetCompiles, activeProductTarget).result?.targetProjection
   const inspectDiagnostics = useMemo(() => mergeProjectHealthDiagnostics(
     projection.compileIssues,
     primaryHealth.diagnostics,
@@ -250,6 +251,7 @@ export function WorkspaceShell({
           target={activeProductTarget}
           runtime={pipelineRuntime}
           issues={projection.compileIssues}
+          targetProjection={activeTargetProjection}
           onEdit={editInWorkspace}
           onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
@@ -285,6 +287,7 @@ export function WorkspaceShell({
           nodes={nodes}
           diagnostics={inspectDiagnostics}
           compatibilityDiagnostics={compatibilityDiagnostics}
+          targetProjection={activeTargetProjection}
           onOpenNode={openNodeInWorkspace}
         />}
         {activeSection === 'export' && <WorkspaceExportPanel

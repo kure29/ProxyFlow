@@ -14,6 +14,7 @@ import {
 } from '../../core/workspace'
 import type { PipelineNodeRuntime } from '../../core/proxySet'
 import { diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
+import type { TargetProjectionSummary, TargetStrategyProjectionSummary } from '../../core/compiler'
 import type { PrimaryTarget } from '../../core/capabilities'
 import type { CompatibilityIssue, GraphNode } from '../../types/project'
 import { localizeNodeTitle, useI18n } from '../../i18n'
@@ -49,6 +50,12 @@ const compatibilityMessages = {
   'target-native': 'workspace.compatibility.targetNative',
   unknown: 'workspace.compatibility.unknown',
 } as const satisfies Record<WorkspaceProxySummary['compatibility'], MessageKey>
+
+const targetProjectionStatusMessages = {
+  ready: 'workspace.strategy.targetStatus.ready',
+  partial: 'workspace.strategy.targetStatus.partial',
+  blocked: 'workspace.strategy.targetStatus.blocked',
+} as const satisfies Record<TargetStrategyProjectionSummary['status'], MessageKey>
 
 export function SourcesWorkspace({ items, runtimes, onRefresh, onEdit, onToggle, onDelete }: {
   items: WorkspaceNodeItem[]
@@ -178,18 +185,19 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
   })}</ol>
 }
 
-export function StrategiesWorkspace({ items, target, runtime, issues, onEdit, onShowFlow, onDuplicate, onDelete }: {
+export function StrategiesWorkspace({ items, target, runtime, issues, targetProjection, onEdit, onShowFlow, onDuplicate, onDelete }: {
   items: WorkspaceNodeItem[]
   target: PrimaryTarget | null
   runtime: ReadonlyMap<string, PipelineNodeRuntime>
   issues: StructuredDiagnostic[]
+  targetProjection?: TargetProjectionSummary
   onEdit: (item: WorkspaceNodeItem) => void
   onShowFlow: (item: WorkspaceNodeItem) => void
   onDuplicate: (item: WorkspaceNodeItem) => void
   onDelete: (item: WorkspaceNodeItem) => void
 }) {
   const { t } = useI18n()
-  const presentations = items.map((item) => ({ item, strategy: summarizeWorkspaceStrategy(item, target, runtime.get(item.node.id), issues) }))
+  const presentations = items.map((item) => ({ item, strategy: summarizeWorkspaceStrategy(item, target, runtime.get(item.node.id), issues, targetProjection) }))
   const basic = presentations.filter(({ strategy }) => !strategy.advanced)
   const advanced = presentations.filter(({ strategy }) => strategy.advanced)
   if (!items.length) return <WorkspaceEmpty icon={<GitBranch size={22} />} title={t('workspace.empty.strategies')} />
@@ -200,10 +208,11 @@ export function StrategiesWorkspace({ items, target, runtime, issues, onEdit, on
   </div>
 }
 
-export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagnostics, onOpenNode }: {
+export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagnostics, targetProjection, onOpenNode }: {
   nodes: GraphNode[]
   diagnostics: StructuredDiagnostic[]
   compatibilityDiagnostics: CompatibilityIssue[]
+  targetProjection?: TargetProjectionSummary
   onOpenNode: (nodeId: string) => void
 }) {
   const { locale, t } = useI18n()
@@ -237,7 +246,7 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
     entries: WorkspaceHealthEntry[]
   }) {
     const issues = entries.flatMap(flattenHealthEntry).map(toHealthDiagnostic)
-    const presentations = presentDiagnostics(issues, { locale, t, exportable, entityNames })
+    const presentations = presentDiagnostics(issues, { locale, t, exportable, entityNames, targetProjection })
     return <section className="workspace-health-section" data-severity={severity} aria-labelledby={id}>
       <header>{icon}<h2 id={id}>{title}</h2><span>{presentations.length}</span></header>
       {presentations.length === 0
@@ -260,7 +269,7 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
               <small className="workspace-health-impact">{presentation.impact}</small>
               {presentation.action && <small className="workspace-health-action">{presentation.action}</small>}
               <span>{targets.map((target) => <b key={target}>{target}</b>)}{location && <small>{localizeNodeTitle(location, locale)}</small>}{technicalCount > 1 ? <small>{t('workspace.health.related', { count: technicalCount - 1 })}</small> : null}</span>
-              <details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary>{presentation.technicalDetails.map(({ issue, count }, detailIndex) => <div key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? 'none'}-${detailIndex}`}><code>{issue.code}</code><small>{issue.message}{count > 1 ? ` × ${count}` : ''}</small></div>)}</details>
+              <details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary>{presentation.technicalDetails.map(({ issue, count }, detailIndex) => <div key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? 'none'}-${detailIndex}`}><code>{issue.code}</code><small>{issue.message}{count > 1 ? ` × ${count}` : ''}</small></div>)}{presentation.projectionReasons?.map((reason) => <div key={`projection-${reason.code}-${reason.label}`}><code>{reason.code}</code><small>{reason.label} × {reason.endpointCount}</small></div>)}</details>
             </div>
             {locationNodeId && <button type="button" onClick={() => onOpenNode(locationNodeId)}>{t('workspace.health.goTo')}<ArrowRight size={14} /></button>}
           </article>
@@ -379,6 +388,12 @@ function StatusBadge({ status }: { status: WorkspacePresentationStatus }) {
   return <span className="workspace-status-badge" data-status={status}><Icon size={13} />{t(presentationStatusMessages[status])}</span>
 }
 
+function TargetProjectionBadge({ status }: { status: TargetStrategyProjectionSummary['status'] }) {
+  const { t } = useI18n()
+  const Icon = status === 'ready' ? CheckCircle2 : status === 'partial' ? TriangleAlert : CircleAlert
+  return <span className="workspace-status-badge" data-status={status}><Icon size={13} />{t(targetProjectionStatusMessages[status])}</span>
+}
+
 function processingSummaryLabel(summary: ReturnType<typeof summarizeWorkspaceProcessing>['summary'], t: ReturnType<typeof useI18n>['t']) {
   if (summary.kind === 'filter') return t('workspace.processing.summary.filter', { operation: t(summary.operation === 'exclude' ? 'workspace.processing.exclude' : 'workspace.processing.include'), count: summary.criterionCount })
   if (summary.kind === 'rename') return t('workspace.processing.summary.rename', { mode: t(summary.mode === 'simple' ? 'workspace.processing.renameSimple' : 'workspace.processing.renameRegex'), state: t(summary.configured ? 'workspace.processing.configured' : 'workspace.processing.notConfigured') })
@@ -398,11 +413,22 @@ function StrategyCard({ item, strategy, onEdit, onShowFlow, onDuplicate, onDelet
   onDelete: (item: WorkspaceNodeItem) => void
 }) {
   const { locale, t } = useI18n()
-  return <article className="workspace-strategy-card" data-status={strategy.status}>
+  const cardStatus = strategy.targetProjection && (strategy.status === 'ready' || strategy.status === 'warning')
+    ? strategy.targetProjection.status
+    : undefined
+  return <article className="workspace-strategy-card" data-status={cardStatus ?? strategy.status}>
     <button type="button" className="workspace-card-body workspace-strategy-body" onClick={() => onEdit(item)}>
       <span className="workspace-strategy-icon"><BlockIcon name={item.node.data.icon} size={19} /></span>
-      <span className="workspace-strategy-main"><span><strong>{localizeNodeTitle(item.node, locale)}</strong><StatusBadge status={strategy.status} /></span><p>{t(strategyKindKey(strategy.kind))}</p><small>{strategySummaryLabel(strategy.summary, t)}</small></span>
-      <span className="workspace-strategy-meta">{strategy.candidateCount !== undefined && <span>{t('workspace.strategy.candidates', { count: strategy.candidateCount })}</span>}<b className={`is-${strategy.capability}`}>{strategy.capability === 'unknown' ? t('workspace.compatibility.unknown') : t(compatibilityMessages[strategy.capability])}</b></span>
+      <span className="workspace-strategy-main"><span><strong>{localizeNodeTitle(item.node, locale)}</strong>{cardStatus ? <TargetProjectionBadge status={cardStatus} /> : <StatusBadge status={strategy.status} />}</span><p>{t(strategyKindKey(strategy.kind))}</p><small>{strategySummaryLabel(strategy.summary, t)}</small></span>
+      <span className="workspace-strategy-meta">
+        {strategy.candidateCount !== undefined && <span>{t('workspace.strategy.candidates', { count: strategy.candidateCount })}</span>}
+        {strategy.targetProjection
+          ? <>
+            <span>{t('workspace.strategy.targetCompatibility', { compatible: strategy.targetProjection.compatibleCount, candidate: strategy.targetProjection.candidateCount })}</span>
+            {strategy.targetProjection.skippedCount > 0 && <span>{t('workspace.strategy.targetSkipped', { count: strategy.targetProjection.skippedCount })}</span>}
+          </>
+          : <b className={'is-' + strategy.capability}>{strategy.capability === 'unknown' ? t('workspace.compatibility.unknown') : t(compatibilityMessages[strategy.capability])}</b>}
+      </span>
     </button>
     <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
   </article>

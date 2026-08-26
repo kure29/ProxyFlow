@@ -160,7 +160,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
 
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
-          {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} />}
+          {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} entityNames={entityNames} />}
           <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
         </section>
 
@@ -189,7 +189,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
         <header><div><span>{fileMeta.format.toUpperCase()}</span><h2 id="export-inline-preview-title">{t('workspace.export.preview')}</h2></div><div><button type="button" className="secondary-action" disabled={!artifact} onClick={() => void copy()}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? t('preview.copied') : t('preview.copy')}</button><button type="button" className="primary-action" disabled={!artifact} onClick={download}><Download size={15} />{t('workspace.export.download')}</button></div></header>
         <div className="workspace-export-code-toolbar"><code>{artifact?.filename ?? `${safeFilename(projectName)}-${activeTarget}.${fileMeta.extension}`}</code><span>{getTargetCapabilities(activeTarget).label}</span></div>
         <div className={`workspace-export-preview-body${displayedIssues.length ? ' has-issues' : ''}`}>
-          {displayedIssues.length > 0 && <div className="workspace-export-diagnostics" role="status"><DiagnosticPresentationList issues={displayedIssues} exportable={Boolean(artifact)} entityNames={entityNames} compact /></div>}
+          {displayedIssues.length > 0 && <div className="workspace-export-diagnostics" role="status"><DiagnosticPresentationList issues={displayedIssues} exportable={Boolean(artifact)} entityNames={entityNames} targetProjection={state.result?.targetProjection} compact /></div>}
           {artifact
             ? <ConfigCodePreview content={artifact.content} format={fileMeta.format} label={t('workspace.export.configAria', { format: fileMeta.format.toUpperCase() })} />
             : <div className="workspace-export-preview-blocked"><AlertTriangle size={22} /><strong>{t('workspace.export.blocked')}</strong></div>}
