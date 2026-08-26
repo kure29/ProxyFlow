@@ -1,43 +1,91 @@
-# ProxyFlow
+<div align="center">
+  <img src="src/assets/brand/proxyflow-logo.png" alt="ProxyFlow logo" width="112" />
+  <h1>ProxyFlow</h1>
+  <p><strong>Universal Proxy Visual Builder</strong></p>
+  <p>Design proxy traffic visually. Export confidently across clients.</p>
+  <p><a href="README.md">English</a> | <a href="README_zh.md">简体中文</a></p>
+  <p>
+    <a href="https://github.com/kure29/ProxyFlow/releases"><img src="https://img.shields.io/github/v/release/kure29/ProxyFlow?display_name=tag" alt="GitHub Release" /></a>
+    <a href="https://github.com/kure29/ProxyFlow/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/kure29/ProxyFlow/ci.yml?branch=main&label=CI" alt="CI status" /></a>
+    <a href="https://github.com/kure29/ProxyFlow/blob/main/LICENSE"><img src="https://img.shields.io/github/license/kure29/ProxyFlow" alt="License" /></a>
+    <a href="https://github.com/kure29/ProxyFlow/stargazers"><img src="https://img.shields.io/github/stars/kure29/ProxyFlow" alt="GitHub stars" /></a>
+    <a href="https://github.com/kure29/ProxyFlow/network/members"><img src="https://img.shields.io/github/forks/kure29/ProxyFlow" alt="GitHub forks" /></a>
+  </p>
+</div>
 
-> Universal Proxy Visual Builder
+## Introduction
 
-ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo YAML / Surge CONF / Loon CONF / Shadowrocket CONF 导出，始终使用同一个 Project。
+ProxyFlow is a **Universal Proxy Visual Builder**. It is not merely a
+subscription converter: one local-first Project takes you from source material
+to an explainable, target-aware client configuration.
 
-## 主要能力
+```text
+Subscription / Nodes → Processing → Strategies → Proxy Chains → Routing → DNS → Target configuration
+```
 
-- URL / Paste / File Subscription
-- Node parsing
-- Filter / Rename / Sort / Dedupe / Merge / Limit
-- Strategy
-- Proxy Chain
-- Routing
-- DNS
-- Remote Subscription / Mihomo `proxy-provider`
-- Local Mode
-- Runtime Service
-- Mihomo YAML export
-- Surge CONF export
-- Loon CONF export
-- Shadowrocket CONF export for the evidence-bounded tested subset
-- First-party Service Rules
-- Target-aware compatibility checks
+The workflow is visual, capability-driven, and fail-closed. When a target
+cannot represent an intent safely—or the behavior is not proven—ProxyFlow
+surfaces a diagnostic instead of silently changing the meaning.
 
-## Target Status
+## Product preview
 
-| Target | Status |
+The core experience is a single Project that can be inspected, edited, and
+exported for different clients. No product screenshots are bundled yet; this
+section is intentionally kept ready for future repository-native captures
+without using fabricated or third-party imagery.
+
+## Highlights
+
+- **Subscription sources** — URL, pasted content, or local files.
+- **Node processing** — Filter, Rename, Sort, Dedupe, Merge, and Limit.
+- **Strategies** — Manual select, automatic selection, and failover workflows.
+- **Proxy Chain** — Model chained hops while preserving target compatibility checks.
+- **Routing and DNS** — Express traffic rules, service rules, and resolver intent.
+- **Compatibility diagnostics** — See what each target can express before export.
+- **Local Mode** — Work without an account, Docker, or a connected service.
+- **Optional Runtime Service** — Self-host a single-user companion for browser-limited network work.
+
+## Supported targets
+
+| Target | Current state |
 | --- | --- |
-| Mihomo | Stable / Supported |
-| Surge | Stable / Supported |
-| Loon | Stable / Supported |
-| sing-box | Official export paused |
-| Stash | Planned |
-| Shadowrocket | Evidence-bounded / Supported for the tested 2.2.65 build 2615 subset |
-| Quantumult X | Planned |
+| **Mihomo** | Supported; default product target |
+| **Surge** | Supported |
+| **Loon** | Supported |
+| **Shadowrocket** | Evidence-bounded Supported for the tested subset |
+| **sing-box** | Registered; official product export paused and hidden |
 
-sing-box 的底层编译与历史 Project 兼容能力仍然保留。Subscription Request Profile 也继续提供 Auto、Mihomo、sing-box 和 Generic；它只影响订阅请求格式，不代表 Export Target。
+Shadowrocket acceptance is pinned to the **tested client baseline: Shadowrocket
+2.2.65 build 2615**. This is an evidence boundary, not a minimum-version or
+universal-compatibility claim. Mixed IP-CIDR/GEOIP precedence, IPv6 behavior,
+native remote sources, richer DNS roles, and other unproven client features
+remain unsupported or fail closed. See the [Shadowrocket compiler](docs/shadowrocket-compiler.md)
+and [acceptance record](docs/shadowrocket-acceptance.md).
 
-## Quick Start
+Planned targets such as Stash and Quantumult X are not current export targets.
+
+## How ProxyFlow works
+
+```text
+Visual Graph
+    ↓
+Graph Semantic Compiler
+    ↓
+Universal Proxy IR
+    ↓
+Semantic Validation
+    ↓
+Target Capability / Adapter
+    ↓
+Target Compiler
+    ↓
+Client Configuration
+```
+
+The same Project and Universal Proxy IR feed each target adapter. Read the
+[architecture guide](docs/architecture.md) for the engineering model.
+
+## Quick start
 
 ### Local Mode
 
@@ -48,7 +96,8 @@ npm install
 npm run dev
 ```
 
-Local Mode 不需要账号、Docker 或 Runtime Service，Project 保存在当前浏览器中。
+Local Mode keeps Projects in the current browser and does not require an
+account, Docker, or Runtime Service.
 
 ### Self-hosted
 
@@ -59,19 +108,32 @@ chmod +x proxyflow.sh
 ./proxyflow.sh
 ```
 
-交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.3.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
+The manager supports interactive and scriptable install, update, start, stop,
+restart, status, logs, backup, and uninstall workflows. See the
+[Runtime Service guide](docs/runtime-service.md) for the optional service and
+the current immutable Compose image.
 
-## Development
+## Compatibility and safety
 
-```bash
-npm test -- --run
-npm run build
-npm run runtime:build
-npm run test:deployment
-npx tsc -b
-```
+Target support is capability-driven rather than a promise that every native
+client feature will work everywhere. Unsupported or unproven intent fails
+closed, and target-specific capabilities are never silently downgraded.
 
-更多资料见 [Product Direction](docs/product-direction.md)、[Architecture](docs/architecture.md) 和 [Subscription Parser & Compatibility](docs/subscription-parser.md)。
+## Documentation
+
+- [Product Direction](docs/product-direction.md) — product boundary and target policy
+- [Architecture](docs/architecture.md) — Project, IR, validation, and adapters
+- [Subscription Parser & Compatibility](docs/subscription-parser.md)
+- [Subscription Format Compatibility](docs/subscription-format-compatibility.md)
+- [Runtime Service](docs/runtime-service.md)
+- [Shadowrocket compiler](docs/shadowrocket-compiler.md) and [acceptance](docs/shadowrocket-acceptance.md)
+
+## Release
+
+Current stable release: **[v1.3.0](docs/releases/1.3.0.md)**
+
+See [GitHub Releases](https://github.com/kure29/ProxyFlow/releases) for
+published release artifacts and notes.
 
 ## License
 
