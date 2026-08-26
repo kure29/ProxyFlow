@@ -12,6 +12,8 @@ import {
 } from './projection'
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
+import { validateSurgeNativeStrategies } from './nativeStrategies'
+import type { TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SurgeCompatibilityResult {
   supported: boolean
@@ -26,6 +28,7 @@ const BUILT_IN_POLICIES = new Set([
 export function checkSurgeCompatibility(
   ir: ProxyFlowIR,
   projection = createSurgeProjectionContext(),
+  nativeStrategies: readonly TargetNativeStrategyIR[] = [],
 ): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
   const policyOwners = new Map<string, string>()
@@ -72,6 +75,11 @@ export function checkSurgeCompatibility(
       if (emptyIssue) issues.push(emptyIssue)
     }
   }
+  for (const strategy of nativeStrategies) {
+    if (!strategy || typeof strategy.id !== 'string' || typeof strategy.name !== 'string') continue
+    registerPolicyName(strategy.name, `native-strategy:${strategy.id}`, strategy.id, policyOwners, issues)
+  }
+  validateSurgeNativeStrategies(ir, nativeStrategies, issues)
   validateChainStrategies(ir, projection, issues)
   validateHealthCheckScope(ir.strategies, issues)
   validateStrategyCycles(ir.strategies, issues)

@@ -25,6 +25,18 @@ export interface SurgePolicyEntry {
   parameters?: SurgeParameter[]
 }
 
+export interface SurgeSmartPolicyEntry extends SurgePolicyEntry {
+  type: 'smart'
+  arguments: string[]
+}
+
+export interface SurgeSubnetPolicyEntry extends SurgePolicyEntry {
+  type: 'subnet'
+  arguments: string[]
+}
+
+export type SurgeNativePolicyEntry = SurgeSmartPolicyEntry | SurgeSubnetPolicyEntry
+
 export interface SurgeProfile {
   general: SurgeGeneralEntry[]
   proxies: SurgePolicyEntry[]

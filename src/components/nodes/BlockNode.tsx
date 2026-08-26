@@ -5,6 +5,7 @@ import { ServiceMark } from '../services/ServiceMark'
 import { resolveServiceMarkId } from '../services/serviceMarkDefinitions'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, GraphNode } from '../../types/project'
+import { isTargetNativeStrategyConfig, type PolicyReference, type SurgeSubnetMatcher } from '../../core/targetNative'
 import {
   categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle, useI18n,
   type Locale,
@@ -14,7 +15,7 @@ import { snapshotFreshness } from '../../core/subscription'
 import { resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
 import { normalizeDnsResolvers } from '../../core/dns/resolverProfiles'
 
-const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final'])
+const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final', 'target-native-strategy'])
 const noOutput = new Set(['output'])
 
 export function BlockNode({ id, data, selected, isConnectable }: NodeProps<GraphNode>) {
@@ -70,6 +71,8 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
           <div className="node-strategy-row"><Zap size={13} /><span>{t('node.candidates', { count: data.runtimeOutputCount ?? 0 })}</span></div>
         )}
 
+        {data.blockType === 'target-native-strategy' && <TargetNativeSummary data={data} nodes={nodes} t={t} />}
+
         {data.blockType === 'proxy-chain' && (
           <div className="node-chain">
             {hopNodes.length > 0 ? hopNodes.map((hop, index) => (
@@ -113,7 +116,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
           <div className="node-output-row"><span><Check size={12} /> {compatibilityLabel(data.compatibility, t)}</span><b>{String(data.client ?? '').toUpperCase()}</b></div>
         )}
 
-        {!['subscription', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule', 'custom-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
+        {!['subscription', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit', 'auto-select', 'manual-select', 'fallback', 'load-balance', 'fixed-proxy', 'target-native-strategy', 'proxy-chain', 'routing-group', 'service-rule', 'custom-rule', 'dns', 'final', 'output'].includes(data.blockType) && (
           <p className="node-default-copy">{localizeDataValue(data.subtitle, data.subtitleKey, locale)}</p>
         )}
       </div>
@@ -130,6 +133,27 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
       )}
     </article>
   )
+}
+
+function TargetNativeSummary({ data, nodes, t }: { data: BlockNodeData; nodes: GraphNode[]; t: ReturnType<typeof useI18n>['t'] }) {
+  const native = data.targetNativeStrategy
+  if (!isTargetNativeStrategyConfig(native)) return <span className="node-empty-inline">⚠ {t('inspector.targetNativeInvalid')}</span>
+  if (native.kind === 'smart') return <div className="node-native-summary"><span>{t('inspector.targetNativeSmart')} <em className="node-native-badge">{t('inspector.targetNativeBadge')}</em></span><b>{t('workspace.strategy.summary.smart', { count: native.members.length })}</b></div>
+  const conditionCount = native.conditions.length
+  const defaultLabel = policyReferenceLabel(native.defaultPolicy, nodes)
+  const first = native.conditions.find((condition) => Boolean(condition?.matcher))
+  return <div className="node-native-summary"><span>{t('inspector.targetNativeSubnet')} <em className="node-native-badge">{t('inspector.targetNativeBadge')}</em></span>{first && <b>{nativeMatcherLabel(first.matcher)} → {policyReferenceLabel(first.policy, nodes)}</b>}<small>{t('workspace.strategy.summary.subnet', { count: conditionCount, default: defaultLabel })}</small></div>
+}
+
+function nativeMatcherLabel(matcher: SurgeSubnetMatcher) {
+  return matcher.kind === 'network-type' ? `TYPE:${matcher.value}` : `${matcher.kind.toUpperCase()}:${matcher.value}`
+}
+
+function policyReferenceLabel(reference: PolicyReference | undefined, nodes: GraphNode[]) {
+  if (!reference) return '—'
+  if (reference.kind === 'builtin') return reference.id
+  if (reference.kind === 'strategy') return nodes.find((node) => node.id === reference.id)?.data.title ?? reference.id
+  return reference.id
 }
 
 export function summarizeDnsNode(data: Pick<BlockNodeData, 'dnsResolvers' | 'resolver'>) {

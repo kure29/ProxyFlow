@@ -218,7 +218,7 @@ const systemKeys: MessageKey[] = [
   'recovery.legacyNoStrategy', 'recovery.migratedFinal', 'recovery.migratedV2',
   ...([
     'subscription', 'manual-proxy', 'provider', 'import-config', 'filter', 'rename', 'sort', 'deduplicate', 'merge', 'limit',
-    'manual-select', 'auto-select', 'fallback', 'load-balance', 'fixed-proxy', 'proxy-chain', 'routing-group', 'service-rule',
+    'manual-select', 'auto-select', 'fallback', 'load-balance', 'fixed-proxy', 'target-native-strategy', 'proxy-chain', 'routing-group', 'service-rule',
     'custom-rule', 'final', 'dns', 'output',
   ] as BlockType[]).flatMap((type) => [blockTitleKey(type), blockDescriptionKey(type)]),
 ]
@@ -247,6 +247,16 @@ systemTextLookup.set('AI 服务', 'demo.ai.title')
 systemTextLookup.set('DNS 配置', 'block.dns.title')
 
 const issueCopy: Record<string, Record<Locale, string>> = {
+  TARGET_NATIVE_STRATEGY_INVALID: { 'en-US': 'This target-native strategy has invalid typed configuration.', 'zh-CN': '该目标原生策略的结构化配置无效。' },
+  TARGET_NATIVE_STRATEGY_UNSUPPORTED: { 'en-US': 'This strategy is Surge-specific; the selected target has no proven equivalent. Change or remove it before export.', 'zh-CN': '该策略是 Surge 专有语义，当前目标没有经过验证的等价能力。请修改或移除后再导出。' },
+  SURGE_SMART_MEMBERS_EMPTY: { 'en-US': 'Surge Smart requires at least one proxy member.', 'zh-CN': 'Surge Smart 至少需要一个代理成员。' },
+  SURGE_SMART_MEMBER_UNSUPPORTED: { 'en-US': 'Surge Smart accepts proxy endpoints only; strategy groups and built-ins are not valid candidates.', 'zh-CN': 'Surge Smart 仅接受代理节点，策略组和内置策略不能作为候选。' },
+  SURGE_SUBNET_DEFAULT_REQUIRED: { 'en-US': 'Surge Subnet requires an explicit default policy.', 'zh-CN': 'Surge Subnet 必须配置明确的默认策略。' },
+  SURGE_SUBNET_MATCHER_INVALID: { 'en-US': 'This Subnet condition has an invalid or missing matcher value.', 'zh-CN': '该 Subnet 条件的匹配值缺失或无效。' },
+  SURGE_SUBNET_POLICY_INVALID: { 'en-US': 'This Subnet condition has no valid policy target.', 'zh-CN': '该 Subnet 条件没有有效的策略目标。' },
+  SURGE_NATIVE_PROXY_REFERENCE_NOT_FOUND: { 'en-US': 'A target-native strategy references a missing or unmodeled proxy endpoint.', 'zh-CN': '目标原生策略引用了不存在或无法建模的代理节点。' },
+  SURGE_NATIVE_STRATEGY_REFERENCE_NOT_FOUND: { 'en-US': 'A target-native strategy references a missing strategy group.', 'zh-CN': '目标原生策略引用了不存在的策略组。' },
+  SURGE_NATIVE_STRATEGY_CYCLE: { 'en-US': 'Target-native strategy groups cannot reference themselves.', 'zh-CN': '目标原生策略组不能引用自身。' },
   SUBSCRIPTION_INVALID_URL: { 'en-US': 'Subscription URL must use HTTP or HTTPS.', 'zh-CN': '订阅地址必须使用 HTTP 或 HTTPS。' },
   SUBSCRIPTION_HTTP_ERROR: { 'en-US': 'The subscription server returned an HTTP error.', 'zh-CN': '订阅服务器返回了 HTTP 错误。' },
   SUBSCRIPTION_CORS_BLOCKED: { 'en-US': 'The browser could not complete this cross-origin request. It does not expose whether CORS or another transport policy blocked it. Use Runtime Service, Paste Content, or Local File.', 'zh-CN': '浏览器未能完成此跨域请求，且不会说明是 CORS 还是其他传输策略所致。请改用 Runtime Service、粘贴内容或本地文件。' },

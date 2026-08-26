@@ -9,6 +9,7 @@ export interface BlockLibraryItem {
   icon: string
   titleKey?: MessageKey
   descriptionKey?: MessageKey
+  data?: Partial<BlockNodeData>
 }
 
 export interface BlockLibraryGroup {
@@ -47,6 +48,8 @@ export const blockLibrary: BlockLibraryGroup[] = [
       { type: 'manual-select', category: 'strategy', title: '手动选择', description: '由用户指定活动节点', icon: 'mouse-pointer-2' },
       { type: 'auto-select', category: 'strategy', title: '自动选择最快', description: '持续选择延迟最低节点', icon: 'gauge' },
       { type: 'fallback', category: 'strategy', title: '故障切换', description: '不可用时自动切换', icon: 'refresh-cw' },
+      { type: 'target-native-strategy', category: 'strategy', title: 'Smart · Surge', description: 'Surge 原生智能策略（仅 Surge）', titleKey: 'inspector.targetNativeSmart', descriptionKey: 'inspector.smartMembersHint', icon: 'sparkles', data: { targetNativeStrategy: { target: 'surge', kind: 'smart', members: [] } } },
+      { type: 'target-native-strategy', category: 'strategy', title: 'Subnet · Surge', description: '按 Wi‑Fi / 网络类型切换策略（仅 Surge）', titleKey: 'inspector.targetNativeSubnet', descriptionKey: 'inspector.subnetConditions', icon: 'network', data: { targetNativeStrategy: { target: 'surge', kind: 'subnet', conditions: [], defaultPolicy: { kind: 'builtin', id: 'DIRECT' } } } },
     ],
   },
   {
@@ -98,7 +101,7 @@ export function resolveLibraryNodePreset(entryType: BlockType): LibraryNodePrese
       titleKey: item?.titleKey, subtitleKey: item?.descriptionKey,
     },
   }
-  return { blockType: entryType }
+  return { blockType: entryType, data: item?.data }
 }
 
 // Legacy routing entries remain resolvable for old Projects but are not product entry points.

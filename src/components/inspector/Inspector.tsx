@@ -41,6 +41,7 @@ import {
   getTargetCapabilities, isPrimaryTarget, isProductTarget, PRODUCT_TARGETS, resolveActiveProductTarget,
   type PrimaryTarget,
 } from '../../core/capabilities'
+import { isTargetNativeStrategyConfig, type PolicyReference, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher } from '../../core/targetNative'
 import {
   parseCustomRuleSource, validateCustomRuleSourceForTarget, type CustomRuleSourceIssue,
   type CustomRuleSourceRequestedFormat,
@@ -578,6 +579,73 @@ function StrategyInspector({ node }: InspectorProps) {
   </>
 }
 
+function TargetNativeStrategyInspector({ node }: InspectorProps) {
+  const { locale, t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const nodes = useBuilderStore((state) => state.nodes)
+  const snapshots = useBuilderStore((state) => state.subscriptionSnapshots)
+  const toProject = useBuilderStore((state) => state.toProject)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
+  const native = node.data.targetNativeStrategy
+  const graph = useMemo(() => compileGraph(toProject(), { subscriptionSnapshots: snapshots, retainDraftOnErrorForDiagnostics: true, validationTarget: primaryTarget }), [node.id, primaryTarget, snapshots, toProject])
+  const proxies = useMemo(() => graph.ir?.sources.flatMap((source) => source.kind === 'manual-proxy' || source.kind === 'subscription' ? (source.proxies ?? []).filter((proxy) => proxy.kind !== 'unmodeled').map((proxy) => ({ id: proxy.id, name: localizeDataValue(proxy.name, undefined, locale) })) : []) ?? [], [graph.ir, locale])
+  const strategyOptions = useMemo(() => nodes
+    .filter((item) => item.id !== node.id && item.data.category === 'strategy')
+    .map((item) => ({ value: `strategy:${item.id}`, label: localizeNodeTitle(item, locale) })), [locale, node.id, nodes])
+  if (!isTargetNativeStrategyConfig(native)) return <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span>{localizeDiagnosticMessage('TARGET_NATIVE_STRATEGY_INVALID', 'This target-native strategy has invalid typed configuration.', locale)}</span></div>
+  const setNative = (next: SurgeNativeStrategyConfig) => update(node.id, { targetNativeStrategy: next })
+  const policyOptions = [
+    { value: '__direct__', label: 'DIRECT' },
+    { value: '__reject__', label: 'REJECT' },
+    ...strategyOptions,
+    ...proxies.map((proxy) => ({ value: `proxy:${proxy.id}`, label: proxy.name })),
+  ]
+  const policyValue = (reference: PolicyReference | undefined) => !reference ? '' : reference.kind === 'builtin' ? reference.id === 'DIRECT' ? '__direct__' : '__reject__' : `${reference.kind}:${reference.id}`
+  const parsePolicy = (value: string): PolicyReference | undefined => {
+    if (value === '__direct__') return { kind: 'builtin', id: 'DIRECT' }
+    if (value === '__reject__') return { kind: 'builtin', id: 'REJECT' }
+    const [kind, ...rest] = value.split(':')
+    const id = rest.join(':')
+    if ((kind === 'proxy' || kind === 'strategy') && id) return { kind, id } as PolicyReference
+    return undefined
+  }
+  const matcherType = (matcher: SurgeSubnetMatcher) => matcher.kind === 'network-type' ? `type:${matcher.value}` : matcher.kind
+  const parseMatcher = (value: string): SurgeSubnetMatcher => value.startsWith('type:')
+    ? { kind: 'network-type', value: value.slice(5) as 'WIFI' | 'WIRED' | 'CELLULAR' }
+    : { kind: value as 'ssid' | 'bssid' | 'router', value: '' }
+  return <>
+    <TextField node={node} field="title" label={t('inspector.name')} />
+    <div className="strategy-kind-card"><span>{t('inspector.targetNative')}</span><strong>{native.kind === 'smart' ? t('inspector.targetNativeSmart') : t('inspector.targetNativeSubnet')}</strong><b className="target-native-badge">{t('inspector.targetNativeBadge')}</b></div>
+    {primaryTarget !== 'surge' && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span>{localizeDiagnosticMessage('TARGET_NATIVE_STRATEGY_UNSUPPORTED', 'This strategy is Surge-specific; the selected target has no proven equivalent.', locale)}</span></div>}
+    {native.kind === 'smart' && <>
+      <div className="section-label"><span>{t('inspector.smartMembers')}</span><small>{t('inspector.candidates')} · {native.members.length}</small></div>
+      <p className="field-hint">{t('inspector.smartMembersHint')}</p>
+      <div className="native-member-list">{proxies.length ? proxies.map((proxy) => {
+        const checked = native.members.some((member) => member.id === proxy.id)
+        return <label className="native-member-option" key={proxy.id}><input type="checkbox" checked={checked} onChange={() => setNative({ ...native, members: checked ? native.members.filter((member) => member.id !== proxy.id) : [...native.members, { kind: 'proxy', id: proxy.id }] })} /><span>{proxy.name}</span></label>
+      }) : <small>{t('inspector.noProxyMembers')}</small>}</div>
+    </>}
+    {native.kind === 'subnet' && <>
+      <div className="section-label"><span>{t('inspector.subnetConditions')}</span><small>{native.conditions.length}</small></div>
+      <div className="native-condition-list">{native.conditions.map((condition, index) => <div className="native-condition-card" key={`${node.id}-condition-${index}`}>
+        <div className="native-condition-heading"><strong>{index + 1}</strong><button type="button" className="icon-button danger" aria-label={t('inspector.removeService')} onClick={() => setNative({ ...native, conditions: native.conditions.filter((_, candidateIndex) => candidateIndex !== index) })}><Trash2 size={13} /></button></div>
+        <Field label={t('inspector.subnetConditionType')}><WebSelect label={t('inspector.subnetConditionType')} value={matcherType(condition.matcher)} onChange={(value) => {
+          const matcher = parseMatcher(value)
+          const conditions = native.conditions.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, matcher } : candidate)
+          setNative({ ...native, conditions })
+        }} options={[{ value: 'ssid', label: t('inspector.subnetSsid') }, { value: 'bssid', label: t('inspector.subnetBssid') }, { value: 'router', label: t('inspector.subnetRouter') }, { value: 'type:WIFI', label: t('inspector.subnetWifi') }, { value: 'type:WIRED', label: t('inspector.subnetWired') }, { value: 'type:CELLULAR', label: t('inspector.subnetCellular') }]} /></Field>
+        <Field label={t('inspector.subnetConditionValue')} hint={condition.matcher.kind === 'network-type' ? 'TYPE' : undefined}><input value={condition.matcher.value} disabled={condition.matcher.kind === 'network-type'} placeholder={condition.matcher.kind === 'ssid' ? 'Home-WiFi' : undefined} onChange={(event) => setNative({ ...native, conditions: native.conditions.map((candidate, candidateIndex) => {
+          if (candidateIndex !== index || candidate.matcher.kind === 'network-type') return candidate
+          return { ...candidate, matcher: { kind: candidate.matcher.kind, value: event.target.value } }
+        }) })} /></Field>
+        <Field label={t('inspector.subnetPolicy')}><WebSelect label={t('inspector.subnetPolicy')} value={policyValue(condition.policy)} onChange={(value) => { const policy = parsePolicy(value); if (policy) setNative({ ...native, conditions: native.conditions.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, policy } : candidate) }) }} options={[{ value: '', label: t('inspector.subnetPolicySelect'), disabled: true }, ...policyOptions]} /></Field>
+      </div>)}</div>
+      <button type="button" className="dashed-button" onClick={() => setNative({ ...native, conditions: [...native.conditions, { matcher: { kind: 'ssid', value: '' }, policy: { kind: 'builtin', id: 'DIRECT' } }] })}><Plus size={14} /> {t('inspector.subnetAddCondition')}</button>
+      <Field label={t('inspector.subnetDefault')}><WebSelect label={t('inspector.subnetDefault')} value={policyValue(native.defaultPolicy)} onChange={(value) => { const policy = parsePolicy(value); if (policy) setNative({ ...native, defaultPolicy: policy }) }} options={[{ value: '', label: t('inspector.subnetPolicySelect'), disabled: true }, ...policyOptions]} /></Field>
+    </>}
+  </>
+}
+
 function strategyExplanationTitle(blockType: BlockNodeData['blockType'], t: ReturnType<typeof useI18n>['t']) {
   if (blockType === 'manual-select') return t('inspector.strategyExplanation.manualTitle')
   if (blockType === 'auto-select') return t('inspector.strategyExplanation.autoTitle')
@@ -1000,6 +1068,7 @@ const inspectorRegistry: Partial<Record<BlockNodeData['blockType'], ComponentTyp
   'manual-select': StrategyInspector,
   fallback: StrategyInspector,
   'load-balance': StrategyInspector,
+  'target-native-strategy': TargetNativeStrategyInspector,
   'fixed-proxy': FixedStrategyInspector,
   'proxy-chain': ChainInspector,
   'routing-group': RoutingInspector,
