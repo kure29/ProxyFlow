@@ -2,9 +2,9 @@
 
 ProxyFlow detects subscription content from its wire format and normalizes supported proxy entries into the existing target-neutral endpoint model. Every entry still passes the same semantic firewall and can be `Ready`, `Partial`, or `Unsupported` independently. A control section or one unsupported protocol does not discard other usable proxy entries.
 
-The matrix below records the ProxyFlow 1.2 implementation. These are input
-formats, not Export Target claims. Mihomo, Surge, and Loon are supported
-production Export Targets; sing-box compiler infrastructure is retained while
+The matrix below records the ProxyFlow 1.3 implementation. These are input
+formats, not Export Target claims. Mihomo, Surge, Loon, and evidence-bounded
+Shadowrocket are supported production Export Targets; sing-box compiler infrastructure is retained while
 official export is paused. `Supported` means the format has a stable detector and the common
 supported endpoint subset imports end to end. `Partially Supported` means the
 format is detected and useful proxy definitions import, but some dialect fields
@@ -23,7 +23,7 @@ importer for that format.
 | Surge | Named proxy lines and `[Proxy]` sections | Partially Supported | HTTP, SOCKS5, Shadowsocks, Trojan, VMess, VLESS, Hysteria2, TUIC, AnyTLS common fields | Rules, DNS, policy groups, and unrecognized options are not imported; dialect-specific transport options may be Partial | Quoted CSV, option parsing, normalization |
 | Surfboard | Proxy-line grammar and Surfboard-specific option signatures | Partially Supported | Common Surge-family lines in the supported protocol subset | Surfboard-only options such as port hopping are retained only when they map to the normalized model | Shared line parser and dialect detection |
 | Loon | Loon `name=type,...` proxy lines | Partially Supported | HTTP, SOCKS5, Shadowsocks, Trojan and other common line entries in the supported subset | Loon rules, rewrite, DNS, and policy sections are ignored; unsupported protocol dialects remain Unsupported | Loon line fixture and quoted values |
-| Shadowrocket | URI-family content | Supported (input parser only) | Same URI subset as Universal / URI | This row describes importing URI-family content that may have come from Shadowrocket; it does not claim that Shadowrocket configuration export is supported. Client-only settings are not imported | URI detection and normalization |
+| Shadowrocket | URI-family content | Supported (input parser only) | Same URI subset as Universal / URI | This row describes importing URI-family content that may have come from Shadowrocket; it does not by itself establish the separate evidence-bounded Shadowrocket configuration export boundary. Client-only settings are not imported | URI detection and normalization |
 | Quantumult X | `type=server:port,...,tag=name` proxy lines | Partially Supported | Common HTTP, SOCKS5, Shadowsocks, Trojan, VMess, VLESS, AnyTLS fields | Rewrite, filter, policy, and DNS sections are ignored; fields without a lossless endpoint mapping remain Partial or Unsupported | QX syntax, tags, quoted values |
 | sing-box JSON | JSON `outbounds` with `type` | Partially Supported | Proxy outbounds for HTTP, SOCKS5, Shadowsocks, Trojan, VMess, VLESS, Hysteria2, TUIC, AnyTLS | `direct`, `block`, `dns`, `selector`, `urltest`, and other control outbounds are ignored; routing, inbounds, DNS, and chains are not imported | Proxy/control outbound fixtures, unsupported protocol isolation |
 | V2Ray JSON | JSON `outbounds` with `protocol` | Partially Supported | Proxy outbounds for HTTP, SOCKS5, Shadowsocks, Trojan, VMess, and VLESS where settings map losslessly | Routing, inbounds, DNS, and complex chains are ignored; unsupported stream/security fields are Partial or Unsupported | VMess outbound fixture and malformed settings |

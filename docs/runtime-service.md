@@ -38,7 +38,7 @@ The manager supports `install`, `update`, `start`, `stop`, `restart`, `status`,
 terminal opens the management menu; a non-TTY invocation prints usage and exits
 without waiting for input. Explicit commands retain their scriptable exit-code
 behavior. Direct Compose usage defaults to the
-immutable image `ghcr.io/kure29/proxyflow:1.2.0`. New managed installs use
+immutable image `ghcr.io/kure29/proxyflow:1.3.0`. New managed installs use
 the `stable` channel, which maps to `ghcr.io/kure29/proxyflow:latest`.
 `PROXYFLOW_PORT`,
 `PROXYFLOW_HOME`, `PROXYFLOW_DATA_DIR`, `PROXYFLOW_BIND_ADDRESS`, and

@@ -91,6 +91,7 @@ unsupported intent is silently omitted or downgraded.
 The evidence gate for the currently exposed subset is pinned to sanitized
 records for import, representative proxy traffic, strategy selection, the
 tested routing boundaries, DNS behavior, and a representative materialized
-subscription. Product exposure remains under human review in the stacked Draft
-PR; unsupported, deferred, and untested native features remain outside the
-intended exposure boundary.
+subscription. Foundation and product exposure are merged into `main`; release,
+tag, publish, and deployment actions remain separately gated. Unsupported,
+deferred, and untested native features remain outside the intended exposure
+boundary.

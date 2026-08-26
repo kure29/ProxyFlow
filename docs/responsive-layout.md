@@ -1,6 +1,6 @@
 # ProxyFlow Responsive Layout Contract
 
-Status: ProxyFlow 1.2
+Status: ProxyFlow 1.3
 
 This document records the durable implementation rules for the responsive
 layout and typography system. Product behavior, Project state, capability
