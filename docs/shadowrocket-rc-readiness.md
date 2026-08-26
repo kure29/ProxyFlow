@@ -1,11 +1,11 @@
 # Shadowrocket Release-Readiness Audit
 
-Decision: **PRODUCT EXPOSURE UNDER REVIEW — evidence-bounded target path**.
+Decision: **PRODUCT EXPOSURE COMPLETE — evidence-bounded production target**.
 
-The evidence-bounded compiler is engineering-ready for the exact tested subset
-listed below. No engineering `MUST FIX` remains for that scoped subset. Versioning,
-release, publish, deployment, and merge actions remain explicitly deferred
-until a human makes the next gate decision.
+The evidence-bounded compiler and product exposure are engineering-ready for
+the exact tested subset listed below. No engineering `MUST FIX` remains for
+that scoped subset. Foundation and exposure were merged into `main`; version,
+tag, release, publish, and deployment actions remain separately gated.
 
 ## Classification matrix
 
@@ -45,8 +45,8 @@ Every readiness item is classified as `ADDRESSED`, `ACCEPTED LIMITATION`,
 | DoH / DoT and richer DNS roles | ACCEPTED LIMITATION | Encrypted resolver and unproven role mappings remain unsupported and fail closed. |
 | Service Rules / rule sets | ACCEPTED LIMITATION | Format, refresh, binding, and traffic semantics are not exposed; unsupported intent fails closed. |
 | Native remote proxy sources | ACCEPTED LIMITATION | Materialized local snapshots are supported; native remote export/refresh remains unsupported. |
-| Product exposure | ADDRESSED / HUMAN GATE | Central selectors, New Project, target switch, Preview, Export, and Health expose only the evidence-bounded Shadowrocket adapter. This stacked PR remains Draft pending human review. |
-| Version / release / publish / deploy | DEFERRED | No version bump, tag, release, publish, deploy, or merge is authorized by this goal. |
+| Product exposure | ADDRESSED / MERGED | Central selectors, New Project, target switch, Preview, Export, and Health expose only the evidence-bounded Shadowrocket adapter. Foundation and exposure are merged into `main`. |
+| Version / release / publish / deploy | DEFERRED | Version preparation, tagging, release, publish, and deploy remain separate human-gated actions. |
 
 ## MUST FIX count
 
@@ -57,22 +57,22 @@ silent downgrades.
 ## Engineering readiness decision
 
 Shadowrocket is engineering-ready only for the exact tested subset and its
-documented fail-closed boundaries. Product exposure is engineering-complete
-for review in this stacked Draft PR; it is not a release, merge, or universal
-compatibility claim. PR #50 remains unchanged and Draft.
+documented fail-closed boundaries. Product exposure is merged and remains an
+evidence-bounded production claim; it is not universal compatibility and does
+not itself authorize a version, tag, release, publish, or deployment action.
 
 ## Exact remaining human decision
 
-The human must review this exposure PR and decide whether to continue toward a
-separate release gate, explicitly accepting the deferred protocols,
-materialized-only source model, mixed IP/GEO rejection, and IPv6 behavioral gap.
-Do not mark either PR Ready, merge, bump version, tag, release, publish, or deploy.
+The next human decision is review of the v1.3.0 release-preparation branch,
+explicitly accepting the deferred protocols, materialized-only source model,
+mixed IP/GEO rejection, and IPv6 behavioral gap. Tag, GitHub Release, publish,
+and deployment actions remain outside this readiness record.
 
 ## Verification snapshot
 
 On 2026-08-26, the worktree passed:
 
-- `npm test -- --run`: 111 files / 1,165 tests
+- `npm test -- --run`: 111 files / 1,167 tests
 - `npx tsc -b --pretty false`
 - `npm run build`
 - `npm run runtime:build`

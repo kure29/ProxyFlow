@@ -1,6 +1,6 @@
 # ProxyFlow Product Direction
 
-Status: ProxyFlow 1.2
+Status: ProxyFlow 1.3
 
 This document defines the product boundary used by maintainers, contributors, and future development tasks. It is the default decision record when a proposed feature conflicts with the current product direction.
 
@@ -35,7 +35,7 @@ Every user-facing capability must belong to one of these stages:
 - Strategy: Manual, Auto, and Failover in the basic workflow.
 - Routing: Decide which traffic uses a Strategy, DIRECT, or REJECT.
 - Inspect: Explain matches, exclusions, candidates, and export blockers.
-- Output: Compile and export a Mihomo, Surge, or Loon configuration.
+- Output: Compile and export a Mihomo, Surge, Loon, or evidence-bounded Shadowrocket configuration.
 
 Subscription lifecycle management supports this workflow, but it is not the product's sole purpose. Target compilation is a core capability, but compiler terminology should not become the primary user interface.
 
@@ -137,7 +137,7 @@ Even after a Runtime Service exists, a user must be able to:
 - use ProxyFlow without an account;
 - use ProxyFlow without connecting to a server;
 - open and edit a Project in the browser;
-- compile and export Mihomo, Surge, and Loon configurations;
+- compile and export Mihomo, Surge, Loon, and evidence-bounded Shadowrocket configurations;
 - use the local IndexedDB runtime cache;
 - retain local Project access when a Runtime Service is unavailable.
 

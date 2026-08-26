@@ -1,6 +1,6 @@
 # Mihomo Compiler
 
-ProxyFlow 1.2 的真实编译链路：
+ProxyFlow 1.3 的真实编译链路：
 
 ```text
 ProxyFlowIR

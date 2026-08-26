@@ -2,7 +2,7 @@
 
 > Universal Proxy Visual Builder
 
-ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo YAML / Surge CONF / Loon CONF 导出，始终使用同一个 Project。
+ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输入、节点处理、策略和分流，到检查与 Mihomo YAML / Surge CONF / Loon CONF / Shadowrocket CONF 导出，始终使用同一个 Project。
 
 ## 主要能力
 
@@ -19,6 +19,7 @@ ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输
 - Mihomo YAML export
 - Surge CONF export
 - Loon CONF export
+- Shadowrocket CONF export for the evidence-bounded tested subset
 - First-party Service Rules
 - Target-aware compatibility checks
 
@@ -31,7 +32,7 @@ ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输
 | Loon | Stable / Supported |
 | sing-box | Official export paused |
 | Stash | Planned |
-| Shadowrocket | Compiler foundation registered; product export paused |
+| Shadowrocket | Evidence-bounded / Supported for the tested 2.2.65 build 2615 subset |
 | Quantumult X | Planned |
 
 sing-box 的底层编译与历史 Project 兼容能力仍然保留。Subscription Request Profile 也继续提供 Auto、Mihomo、sing-box 和 Generic；它只影响订阅请求格式，不代表 Export Target。
@@ -58,7 +59,7 @@ chmod +x proxyflow.sh
 ./proxyflow.sh
 ```
 
-交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.2.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
+交互式菜单可用于安装、更新和日常管理；自动化环境仍可直接运行 `./proxyflow.sh install` 等子命令。服务默认监听 `127.0.0.1:17870`。Stable managed install/update 使用 `ghcr.io/kure29/proxyflow:latest`；仓库 Compose 默认固定到 immutable `ghcr.io/kure29/proxyflow:1.3.0`。完整说明见 [Runtime Service](docs/runtime-service.md)。
 
 ## Development
 

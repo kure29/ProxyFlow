@@ -1,6 +1,6 @@
 # Subscription Parser and Proxy Processing
 
-ProxyFlow 1.2 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
+ProxyFlow 1.3 在浏览器中读取订阅内容，将节点规范化为客户端无关的代理模型，再对真实节点集合执行处理并生成目标配置。Parser、ProxySet 处理和 Target Compiler 相互独立；Compiler 不负责下载或猜测订阅内容。
 
 ## Supported Input Formats
 
@@ -48,7 +48,7 @@ Remote export 不跳过 fetch 或 parse。ProxyFlow 仍保留当前 snapshot 用
 
 ## Supported Protocols
 
-下表表示 ProxyFlow 1.2 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
+下表表示 ProxyFlow 1.3 的基础字段与现代 TLS / transport 映射，不表示支持协议的所有扩展组合。
 
 | Protocol | Parser | Mihomo | sing-box |
 | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ Hysteria v1、WireGuard、Snell、SSH 等尚未进入协议模型。损坏的 An
 
 ## CORS Limitations
 
-ProxyFlow 1.2 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
+ProxyFlow 1.3 的 Local Mode 仍是纯前端应用。URL Refresh 使用浏览器原生 `fetch`：
 
 - 订阅服务器允许跨域时，可以直接刷新。
 - CORS 或网络失败显示为 `CORS blocked`，不会误报为 Parser Error。
