@@ -21,6 +21,10 @@ export type SurgeNativeStrategyConfig =
       target: 'surge'
       kind: 'smart'
       members: Array<Extract<PolicyReference, { kind: 'proxy' }>>
+      /** Ordered regex multipliers; the first matching rule wins. */
+      policyPriority?: SurgePolicyPriorityRule[]
+      /** Surge defaults this to false when omitted. */
+      evaluateBeforeUse?: boolean
     }
   | {
       target: 'surge'
@@ -36,10 +40,16 @@ export interface SurgeSubnetCondition {
   policy: PolicyReference
 }
 
+export interface SurgePolicyPriorityRule {
+  pattern: string
+  factor: number
+}
+
 export type SurgeSubnetMatcher =
   | { kind: 'ssid'; value: string }
   | { kind: 'bssid'; value: string }
   | { kind: 'router'; value: string }
+  | { kind: 'mccmnc'; value: string }
   | { kind: 'network-type'; value: 'WIFI' | 'WIRED' | 'CELLULAR' }
 
 export interface TargetNativeStrategyIRBase {
@@ -82,6 +92,15 @@ export function isPolicyReference(value: unknown): value is PolicyReference {
 export function subnetMatcherExpression(matcher: SurgeSubnetMatcher) {
   const prefix = matcher.kind === 'network-type' ? 'TYPE' : matcher.kind.toUpperCase()
   return `${prefix}:${matcher.value}`
+}
+
+/**
+ * Surge documents MCCMNC as MCC (3 digits) followed by MNC (2 or 3 digits).
+ * Keep this strict so malformed carrier selectors cannot silently compile to
+ * a different network condition.
+ */
+export function isValidSurgeMccmnc(value: string) {
+  return /^\d{5,6}$/.test(value)
 }
 
 export function targetNativeStrategyConfigToIR(

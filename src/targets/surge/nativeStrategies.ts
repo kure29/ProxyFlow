@@ -1,6 +1,6 @@
 import type { ProxyFlowIR, ProxyEndpointIR } from '../../core/ir'
 import {
-  isPolicyReference, isTargetNativeStrategyConfig, subnetMatcherExpression,
+  isPolicyReference, isTargetNativeStrategyConfig, isValidSurgeMccmnc, subnetMatcherExpression,
   type PolicyReference, type TargetNativeStrategyIR,
 } from '../../core/targetNative'
 import type { CompatibilityIssue } from '../../types/project'
@@ -59,9 +59,11 @@ export function validateSurgeNativeStrategies(
         ))
         else issues.push(...checkSurgeProxy(endpoint, strategy.id))
       }
+      validateSmartParameters(strategy, issues)
     } else {
       if (!isPolicyReference(strategy.defaultPolicy)) issues.push(surgeIssue(
-        'SURGE_SUBNET_DEFAULT_REQUIRED', 'error', 'strategy', `Subnet strategy “${strategy.name}” requires an explicit default policy.`, strategy.id,
+        isUnsupportedBuiltinReference(strategy.defaultPolicy) ? 'SURGE_SUBNET_BUILTIN_UNSUPPORTED' : 'SURGE_SUBNET_DEFAULT_REQUIRED',
+        'error', 'strategy', `Subnet strategy “${strategy.name}” requires a supported default policy reference.`, strategy.id,
       ))
       else validatePolicyReference(strategy.defaultPolicy, strategy, endpointById, strategyIds, nativeIds, issues, 'default')
       const seenMatchers = new Set<string>()
@@ -79,7 +81,8 @@ export function validateSurgeNativeStrategies(
         seenMatchers.add(expression)
         if (!isPolicyReference(condition.policy)) {
           issues.push(surgeIssue(
-            'SURGE_SUBNET_POLICY_INVALID', 'error', 'strategy', `Subnet strategy “${strategy.name}” condition ${index + 1} has no valid policy target.`, strategy.id,
+            isUnsupportedBuiltinReference(condition.policy) ? 'SURGE_SUBNET_BUILTIN_UNSUPPORTED' : 'SURGE_SUBNET_POLICY_INVALID',
+            'error', 'strategy', `Subnet strategy “${strategy.name}” condition ${index + 1} has no valid policy target.`, strategy.id,
           ))
           return
         }
@@ -171,14 +174,18 @@ export function compileSurgeNativeStrategies(
   nativeStrategies: readonly TargetNativeStrategyIR[],
   context: SurgeCompileContext,
 ) {
-  for (const strategy of nativeStrategies) {
-    if (!strategy || typeof strategy.id !== 'string' || typeof strategy.name !== 'string' || !isTargetNativeStrategyConfig(strategy)) continue
+  const validStrategies = nativeStrategies.filter((strategy): strategy is TargetNativeStrategyIR => Boolean(
+    strategy && typeof strategy.id === 'string' && typeof strategy.name === 'string' && isTargetNativeStrategyConfig(strategy),
+  )).sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+  // Register every native name before compiling any entry so references are
+  // independent of the physical node/array order in the Project graph.
+  for (const strategy of validStrategies) context.strategyNames.set(strategy.id, strategy.name)
+  for (const strategy of validStrategies) {
     const entry = strategy.kind === 'smart'
       ? compileSmart(strategy, context)
       : compileSubnet(strategy, context)
     if (!entry) continue
     context.proxyGroups.push(entry)
-    context.strategyNames.set(strategy.id, strategy.name)
     context.compiledStrategyIds.add(strategy.id)
   }
 }
@@ -189,20 +196,25 @@ function compileSmart(strategy: Extract<TargetNativeStrategyIR, { kind: 'smart' 
     return endpoint && !isUnmodeledProxy(endpoint) ? [registerSurgeProxy(endpoint, context)] : []
   })
   if (members.length === 0) return undefined
-  return { name: strategy.name, type: 'smart', arguments: members }
+  return {
+    name: strategy.name,
+    type: 'smart',
+    arguments: members,
+    ...(strategy.policyPriority?.length ? { policyPriority: strategy.policyPriority.map(({ pattern, factor }) => ({ pattern, factor })) } : {}),
+    ...(strategy.evaluateBeforeUse === undefined ? {} : { evaluateBeforeUse: strategy.evaluateBeforeUse }),
+  }
 }
 
 function compileSubnet(strategy: Extract<TargetNativeStrategyIR, { kind: 'subnet' }>, context: SurgeCompileContext): SurgeSubnetPolicyEntry | undefined {
   const defaultPolicy = compilePolicyReference(strategy.defaultPolicy, context)
   if (!defaultPolicy) return undefined
-  const argumentsList: string[] = []
+  const conditions: SurgeSubnetPolicyEntry['conditions'] = []
   for (const condition of strategy.conditions) {
     const policy = compilePolicyReference(condition.policy, context)
     if (!policy) continue
-    argumentsList.push(subnetMatcherExpression(condition.matcher), policy)
+    conditions.push({ expression: subnetMatcherExpression(condition.matcher), policy })
   }
-  argumentsList.push('default', defaultPolicy)
-  return { name: strategy.name, type: 'subnet', arguments: argumentsList }
+  return { name: strategy.name, type: 'subnet', arguments: [], defaultPolicy, conditions }
 }
 
 function compilePolicyReference(reference: PolicyReference, context: SurgeCompileContext) {
@@ -225,6 +237,69 @@ function isSurgeMatcher(value: unknown): value is Extract<TargetNativeStrategyIR
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
   if (typeof candidate.value !== 'string' || !candidate.value.trim() || /[\r\n\u0000-\u001f\u007f]/.test(candidate.value)) return false
-  if (candidate.kind === 'ssid' || candidate.kind === 'bssid' || candidate.kind === 'router') return true
+  if (candidate.kind === 'ssid') return true
+  if (candidate.kind === 'bssid') return isValidBssid(candidate.value)
+  if (candidate.kind === 'router') return isValidRouter(candidate.value)
+  if (candidate.kind === 'mccmnc') return isValidSurgeMccmnc(candidate.value)
   return candidate.kind === 'network-type' && ['WIFI', 'WIRED', 'CELLULAR'].includes(candidate.value)
+}
+
+function isValidBssid(value: string) {
+  return /^(?:[0-9a-f?*]{1,2}:){5}[0-9a-f?*]{1,2}$/i.test(value)
+}
+
+function isValidRouter(value: string) {
+  const octets = value.split('.')
+  if (octets.length === 4 && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/.test(octet) && Number(octet) <= 255)) return true
+  const groups = value.split(':')
+  return value.includes(':')
+    && (value.includes('::') ? groups.length <= 8 : groups.length === 8)
+    && groups.every((group) => group.length <= 4 && /^[0-9a-f]*$/i.test(group))
+    && (value.includes('::') || groups.filter(Boolean).length === 8)
+}
+
+function isUnsupportedBuiltinReference(value: unknown) {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return candidate.kind === 'builtin'
+    && typeof candidate.id === 'string'
+    && candidate.id !== 'DIRECT'
+    && candidate.id !== 'REJECT'
+}
+
+function validateSmartParameters(
+  strategy: Extract<TargetNativeStrategyIR, { kind: 'smart' }>,
+  issues: CompatibilityIssue[],
+) {
+  if (strategy.evaluateBeforeUse !== undefined && typeof strategy.evaluateBeforeUse !== 'boolean') issues.push(surgeIssue(
+    'SURGE_SMART_EVALUATE_BEFORE_USE_INVALID', 'error', 'strategy',
+    `Smart strategy “${strategy.name}” has an invalid evaluate-before-use value.`, strategy.id,
+  ))
+  if (strategy.policyPriority === undefined) return
+  if (!Array.isArray(strategy.policyPriority) || strategy.policyPriority.length === 0) {
+    issues.push(surgeIssue(
+      'SURGE_SMART_POLICY_PRIORITY_INVALID', 'error', 'strategy',
+      `Smart strategy “${strategy.name}” policy-priority must contain at least one regex factor rule.`, strategy.id,
+    ))
+    return
+  }
+  for (const [index, rule] of strategy.policyPriority.entries()) {
+    if (!rule || typeof rule.pattern !== 'string' || !rule.pattern.trim() || /[\r\n\u0000-\u001f\u007f]/.test(rule.pattern)) {
+      issues.push(surgeIssue(
+        'SURGE_SMART_POLICY_PRIORITY_INVALID', 'error', 'strategy',
+        `Smart strategy “${strategy.name}” policy-priority rule ${index + 1} has an invalid regex pattern.`, strategy.id,
+      ))
+      continue
+    }
+    try { new RegExp(rule.pattern) } catch {
+      issues.push(surgeIssue(
+        'SURGE_SMART_POLICY_PRIORITY_INVALID', 'error', 'strategy',
+        `Smart strategy “${strategy.name}” policy-priority rule ${index + 1} has an invalid regex pattern.`, strategy.id,
+      ))
+    }
+    if (typeof rule.factor !== 'number' || !Number.isFinite(rule.factor) || rule.factor <= 0) issues.push(surgeIssue(
+      'SURGE_SMART_POLICY_PRIORITY_INVALID', 'error', 'strategy',
+      `Smart strategy “${strategy.name}” policy-priority rule ${index + 1} must use a positive finite factor.`, strategy.id,
+    ))
+  }
 }

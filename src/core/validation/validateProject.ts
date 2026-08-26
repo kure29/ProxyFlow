@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeStrategyConfig } from '../targetNative'
+import { isPolicyReference, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -62,10 +62,26 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     if (node.data.blockType === 'target-native-strategy') {
       const native = node.data.targetNativeStrategy
       if (!isTargetNativeStrategyConfig(native)) add('TARGET_NATIVE_STRATEGY_INVALID', 'This target-native strategy has invalid typed configuration.', 'error')
-      else if (native.kind === 'smart' && native.members.some((member) => !isPolicyReference(member) || member.kind !== 'proxy')) add('SURGE_SMART_MEMBER_UNSUPPORTED', 'Surge Smart accepts proxy endpoints only.', 'error')
+      else if (native.kind === 'smart') {
+        if (native.members.some((member) => !isPolicyReference(member) || member.kind !== 'proxy')) add('SURGE_SMART_MEMBER_UNSUPPORTED', 'Surge Smart accepts proxy endpoints only.', 'error')
+        if (native.evaluateBeforeUse !== undefined && typeof native.evaluateBeforeUse !== 'boolean') add('SURGE_SMART_EVALUATE_BEFORE_USE_INVALID', 'Smart evaluate-before-use must be a boolean.', 'error')
+        if (native.policyPriority !== undefined) {
+          if (!Array.isArray(native.policyPriority) || native.policyPriority.length === 0) add('SURGE_SMART_POLICY_PRIORITY_INVALID', 'Smart policy-priority must contain at least one rule.', 'error')
+          else native.policyPriority.forEach((rule) => {
+            let validPattern = Boolean(rule && typeof rule.pattern === 'string' && rule.pattern.trim())
+            if (validPattern) {
+              try { new RegExp(rule.pattern) } catch { validPattern = false }
+            }
+            if (!validPattern || typeof rule?.factor !== 'number' || !Number.isFinite(rule.factor) || rule.factor <= 0) add('SURGE_SMART_POLICY_PRIORITY_INVALID', 'Smart policy-priority rules require valid regex patterns and positive factors.', 'error')
+          })
+        }
+      }
       else if (native.kind === 'subnet') {
         if (!isPolicyReference(native.defaultPolicy)) add('SURGE_SUBNET_DEFAULT_REQUIRED', 'Surge Subnet requires an explicit default policy.', 'error')
-        if (native.conditions.some((condition) => !condition?.matcher || typeof condition.matcher.value !== 'string' || !condition.matcher.value.trim())) add('SURGE_SUBNET_MATCHER_INVALID', 'Every Subnet condition requires a matcher value.', 'error')
+        if (native.conditions.some((condition) => {
+          if (!condition?.matcher || typeof condition.matcher.value !== 'string' || !condition.matcher.value.trim()) return true
+          return condition.matcher.kind === 'mccmnc' && !isValidSurgeMccmnc(condition.matcher.value)
+        })) add('SURGE_SUBNET_MATCHER_INVALID', 'Every Subnet condition requires a valid matcher value.', 'error')
       }
     }
   }

@@ -612,7 +612,7 @@ function TargetNativeStrategyInspector({ node }: InspectorProps) {
   const matcherType = (matcher: SurgeSubnetMatcher) => matcher.kind === 'network-type' ? `type:${matcher.value}` : matcher.kind
   const parseMatcher = (value: string): SurgeSubnetMatcher => value.startsWith('type:')
     ? { kind: 'network-type', value: value.slice(5) as 'WIFI' | 'WIRED' | 'CELLULAR' }
-    : { kind: value as 'ssid' | 'bssid' | 'router', value: '' }
+    : { kind: value as 'ssid' | 'bssid' | 'router' | 'mccmnc', value: '' }
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     <div className="strategy-kind-card"><span>{t('inspector.targetNative')}</span><strong>{native.kind === 'smart' ? t('inspector.targetNativeSmart') : t('inspector.targetNativeSubnet')}</strong><b className="target-native-badge">{t('inspector.targetNativeBadge')}</b></div>
@@ -624,6 +624,16 @@ function TargetNativeStrategyInspector({ node }: InspectorProps) {
         const checked = native.members.some((member) => member.id === proxy.id)
         return <label className="native-member-option" key={proxy.id}><input type="checkbox" checked={checked} onChange={() => setNative({ ...native, members: checked ? native.members.filter((member) => member.id !== proxy.id) : [...native.members, { kind: 'proxy', id: proxy.id }] })} /><span>{proxy.name}</span></label>
       }) : <small>{t('inspector.noProxyMembers')}</small>}</div>
+      <Advanced>
+        <label className="toggle-row compact"><span><strong>{t('inspector.smartEvaluateBeforeUse')}</strong><small>{t('inspector.smartEvaluateBeforeUseHint')}</small></span><input type="checkbox" checked={native.evaluateBeforeUse ?? false} onChange={(event) => setNative({ ...native, evaluateBeforeUse: event.target.checked })} /></label>
+        <div className="section-label"><span>{t('inspector.smartPolicyPriority')}</span><small>{t('inspector.smartPolicyPriorityHint')}</small></div>
+        <div className="native-priority-list">{(native.policyPriority ?? []).map((rule, index) => <div className="native-priority-row" key={`${node.id}-priority-${index}`}>
+          <input aria-label={`${t('inspector.smartPolicyPriorityPattern')} ${index + 1}`} value={rule.pattern} placeholder="Premium" onChange={(event) => setNative({ ...native, policyPriority: (native.policyPriority ?? []).map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, pattern: event.target.value } : candidate) })} />
+          <input aria-label={`${t('inspector.smartPolicyPriorityFactor')} ${index + 1}`} type="number" min="0.01" step="0.1" value={rule.factor} onChange={(event) => setNative({ ...native, policyPriority: (native.policyPriority ?? []).map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, factor: Number(event.target.value) } : candidate) })} />
+          <button type="button" className="icon-button danger" aria-label={t('inspector.removeService')} onClick={() => setNative({ ...native, policyPriority: (native.policyPriority ?? []).filter((_, candidateIndex) => candidateIndex !== index) })}><Trash2 size={13} /></button>
+        </div>)}</div>
+        <button type="button" className="dashed-button" onClick={() => setNative({ ...native, policyPriority: [...(native.policyPriority ?? []), { pattern: '', factor: 1 }] })}><Plus size={14} /> {t('inspector.smartAddPolicyPriority')}</button>
+      </Advanced>
     </>}
     {native.kind === 'subnet' && <>
       <div className="section-label"><span>{t('inspector.subnetConditions')}</span><small>{native.conditions.length}</small></div>
@@ -633,8 +643,8 @@ function TargetNativeStrategyInspector({ node }: InspectorProps) {
           const matcher = parseMatcher(value)
           const conditions = native.conditions.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, matcher } : candidate)
           setNative({ ...native, conditions })
-        }} options={[{ value: 'ssid', label: t('inspector.subnetSsid') }, { value: 'bssid', label: t('inspector.subnetBssid') }, { value: 'router', label: t('inspector.subnetRouter') }, { value: 'type:WIFI', label: t('inspector.subnetWifi') }, { value: 'type:WIRED', label: t('inspector.subnetWired') }, { value: 'type:CELLULAR', label: t('inspector.subnetCellular') }]} /></Field>
-        <Field label={t('inspector.subnetConditionValue')} hint={condition.matcher.kind === 'network-type' ? 'TYPE' : undefined}><input value={condition.matcher.value} disabled={condition.matcher.kind === 'network-type'} placeholder={condition.matcher.kind === 'ssid' ? 'Home-WiFi' : undefined} onChange={(event) => setNative({ ...native, conditions: native.conditions.map((candidate, candidateIndex) => {
+        }} options={[{ value: 'ssid', label: t('inspector.subnetSsid') }, { value: 'bssid', label: t('inspector.subnetBssid') }, { value: 'router', label: t('inspector.subnetRouter') }, { value: 'mccmnc', label: t('inspector.subnetMccmnc') }, { value: 'type:WIFI', label: t('inspector.subnetWifi') }, { value: 'type:WIRED', label: t('inspector.subnetWired') }, { value: 'type:CELLULAR', label: t('inspector.subnetCellular') }]} /></Field>
+        <Field label={t('inspector.subnetConditionValue')} hint={condition.matcher.kind === 'network-type' ? 'TYPE' : condition.matcher.kind === 'mccmnc' ? 'MCC+MNC · 5–6 digits' : undefined}><input value={condition.matcher.value} disabled={condition.matcher.kind === 'network-type'} placeholder={condition.matcher.kind === 'ssid' ? 'Home-WiFi' : condition.matcher.kind === 'mccmnc' ? '310260' : undefined} onChange={(event) => setNative({ ...native, conditions: native.conditions.map((candidate, candidateIndex) => {
           if (candidateIndex !== index || candidate.matcher.kind === 'network-type') return candidate
           return { ...candidate, matcher: { kind: candidate.matcher.kind, value: event.target.value } }
         }) })} /></Field>

@@ -43,8 +43,20 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     officialReference: docs.groups,
   },
   {
+    feature: 'Smart policy-priority', status: 'supported', reason: 'Typed positive regex/factor rules preserve Surge first-match scoring multipliers.',
+    officialReference: 'https://manual.nssurge.com/policy-groups/smart.html',
+  },
+  {
+    feature: 'Smart evaluate-before-use', status: 'supported', reason: 'Typed optional boolean preserves Surge first-use evaluation behavior (default false).',
+    officialReference: docs.urlTest,
+  },
+  {
     feature: 'Target-native Subnet', status: 'supported', reason: 'Surge Subnet is emitted as a typed target-native policy group with ordered network conditions and an explicit default.',
     officialReference: docs.groups,
+  },
+  {
+    feature: 'Subnet MCCMNC matcher', status: 'supported', reason: 'MCC+MNC is validated as a five/six-digit carrier code and emitted with the modern MCCMNC: prefix.',
+    officialReference: 'https://manual.nssurge.com/rules/protocol-and-network.html',
   },
   {
     feature: 'URL Test', status: 'conditional', reason: 'Explicit members, interval validity, tolerance, and the strict shared global test-URL subset are supported.',

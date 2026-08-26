@@ -46,7 +46,7 @@ describe('Surge target-native Smart and Subnet strategies', () => {
     const result = compileSurge(ir(), { now: () => new Date(0), nativeStrategies: natives(), nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute })
     expect(result.success).toBe(true)
     expect(result.content).toContain('Hong Kong Smart = smart, HK-01, HK-02, HK-03')
-    expect(result.content).toContain('Hong Kong = subnet, SSID:Home-WiFi, DIRECT, TYPE:CELLULAR, Hong Kong Smart, default, Hong Kong Smart')
+    expect(result.content).toContain('Hong Kong = subnet, default = Hong Kong Smart, SSID:Home-WiFi = DIRECT, TYPE:CELLULAR = Hong Kong Smart')
   })
 
   it.each(['mihomo', 'loon', 'shadowrocket'] as const)('fails closed when Surge-native semantics are sent to %s', (target) => {
@@ -65,6 +65,13 @@ describe('Surge target-native Smart and Subnet strategies', () => {
     const result = compileSurge(ir(), { nativeStrategies: malformed })
     expect(result.success).toBe(false)
     expect(result.issues.filter((issue) => issue.code === 'SURGE_SMART_MEMBER_UNSUPPORTED')).toHaveLength(2)
+  })
+
+  it('rejects an empty Smart member list', () => {
+    const smart = natives().find((strategy) => strategy.kind === 'smart')!
+    const result = compileSurge(ir(), { nativeStrategies: [{ ...smart, members: [] }] })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SMART_MEMBERS_EMPTY', severity: 'error' })]))
   })
 
   it('rejects a Subnet without an explicit default or with an empty matcher value', () => {
@@ -88,6 +95,16 @@ describe('Surge target-native Smart and Subnet strategies', () => {
     expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SUBNET_MATCHER_INVALID', severity: 'error' })]))
   })
 
+  it.each([
+    { kind: 'bssid' as const, value: 'AA:BB:CC:DD:EE' },
+    { kind: 'router' as const, value: '999.1.1.1' },
+  ])('rejects malformed %s matcher values', (matcher) => {
+    const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
+    const result = compileSurge(ir(), { nativeStrategies: [{ ...subnet, conditions: [{ matcher, policy: { kind: 'builtin', id: 'DIRECT' } }] }] })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SUBNET_MATCHER_INVALID', severity: 'error' })]))
+  })
+
   it('lowers every supported Subnet matcher without changing condition order', () => {
     const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
     const allMatchers = [
@@ -97,12 +114,84 @@ describe('Surge target-native Smart and Subnet strategies', () => {
       { kind: 'network-type', value: 'WIFI' },
       { kind: 'network-type', value: 'WIRED' },
       { kind: 'network-type', value: 'CELLULAR' },
+      { kind: 'mccmnc', value: '310260' },
     ] as const
     const malformed = [natives().find((strategy) => strategy.kind === 'smart')!, { ...subnet, conditions: allMatchers.map((matcher) => ({ matcher, policy: { kind: 'builtin' as const, id: 'DIRECT' as const } })) }]
     const graph = compileGraph(surgeNativeAcceptanceProject, { validationTarget: 'surge' })
     const result = compileSurge(ir(), { nativeStrategies: malformed, nativeFinalRoute: graph.nativeFinalRoute })
     expect(result.success).toBe(true)
-    expect(result.content).toContain('Hong Kong = subnet, SSID:Home-WiFi, DIRECT, BSSID:AA:BB:CC:DD:EE:FF, DIRECT, ROUTER:192.168.1.1, DIRECT, TYPE:WIFI, DIRECT, TYPE:WIRED, DIRECT, TYPE:CELLULAR, DIRECT, default, Hong Kong Smart')
+    expect(result.content).toContain('Hong Kong = subnet, default = Hong Kong Smart, SSID:Home-WiFi = DIRECT, BSSID:AA:BB:CC:DD:EE:FF = DIRECT, ROUTER:192.168.1.1 = DIRECT, TYPE:WIFI = DIRECT, TYPE:WIRED = DIRECT, TYPE:CELLULAR = DIRECT, MCCMNC:310260 = DIRECT')
+  })
+
+  it('compiles native references independent of array order', () => {
+    const graph = compileGraph(surgeNativeAcceptanceProject, { validationTarget: 'surge' })
+    const compile = (nativeStrategies: TargetNativeStrategyIR[]) => compileSurge(ir(), { now: () => new Date(0), nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute })
+    const smartFirst = compile(natives())
+    const subnetFirst = compile([...natives()].reverse())
+    expect(smartFirst.success).toBe(true)
+    expect(subnetFirst.success).toBe(true)
+    expect(subnetFirst.content).toBe(smartFirst.content)
+  })
+
+  it('serializes Smart policy-priority and evaluate-before-use from typed fields', () => {
+    const smart = natives().find((strategy) => strategy.kind === 'smart')!
+    const graph = compileGraph(surgeNativeAcceptanceProject, { validationTarget: 'surge' })
+    const result = compileSurge(ir(), {
+      nativeStrategies: [{ ...smart, policyPriority: [{ pattern: 'Premium', factor: 0.9 }, { pattern: 'Backup', factor: 1.3 }], evaluateBeforeUse: true }, natives().find((strategy) => strategy.kind === 'subnet')!],
+      nativeRoutes: graph.nativeRoutes,
+      nativeFinalRoute: graph.nativeFinalRoute,
+    })
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('Hong Kong Smart = smart, HK-01, HK-02, HK-03, policy-priority="Premium:0.9;Backup:1.3", evaluate-before-use=true')
+  })
+
+  it.each([
+    { pattern: 'Premium', factor: 0 },
+    { pattern: '[', factor: 1 },
+    { pattern: 'Premium\nInjected', factor: 1 },
+  ])('rejects malformed Smart policy-priority rules (%j)', (rule) => {
+    const smart = natives().find((strategy) => strategy.kind === 'smart')!
+    const result = compileSurge(ir(), { nativeStrategies: [{ ...smart, policyPriority: [rule] }] })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SMART_POLICY_PRIORITY_INVALID', severity: 'error' })]))
+  })
+
+  it.each(['1234', '1234567', '31A260', ''])('rejects malformed MCCMNC matcher values (%s)', (value) => {
+    const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
+    const result = compileSurge(ir(), { nativeStrategies: [...natives().filter((strategy) => strategy.kind !== 'subnet'), { ...subnet, conditions: [{ matcher: { kind: 'mccmnc', value }, policy: { kind: 'builtin', id: 'DIRECT' } }] }] })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SUBNET_MATCHER_INVALID', severity: 'error' })]))
+  })
+
+  it.each(['31026', '310260'])('accepts official five- or six-digit MCCMNC matcher values (%s)', (value) => {
+    const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
+    const graph = compileGraph(surgeNativeAcceptanceProject, { validationTarget: 'surge' })
+    const result = compileSurge(ir(), { nativeStrategies: [...natives().filter((strategy) => strategy.kind !== 'subnet'), { ...subnet, conditions: [{ matcher: { kind: 'mccmnc', value }, policy: { kind: 'builtin', id: 'DIRECT' } }] }], nativeFinalRoute: graph.nativeFinalRoute })
+    expect(result.success).toBe(true)
+    expect(result.content).toContain(`MCCMNC:${value} = DIRECT`)
+  })
+
+  it('supports every allowed Subnet policy reference type', () => {
+    const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
+    const references = [
+      { reference: { kind: 'proxy', id: 'HK-01' } as const, expected: 'HK-01' },
+      { reference: { kind: 'strategy', id: 'hk-smart' } as const, expected: 'Hong Kong Smart' },
+      { reference: { kind: 'builtin', id: 'DIRECT' } as const, expected: 'DIRECT' },
+      { reference: { kind: 'builtin', id: 'REJECT' } as const, expected: 'REJECT' },
+    ]
+    const graph = compileGraph(surgeNativeAcceptanceProject, { validationTarget: 'surge' })
+    for (const { reference, expected } of references) {
+      const result = compileSurge(ir(), { nativeStrategies: [...natives().filter((strategy) => strategy.kind !== 'subnet'), { ...subnet, defaultPolicy: reference }], nativeFinalRoute: graph.nativeFinalRoute })
+      expect(result.success).toBe(true)
+      expect(result.content).toContain(`default = ${expected}`)
+    }
+  })
+
+  it('rejects Surge built-ins outside the intentionally supported DIRECT/REJECT set', () => {
+    const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
+    const result = compileSurge(ir(), { nativeStrategies: [...natives().filter((strategy) => strategy.kind !== 'subnet'), { ...subnet, defaultPolicy: { kind: 'builtin', id: 'CELLULAR' } as never }] })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SUBNET_BUILTIN_UNSUPPORTED', severity: 'error' })]))
   })
 
   it('rejects cycles between native Subnet strategy references', () => {
