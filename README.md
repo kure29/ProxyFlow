@@ -27,13 +27,6 @@ The workflow is visual, capability-driven, and fail-closed. When a target
 cannot represent an intent safely—or the behavior is not proven—ProxyFlow
 surfaces a diagnostic instead of silently changing the meaning.
 
-## Product preview
-
-The core experience is a single Project that can be inspected, edited, and
-exported for different clients. No product screenshots are bundled yet; this
-section is intentionally kept ready for future repository-native captures
-without using fabricated or third-party imagery.
-
 ## Highlights
 
 - **Subscription sources** — URL, pasted content, or local files.
@@ -52,7 +45,7 @@ without using fabricated or third-party imagery.
 | **Mihomo** | Supported; default product target |
 | **Surge** | Supported |
 | **Loon** | Supported |
-| **Shadowrocket** | Evidence-bounded Supported for the tested subset |
+| **Shadowrocket** | Evidence-bounded supported for the tested subset |
 | **sing-box** | Registered; official product export paused and hidden |
 
 Shadowrocket acceptance is pinned to the **tested client baseline: Shadowrocket

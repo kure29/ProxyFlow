@@ -26,12 +26,6 @@ ProxyFlow 是一个 **Universal Proxy Visual Builder（通用代理可视化构�
 整个流程以可视化、能力驱动和失败闭合为核心。当目标客户端无法安全表达某项意图，
 或该行为尚未被证明时，ProxyFlow 会显示诊断，而不是静默改变语义。
 
-## 产品预览
-
-核心体验是围绕同一个 Project 进行查看、编辑和多目标导出。目前仓库还没有合适的
-产品截图，因此不会放入虚构或第三方图片；本节保留了清晰的位置，未来可以直接加入
-仓库内制作的产品截图。
-
 ## 主要能力
 
 - **订阅输入** — URL、粘贴内容或本地文件。
@@ -47,10 +41,10 @@ ProxyFlow 是一个 **Universal Proxy Visual Builder（通用代理可视化构�
 
 | 目标 | 当前状态 |
 | --- | --- |
-| **Mihomo** | Supported；默认产品目标 |
-| **Surge** | Supported |
-| **Loon** | Supported |
-| **Shadowrocket** | Evidence-bounded Supported；仅限已验证子集 |
+| **Mihomo** | 支持；默认产品目标 |
+| **Surge** | 支持 |
+| **Loon** | 支持 |
+| **Shadowrocket** | 证据边界内支持；仅限已验证子集 |
 | **sing-box** | 已注册；正式产品导出暂停且隐藏 |
 
 Shadowrocket 的验收固定在**已验证客户端基线：Shadowrocket 2.2.65 build 2615**。
