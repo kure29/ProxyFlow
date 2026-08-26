@@ -24,7 +24,7 @@ describe('Project target compile selection', () => {
     expect(resolveMihomoProfileOutput(project.graph.nodes, 'second-output')?.id).toBe('first-output')
   })
 
-  it('reports supported product targets while replacing historical sing-box noise with one paused state', () => {
+  it('reports supported product targets while keeping sing-box paused and hidden', () => {
     const graphResult = compileGraph(createBlankProject('mihomo'))
     expect(graphResult.success).toBe(true)
     const result = (target: 'mihomo' | 'sing-box' | 'loon', success: boolean): CompileResult => ({
@@ -58,7 +58,7 @@ describe('Project target compile selection', () => {
     expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false, shadowrocket: false })
     expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: true, loon: false, shadowrocket: false })
     expect(resolveProjectCompileSelection('loon')).toEqual({ activeProductTarget: 'loon', mihomo: false, surge: false, singBox: false, loon: true, shadowrocket: false })
-    expect(resolveProjectCompileSelection('shadowrocket')).toEqual({ activeProductTarget: 'mihomo', mihomo: false, surge: false, singBox: false, loon: false, shadowrocket: true })
+    expect(resolveProjectCompileSelection('shadowrocket')).toEqual({ activeProductTarget: 'shadowrocket', mihomo: false, surge: false, singBox: false, loon: false, shadowrocket: true })
   })
 
   it('synthesizes a blocker when the active compiler is unavailable without a result', () => {
@@ -101,7 +101,7 @@ describe('Project target compile selection', () => {
     ]))
   })
 
-  it('keeps paused Shadowrocket diagnostics visible alongside the paused gate', () => {
+  it('keeps Shadowrocket compatibility diagnostics visible for the exposed target', () => {
     const graphResult = compileGraph(createBlankProject('shadowrocket'), { validationTarget: 'shadowrocket' })
     const compiles: ProjectCompiles = {
       graphResult,
@@ -113,7 +113,6 @@ describe('Project target compile selection', () => {
     }
     expect(summarizePrimaryTargetHealth(compiles, 'shadowrocket')).toEqual(expect.objectContaining({ status: 'blocked', diagnostics: expect.arrayContaining([
       expect.objectContaining({ code: 'SHADOWROCKET_PROXY_CHAIN_UNPROVEN' }),
-      expect.objectContaining({ code: 'SHADOWROCKET_PRODUCT_SUPPORT_PAUSED' }),
     ]) }))
   })
 })

@@ -12,6 +12,15 @@ import { createBlankProject } from '../data/newProject'
 import { legacyChinaServiceDefinition } from '../data/legacyServices'
 import { appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver } from '../core/dns/resolverProfiles'
 
+function semanticNodes(nodes: ReturnType<typeof useBuilderStore.getState>['nodes']) {
+  return nodes.map((node) => {
+    const data = { ...node.data }
+    if (data.titleKey) data.title = data.titleKey
+    if (data.subtitleKey) data.subtitle = data.subtitleKey
+    return { ...node, data }
+  })
+}
+
 describe('builder store', () => {
   beforeEach(() => {
     useBuilderStore.getState().hydrate(structuredClone(demoProject))
@@ -517,17 +526,62 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().toProject().version).toBe(project.version)
   })
 
-  it('hydrates a paused Shadowrocket project without losing target identity or history safety', () => {
+  it('hydrates an exposed Shadowrocket project without losing target identity or history safety', () => {
     const project = createBlankProject('shadowrocket')
     const graph = structuredClone(project.graph)
     useBuilderStore.getState().hydrate(JSON.parse(JSON.stringify(project)))
     expect(useBuilderStore.getState().primaryTarget).toBe('shadowrocket')
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('shadowrocket')
-    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.compatibility).toBe('Paused')
+    expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.compatibility).toBe('Supported')
     expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graph)
     useBuilderStore.getState().setPrimaryTarget('mihomo')
     useBuilderStore.getState().undo()
     expect(useBuilderStore.getState().primaryTarget).toBe('shadowrocket')
+  })
+
+  it.each([
+    ['mihomo', 'shadowrocket'], ['surge', 'shadowrocket'], ['loon', 'shadowrocket'],
+    ['shadowrocket', 'mihomo'], ['shadowrocket', 'surge'], ['shadowrocket', 'loon'],
+  ] as const)('preserves graph state across %s → %s exposure transitions', (from, to) => {
+    const project = createBlankProject(from)
+    project.graph.nodes.push({
+      id: 'exposure-source', type: 'block', position: { x: 80, y: 240 },
+      data: {
+        blockType: 'subscription', category: 'source', title: 'Materialized source', subtitle: 'local snapshot', icon: 'radio',
+        subscriptionInputKind: 'paste', subscriptionContent: 'ss://materialized.example.invalid:8388', enabled: true,
+      },
+    })
+    project.graph.nodes.push({
+      id: 'exposure-rule', type: 'block', position: { x: 240, y: 240 },
+      data: {
+        blockType: 'custom-rule', category: 'routing', title: 'Controlled domain', subtitle: 'DOMAIN-SUFFIX', icon: 'route',
+        routeMatcherKind: 'domain-suffix', routeMatcherValue: 'controlled.example', targetKind: 'direct', targetId: 'DIRECT', targetLabel: 'DIRECT',
+      },
+    })
+    project.graph.nodes.push({
+      id: 'exposure-dns', type: 'block', position: { x: 240, y: 360 },
+      data: {
+        blockType: 'dns', category: 'dns', title: 'DNS', subtitle: 'system', icon: 'globe-2',
+        dnsResolvers: [{ id: 'system', name: 'System', kind: 'system', role: 'default', enabled: true }],
+      },
+    })
+    const before = structuredClone(project.graph)
+    useBuilderStore.getState().hydrate(project)
+    useBuilderStore.getState().setPrimaryTarget(to)
+    const state = useBuilderStore.getState()
+    expect(state.primaryTarget).toBe(to)
+    expect(semanticNodes(state.nodes.filter((node) => node.data.blockType !== 'output'))).toEqual(semanticNodes(before.nodes.filter((node) => node.data.blockType !== 'output')))
+    expect(state.edges).toEqual(before.edges)
+    expect(new Set(state.nodes.map((node) => node.id)).size).toBe(state.nodes.length)
+    expect(state.nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe(to)
+
+    const hydrated = JSON.parse(JSON.stringify(state.toProject()))
+    useBuilderStore.getState().hydrate(hydrated)
+    expect(useBuilderStore.getState().primaryTarget).toBe(to)
+    expect(semanticNodes(useBuilderStore.getState().nodes.filter((node) => node.data.blockType !== 'output'))).toEqual(semanticNodes(before.nodes.filter((node) => node.data.blockType !== 'output')))
+    useBuilderStore.getState().setPrimaryTarget(from)
+    expect(useBuilderStore.getState().primaryTarget).toBe(from)
+    expect(new Set(useBuilderStore.getState().nodes.map((node) => node.id)).size).toBe(useBuilderStore.getState().nodes.length)
   })
 
   it.each(['surge', 'sing-box'] as const)('preserves %s ↔ Loon internal target transitions with history', (start) => {

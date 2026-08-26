@@ -181,7 +181,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
                 <label className="toggle-row compact"><span><strong>{t('inspector.mihomoTcpConcurrent')}</strong><small>{t('inspector.mihomoTcpConcurrentHint')}</small></span><input type="checkbox" checked={mihomoProfile.tcpConcurrent} onChange={(event) => setMihomoProfile({ tcpConcurrent: event.target.checked })} /></label>
               </div></details>
             </div>
-            : <div className="export-target-default"><ShieldCheck size={22} /><div><strong>{t('workspace.export.noTargetSettings')}</strong><p>{activeTarget === 'surge' ? t('workspace.export.surgeDefault') : activeTarget === 'loon' ? t('workspace.export.loonDefault') : t('workspace.export.singBoxDefault')}</p><small>{t('workspace.export.minimumVersion', { version: getTargetCapabilities(activeTarget).baselineVersion })}</small></div></div>}
+            : <div className="export-target-default"><ShieldCheck size={22} /><div><strong>{t('workspace.export.noTargetSettings')}</strong><p>{activeTarget === 'surge' ? t('workspace.export.surgeDefault') : activeTarget === 'loon' ? t('workspace.export.loonDefault') : activeTarget === 'shadowrocket' ? t('workspace.export.shadowrocketDefault') : t('workspace.export.singBoxDefault')}</p><small>{t(activeTarget === 'shadowrocket' ? 'workspace.export.testedClientBaseline' : 'workspace.export.minimumVersion', { version: getTargetCapabilities(activeTarget).baselineVersion })}</small></div></div>}
         </section>
       </div>
 
@@ -240,7 +240,7 @@ function TargetStatus({ target, state, active, graphIssues }: { target: PrimaryT
         ? t('workspace.targetAvailable')
         : t('workspace.targetBlockers', { count: status.errorCount || 1 })
   return <div className="workspace-target-status">
-    <span><strong>{capabilities.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small>{target === 'surge' && <small>{t('newProject.targetDescription.surge')}</small>}</span>
+    <span><strong>{capabilities.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small>{target === 'surge' && <small>{t('newProject.targetDescription.surge')}</small>}{target === 'shadowrocket' && <small>{t('newProject.targetDescription.shadowrocket')}</small>}</span>
     <b className={`is-${status.kind}`}>{status.kind === 'loading' ? <LoaderCircle className="spin" size={13} /> : status.kind === 'ready' ? <Check size={13} /> : status.kind === 'blocked' ? <AlertTriangle size={13} /> : null}{label}</b>
     {status.kind === 'available' && <small>{t('workspace.targetCheckAfterSwitching')}</small>}
     {status.kind !== 'available' && compatibleNodeCount !== undefined && <small>{t('workspace.export.nodes', { count: compatibleNodeCount })}</small>}

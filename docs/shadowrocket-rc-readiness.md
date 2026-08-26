@@ -1,12 +1,11 @@
 # Shadowrocket Release-Readiness Audit
 
-Decision: **BLOCKED BY PRODUCT GATE — target remains paused**.
+Decision: **PRODUCT EXPOSURE UNDER REVIEW — evidence-bounded target path**.
 
 The evidence-bounded compiler is engineering-ready for the exact tested subset
-listed below, but that does not authorize product exposure. No engineering
-`MUST FIX` remains for that scoped subset. Product exposure, versioning, and
-release actions remain explicitly deferred until a human makes the next gate
-decision.
+listed below. No engineering `MUST FIX` remains for that scoped subset. Versioning,
+release, publish, deployment, and merge actions remain explicitly deferred
+until a human makes the next gate decision.
 
 ## Classification matrix
 
@@ -15,14 +14,14 @@ Every readiness item is classified as `ADDRESSED`, `ACCEPTED LIMITATION`,
 
 | Readiness item | Classification | Evidence / boundary |
 | --- | --- | --- |
-| Compiler registration | ADDRESSED | Shadowrocket is registered internally, remains `productStatus: paused`, and is excluded from `PRODUCT_TARGETS`. |
-| Project lifecycle | ADDRESSED | New-project, paused target identity, persistence, hydration, target transitions, and history-safety tests cover the internal path. |
+| Compiler registration | ADDRESSED | Shadowrocket is registered in the central capability registry and exposed through `PRODUCT_TARGETS` with `productStatus: supported`; the capability matrix remains conservative. |
+| Project lifecycle | ADDRESSED | New-project, target identity, persistence, hydration, target transitions, and history-safety tests cover the exposed path. |
 | Persistence / hydration | ADDRESSED | Project storage and builder-store round-trip/race tests cover hydration, embedded data, and stale cache protection. |
 | Undo / redo | ADDRESSED | Builder-store tests cover routing edits, target switching, DNS state, and Shadowrocket target identity across undo/redo. |
-| Target switching | ADDRESSED | Target-switch tests preserve graph data and paused Shadowrocket state without product exposure. |
-| Preview | ADDRESSED | Preview target resolution and paused-warning behavior are tested; unsupported output remains blocked. |
+| Target switching | ADDRESSED | Target-switch tests preserve graph data, subscriptions, rules, DNS, and target identity across the exposed Shadowrocket path. |
+| Preview | ADDRESSED | Preview target resolution and current-result protection are tested; unsupported output remains blocked. |
 | Export | ADDRESSED | Target-specific `.conf` metadata and successful-result-only export behavior are tested. |
-| Health | ADDRESSED | Paused-target health and diagnostic presentation are tested; blocked results remain visible. |
+| Health | ADDRESSED | Target health and diagnostic presentation are tested; blocked results remain visible. |
 | Stale-result/current-result protection | ADDRESSED | Hydration/network race tests prevent late state from overwriting newer state. |
 | Diagnostics UX | ADDRESSED | Paused diagnostics, localized messaging, technical details, and fail-closed compiler errors are covered. |
 | CI | ADDRESSED | CI and container workflows run type/build/deployment, deterministic Shadowrocket acceptance, and fixture-drift checks. |
@@ -46,7 +45,7 @@ Every readiness item is classified as `ADDRESSED`, `ACCEPTED LIMITATION`,
 | DoH / DoT and richer DNS roles | ACCEPTED LIMITATION | Encrypted resolver and unproven role mappings remain unsupported and fail closed. |
 | Service Rules / rule sets | ACCEPTED LIMITATION | Format, refresh, binding, and traffic semantics are not exposed; unsupported intent fails closed. |
 | Native remote proxy sources | ACCEPTED LIMITATION | Materialized local snapshots are supported; native remote export/refresh remains unsupported. |
-| Product exposure | DEFERRED | Do not add Shadowrocket to product exposure or change `productStatus`. |
+| Product exposure | ADDRESSED / HUMAN GATE | Central selectors, New Project, target switch, Preview, Export, and Health expose only the evidence-bounded Shadowrocket adapter. This stacked PR remains Draft pending human review. |
 | Version / release / publish / deploy | DEFERRED | No version bump, tag, release, publish, deploy, or merge is authorized by this goal. |
 
 ## MUST FIX count
@@ -58,23 +57,22 @@ silent downgrades.
 ## Engineering readiness decision
 
 Shadowrocket is engineering-ready only for the exact tested subset and its
-documented fail-closed boundaries. It is **not authorized for product
-exposure**. The target must remain registered-but-paused and PR #50 must remain
-Draft.
+documented fail-closed boundaries. Product exposure is engineering-complete
+for review in this stacked Draft PR; it is not a release, merge, or universal
+compatibility claim. PR #50 remains unchanged and Draft.
 
 ## Exact remaining human decision
 
-The human must decide whether to authorize a future product-exposure review for
-the evidence-bounded subset, explicitly accepting the deferred protocols,
+The human must review this exposure PR and decide whether to continue toward a
+separate release gate, explicitly accepting the deferred protocols,
 materialized-only source model, mixed IP/GEO rejection, and IPv6 behavioral gap.
-Until that decision and any separate release review, keep Shadowrocket paused;
-do not mark PR #50 Ready or merge it.
+Do not mark either PR Ready, merge, bump version, tag, release, publish, or deploy.
 
 ## Verification snapshot
 
 On 2026-08-26, the worktree passed:
 
-- `npm test -- --run`: 111 files / 1,159 tests
+- `npm test -- --run`: 111 files / 1,165 tests
 - `npx tsc -b --pretty false`
 - `npm run build`
 - `npm run runtime:build`

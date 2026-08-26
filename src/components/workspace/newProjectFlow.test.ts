@@ -17,7 +17,7 @@ describe('client-first new project flow', () => {
     expect(sourceBlockForNewProject('empty')).toBeUndefined()
   })
 
-  it('offers Mihomo, Surge, and Loon while keeping Mihomo selected by default', () => {
+  it('offers the four public targets while keeping Mihomo selected by default', () => {
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(NewProjectDialog, {
       open: true,
       onClose: () => undefined,
@@ -25,12 +25,15 @@ describe('client-first new project flow', () => {
       onComplete: () => undefined,
     })))
     expect(html).toContain('Mihomo')
+    expect(html).toContain('Compatibility baseline v1.19.30')
     expect(html).toContain('Surge')
     expect(html).toContain('Loon')
+    expect(html).toContain('Shadowrocket')
     expect(html).toContain('Surge profile export with strict compatibility checks.')
+    expect(html).toContain('Shadowrocket .conf export for the tested 2.2.65 build 2615 subset')
     expect(html).not.toContain('sing-box')
     expect(html).not.toContain('coming soon')
-    expect((html.match(/target-choice-icon/g) ?? [])).toHaveLength(3)
+    expect((html.match(/target-choice-icon/g) ?? [])).toHaveLength(4)
     expect(html).toMatch(/is-selected[^>]*>[\s\S]*?Mihomo/)
   })
 })

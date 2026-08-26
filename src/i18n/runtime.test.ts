@@ -18,6 +18,13 @@ describe('i18n runtime', () => {
     expect(translate('zh-CN', 'compiler.targetPaused', { target: 'Shadowrocket' })).toContain('Shadowrocket 正式导出已暂停')
   })
 
+  it('labels the Shadowrocket evidence build as a tested baseline in both locales', () => {
+    expect(translate('en-US', 'workspace.export.testedClientBaseline', { version: '2.2.65 build 2615' }))
+      .toBe('Tested client baseline: 2.2.65 build 2615.')
+    expect(translate('zh-CN', 'workspace.export.testedClientBaseline', { version: '2.2.65 build 2615' }))
+      .toBe('已验证客户端基线：2.2.65 build 2615。')
+  })
+
   it('localizes keyed demo content while preserving user-authored content', () => {
     const project = structuredClone(demoProject)
     project.graph.nodes[0].data.title = 'My custom 香港 node'

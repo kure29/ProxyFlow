@@ -48,7 +48,7 @@ describe('Workspace target status', () => {
     const singBoxState: TargetCompileState = { status: 'error', result: blockedResult }
     const surgeState: TargetCompileState = { status: 'error', result: surgeBlockedResult }
     const loonState: TargetCompileState = { status: 'success', result: successResult }
-    const compiles = { mihomoState, surgeState, singBoxState, loonState } as ProjectCompiles
+    const compiles = { mihomoState, surgeState, singBoxState, loonState, shadowrocketState: { status: 'idle' } } as ProjectCompiles
 
     expect(targetStatus(stateForTarget(compiles, 'mihomo'), [], true)).toEqual(expect.objectContaining({ kind: 'ready' }))
     expect(targetStatus(stateForTarget(compiles, 'sing-box'), [], false)).toEqual(expect.objectContaining({ kind: 'available', errorCount: 0 }))
@@ -101,6 +101,7 @@ describe('Workspace target status', () => {
       surgeState: current === 'surge' ? { status: 'success', result: successResult } : { status: 'idle' },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(TargetSwitchDialog, {
       open: true, current, compiles, onClose: () => undefined, onSelect: () => undefined,
@@ -121,6 +122,7 @@ describe('Workspace target status', () => {
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'sing-box',
@@ -130,9 +132,10 @@ describe('Workspace target status', () => {
     })))
     expect(html).toContain('sing-box official export is paused')
     expect(html).not.toContain('/third-party/sing-box/icon.svg')
-    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(6)
+    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(8)
     expect(html).toContain('Surge')
     expect(html).toContain('Loon')
+    expect(html).toContain('Shadowrocket')
     expect((html.match(/loon\.png/g) ?? [])).toHaveLength(4)
   })
 
@@ -151,6 +154,7 @@ describe('Workspace target status', () => {
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
       loonState: { status: 'success', result: loonResult },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'loon', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
@@ -159,9 +163,38 @@ describe('Workspace target status', () => {
     expect(html).toContain('我的代理配置-loon.conf')
     expect(html).toContain('[General]')
     expect(html).toContain('Loon profile compiler')
+    expect(html).toContain('Minimum supported versions: 3.5.0 (975).')
     expect(html).not.toContain('我的代理配置-mihomo.yaml')
     expect(html).not.toContain('workspace-export-internal-target')
     expect((html.match(/loon\.png/g) ?? [])).toHaveLength(4)
+  })
+
+  it('exposes the evidence-bounded Shadowrocket compiler and current .conf artifact', () => {
+    const project = createBlankProject('shadowrocket')
+    project.name = 'Shadowrocket Smoke'
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const shadowrocketResult: CompileResult = {
+      ...successResult,
+      content: '[General]\ndns-server = system\n[Rule]\nFINAL,DIRECT\n',
+    }
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'shadowrocket' }),
+      mihomoState: { status: 'idle' },
+      surgeState: { status: 'idle' },
+      singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
+      shadowrocketState: { status: 'success', result: shadowrocketResult },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'shadowrocket', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+    })))
+    expect(html).not.toContain('Shadowrocket official export is paused')
+    expect(html).toContain('-shadowrocket.conf')
+    expect(html).toContain('Shadowrocket .conf export for the tested 2.2.65 build 2615 subset')
+    expect(html).toContain('Tested client baseline: 2.2.65 build 2615.')
+    expect(html).not.toContain('Minimum supported versions: 2.2.65 build 2615.')
+    expect(html).toContain('[General]')
+    expect(html).toContain('Ready to export')
   })
 
   it('keeps an incompatible Surge target selected, shows the compiler message, and disables export controls', () => {
@@ -174,6 +207,7 @@ describe('Workspace target status', () => {
       surgeState: { status: 'error', result: surgeBlockedResult },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
@@ -209,6 +243,7 @@ describe('Workspace target status', () => {
       surgeState: { status: 'success', result: surgeResult },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
@@ -217,6 +252,7 @@ describe('Workspace target status', () => {
     expect(html).toContain('我的代理配置-surge.conf')
     expect(html).toContain('[General]')
     expect(html).toContain('iOS 5.22+ / Mac 6.9+')
+    expect(html).toContain('Minimum supported versions: iOS 5.22+ / Mac 6.9+.')
     expect(html).toContain('<dt>Compatible</dt><dd>18 <span>/ 30</span></dd>')
     expect(html).toContain('<dt>Skipped</dt><dd>12</dd>')
     expect(html).toContain('<dt>Blocking</dt><dd>0</dd>')
@@ -237,6 +273,7 @@ describe('Workspace target status', () => {
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'mihomo', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,

@@ -5,15 +5,17 @@ import { proxyCompatibilityForTarget } from './proxyCompatibility'
 describe('target capability registry', () => {
   it('keeps all compiler targets registered while exposing release-ready product targets', () => {
     expect(PRIMARY_TARGETS).toEqual(['mihomo', 'surge', 'sing-box', 'loon', 'shadowrocket'])
-    expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge', 'loon'])
+    expect(PRODUCT_TARGETS).toEqual(['mihomo', 'surge', 'loon', 'shadowrocket'])
     expect(PRODUCT_TARGETS).not.toContain('sing-box')
     expect(getTargetCapabilities('mihomo').baselineVersion).toBe('v1.19.30')
     expect(getTargetCapabilities('surge').baselineVersion).toBe('iOS 5.22+ / Mac 6.9+')
     expect(getTargetCapabilities('sing-box').baselineVersion).toBe('v1.13.18')
+    expect(getTargetCapabilities('shadowrocket').baselineVersion).toBe('2.2.65 build 2615')
     expect(getTargetCapabilities('mihomo').productStatus).toBe('supported')
     expect(getTargetCapabilities('surge').productStatus).toBe('supported')
     expect(getTargetCapabilities('sing-box').productStatus).toBe('paused')
     expect(getTargetCapabilities('loon').productStatus).toBe('supported')
+    expect(getTargetCapabilities('shadowrocket').productStatus).toBe('supported')
     expect(getTargetCapabilities('loon').label).toBe('Loon')
     expect(isPrimaryTarget('loon')).toBe(true)
     expect(isPrimaryTarget('shadowrocket')).toBe(true)
@@ -21,7 +23,7 @@ describe('target capability registry', () => {
     expect(resolveActiveProductTarget('surge')).toBe('surge')
     expect(resolveActiveProductTarget('sing-box')).toBe('mihomo')
     expect(resolveActiveProductTarget('loon')).toBe('loon')
-    expect(resolveActiveProductTarget('shadowrocket')).toBe('mihomo')
+    expect(resolveActiveProductTarget('shadowrocket')).toBe('shadowrocket')
     expect(DEFAULT_PRODUCT_TARGET).toBe('mihomo')
   })
 

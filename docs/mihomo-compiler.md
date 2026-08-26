@@ -136,4 +136,4 @@ Preview 不会回退到示例 YAML。只有真实编译成功时才能复制和�
 - Desktop TUN 只生成跨平台安全的基础字段，不猜测设备名、接口、UID、路由表或本地路径
 - Mihomo 运行设置保存在 Output 节点，不进入 Universal IR；sing-box 不消费这些字段
 - Chain 不保证所有 UDP/传输协议组合均可工作
-- Surge、Loon 与 sing-box 由独立 Compiler 处理；Shadowrocket 现在有独立的、已注册但仍暂停的证据边界适配器（见 [`shadowrocket-compiler.md`](shadowrocket-compiler.md)）；Stash、Quantumult X 等其他 Target 尚未实现
+- Surge、Loon 与 sing-box 由独立 Compiler 处理；Shadowrocket 现在有独立的、通过中央 registry 暴露的证据边界适配器（见 [`shadowrocket-compiler.md`](shadowrocket-compiler.md)）；Stash、Quantumult X 等其他 Target 尚未实现
