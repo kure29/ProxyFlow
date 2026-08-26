@@ -25,6 +25,7 @@ describe('client-first new project flow', () => {
       onComplete: () => undefined,
     })))
     expect(html).toContain('Mihomo')
+    expect(html).toContain('Compatibility baseline v1.19.30')
     expect(html).toContain('Surge')
     expect(html).toContain('Loon')
     expect(html).toContain('Shadowrocket')

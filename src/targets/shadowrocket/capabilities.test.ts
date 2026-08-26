@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { SHADOWROCKET_MINIMUM_VERSION, SHADOWROCKET_SUPPORTED_DNS, SHADOWROCKET_SUPPORTED_MATCHERS, shadowrocketCapabilities } from './capabilities'
+import { SHADOWROCKET_SUPPORTED_DNS, SHADOWROCKET_SUPPORTED_MATCHERS, SHADOWROCKET_TESTED_BASELINE, shadowrocketCapabilities } from './capabilities'
 
 describe('Shadowrocket capability boundary', () => {
   it('exposes only the evidence-pinned product boundary', () => {
-    expect(SHADOWROCKET_MINIMUM_VERSION).toBe('2.2.65 build 2615')
+    expect(SHADOWROCKET_TESTED_BASELINE).toBe('2.2.65 build 2615')
+    expect(shadowrocketCapabilities.baselineVersion).toBe(SHADOWROCKET_TESTED_BASELINE)
     expect(shadowrocketCapabilities.productStatus).toBe('supported')
     expect(shadowrocketCapabilities.native['shadowrocket-profile'].status).toBe('target-native')
   })

@@ -181,7 +181,7 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
                 <label className="toggle-row compact"><span><strong>{t('inspector.mihomoTcpConcurrent')}</strong><small>{t('inspector.mihomoTcpConcurrentHint')}</small></span><input type="checkbox" checked={mihomoProfile.tcpConcurrent} onChange={(event) => setMihomoProfile({ tcpConcurrent: event.target.checked })} /></label>
               </div></details>
             </div>
-            : <div className="export-target-default"><ShieldCheck size={22} /><div><strong>{t('workspace.export.noTargetSettings')}</strong><p>{activeTarget === 'surge' ? t('workspace.export.surgeDefault') : activeTarget === 'loon' ? t('workspace.export.loonDefault') : activeTarget === 'shadowrocket' ? t('workspace.export.shadowrocketDefault') : t('workspace.export.singBoxDefault')}</p><small>{t('workspace.export.minimumVersion', { version: getTargetCapabilities(activeTarget).baselineVersion })}</small></div></div>}
+            : <div className="export-target-default"><ShieldCheck size={22} /><div><strong>{t('workspace.export.noTargetSettings')}</strong><p>{activeTarget === 'surge' ? t('workspace.export.surgeDefault') : activeTarget === 'loon' ? t('workspace.export.loonDefault') : activeTarget === 'shadowrocket' ? t('workspace.export.shadowrocketDefault') : t('workspace.export.singBoxDefault')}</p><small>{t(activeTarget === 'shadowrocket' ? 'workspace.export.testedClientBaseline' : 'workspace.export.minimumVersion', { version: getTargetCapabilities(activeTarget).baselineVersion })}</small></div></div>}
         </section>
       </div>
 
