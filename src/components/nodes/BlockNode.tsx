@@ -230,6 +230,7 @@ function runtimeStatusLabel(status: GraphNode['data']['runtimeStatus'], t: Retur
 function compatibilityLabel(value: unknown, t: ReturnType<typeof useI18n>['t']) {
   const normalized = String(value ?? '').toLowerCase()
   if (normalized === 'supported') return t('node.compatibility.supported')
+  if (normalized === 'paused') return t('node.compatibility.paused')
   if (normalized === 'prototype') return t('node.compatibility.prototype')
   if (normalized === 'compiled') return t('node.compatibility.compiled')
   return localizeKnownSystemText(String(value ?? ''), 'en-US')

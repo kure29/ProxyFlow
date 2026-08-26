@@ -22,7 +22,7 @@ import {
   blockDescriptionKey, blockTitleKey, getCurrentLocale, localizeDataValue, localizeProject, translateCurrent,
 } from '../i18n'
 import { createMihomoStarterDnsResolvers, createMihomoStarterProfile } from '../targets/mihomo/profile'
-import { getTargetCapabilities, isPrimaryTarget, type PrimaryTarget } from '../core/capabilities'
+import { getTargetCapabilities, isPrimaryTarget, outputCompatibilityForTarget, type PrimaryTarget } from '../core/capabilities'
 import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 import { normalizeValidProjectName } from '../core/project/projectName'
@@ -596,7 +596,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     },
     setOutputClient: (id, client) => {
       const prototypeLabels: Record<Exclude<TargetClient, PrimaryTarget>, string> = {
-        'quantumult-x': 'Quantumult X', shadowrocket: 'Shadowrocket', stash: 'Stash',
+        'quantumult-x': 'Quantumult X', stash: 'Stash',
       }
       const registered = isPrimaryTarget(client)
       const label = registered ? getTargetCapabilities(client).label : prototypeLabels[client]
@@ -604,7 +604,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         client,
         title: translateCurrent('node.outputTitle', { target: label }),
         titleKey: undefined,
-        compatibility: registered ? 'Supported' : 'Prototype',
+        compatibility: registered ? outputCompatibilityForTarget(client) : 'Prototype',
       })
     },
     setPrimaryTarget: (target) => {
@@ -621,7 +621,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
             client: target,
             title: translateCurrent('node.outputTitle', { target: getTargetCapabilities(target).label }),
             titleKey: undefined,
-            compatibility: 'Supported',
+            compatibility: outputCompatibilityForTarget(target),
           },
         } : node) : state.nodes,
       })

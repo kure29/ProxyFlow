@@ -3,10 +3,10 @@ import type { BlockType, RouteMatcherKind } from '../../types/project'
 import type { RuleSource } from '../../types/services'
 import type { SubscriptionRequestProfile } from '../subscription'
 
-export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box', 'loon'] as const
+export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box', 'loon', 'shadowrocket'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
-export type ProductTarget = Exclude<PrimaryTarget, 'sing-box'>
+export type ProductTarget = Exclude<PrimaryTarget, 'sing-box' | 'shadowrocket'>
 export type TargetProductStatus = 'supported' | 'paused'
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
@@ -411,6 +411,93 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     },
     native: {},
   },
+  shadowrocket: {
+    target: 'shadowrocket',
+    label: 'Shadowrocket',
+    baselineVersion: 'audit pending',
+    productStatus: 'paused',
+    protocols: {
+      http: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN', 'HTTP/HTTPS syntax is implemented in the adapter but awaits authoritative syntax pinning and client acceptance.'),
+      socks5: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN'),
+      shadowsocks: partial('SHADOWROCKET_SHADOWSOCKS_CIPHER_UNPROVEN'),
+      trojan: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN'),
+      vmess: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN'),
+      vless: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN'),
+      hysteria2: partial('SHADOWROCKET_HYSTERIA2_VARIANT_UNPROVEN'),
+      tuic: partial('SHADOWROCKET_TUIC_VARIANT_UNPROVEN'),
+      anytls: partial('SHADOWROCKET_ANYTLS_VARIANT_UNPROVEN'),
+    },
+    transports: {
+      tcp: supported(),
+      ws: partial('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+      http: unsupported('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+      h2: unsupported('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+      grpc: unsupported('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+      httpupgrade: unsupported('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+      xhttp: unsupported('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN'),
+    },
+    strategies: {
+      manual: partial('SHADOWROCKET_STRATEGY_UNPROVEN'),
+      auto: partial('SHADOWROCKET_STRATEGY_UNPROVEN'),
+      failover: partial('SHADOWROCKET_STRATEGY_UNPROVEN'),
+      'load-balance': partial('SHADOWROCKET_STRATEGY_UNPROVEN'),
+      fixed: partial('SHADOWROCKET_STRATEGY_UNPROVEN'),
+      chain: unsupported('SHADOWROCKET_PROXY_CHAIN_UNPROVEN'),
+    },
+    routingMatchers: {
+      service: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      domain: partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      'domain-suffix': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      'domain-keyword': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      'ip-cidr': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      'ip-cidr6': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      port: unsupported('SHADOWROCKET_MATCHER_UNSUPPORTED'),
+      asn: unsupported('SHADOWROCKET_MATCHER_UNSUPPORTED'),
+      'geo-ip': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
+      'geo-site': unsupported('SHADOWROCKET_MATCHER_UNSUPPORTED'),
+      'rule-set': unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+    },
+    ruleSources: {
+      yaml: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      text: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      mrs: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      'sing-box-source': unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      'sing-box-binary': unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      'multi-client': unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      universal: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+    },
+    dns: {
+      basic: partial('SHADOWROCKET_DNS_ENCRYPTED_RESOLVER_UNPROVEN'),
+      doh: unsupported('SHADOWROCKET_DNS_ENCRYPTED_RESOLVER_UNPROVEN'),
+      dot: unsupported('SHADOWROCKET_DNS_ENCRYPTED_RESOLVER_UNPROVEN'),
+      udp: partial('SHADOWROCKET_DNS_UDP_ADDRESS_INVALID'),
+      system: partial('SHADOWROCKET_DNS_ROLE_UNSUPPORTED'),
+      'default-role': partial('SHADOWROCKET_DNS_ROLE_UNSUPPORTED'),
+      'direct-role': unsupported('SHADOWROCKET_DNS_ROLE_UNSUPPORTED'),
+      'fallback-role': unsupported('SHADOWROCKET_DNS_ROLE_UNSUPPORTED'),
+      'redir-host': unsupported('SHADOWROCKET_DNS_MODE_UNSUPPORTED'),
+      'fake-ip': unsupported('SHADOWROCKET_DNS_MODE_UNSUPPORTED'),
+    },
+    chains: {
+      'single-hop': supported(),
+      'multi-hop': unsupported('SHADOWROCKET_PROXY_CHAIN_UNPROVEN'),
+      'provider-hop': unsupported('SHADOWROCKET_PROXY_CHAIN_UNPROVEN'),
+    },
+    remoteProxySource: {
+      source: unsupported('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN'),
+      refresh: unsupported('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN'),
+      requestHeaders: unsupported('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN'),
+      filtering: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      rename: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      exclude: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      override: unsupported('REMOTE_SOURCE_PROCESSING_UNSUPPORTED'),
+      multipleSourcesInGroup: unsupported('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN'),
+      mixedWithExplicitMembers: unsupported('SHADOWROCKET_REMOTE_PROXY_SOURCE_UNPROVEN'),
+      requestProfiles: [],
+    },
+    proxyVariants: { shadowsocksPlugins: ['simple-obfs'] },
+    native: { 'shadowrocket-profile': targetNative('Exports an evidence-bounded Shadowrocket INI profile once release gates pass.') },
+  },
 }
 
 /**
@@ -438,6 +525,10 @@ export function isProductTarget(target: PrimaryTarget | null | undefined): targe
 
 export function resolveActiveProductTarget(target: PrimaryTarget | null | undefined): ProductTarget {
   return isProductTarget(target) ? target : DEFAULT_PRODUCT_TARGET
+}
+
+export function outputCompatibilityForTarget(target: PrimaryTarget) {
+  return getTargetCapabilities(target).productStatus === 'paused' ? 'Paused' : 'Supported'
 }
 
 export function capabilityIsAvailable(capability: CapabilityDeclaration) {

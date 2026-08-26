@@ -40,6 +40,7 @@ describe('Project target compile selection', () => {
       surgeState: { status: 'success', result: { ...result('mihomo', true), issues: [], content: '[General]\n' } },
       singBoxState: { status: 'error', result: result('sing-box', false) },
       loonState: { status: 'success', result: result('loon', true) },
+      shadowrocketState: { status: 'idle' },
     }
 
     expect(summarizePrimaryTargetHealth(compiles, 'mihomo')).toEqual({ status: 'ready', diagnostics: [] })
@@ -52,11 +53,12 @@ describe('Project target compile selection', () => {
   })
 
   it('does not schedule hidden sing-box compilation for ordinary or historical Projects', () => {
-    expect(resolveProjectCompileSelection('mihomo')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false })
-    expect(resolveProjectCompileSelection('surge')).toEqual({ activeProductTarget: 'surge', mihomo: false, surge: true, singBox: false, loon: false })
-    expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false })
-    expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: true, loon: false })
-    expect(resolveProjectCompileSelection('loon')).toEqual({ activeProductTarget: 'loon', mihomo: false, surge: false, singBox: false, loon: true })
+    expect(resolveProjectCompileSelection('mihomo')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false, shadowrocket: false })
+    expect(resolveProjectCompileSelection('surge')).toEqual({ activeProductTarget: 'surge', mihomo: false, surge: true, singBox: false, loon: false, shadowrocket: false })
+    expect(resolveProjectCompileSelection('sing-box')).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: false, loon: false, shadowrocket: false })
+    expect(resolveProjectCompileSelection('sing-box', { singBox: true })).toEqual({ activeProductTarget: 'mihomo', mihomo: true, surge: false, singBox: true, loon: false, shadowrocket: false })
+    expect(resolveProjectCompileSelection('loon')).toEqual({ activeProductTarget: 'loon', mihomo: false, surge: false, singBox: false, loon: true, shadowrocket: false })
+    expect(resolveProjectCompileSelection('shadowrocket')).toEqual({ activeProductTarget: 'mihomo', mihomo: false, surge: false, singBox: false, loon: false, shadowrocket: true })
   })
 
   it('synthesizes a blocker when the active compiler is unavailable without a result', () => {
@@ -67,6 +69,7 @@ describe('Project target compile selection', () => {
       surgeState: { status: 'idle' },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
     }
     expect(summarizePrimaryTargetHealth(compiles, 'mihomo')).toEqual({
       status: 'blocked',
@@ -86,6 +89,7 @@ describe('Project target compile selection', () => {
       surgeState: { status: 'success', result: { success: true, content: 'surge', issues: [], generatedAt: '', mock: false } },
       singBoxState: { status: 'success', result: { success: true, content: 'sing-box', issues: [], generatedAt: '', mock: false } },
       loonState: { status: 'error', result: { success: false, content: '', issues: [loonIssue], generatedAt: '', mock: false } },
+      shadowrocketState: { status: 'idle' },
     }
     expect(summarizePrimaryTargetHealth(compiles, 'loon')).toEqual({
       status: 'blocked',
@@ -95,5 +99,21 @@ describe('Project target compile selection', () => {
       expect.objectContaining({ target: 'mihomo' }),
       expect.objectContaining({ target: 'sing-box' }),
     ]))
+  })
+
+  it('keeps paused Shadowrocket diagnostics visible alongside the paused gate', () => {
+    const graphResult = compileGraph(createBlankProject('shadowrocket'), { validationTarget: 'shadowrocket' })
+    const compiles: ProjectCompiles = {
+      graphResult,
+      mihomoState: { status: 'idle' },
+      surgeState: { status: 'idle' },
+      singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
+      shadowrocketState: { status: 'error', result: { success: false, content: '', issues: [{ target: 'shadowrocket', code: 'SHADOWROCKET_PROXY_CHAIN_UNPROVEN', severity: 'error', feature: 'chain', message: 'Chain blocked.' }], generatedAt: '', mock: false } },
+    }
+    expect(summarizePrimaryTargetHealth(compiles, 'shadowrocket')).toEqual(expect.objectContaining({ status: 'blocked', diagnostics: expect.arrayContaining([
+      expect.objectContaining({ code: 'SHADOWROCKET_PROXY_CHAIN_UNPROVEN' }),
+      expect.objectContaining({ code: 'SHADOWROCKET_PRODUCT_SUPPORT_PAUSED' }),
+    ]) }))
   })
 })

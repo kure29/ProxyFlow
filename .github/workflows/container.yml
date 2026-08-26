@@ -26,6 +26,8 @@ jobs:
       - run: npm run build
       - run: npm run runtime:build
       - run: npm run test:deployment
+      - run: npm run shadowrocket:acceptance
+      - run: git diff --exit-code -- fixtures/shadowrocket
       - run: docker compose config --quiet
         env:
           PROXYFLOW_RUNTIME_TOKEN: fictional-container-ci-token-123456789

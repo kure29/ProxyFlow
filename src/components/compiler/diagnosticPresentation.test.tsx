@@ -103,6 +103,16 @@ describe('human diagnostic presentation', () => {
     expect(presented.locationIssue?.entityId).toBe('loon-strategy')
   })
 
+  it('presents paused Shadowrocket evidence blockers with product-facing copy', () => {
+    const presented = presentDiagnostics([{
+      code: 'SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN', severity: 'error', entityId: 'proxy',
+      message: 'WebSocket transport has not been proven.',
+    }], { locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: false })[0]
+    expect(presented.title).toBe('Shadowrocket behavior is not proven')
+    expect(presented.impact).toContain('blocked')
+    expect(presented.technicalDetails[0].issue.code).toBe('SHADOWROCKET_PROXY_TRANSPORT_UNPROVEN')
+  })
+
   it('collapses many Mihomo variant rows into one user-meaning group', () => {
     const warnings: StructuredDiagnostic[] = Array.from({ length: 88 }, (_, index) => ({
       code: 'MIHOMO_PROXY_VARIANT_UNSUPPORTED',

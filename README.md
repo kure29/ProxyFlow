@@ -31,7 +31,7 @@ ProxyFlow 是一个 Local-first 的代理配置可视化编排器：从订阅输
 | Loon | Stable / Supported |
 | sing-box | Official export paused |
 | Stash | Planned |
-| Shadowrocket | Planned |
+| Shadowrocket | Compiler foundation registered; product export paused |
 | Quantumult X | Planned |
 
 sing-box 的底层编译与历史 Project 兼容能力仍然保留。Subscription Request Profile 也继续提供 Auto、Mihomo、sing-box 和 Generic；它只影响订阅请求格式，不代表 Export Target。
