@@ -9,4 +9,3 @@ export function shadowrocketIssue(
 ): CompatibilityIssue {
   return { target: 'shadowrocket', code, severity, feature, message, entityId }
 }
-

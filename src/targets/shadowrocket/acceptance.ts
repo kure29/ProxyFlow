@@ -34,4 +34,3 @@ export function acceptanceDiagnosticCounts(result: ReturnType<typeof compileShad
     issueCodeCounts: Object.fromEntries([...new Set(result.issues.map((issue) => issue.code))].sort().map((code) => [code, result.issues.filter((issue) => issue.code === code).length])),
   }
 }
-

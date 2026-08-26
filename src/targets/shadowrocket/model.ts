@@ -31,4 +31,3 @@ export interface ShadowrocketProfile {
   proxyGroups: ShadowrocketPolicyEntry[]
   rules: ShadowrocketRule[]
 }
-
