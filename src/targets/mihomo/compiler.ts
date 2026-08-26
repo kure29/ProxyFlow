@@ -13,11 +13,16 @@ import { compileMihomoProviders } from './providers'
 import { compileMihomoRules } from './rules'
 import { serializeMihomoConfig } from './serializer'
 import { compileMihomoStrategies } from './strategies'
+import { targetNativeUnsupportedIssues } from '../../core/targetNative'
 
 export interface MihomoCompileOptions {
   now?: () => Date
   outputNodeId?: string
   profile?: unknown
+  targetNativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
+  nativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
+  nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
+  nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
 }
 
 export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {}): CompileResult {
@@ -30,6 +35,8 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
     issue.message,
     issue.entity?.id ?? issue.nodeId,
   ))
+  const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
+  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])]))
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
   const compatibility = checkMihomoCompatibility(ir)
@@ -82,7 +89,7 @@ export class MihomoCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: TargetCompileOptions) {
-    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile })
+    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute })
   }
 }
 

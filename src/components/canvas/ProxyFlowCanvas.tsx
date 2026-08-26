@@ -9,6 +9,7 @@ import { useBuilderStore } from '../../store/useBuilderStore'
 import { getHighlightedPath } from '../../core/graph/pathHighlight'
 import { isConnectionAllowed } from '../../core/graph/graphRules'
 import { validateGraph } from '../../core/validation/validateProject'
+import { compileGraph } from '../../core/graphCompiler'
 import type { BlockType, GraphEdge, GraphNode } from '../../types/project'
 import { deriveProjectRuntime } from '../../core/proxySet'
 import { localizeDiagnosticMessage, localizeNodeData, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
@@ -30,6 +31,9 @@ export function ProxyFlowCanvas() {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
+  const projectId = useBuilderStore((state) => state.projectId)
+  const projectName = useBuilderStore((state) => state.projectName)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const hydrated = useBuilderStore((state) => state.hydrated)
   const onNodesChange = useBuilderStore((state) => state.onNodesChange)
@@ -67,7 +71,21 @@ export function ProxyFlowCanvas() {
     return () => window.clearTimeout(timer)
   }, [fitView, hydrated])
 
-  const issues = useMemo(() => validateGraph(nodes, edges), [nodes, edges])
+  const graphIssues = useMemo(() => compileGraph(toProject(), {
+    subscriptionSnapshots: localizeSubscriptionSnapshots(subscriptionSnapshots, locale),
+    retainDraftOnErrorForDiagnostics: true,
+    validationTarget: primaryTarget,
+  }).issues.filter((issue) => issue.code === 'TARGET_NATIVE_STRATEGY_UNSUPPORTED'), [edges, locale, nodes, primaryTarget, projectId, projectName, subscriptionSnapshots, toProject])
+  const issues = useMemo(() => [
+    ...validateGraph(nodes, edges),
+    ...graphIssues.map((issue) => ({
+      id: `${issue.code}-${issue.nodeId ?? issue.entity?.id ?? 'project'}`,
+      code: issue.code,
+      nodeId: issue.nodeId,
+      severity: issue.severity,
+      message: issue.message,
+    })),
+  ], [edges, graphIssues, nodes])
   const path = useMemo(() => getHighlightedPath(selectedNodeId, nodes, edges), [selectedNodeId, nodes, edges])
   const hasPath = selectedNodeId !== null && path.nodeIds.size > 0
   const pipelineRuntime = useMemo(() => deriveProjectRuntime(toProject(), localizeSubscriptionSnapshots(subscriptionSnapshots, locale)), [edges, locale, nodes, subscriptionSnapshots, toProject])
@@ -122,7 +140,15 @@ export function ProxyFlowCanvas() {
     event.preventDefault()
     const type = event.dataTransfer.getData('application/proxyflow') as BlockType
     if (!type) return
-    addLibraryNode(type, screenToFlowPosition({ x: event.clientX, y: event.clientY }))
+    let data: Record<string, unknown> | undefined
+    const serialized = event.dataTransfer.getData('application/proxyflow-data')
+    if (serialized) {
+      try {
+        const parsed: unknown = JSON.parse(serialized)
+        if (parsed && typeof parsed === 'object') data = parsed as Record<string, unknown>
+      } catch { /* Ignore malformed drag metadata; the typed preset remains safe. */ }
+    }
+    addLibraryNode(type, screenToFlowPosition({ x: event.clientX, y: event.clientY }), data)
   }
 
   const onPaneContextMenu = (event: globalThis.MouseEvent | ReactMouseEvent) => {

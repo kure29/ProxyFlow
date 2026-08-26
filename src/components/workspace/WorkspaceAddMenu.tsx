@@ -30,12 +30,12 @@ export function WorkspaceAddOptions({ options, onActivate }: {
   const advancedOptions = options.filter(({ advanced }) => advanced)
   const renderOption = (option: WorkspaceCreationOption) => {
     const item = blockByType.get(option.blockType)
-    const optionLabel = t(blockTitleKey(option.blockType))
+    const optionLabel = option.titleKey ? t(option.titleKey) : t(blockTitleKey(option.blockType))
     const status = option.status ? t(`workspace.compatibility.${option.status === 'target-native' ? 'targetNative' : option.status}`)
-      : t(blockDescriptionKey(option.blockType))
+      : option.descriptionKey ? t(option.descriptionKey) : t(blockDescriptionKey(option.blockType))
     return <button type="button" role="menuitem" disabled={option.disabled} key={option.id} onClick={() => onActivate(option)}>
       <BlockIcon name={item?.icon ?? 'plus'} size={17} />
-      <span><strong>{optionLabel}</strong><small>{status}</small></span>
+      <span><strong>{optionLabel}{option.status === 'target-native' && <em className="target-native-menu-badge">SURGE</em>}</strong><small>{status}</small></span>
     </button>
   }
   return <>

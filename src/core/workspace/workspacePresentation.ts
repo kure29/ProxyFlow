@@ -140,7 +140,7 @@ export function summarizeWorkspaceProcessing(
   }
 }
 
-export type WorkspaceStrategyKind = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain' | 'unknown'
+export type WorkspaceStrategyKind = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain' | 'target-native' | 'unknown'
 
 export type WorkspaceStrategySummary =
   | { kind: 'manual' }
@@ -149,6 +149,7 @@ export type WorkspaceStrategySummary =
   | { kind: 'load-balance'; mode?: 'round-robin' | 'consistent-hash' }
   | { kind: 'fixed'; configured: boolean }
   | { kind: 'chain'; hopCount: number }
+  | { kind: 'target-native'; nativeKind: 'smart' | 'subnet'; conditionCount?: number; candidateCount?: number; defaultTarget?: string }
   | { kind: 'unknown' }
 
 export interface WorkspaceStrategyPresentation {
@@ -312,6 +313,7 @@ function legacyFilterCriterionCount(data: GraphNode['data']) {
 }
 
 function strategyKind(blockType: BlockType): WorkspaceStrategyKind {
+  if (blockType === 'target-native-strategy') return 'target-native'
   if (blockType === 'manual-select') return 'manual'
   if (blockType === 'auto-select') return 'auto'
   if (blockType === 'fallback') return 'failover'
@@ -322,6 +324,12 @@ function strategyKind(blockType: BlockType): WorkspaceStrategyKind {
 }
 
 function strategySummary(node: GraphNode, kind: WorkspaceStrategyKind): WorkspaceStrategySummary {
+  if (kind === 'target-native') {
+    const native = node.data.targetNativeStrategy
+    if (native?.kind === 'smart') return { kind, nativeKind: 'smart', candidateCount: native.members.length }
+    if (native?.kind === 'subnet') return { kind, nativeKind: 'subnet', conditionCount: native.conditions.length, defaultTarget: native.defaultPolicy.kind === 'builtin' ? native.defaultPolicy.id : native.defaultPolicy.id }
+    return { kind, nativeKind: 'subnet', conditionCount: 0 }
+  }
   if (kind === 'auto' || kind === 'failover') return {
     kind,
     ...(node.data.interval === undefined ? {} : { intervalSeconds: node.data.interval }),
@@ -339,6 +347,9 @@ function strategySummary(node: GraphNode, kind: WorkspaceStrategyKind): Workspac
 
 function strategyCapability(blockType: BlockType, target: PrimaryTarget | null): CapabilityStatus | 'unknown' {
   if (!target) return 'unknown'
+  if (blockType === 'target-native-strategy') {
+    return target === 'surge' ? 'target-native' : 'unsupported'
+  }
   const capability = strategyCapabilityForBlockType(blockType)
   return capability ? getTargetCapabilities(target).strategies[capability].status : 'unknown'
 }

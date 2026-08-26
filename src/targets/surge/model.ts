@@ -25,6 +25,33 @@ export interface SurgePolicyEntry {
   parameters?: SurgeParameter[]
 }
 
+export interface SurgeSmartPolicyEntry extends SurgePolicyEntry {
+  type: 'smart'
+  arguments: string[]
+  policyPriority?: SurgePolicyPriorityRule[]
+  evaluateBeforeUse?: boolean
+}
+
+export interface SurgeSubnetPolicyEntry extends SurgePolicyEntry {
+  type: 'subnet'
+  /** Subnet entries are serialized from these typed fields, never as tokens. */
+  arguments: []
+  defaultPolicy: string
+  conditions: SurgeSubnetConditionEntry[]
+}
+
+export interface SurgePolicyPriorityRule {
+  pattern: string
+  factor: number
+}
+
+export interface SurgeSubnetConditionEntry {
+  expression: string
+  policy: string
+}
+
+export type SurgeNativePolicyEntry = SurgeSmartPolicyEntry | SurgeSubnetPolicyEntry
+
 export interface SurgeProfile {
   general: SurgeGeneralEntry[]
   proxies: SurgePolicyEntry[]

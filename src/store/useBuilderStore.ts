@@ -121,6 +121,7 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (type === 'limit') return { limit: 10 }
   if (type === 'auto-select') return { strategyMode: translateCurrent('demo.strategy.auto'), testUrl: 'https://www.gstatic.com/generate_204', interval: 300, tolerance: 50 }
   if (type === 'load-balance') return { loadBalanceMode: 'round-robin' }
+  if (type === 'target-native-strategy') return { targetNativeStrategy: { target: 'surge', kind: 'smart', members: [] } }
   if (type === 'proxy-chain') return { hopIds: [] }
   if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }

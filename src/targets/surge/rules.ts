@@ -6,11 +6,14 @@ import { serializeSurgeRule } from './serializer'
 
 export function compileSurgeRules(context: SurgeCompileContext) {
   const rules: string[] = []
-  const routes = context.ir.routes.map((route, index) => ({ route, index }))
+  const routes = [
+    ...context.ir.routes.map((route, index) => ({ route, index })),
+    ...context.nativeRoutes.map((route, index) => ({ route, index: context.ir.routes.length + index })),
+  ]
     .sort((left, right) => left.route.priority - right.route.priority || left.index - right.index)
   for (const { route } of routes) {
     const target = targetName(route.target, route.id, context)
-    if (!target) continue
+    if (!target || !route.matcher) continue
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) {
         const source = resolveSurgeServiceRuleSource(context.ir, serviceId, route.id, context.issues)
@@ -24,6 +27,10 @@ export function compileSurgeRules(context: SurgeCompileContext) {
   }
   if (context.ir.finalRoute) {
     const target = targetName(context.ir.finalRoute.target, 'final', context)
+    if (target) rules.push(serializeSurgeRule('FINAL', undefined, target))
+  }
+  if (context.nativeFinalRoute) {
+    const target = targetName(context.nativeFinalRoute.target, context.nativeFinalRoute.id, context)
     if (target) rules.push(serializeSurgeRule('FINAL', undefined, target))
   }
   return rules

@@ -417,6 +417,9 @@ function strategySummaryLabel(summary: ReturnType<typeof summarizeWorkspaceStrat
   if (summary.kind === 'load-balance') return t('workspace.strategy.summary.loadBalance', { mode: summary.mode ?? t('workspace.strategy.notConfigured') })
   if (summary.kind === 'fixed') return t(summary.configured ? 'workspace.strategy.summary.fixedReady' : 'workspace.strategy.summary.fixedMissing')
   if (summary.kind === 'chain') return t('workspace.strategy.summary.chain', { count: summary.hopCount })
+  if (summary.kind === 'target-native') return summary.nativeKind === 'smart'
+    ? t('workspace.strategy.summary.smart', { count: summary.candidateCount ?? 0 })
+    : t('workspace.strategy.summary.subnet', { count: summary.conditionCount ?? 0, default: summary.defaultTarget ?? t('workspace.strategy.notConfigured') })
   if (summary.kind === 'manual') return t('workspace.strategy.summary.manual')
   return t('workspace.strategy.summary.unknown')
 }

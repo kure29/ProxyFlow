@@ -12,9 +12,14 @@ import { compileSingBoxProxyOutbounds } from './outbounds'
 import { compileSingBoxRouting } from './rules'
 import { serializeSingBoxConfig } from './serializer'
 import { compileSingBoxStrategies } from './strategies'
+import { targetNativeUnsupportedIssues, type TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SingBoxCompileOptions {
   now?: () => Date
+  targetNativeStrategies?: TargetNativeStrategyIR[]
+  nativeStrategies?: TargetNativeStrategyIR[]
+  nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
+  nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
 }
 
 export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions = {}): CompileResult {
@@ -23,6 +28,8 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
   const issues = irIssues.map((issue) => singBoxIssue(
     `IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId,
   ))
+  const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
+  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])]))
   const compatibility = checkSingBoxCompatibility(ir)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
@@ -66,7 +73,7 @@ export class SingBoxCompiler implements ConfigCompiler {
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
-  async compile(ir: ProxyFlowIR) {
-    return compileSingBox(ir, { now: this.now })
+  async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
+    return compileSingBox(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute })
   }
 }

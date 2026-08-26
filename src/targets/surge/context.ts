@@ -4,6 +4,7 @@ import type { SurgePolicyEntry } from './model'
 import { SurgeNameRegistry } from './naming'
 import { createSurgeProjectionContext, type SurgeProjectionContext } from './projection'
 import { compileSurgeProxy } from './proxies'
+import type { TargetNativeRouteIR, TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SurgeStrategyTemplate {
   entry: SurgePolicyEntry
@@ -22,19 +23,28 @@ export interface SurgeCompileContext {
   registeredProxyIds: Set<string>
   policyNames: SurgeNameRegistry
   projection: SurgeProjectionContext
+  nativeRoutes: TargetNativeRouteIR[]
+  nativeFinalRoute?: TargetNativeRouteIR
 }
 
 export function createSurgeContext(
   ir: ProxyFlowIR,
   issues: CompatibilityIssue[],
   projection = createSurgeProjectionContext(),
+  nativeStrategies: readonly TargetNativeStrategyIR[] = [],
+  nativeRoutes: readonly TargetNativeRouteIR[] = [],
+  nativeFinalRoute?: TargetNativeRouteIR,
 ): SurgeCompileContext {
   const policyNames = new SurgeNameRegistry()
   for (const strategy of ir.strategies) policyNames.reserve(strategy.name)
+  for (const strategy of nativeStrategies) policyNames.reserve(strategy.name)
   return {
     ir,
     issues,
-    strategyNames: new Map(ir.strategies.map((strategy) => [strategy.id, strategy.name])),
+    strategyNames: new Map([
+      ...ir.strategies.map((strategy) => [strategy.id, strategy.name] as const),
+      ...nativeStrategies.map((strategy) => [strategy.id, strategy.name] as const),
+    ]),
     proxies: [],
     proxyGroups: [],
     strategyTemplates: new Map(),
@@ -42,6 +52,8 @@ export function createSurgeContext(
     registeredProxyIds: new Set(),
     policyNames,
     projection,
+    nativeRoutes: [...nativeRoutes],
+    nativeFinalRoute,
   }
 }
 

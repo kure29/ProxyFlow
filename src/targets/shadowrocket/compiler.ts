@@ -10,8 +10,9 @@ import { compileShadowrocketRouting } from './routing'
 import { serializeShadowrocketProfile } from './serializer'
 import { compileShadowrocketStrategies } from './strategies'
 import { createShadowrocketProjectionContext, shadowrocketProjectionStats } from './projection'
+import { targetNativeUnsupportedIssues, type TargetNativeStrategyIR } from '../../core/targetNative'
 
-export interface ShadowrocketCompileOptions { now?: () => Date }
+export interface ShadowrocketCompileOptions { now?: () => Date; targetNativeStrategies?: TargetNativeStrategyIR[]; nativeStrategies?: TargetNativeStrategyIR[]; nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]; nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR }
 
 export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompileOptions = {}): CompileResult {
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
@@ -26,6 +27,8 @@ export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompil
       return failed(issues, generatedAt, projection)
     }
     issues.push(...irIssues.map((issue) => shadowrocketIssue(`IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId)))
+    const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
+    issues.push(...targetNativeUnsupportedIssues('shadowrocket', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])]))
     let compatibility
     try {
       compatibility = checkShadowrocketCompatibility(ir, projection)
@@ -58,5 +61,5 @@ function compileStats(projection: ReturnType<typeof createShadowrocketProjection
 export class ShadowrocketCompiler implements ConfigCompiler {
   readonly target = 'shadowrocket' as const
   constructor(private readonly now: () => Date = () => new Date()) {}
-  async compile(ir: ProxyFlowIR) { return compileShadowrocket(ir, { now: this.now }) }
+  async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) { return compileShadowrocket(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute }) }
 }

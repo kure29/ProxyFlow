@@ -55,13 +55,21 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const mihomoOptions = useMemo(() => ({
     outputNodeId: mihomoOutput?.id,
     targetProfile: mihomoOutput?.data.mihomoProfile,
-  }), [mihomoOutput])
+    targetNativeStrategies: graphResult.nativeStrategies ?? [],
+    nativeRoutes: graphResult.nativeRoutes ?? [],
+    nativeFinalRoute: graphResult.nativeFinalRoute,
+  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, mihomoOutput])
+  const targetNativeOptions = useMemo(() => ({
+    targetNativeStrategies: graphResult.nativeStrategies ?? [],
+    nativeRoutes: graphResult.nativeRoutes ?? [],
+    nativeFinalRoute: graphResult.nativeFinalRoute,
+  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies])
   const compileEnabled = enabled && graphResult.success
   const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
-  const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge)
-  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox)
-  const loonState = useTargetCompile(graphResult.ir, 'loon', compileEnabled && resolvedSelection.loon)
-  const shadowrocketState = useTargetCompile(graphResult.ir, 'shadowrocket', compileEnabled && resolvedSelection.shadowrocket)
+  const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge, targetNativeOptions)
+  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox, targetNativeOptions)
+  const loonState = useTargetCompile(graphResult.ir, 'loon', compileEnabled && resolvedSelection.loon, targetNativeOptions)
+  const shadowrocketState = useTargetCompile(graphResult.ir, 'shadowrocket', compileEnabled && resolvedSelection.shadowrocket, targetNativeOptions)
   return { graphResult, mihomoState, surgeState, singBoxState, loonState, shadowrocketState }
 }
 

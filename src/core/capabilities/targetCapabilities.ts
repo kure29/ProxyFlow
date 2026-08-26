@@ -148,6 +148,8 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'desktop-tun': targetNative('Mihomo-only listener, TUN, DNS, and sniffer output profile.'),
       'domain-sniffer': targetNative('Mihomo HTTP, TLS, and QUIC sniffing configuration.'),
       'load-balance': targetNative('Mihomo load-balance proxy group.'),
+      'strategy-smart': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+      'strategy-subnet': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
     },
   },
   surge: {
@@ -240,6 +242,8 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     native: {
       'surge-profile': targetNative('Exports a compatibility-checked Surge profile in INI-style syntax.'),
       'group-underlying-proxy': targetNative('Surge iOS 5.22+ or Surge Mac 6.9+ group-level underlying-proxy.'),
+      'strategy-smart': targetNative('Surge Smart policy group; members are validated proxy endpoints only.'),
+      'strategy-subnet': targetNative('Surge Subnet policy group with ordered network conditions and an explicit default.'),
     },
   },
   'sing-box': {
@@ -321,6 +325,8 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     },
     native: {
       'runtime-inbound': unsupported('SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED'),
+      'strategy-smart': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+      'strategy-subnet': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
     },
   },
   loon: {
@@ -410,7 +416,10 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     proxyVariants: {
       shadowsocksPlugins: ['simple-obfs'],
     },
-    native: {},
+    native: {
+      'strategy-smart': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+      'strategy-subnet': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+    },
   },
   shadowrocket: {
     target: 'shadowrocket',
@@ -497,7 +506,11 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       requestProfiles: [],
     },
     proxyVariants: { shadowsocksPlugins: ['simple-obfs'] },
-    native: { 'shadowrocket-profile': targetNative('Exports an evidence-bounded Shadowrocket INI profile once release gates pass.') },
+    native: {
+      'shadowrocket-profile': targetNative('Exports an evidence-bounded Shadowrocket INI profile once release gates pass.'),
+      'strategy-smart': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+      'strategy-subnet': unsupported('TARGET_NATIVE_STRATEGY_UNSUPPORTED'),
+    },
   },
 }
 

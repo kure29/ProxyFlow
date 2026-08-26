@@ -1,4 +1,4 @@
-import type { SurgeGeneralEntry, SurgePolicyEntry, SurgeProfile } from './model'
+import type { SurgeGeneralEntry, SurgePolicyEntry, SurgeProfile, SurgeSmartPolicyEntry, SurgeSubnetPolicyEntry } from './model'
 
 export function serializeSurgeProfile(profile: SurgeProfile) {
   assertUniqueGeneralKeys(profile.general)
@@ -28,12 +28,49 @@ function assertUniqueGeneralKeys(entries: SurgeGeneralEntry[]) {
 }
 
 export function serializePolicyEntry(entry: SurgePolicyEntry) {
+  if (entry.type === 'subnet' && isTypedSubnetEntry(entry)) return serializeSubnetPolicyEntry(entry)
+  if (entry.type === 'smart' && isTypedSmartEntry(entry)) return serializeSmartPolicyEntry(entry)
   const components = [
     entry.type,
     ...entry.arguments.map(serializeSurgeToken),
     ...(entry.parameters ?? []).map(({ key, value }) => `${key}=${serializeSurgeToken(value)}`),
   ]
   return `${entry.name} = ${components.join(', ')}`
+}
+
+/** Serialize the native Subnet grammar (`matcher = policy`) from typed data. */
+function serializeSubnetPolicyEntry(entry: SurgeSubnetPolicyEntry) {
+  const conditions = entry.conditions.map(({ expression, policy }) => `${serializeSurgeToken(expression)} = ${serializeSurgeToken(policy)}`)
+  const mappings = [`default = ${serializeSurgeToken(entry.defaultPolicy)}`, ...conditions]
+  const parameters = (entry.parameters ?? []).map(({ key, value }) => `${key}=${serializeSurgeToken(value)}`)
+  return `${entry.name} = subnet, ${[...mappings, ...parameters].join(', ')}`
+}
+
+/** Serialize Smart members and its modeled optional scoring parameters. */
+function serializeSmartPolicyEntry(entry: SurgeSmartPolicyEntry) {
+  const components = [
+    'smart',
+    ...entry.arguments.map(serializeSurgeToken),
+    ...(entry.policyPriority?.length
+      ? [`policy-priority=${serializeSurgeQuotedToken(entry.policyPriority.map(({ pattern, factor }) => `${pattern}:${factor}`).join(';'))}`]
+      : []),
+    ...(entry.evaluateBeforeUse === undefined ? [] : [`evaluate-before-use=${entry.evaluateBeforeUse ? 'true' : 'false'}`]),
+    ...(entry.parameters ?? []).map(({ key, value }) => `${key}=${serializeSurgeToken(value)}`),
+  ]
+  return `${entry.name} = ${components.join(', ')}`
+}
+
+function isTypedSubnetEntry(entry: SurgePolicyEntry): entry is SurgeSubnetPolicyEntry {
+  return 'defaultPolicy' in entry && typeof (entry as { defaultPolicy?: unknown }).defaultPolicy === 'string'
+    && Array.isArray((entry as { conditions?: unknown }).conditions)
+}
+
+function isTypedSmartEntry(entry: SurgePolicyEntry): entry is SurgeSmartPolicyEntry {
+  if (entry.type !== 'smart') return false
+  const candidate = entry as { policyPriority?: unknown; evaluateBeforeUse?: unknown }
+  if (candidate.policyPriority !== undefined && !Array.isArray(candidate.policyPriority)) return false
+  if (candidate.evaluateBeforeUse !== undefined && typeof candidate.evaluateBeforeUse !== 'boolean') return false
+  return true
 }
 
 export function serializeSurgeRule(type: string, payload: string | undefined, policy: string) {
@@ -47,6 +84,10 @@ export function serializeSurgeToken(value: string | number | boolean) {
   if (typeof value === 'number') return String(value)
   if (typeof value === 'boolean') return value ? 'true' : 'false'
   if (!needsQuoting(value)) return value
+  return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+}
+
+function serializeSurgeQuotedToken(value: string) {
   return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
 }
 

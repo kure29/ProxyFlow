@@ -5,6 +5,7 @@ import { compileDns, compileOutputs } from './compileInfrastructure'
 import { compileRouting } from './compileRouting'
 import { compileSources } from './compileSources'
 import { compileStrategies } from './compileStrategies'
+import { compileTargetNativeStrategies } from './compileTargetNativeStrategies'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
@@ -13,6 +14,12 @@ import { ruleSourceMatchersToIR, validateCustomRuleSourceForTarget } from '../ro
 
 export interface GraphCompileResult {
   ir?: ProxyFlowIR
+  /** Target-native semantics are an extension to Universal IR, never IR strategies. */
+  nativeStrategies?: import('../targetNative').TargetNativeStrategyIR[]
+  /** Descriptive alias for integrations that call the extension target-native strategies. */
+  targetNativeStrategies?: import('../targetNative').TargetNativeStrategyIR[]
+  nativeRoutes?: import('../targetNative').TargetNativeRouteIR[]
+  nativeFinalRoute?: import('../targetNative').TargetNativeRouteIR
   issues: SemanticIssue[]
   success: boolean
 }
@@ -51,6 +58,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       }]
     })
     const routing = compileRouting(context)
+    const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
+    const nativeStrategies = compileTargetNativeStrategies(context, validationTarget)
     const draft: ProxyFlowIR = {
       version: PROXYFLOW_IR_VERSION,
       metadata: {
@@ -79,12 +88,26 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       dns: compileDns(context),
       outputs: compileOutputs(context),
     }
-    const issues = deduplicateIssues([...context.issues, ...validateIR(draft)])
+    const issues = deduplicateIssues([
+      ...context.issues,
+      ...validateIR(draft).filter((issue) => !(issue.code === 'FINAL_MISSING' && routing.nativeFinalRoute)),
+    ])
     const success = !issues.some((issue) => issue.severity === 'error')
-    return { success, issues, ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined }
+    return {
+      success,
+      issues,
+      nativeStrategies,
+      targetNativeStrategies: nativeStrategies,
+      nativeRoutes: routing.nativeRoutes,
+      nativeFinalRoute: routing.nativeFinalRoute,
+      ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
+    }
   } catch (error) {
     return {
       success: false,
+      nativeStrategies: [],
+      targetNativeStrategies: [],
+      nativeRoutes: [],
       issues: [semanticIssue(
         'GRAPH_COMPILE_INTERNAL_ERROR',
         'error',

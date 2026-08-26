@@ -4,7 +4,6 @@ import { useReactFlow } from '@xyflow/react'
 import { blockLibrary } from '../../data/blockLibrary'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { BlockIcon } from '../icons/BlockIcon'
-import type { BlockType } from '../../types/project'
 import { blockDescriptionKey, blockTitleKey, categoryKey, useI18n } from '../../i18n'
 
 export function BlockLibrary() {
@@ -12,16 +11,12 @@ export function BlockLibrary() {
   const [query, setQuery] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const addLibraryNode = useBuilderStore((state) => state.addLibraryNode)
+  const primaryTarget = useBuilderStore((state) => state.primaryTarget)
   const { screenToFlowPosition } = useReactFlow()
   const groups = useMemo(() => blockLibrary.map((group) => ({
     ...group,
-    items: group.items.filter((item) => `${t(item.titleKey ?? blockTitleKey(item.type))}${t(item.descriptionKey ?? blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
-  })).filter((group) => group.items.length > 0), [query, t])
-
-  const addAtCenter = (type: BlockType) => {
-    const position = screenToFlowPosition({ x: window.innerWidth * 0.52, y: window.innerHeight * 0.5 })
-    addLibraryNode(type, position)
-  }
+    items: group.items.filter((item) => (item.type !== 'target-native-strategy' || primaryTarget === 'surge') && `${t(item.titleKey ?? blockTitleKey(item.type))}${t(item.descriptionKey ?? blockDescriptionKey(item.type))}`.toLowerCase().includes(query.toLowerCase())),
+  })).filter((group) => group.items.length > 0), [primaryTarget, query, t])
 
   return (
     <aside className="block-library" aria-label={t('library.aria')}>
@@ -55,9 +50,13 @@ export function BlockLibrary() {
                     draggable
                     onDragStart={(event) => {
                       event.dataTransfer.setData('application/proxyflow', item.type)
+                      if (item.data) event.dataTransfer.setData('application/proxyflow-data', JSON.stringify(item.data))
                       event.dataTransfer.effectAllowed = 'move'
                     }}
-                    onClick={() => addAtCenter(item.type)}
+                  onClick={() => {
+                    const position = screenToFlowPosition({ x: window.innerWidth * 0.52, y: window.innerHeight * 0.5 })
+                    addLibraryNode(item.type, position, item.data)
+                  }}
                   >
                     <span className="library-item-icon"><BlockIcon name={item.icon} /></span>
                     <span><strong>{t(item.titleKey ?? blockTitleKey(item.type))}</strong><small>{t(item.descriptionKey ?? blockDescriptionKey(item.type))}</small></span>

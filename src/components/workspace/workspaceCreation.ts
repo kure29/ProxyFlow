@@ -1,5 +1,6 @@
 import { getTargetCapabilities, type CapabilityStatus, type PrimaryTarget } from '../../core/capabilities'
 import type { BlockNodeData, BlockType } from '../../types/project'
+import type { MessageKey } from '../../i18n'
 
 export interface WorkspaceCreationOption {
   id: string
@@ -8,6 +9,8 @@ export interface WorkspaceCreationOption {
   advanced?: boolean
   status?: CapabilityStatus
   disabled?: boolean
+  titleKey?: MessageKey
+  descriptionKey?: MessageKey
 }
 
 export const processingCreationOptions: WorkspaceCreationOption[] = [
@@ -29,12 +32,18 @@ export const routingCreationOptions: WorkspaceCreationOption[] = [
 export function strategyCreationOptions(target: PrimaryTarget | null): WorkspaceCreationOption[] {
   if (!target) return []
   const declarations = getTargetCapabilities(target).strategies
-  return [
+  const universal = [
     strategyOption('manual', 'manual-select', declarations.manual.status),
     strategyOption('auto', 'auto-select', declarations.auto.status),
     strategyOption('failover', 'fallback', declarations.failover.status),
     strategyOption('load-balance', 'load-balance', declarations['load-balance'].status, true),
     strategyOption('chain', 'proxy-chain', declarations.chain.status, true),
+  ]
+  if (target !== 'surge') return universal
+  return [
+    ...universal,
+    { id: 'surge-smart', blockType: 'target-native-strategy', titleKey: 'inspector.targetNativeSmart', descriptionKey: 'inspector.smartMembersHint', data: { targetNativeStrategy: { target: 'surge', kind: 'smart', members: [] } }, status: 'target-native' as const },
+    { id: 'surge-subnet', blockType: 'target-native-strategy', titleKey: 'inspector.targetNativeSubnet', descriptionKey: 'inspector.subnetConditions', data: { targetNativeStrategy: { target: 'surge', kind: 'subnet', conditions: [], defaultPolicy: { kind: 'builtin', id: 'DIRECT' } } }, status: 'target-native' as const },
   ]
 }
 

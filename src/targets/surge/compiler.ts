@@ -12,24 +12,35 @@ import { createSurgeProjectionContext, surgeProjectionStats, type SurgeProjectio
 import { compileSurgeRules } from './rules'
 import { serializeSurgeProfile } from './serializer'
 import { compileSurgeStrategies } from './strategies'
+import { compileSurgeNativeStrategies } from './nativeStrategies'
+import type { TargetNativeStrategyIR } from '../../core/targetNative'
+import type { TargetNativeRouteIR } from '../../core/targetNative'
 
 export interface SurgeCompileOptions {
   now?: () => Date
+  targetNativeStrategies?: TargetNativeStrategyIR[]
+  nativeStrategies?: TargetNativeStrategyIR[]
+  nativeRoutes?: TargetNativeRouteIR[]
+  nativeFinalRoute?: TargetNativeRouteIR
 }
 
 export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {}): CompileResult {
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
-  const irIssues = validateIR(ir)
+  const irIssues = validateIR(ir).filter((issue) => !(issue.code === 'FINAL_MISSING' && options.nativeFinalRoute))
   const issues = irIssues.map((issue) => surgeIssue(
     `IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId,
   ))
   const projection = createSurgeProjectionContext()
-  const compatibility = checkSurgeCompatibility(ir, projection)
+  const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
+  const nativeRoutes = options.nativeRoutes ?? []
+  const nativeFinalRoute = options.nativeFinalRoute
+  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt, projection)
 
-  const context = createSurgeContext(ir, issues, projection)
+  const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute)
   compileSurgeStrategies(context)
+  compileSurgeNativeStrategies(nativeStrategies, context)
   const rules = compileSurgeRules(context)
   const general = composeSurgeGeneral([
     compileSurgeGeneral(ir),
@@ -92,7 +103,13 @@ export class SurgeCompiler implements ConfigCompiler {
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
-  async compile(ir: ProxyFlowIR) {
-    return compileSurge(ir, { now: this.now })
+  async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
+    return compileSurge(ir, {
+      now: this.now,
+      targetNativeStrategies: options?.targetNativeStrategies,
+      nativeStrategies: options?.nativeStrategies,
+      nativeRoutes: options?.nativeRoutes,
+      nativeFinalRoute: options?.nativeFinalRoute,
+    })
   }
 }

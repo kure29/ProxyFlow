@@ -1,5 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
+import type { TargetNativeRouteIR, TargetNativeStrategyIR } from '../targetNative'
 
 export interface CompileResult {
   success: boolean
@@ -20,6 +21,12 @@ export interface CompileResult {
 export interface TargetCompileOptions {
   outputNodeId?: string
   targetProfile?: unknown
+  /** Explicit target-native extension extracted from the Project graph. */
+  targetNativeStrategies?: TargetNativeStrategyIR[]
+  /** Short alias accepted by headless integrations. */
+  nativeStrategies?: TargetNativeStrategyIR[]
+  nativeRoutes?: TargetNativeRouteIR[]
+  nativeFinalRoute?: TargetNativeRouteIR
 }
 
 export interface ConfigCompiler {

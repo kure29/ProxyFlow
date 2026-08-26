@@ -4,6 +4,7 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
+import type { TargetNativeStrategyConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -33,6 +34,7 @@ export type BlockType =
   | 'auto-select'
   | 'fallback'
   | 'load-balance'
+  | 'target-native-strategy'
   | 'fixed-proxy'
   | 'proxy-chain'
   | 'routing-group'
@@ -118,6 +120,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   filterRegexPattern?: string
   filterRegexIgnoreCase?: boolean
   strategyMode?: string
+  /** Typed target-native semantics. Never lowered into Universal StrategyIR. */
+  targetNativeStrategy?: TargetNativeStrategyConfig
   testUrl?: string
   interval?: number
   tolerance?: number

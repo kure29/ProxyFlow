@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SURGE_CAPABILITY_MATRIX } from './capabilities'
+import { getTargetCapabilities } from '../../core/capabilities'
 
 describe('Surge capability matrix', () => {
   it('records every Phase 3 decision with an official reference and stable fail-closed diagnostic', () => {
@@ -7,6 +8,11 @@ describe('Surge capability matrix', () => {
       'Service Rules',
       'Remote Proxy Source',
       'Select',
+      'Target-native Smart',
+      'Smart policy-priority',
+      'Smart evaluate-before-use',
+      'Target-native Subnet',
+      'Subnet MCCMNC matcher',
       'URL Test',
       'Fallback',
       'Fixed Strategy',
@@ -26,5 +32,11 @@ describe('Surge capability matrix', () => {
     expect(SURGE_CAPABILITY_MATRIX.find((item) => item.feature === 'DNS')).toEqual(expect.objectContaining({
       status: 'conditional', diagnostic: 'SURGE_DNS_MIXED_TRANSPORT_SEMANTICS_UNSUPPORTED',
     }))
+  })
+
+  it('records native Smart and Subnet support without widening Universal strategies', () => {
+    expect(SURGE_CAPABILITY_MATRIX.some((entry) => entry.feature === 'Target-native Smart')).toBe(true)
+    expect(getTargetCapabilities('surge').native['strategy-smart'].status).toBe('target-native')
+    expect(getTargetCapabilities('surge').native['strategy-subnet'].status).toBe('target-native')
   })
 })

@@ -3,13 +3,17 @@ import { findRuleSourceMatches, normalizeCustomMatcher, semanticIssue } from '..
 import type { GraphCompileContext } from './context'
 import { isStrategyNode } from './helpers'
 import { rankRoutingRules, resolveRouteMatcherKind } from '../routing/routeProductModel'
+import type { TargetNativeRouteIR } from '../targetNative'
 
 export interface CompiledRouting {
   routes: RouteIR[]
+  nativeRoutes: TargetNativeRouteIR[]
+  nativeFinalRoute?: TargetNativeRouteIR
   finalRoute?: FinalRouteIR
 }
 
 export function compileRouting(context: GraphCompileContext): CompiledRouting {
+  const nativeRoutes: TargetNativeRouteIR[] = []
   const routes = rankRoutingRules(context.project.graph.nodes).flatMap(({ node, priority }): RouteIR[] => {
     const matcherKind = resolveRouteMatcherKind(node.data)
     const matcher = matcherKind === 'service'
@@ -22,6 +26,11 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
         'ROUTE_MATCHER_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid matcher.`,
         { nodeId: node.id, entity: { type: 'route', id: node.id } },
       ))
+      return []
+    }
+    const nativeTarget = nativeStrategyTarget(node.data.targetId, context)
+    if (nativeTarget) {
+      nativeRoutes.push({ id: node.id, name: node.data.title, matcher, target: nativeTarget, priority })
       return []
     }
     const target = compileRouteTarget(node.data.targetKind, node.data.targetId, node.data.targetLabel, context)
@@ -44,7 +53,7 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
   const finalNodes = context.project.graph.nodes.filter((node) => !node.data.disabled && node.data.blockType === 'final')
   if (finalNodes.length === 0) {
     context.addIssue(semanticIssue('FINAL_MISSING', 'error', 'compile', 'The project has no Final route.'))
-    return { routes }
+    return { routes, nativeRoutes }
   }
   if (finalNodes.length > 1) context.addIssue(semanticIssue(
     'FINAL_MULTIPLE', 'warning', 'compile', 'Multiple Final nodes exist; deterministic node order selects the first one.',
@@ -52,14 +61,28 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
   ))
   const finalNode = finalNodes[0]
   const target = compileRouteTarget(finalNode.data.targetKind, finalNode.data.targetId, finalNode.data.targetLabel, context)
+  const nativeTarget = nativeStrategyTarget(finalNode.data.targetId, context)
+  if (nativeTarget) return {
+    routes,
+    nativeRoutes,
+    nativeFinalRoute: { id: finalNode.id, name: finalNode.data.title, target: nativeTarget, priority: Number.MAX_SAFE_INTEGER },
+  }
   if (!target) {
     context.addIssue(semanticIssue(
       'FINAL_TARGET_MISSING', 'error', 'compile', `Final route "${finalNode.data.title}" has no valid target.`,
       { nodeId: finalNode.id, entity: { type: 'final', id: finalNode.id } },
     ))
-    return { routes }
+    return { routes, nativeRoutes }
   }
-  return { routes, finalRoute: { target } }
+  return { routes, nativeRoutes, finalRoute: { target } }
+}
+
+function nativeStrategyTarget(targetId: string | undefined, context: GraphCompileContext) {
+  if (!targetId) return undefined
+  const node = context.nodesById.get(targetId)
+  return node && !node.data.disabled && node.data.blockType === 'target-native-strategy'
+    ? { kind: 'strategy' as const, id: targetId }
+    : undefined
 }
 
 function compileServiceMatcher(nodeId: string, name: string, services: string[], context: GraphCompileContext): TrafficMatcherIR | undefined {
