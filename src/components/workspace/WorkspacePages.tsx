@@ -14,8 +14,8 @@ import {
 } from '../../core/workspace'
 import type { PipelineNodeRuntime } from '../../core/proxySet'
 import { diagnosticNodeId, type StructuredDiagnostic } from '../../core/compiler'
-import type { TargetProjectionSummary, TargetStrategyProjectionSummary } from '../../core/compiler'
-import type { PrimaryTarget } from '../../core/capabilities'
+import type { TargetEndpointProjectionSummary, TargetProjectionSummary, TargetStrategyProjectionSummary } from '../../core/compiler'
+import { getTargetCapabilities, type PrimaryTarget } from '../../core/capabilities'
 import type { CompatibilityIssue, GraphNode } from '../../types/project'
 import { localizeNodeTitle, useI18n } from '../../i18n'
 import type { MessageKey } from '../../i18n'
@@ -103,7 +103,11 @@ export function SourcesWorkspace({ items, runtimes, onRefresh, onEdit, onToggle,
   })}</div>
 }
 
-export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[] }) {
+export function ProxiesWorkspace({ proxies, target, targetProjection }: {
+  proxies: WorkspaceProxySummary[]
+  target: PrimaryTarget | null
+  targetProjection?: TargetProjectionSummary
+}) {
   const { t } = useI18n()
   const [search, setSearch] = useState('')
   const [sourceId, setSourceId] = useState('')
@@ -137,13 +141,48 @@ export function ProxiesWorkspace({ proxies }: { proxies: WorkspaceProxySummary[]
     {filtered.length === 0
       ? <WorkspaceEmpty icon={<Search size={22} />} title={t('workspace.proxy.noMatches')} />
       : <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxies')}>
-        {filtered.map((proxy) => <article role="listitem" className="workspace-proxy-card" key={`${proxy.sourceId}:${proxy.id}`}>
+        {filtered.map((proxy) => {
+          const endpointProjection = targetEndpointProjection(proxy, target, targetProjection)
+          const fallbackTargetStatus = !endpointProjection && target && target !== 'surge'
+            ? staticTargetStatus(proxy.compatibility)
+            : undefined
+          const targetStatus = endpointProjection?.status ?? fallbackTargetStatus
+          return <article role="listitem" className="workspace-proxy-card" key={`${proxy.sourceId}:${proxy.id}`}>
           <header><strong title={proxy.name}>{proxy.name}</strong><span>{proxy.region}</span></header>
-          <div><b className={`is-${proxy.compatibility}`}>{t(compatibilityMessages[proxy.compatibility])}</b></div>
+          <div className="workspace-proxy-compatibility">
+            {targetStatus && target
+              ? <b className={`is-${targetStatus}`} data-target-compatibility={targetStatus}>{targetCompatibilityLabel(targetStatus, target, t)}</b>
+              : <b className={`is-${proxy.compatibility}`}>{t(compatibilityMessages[proxy.compatibility])}</b>}
+          </div>
           <footer><code>{proxy.protocol}</code><span title={proxy.sourceName}>{proxy.sourceName}</span><SourceStatus status={proxy.sourceAvailability} label={t(sourceStatusMessages[proxy.sourceAvailability])} /></footer>
-        </article>)}
+        </article>
+        })}
       </div>}
   </div>
+}
+
+function staticTargetStatus(compatibility: WorkspaceProxySummary['compatibility']): TargetEndpointProjectionSummary['status'] | undefined {
+  if (compatibility === 'supported') return 'ready'
+  if (compatibility === 'partial') return 'partial'
+  if (compatibility === 'unsupported') return 'blocked'
+  return undefined
+}
+
+function targetEndpointProjection(
+  proxy: WorkspaceProxySummary,
+  target: PrimaryTarget | null,
+  summary?: TargetProjectionSummary,
+): TargetEndpointProjectionSummary | undefined {
+  if (!target || !summary || summary.target !== target) return undefined
+  return summary.endpoints?.find((endpoint) => endpoint.sourceId === proxy.sourceId && endpoint.endpointId === proxy.id)
+}
+
+function targetCompatibilityLabel(
+  status: TargetEndpointProjectionSummary['status'],
+  target: PrimaryTarget,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  return t(`workspace.proxy.targetCompatibility.${status}` as MessageKey, { target: getTargetCapabilities(target).label })
 }
 
 export function ProcessingWorkspace({ items, runtime, issues, availability, onMove, onToggle, onEdit, onShowFlow, onDuplicate, onDelete }: {
@@ -208,21 +247,33 @@ export function StrategiesWorkspace({ items, target, runtime, issues, targetProj
   </div>
 }
 
-export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagnostics, targetProjection, onOpenNode }: {
+export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagnostics, targetProjection, target, onOpenNode }: {
   nodes: GraphNode[]
   diagnostics: StructuredDiagnostic[]
   compatibilityDiagnostics: CompatibilityIssue[]
   targetProjection?: TargetProjectionSummary
+  target?: PrimaryTarget | null
   onOpenNode: (nodeId: string) => void
 }) {
   const { locale, t } = useI18n()
   const nodeIds = useMemo(() => new Set(nodes.map((node) => node.id)), [nodes])
   const groups = useMemo(() => groupProjectHealthDiagnostics(diagnostics, compatibilityDiagnostics, nodeIds), [compatibilityDiagnostics, diagnostics, nodeIds])
-  const errors = [...groups.errors, ...groups.compatibility.filter((issue) => issue.severity === 'error')]
+  const blockingEntries = [...groups.errors, ...groups.compatibility.filter((issue) => issue.severity === 'error')]
+  const strategyBlockers = new Set(blockingEntries
+    .filter((issue) => issue.code === 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS')
+    .map((issue) => issue.locationNodeId))
+  const pairedSkipped = groups.compatibility.filter((issue) => issue.severity === 'warning'
+    && issue.code === 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED'
+    && strategyBlockers.has(issue.locationNodeId))
+  const errors = [...blockingEntries, ...pairedSkipped]
   const warnings = groups.warnings.filter((issue) => issue.severity === 'warning')
-  const compatibility = groups.compatibility.filter((issue) => issue.severity === 'warning')
+  const compatibility = groups.compatibility.filter((issue) => issue.severity === 'warning' && !pairedSkipped.includes(issue))
   const suggestions = [...groups.warnings.filter((issue) => issue.severity === 'info'), ...groups.compatibility.filter((issue) => issue.severity === 'info')]
   const allClear = errors.length + warnings.length + compatibility.length + suggestions.length === 0
+  const currentTargetCandidate = target ?? targetProjection?.target ?? compatibilityDiagnostics.find((issue) => issue.target)?.target
+  const currentTarget = currentTargetCandidate && ['mihomo', 'surge', 'sing-box', 'loon', 'shadowrocket'].includes(currentTargetCandidate)
+    ? currentTargetCandidate as PrimaryTarget
+    : undefined
   const nodeById = new Map(nodes.map((node) => [node.id, node]))
   const entityNames = new Map(nodes.map((node) => [node.id, localizeNodeTitle(node, locale)]))
   const exportable = errors.length === 0
@@ -231,7 +282,12 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
     {allClear
       ? <div className="workspace-health-ready"><ShieldCheck size={28} /><div><strong>{t('workspace.health.ready')}</strong><p>{t('workspace.health.readyDescription')}</p></div></div>
       : <div className="workspace-health-page">
-        <HealthSection id="health-errors" title={t('workspace.health.errors')} icon={<CircleAlert size={18} />} severity="error" entries={errors} />
+        <header className="workspace-health-summary" aria-label={t('workspace.health.summaryTitle')}>
+          <div><span>{t('workspace.health.summaryTitle')}</span>{currentTarget && <small>{t('workspace.health.currentTarget', { target: getTargetCapabilities(currentTarget).label })}</small>}</div>
+          <strong>{t('workspace.health.blockers', { count: blockingEntries.length })}</strong>
+          <strong>{t('workspace.health.warningCount', { count: warnings.length + compatibility.length + pairedSkipped.length })}</strong>
+        </header>
+        <HealthSection id="health-errors" title={t('workspace.health.blockingIssues')} icon={<CircleAlert size={18} />} severity="error" entries={errors} />
         <HealthSection id="health-warnings" title={t('workspace.health.warnings')} icon={<TriangleAlert size={18} />} severity="warning" entries={warnings} />
         <HealthSection id="health-compatibility" title={t('workspace.health.compatibility')} icon={<ShieldCheck size={18} />} severity="compatibility" entries={compatibility} />
         <HealthSection id="health-suggestions" title={t('workspace.health.suggestions')} icon={<Info size={18} />} severity="info" entries={suggestions} />
@@ -266,8 +322,6 @@ export function ProjectHealthWorkspace({ nodes, diagnostics, compatibilityDiagno
               <strong>{presentation.title}</strong>
               <p className="workspace-health-description">{presentation.description}</p>
               {presentation.reasonSummaries.length > 0 && <ul className="workspace-health-reasons">{presentation.reasonSummaries.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
-              <small className="workspace-health-impact">{presentation.impact}</small>
-              {presentation.action && <small className="workspace-health-action">{presentation.action}</small>}
               <span>{targets.map((target) => <b key={target}>{target}</b>)}{location && <small>{localizeNodeTitle(location, locale)}</small>}{technicalCount > 1 ? <small>{t('workspace.health.related', { count: technicalCount - 1 })}</small> : null}</span>
               <details className="workspace-health-technical"><summary>{t('workspace.health.technicalDetails')}</summary>{presentation.technicalDetails.map(({ issue, count }, detailIndex) => <div key={`${issue.code}-${issue.entityId ?? issue.nodeId ?? 'none'}-${detailIndex}`}><code>{issue.code}</code><small>{issue.message}{count > 1 ? ` × ${count}` : ''}</small></div>)}{presentation.projectionReasons?.map((reason) => <div key={`projection-${reason.code}-${reason.label}`}><code>{reason.code}</code><small>{reason.label} × {reason.endpointCount}</small></div>)}</details>
             </div>

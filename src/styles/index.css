@@ -1040,7 +1040,7 @@
   .workspace-proxy-card > div b { display: inline-flex; padding: 2px 6px; border-radius: var(--radius-small); color: var(--color-text-secondary); background: var(--color-surface-subtle); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
   .workspace-proxy-card > div b.is-supported { color: var(--color-success); background: var(--color-success-soft); }
   .workspace-proxy-card > div b.is-partial, .workspace-proxy-card > div b.is-unknown { color: var(--color-warning); background: var(--color-warning-soft); }
-  .workspace-proxy-card > div b.is-unsupported { color: var(--color-danger); background: var(--color-danger-soft); }
+  .workspace-proxy-card > div b.is-unsupported, .workspace-proxy-card > div b.is-blocked { color: var(--color-danger); background: var(--color-danger-soft); }
   .workspace-proxy-card > div b.is-target-native { color: var(--color-info); background: var(--color-primary-soft); }
   .workspace-proxy-card > footer { min-width: 0; grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
   .workspace-proxy-card > footer code { color: var(--color-text-secondary); }
@@ -1059,6 +1059,12 @@
   .workspace-compact-toggle input:checked::before { transform: translateX(16px); }
 
   .workspace-strategy-page, .workspace-health-page, .workspace-inspect-page { display: grid; gap: var(--space-6); }
+  .workspace-health-summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-5); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+  .workspace-health-summary > div { display: grid; gap: 2px; margin-right: auto; }
+  .workspace-health-summary > div > span { color: var(--color-text); font-size: var(--text-section-size); font-weight: 650; }
+  .workspace-health-summary > div > small { color: var(--color-text-muted); font-size: var(--text-meta-size); }
+  .workspace-health-summary > strong { padding: 5px 8px; border-radius: var(--radius-small); color: var(--color-danger); background: var(--color-danger-soft); font-size: var(--text-meta-size); }
+  .workspace-health-summary > strong:last-child { color: var(--color-warning); background: var(--color-warning-soft); }
   .workspace-strategy-page h2, .workspace-health-section h2 { margin: 0; color: var(--color-text); font-size: var(--text-section-size); line-height: var(--text-section-line); font-weight: 600; }
   .workspace-strategy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
   .workspace-strategy-card { min-width: 0; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
@@ -2613,6 +2619,7 @@
   .workspace-export-layout { min-width: 0; display: grid; gap: var(--space-6); }
   .workspace-export-settings { min-width: 0; display: grid; align-content: start; gap: var(--space-6); }
   .workspace-export-preview { min-width: 0; min-height: 520px; height: min(680px, calc(100vh - 190px)); display: grid; grid-template-rows: auto 34px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+  .workspace-export-preview.is-blocked { grid-template-rows: auto minmax(0, 1fr); }
   .workspace-export-preview > header { min-width: 0; min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4); border-bottom: 1px solid var(--color-border); }
   .workspace-export-preview > header > div:first-child { min-width: 0; display: grid; gap: 2px; }
   .workspace-export-preview > header > div:first-child > span { color: var(--color-primary); font-size: 10px; line-height: 14px; font-weight: 700; letter-spacing: .08em; }
@@ -2658,6 +2665,16 @@
   .workspace-export-preview-blocked { min-height: 0; display: flex; align-items: center; justify-content: center; align-content: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-6); color: var(--color-danger); background: var(--color-danger-soft); text-align: center; }
   .workspace-export-preview-blocked strong { width: 100%; color: var(--color-text); font-size: var(--text-section-size); line-height: var(--text-section-line); }
   .workspace-export-preview-blocked code { padding: 2px 6px; border-radius: var(--radius-small); color: var(--color-danger); background: var(--color-surface); }
+  .workspace-export-preview-blocked-state { min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-8); color: var(--color-danger); background: var(--color-danger-soft); text-align: center; }
+  .workspace-export-preview-blocked-state > strong { color: var(--color-text); font-size: var(--text-section-size); line-height: var(--text-section-line); }
+  .workspace-export-preview-blocked-state > p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-body-size); }
+  .workspace-export-preview-blocked-state > small { color: var(--color-text-muted); font-size: var(--text-meta-size); }
+  .workspace-export-blocked-summaries { width: min(100%, 390px); display: grid; gap: var(--space-2); text-align: left; }
+  .workspace-export-blocked-summaries > span { color: var(--color-text-muted); font-size: var(--text-meta-size); font-weight: 700; }
+  .workspace-export-blocked-summaries ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+  .workspace-export-blocked-summaries li { display: grid; gap: 2px; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-small); background: var(--color-surface); }
+  .workspace-export-blocked-summaries li strong { color: var(--color-text); font-size: var(--text-meta-size); }
+  .workspace-export-blocked-summaries li small { color: var(--color-text-secondary); font-size: var(--text-meta-size); line-height: 1.45; }
 
   .workspace-export-section {
     min-width: 0;

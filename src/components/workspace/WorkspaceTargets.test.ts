@@ -197,7 +197,7 @@ describe('Workspace target status', () => {
     expect(html).toContain('Ready to export')
   })
 
-  it('keeps an incompatible Surge target selected, shows the compiler message, and disables export controls', () => {
+  it('keeps an incompatible Surge target selected and shows a concise blocked export state', () => {
     const project = createBlankProject('surge')
     project.name = 'Blocked RC'
     useBuilderStore.getState().hydrate(structuredClone(project))
@@ -213,12 +213,37 @@ describe('Workspace target status', () => {
       primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
     })))
     expect(useBuilderStore.getState().primaryTarget).toBe('surge')
-    expect(html).toContain('Proxy “Incompatible VLESS” uses VLESS')
-    expect(html).toContain('SURGE_PROXY_PROTOCOL_UNSUPPORTED')
+    expect(html).toContain('Surge configuration cannot be generated yet')
+    expect(html).not.toContain('SURGE_PROXY_PROTOCOL_UNSUPPORTED')
     expect(html).toContain('7 compatible nodes')
     expect(html).not.toContain('0 compatible nodes')
-    expect(html).toContain('我的代理配置-surge.conf')
-    expect((html.match(/disabled=""/g) ?? [])).toHaveLength(3)
+    expect(html).toContain('Surge configuration cannot be generated yet')
+    expect(html).not.toContain('workspace-export-code-toolbar')
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('renders a concise blocked export state without fake configuration正文', () => {
+    const project = createBlankProject('surge')
+    project.name = 'Blocked Export'
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'surge' }),
+      mihomoState: { status: 'idle' },
+      surgeState: { status: 'error', result: surgeBlockedResult },
+      singBoxState: { status: 'idle' },
+      loonState: { status: 'idle' },
+      shadowrocketState: { status: 'idle' },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
+    })))
+
+    expect(html).toContain('Surge configuration cannot be generated yet')
+    expect(html).toContain('View all issues')
+    expect(html).not.toContain('workspace-export-code-toolbar')
+    expect(html).not.toContain('<ol class="workspace-export-code"')
+    expect(html).not.toContain('workspace-export-diagnostics')
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
 
   it('renders a compatible Surge profile with its deterministic filename and enabled export controls', () => {
@@ -246,7 +271,7 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
     })))
     expect(html).toContain('Ready to export')
     expect(html).toContain('我的代理配置-surge.conf')
@@ -256,9 +281,8 @@ describe('Workspace target status', () => {
     expect(html).toContain('<dt>Compatible</dt><dd>18 <span>/ 30</span></dd>')
     expect(html).toContain('<dt>Skipped</dt><dd>12</dd>')
     expect(html).toContain('<dt>Blocking</dt><dd>0</dd>')
-    expect(html).toContain('Skipped 12 incompatible nodes')
-    expect(html).toContain('The current configuration can still be exported.')
-    expect(html).toContain('Technical details · 1')
+    expect(html).not.toContain('Skipped 12 incompatible nodes')
+    expect(html).not.toContain('Technical details')
     expect(html).toContain('Available')
     expect(html).not.toContain('Checking')
     expect(html).not.toContain('disabled=""')

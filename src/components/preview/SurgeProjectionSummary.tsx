@@ -2,7 +2,7 @@ import type { CompileResult } from '../../core/compiler'
 import { useI18n } from '../../i18n'
 import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
 
-export function SurgeProjectionSummary({ result, entityNames }: { result?: CompileResult; entityNames?: ReadonlyMap<string, string> }) {
+export function SurgeProjectionSummary({ result, entityNames, showDiagnostics = true }: { result?: CompileResult; entityNames?: ReadonlyMap<string, string>; showDiagnostics?: boolean }) {
   const { t } = useI18n()
   if (!result) return null
   const stats = result?.stats
@@ -33,7 +33,7 @@ export function SurgeProjectionSummary({ result, entityNames }: { result?: Compi
         <dd>{blocking}</dd>
       </div>
     </dl>
-    {warnings.length > 0 && <DiagnosticPresentationList
+    {showDiagnostics && warnings.length > 0 && <DiagnosticPresentationList
       issues={warnings}
       exportable={result.success}
       entityNames={entityNames}

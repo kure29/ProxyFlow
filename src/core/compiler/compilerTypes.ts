@@ -22,6 +22,18 @@ export interface TargetStrategyProjectionSummary {
   reasons: TargetProjectionReason[]
 }
 
+/** Target-specific compatibility for one materialized endpoint. */
+export interface TargetEndpointProjectionSummary {
+  target: TargetClient
+  endpointId: string
+  sourceId?: string
+  candidateCount: number
+  compatibleCount: number
+  skippedCount: number
+  status: TargetProjectionStatus
+  reasons: TargetProjectionReason[]
+}
+
 export interface TargetProjectionSummary {
   target: TargetClient
   candidateCount: number
@@ -31,6 +43,8 @@ export interface TargetProjectionSummary {
   status: TargetProjectionStatus
   reasons: TargetProjectionReason[]
   strategies: TargetStrategyProjectionSummary[]
+  /** Optional endpoint-level details for node workspace presentation. */
+  endpoints?: TargetEndpointProjectionSummary[]
 }
 
 export interface CompileResult {

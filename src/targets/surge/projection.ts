@@ -18,6 +18,7 @@ import type {
   TargetProjectionReason,
   TargetProjectionStatus,
   TargetProjectionSummary,
+  TargetEndpointProjectionSummary,
   TargetStrategyProjectionSummary,
 } from '../../core/compiler/compilerTypes'
 import { surgeIssue } from './errors'
@@ -31,6 +32,7 @@ export interface SurgeSkippedEndpoint {
 export type SurgeProjectionReason = TargetProjectionReason
 
 export interface SurgeProxySetProjection {
+  ref: ProxySetRef
   status: 'ready' | 'error'
   proxies: ResolvedProxyEndpointIR[]
   skipped: SurgeSkippedEndpoint[]
@@ -80,7 +82,47 @@ export function createSurgeTargetProjectionSummary(
     status: projectionStatus(stats.candidateCount, stats.compatibleEndpointCount, blockingCount),
     reasons,
     strategies,
+    endpoints: summarizeSurgeEndpointProjections(context),
   }
+}
+
+function summarizeSurgeEndpointProjections(context: SurgeProjectionContext): TargetEndpointProjectionSummary[] {
+  const summaries = new Map<string, TargetEndpointProjectionSummary>()
+  for (const projection of context.proxySets.values()) {
+    for (const endpoint of projection.proxies) {
+      const sourceId = endpoint.metadata?.sourceId ?? (projection.ref.kind === 'source' ? projection.ref.id : undefined)
+      const key = `${sourceId ?? ''}\u0000${surgeProjectionEndpointKey(endpoint)}`
+      summaries.set(key, {
+        target: 'surge', endpointId: endpoint.id, ...(sourceId ? { sourceId } : {}),
+        candidateCount: 1, compatibleCount: 1, skippedCount: 0, status: 'ready', reasons: [],
+      })
+    }
+    for (const item of projection.skipped) {
+      const sourceId = item.endpoint.metadata?.sourceId ?? (projection.ref.kind === 'source' ? projection.ref.id : undefined)
+      const key = `${sourceId ?? ''}\u0000${surgeProjectionEndpointKey(item.endpoint)}`
+      if (summaries.get(key)?.compatibleCount === 1) continue
+      summaries.set(key, {
+        target: 'surge', endpointId: item.endpoint.id, ...(sourceId ? { sourceId } : {}),
+        candidateCount: 1, compatibleCount: 0, skippedCount: 1, status: 'blocked',
+        reasons: aggregateSurgeSkipReasons([item]),
+      })
+    }
+  }
+  for (const projection of context.fixedEndpoints.values()) {
+    const endpoint = projection.candidate
+    if (!endpoint) continue
+    const sourceId = endpoint.metadata?.sourceId
+    const key = `${sourceId ?? ''}\u0000${surgeProjectionEndpointKey(endpoint)}`
+    if (summaries.get(key)?.compatibleCount === 1) continue
+    const compatible = Boolean(projection.endpoint)
+    summaries.set(key, {
+      target: 'surge', endpointId: endpoint.id, ...(sourceId ? { sourceId } : {}),
+      candidateCount: 1, compatibleCount: compatible ? 1 : 0, skippedCount: compatible ? 0 : 1,
+      status: compatible ? 'ready' : 'blocked',
+      reasons: compatible ? [] : aggregateSurgeSkipReasons([{ endpoint, issues: projection.issues }]),
+    })
+  }
+  return [...summaries.values()].sort((left, right) => (left.sourceId ?? '').localeCompare(right.sourceId ?? '') || left.endpointId.localeCompare(right.endpointId))
 }
 
 function summarizeSurgeStrategyProjection(
@@ -153,6 +195,7 @@ export function projectSurgeProxySet(
   const materialized = materializeProxySet(ir, ref, context.materialization)
   if (materialized.status === 'error') {
     const failed: SurgeProxySetProjection = {
+      ref,
       status: 'error', proxies: [], skipped: [], reasons: [], inputCount: 0,
       materializationIssues: materialized.issues, endpointIssues: [], duplicateEndpointIds: [],
     }
@@ -178,6 +221,7 @@ export function projectSurgeProxySet(
   }
 
   const projected: SurgeProxySetProjection = {
+    ref,
     status: 'ready',
     proxies,
     skipped,

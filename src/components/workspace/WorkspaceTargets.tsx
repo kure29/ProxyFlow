@@ -3,18 +3,17 @@ import { AlertTriangle, Check, Clipboard, Download, Eye, Laptop, LoaderCircle, N
 import {
   getTargetCapabilities, PRODUCT_TARGETS, resolveActiveProductTarget, type PrimaryTarget,
 } from '../../core/capabilities'
-import { deduplicateDiagnostics, type StructuredDiagnostic } from '../../core/compiler'
+import { deduplicateDiagnostics, type CompileResult, type StructuredDiagnostic } from '../../core/compiler'
 import { outputDefinitions } from '../../data/demoProject'
 import { localizeNodeTitle, useI18n } from '../../i18n'
 import type { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
-import { DiagnosticPresentationList } from '../compiler/DiagnosticPresentationList'
-import { summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
+import { presentDiagnostics, summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
 import { AssetIcon } from '../icons/AssetIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { createMihomoOutputProfile, resolveMihomoOutputProfile } from '../../targets/mihomo/profile'
 import type { MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from '../../types/project'
-import { buildTargetExportArtifact, safeFilename, targetFileMeta, type TargetExportFormat } from '../compiler/exportFile'
+import { buildTargetExportArtifact, targetFileMeta, type TargetExportFormat } from '../compiler/exportFile'
 import { countEnabledDnsResolvers } from '../../core/dns/resolverProfiles'
 import { WebSelect } from '../ui/WebSelect'
 import { SurgeProjectionSummary } from '../preview/SurgeProjectionSummary'
@@ -90,11 +89,12 @@ export function TargetSwitchDialog({ open, current, compiles, onClose, onSelect 
   </div>
 }
 
-export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSelectTarget }: {
+export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSelectTarget, onShowDiagnostics }: {
   primaryTarget: PrimaryTarget | null
   compiles: ProjectCompiles
   onPreview: (target: PrimaryTarget) => void
   onSelectTarget?: (target: PrimaryTarget) => void
+  onShowDiagnostics?: () => void
 }) {
   const { locale, t } = useI18n()
   const projectName = useBuilderStore((state) => state.projectName)
@@ -160,11 +160,11 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
 
         <section className="workspace-export-section" aria-labelledby="export-compatibility-title">
           <header><div><h2 id="export-compatibility-title">{t('workspace.export.compatibilitySection')}</h2><p>{t('workspace.export.compatibilityDescription')}</p></div></header>
-          {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} entityNames={entityNames} />}
+          {activeTarget === 'surge' && <SurgeProjectionSummary result={state.result} entityNames={entityNames} showDiagnostics={false} />}
           <div className="workspace-export-compatibility">{PRODUCT_TARGETS.map((target) => <article key={target}><TargetArtwork target={target} /><TargetStatus target={target} state={stateForTarget(compiles, target)} active={target === activeTarget} graphIssues={target === activeTarget ? compiles.graphResult.issues : []} /></article>)}</div>
         </section>
 
-        <section className="workspace-export-actions" aria-labelledby="export-actions-title"><div><h2 id="export-actions-title">{t('workspace.export.actionsSection')}</h2><span className={`is-${status.kind}`}>{status.kind === 'ready' ? t('workspace.exportReady') : t('workspace.export.blocked')}</span></div><div><button type="button" className="secondary-action workspace-export-open-preview" onClick={() => onPreview(activeTarget)}><Eye size={16} />{t('workspace.export.preview')}</button><button type="button" className="primary-action workspace-export-mobile-download" disabled={!artifact} onClick={download}><Download size={16} />{t('workspace.export.download')}</button></div></section>
+        <section className="workspace-export-actions" aria-labelledby="export-actions-title"><div><h2 id="export-actions-title">{t('workspace.export.actionsSection')}</h2><span className={`is-${status.kind}`}>{status.kind === 'ready' ? t('workspace.exportReady') : t('workspace.export.blocked')}</span></div><div><button type="button" className="secondary-action workspace-export-open-preview" disabled={!artifact} title={!artifact ? t('workspace.export.blockedReason') : undefined} onClick={() => onPreview(activeTarget)}><Eye size={16} />{t('workspace.export.preview')}</button><button type="button" className="primary-action workspace-export-mobile-download" disabled={!artifact} onClick={download}><Download size={16} />{t('workspace.export.download')}</button></div></section>
 
         <section className="workspace-export-section" aria-labelledby="export-configuration-title">
           <header><div><h2 id="export-configuration-title">{t('workspace.export.configurationSection')}</h2><p>{t('workspace.export.configurationDescription')}</p></div></header>
@@ -185,17 +185,37 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onPreview, onSel
         </section>
       </div>
 
-      <section className="workspace-export-preview" aria-labelledby="export-inline-preview-title">
-        <header><div><span>{fileMeta.format.toUpperCase()}</span><h2 id="export-inline-preview-title">{t('workspace.export.preview')}</h2></div><div><button type="button" className="secondary-action" disabled={!artifact} onClick={() => void copy()}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? t('preview.copied') : t('preview.copy')}</button><button type="button" className="primary-action" disabled={!artifact} onClick={download}><Download size={15} />{t('workspace.export.download')}</button></div></header>
-        <div className="workspace-export-code-toolbar"><code>{artifact?.filename ?? `${safeFilename(projectName)}-${activeTarget}.${fileMeta.extension}`}</code><span>{getTargetCapabilities(activeTarget).label}</span></div>
-        <div className={`workspace-export-preview-body${displayedIssues.length ? ' has-issues' : ''}`}>
-          {displayedIssues.length > 0 && <div className="workspace-export-diagnostics" role="status"><DiagnosticPresentationList issues={displayedIssues} exportable={Boolean(artifact)} entityNames={entityNames} targetProjection={state.result?.targetProjection} compact /></div>}
-          {artifact
-            ? <ConfigCodePreview content={artifact.content} format={fileMeta.format} label={t('workspace.export.configAria', { format: fileMeta.format.toUpperCase() })} />
-            : <div className="workspace-export-preview-blocked"><AlertTriangle size={22} /><strong>{t('workspace.export.blocked')}</strong></div>}
-        </div>
+      <section className={`workspace-export-preview${artifact ? '' : ' is-blocked'}`} aria-labelledby="export-inline-preview-title">
+        <header><div><span>{artifact ? fileMeta.format.toUpperCase() : getTargetCapabilities(activeTarget).label}</span><h2 id="export-inline-preview-title">{artifact ? t('workspace.export.preview') : t('workspace.export.blockedPreviewTitle', { target: getTargetCapabilities(activeTarget).label })}</h2></div><div><button type="button" className="secondary-action" disabled={!artifact} title={!artifact ? t('workspace.export.blockedReason') : undefined} onClick={() => void copy()}>{copied ? <Check size={15} /> : <Clipboard size={15} />}{copied ? t('preview.copied') : t('preview.copy')}</button><button type="button" className="primary-action" disabled={!artifact} title={!artifact ? t('workspace.export.blockedReason') : undefined} onClick={download}><Download size={15} />{t('workspace.export.download')}</button></div></header>
+        {artifact && <div className="workspace-export-code-toolbar"><code>{artifact.filename}</code><span>{getTargetCapabilities(activeTarget).label}</span></div>}
+        {artifact
+          ? <div className="workspace-export-preview-body">
+            <ConfigCodePreview content={artifact.content} format={fileMeta.format} label={t('workspace.export.configAria', { format: fileMeta.format.toUpperCase() })} />
+          </div>
+          : <BlockedExportPreview target={activeTarget} status={status} issues={displayedIssues} entityNames={entityNames} targetProjection={state.result?.targetProjection} onShowDiagnostics={onShowDiagnostics} />}
       </section>
     </div>
+  </div>
+}
+
+function BlockedExportPreview({ target, status, issues, entityNames, targetProjection, onShowDiagnostics }: {
+  target: PrimaryTarget
+  status: ReturnType<typeof targetStatus>
+  issues: StructuredDiagnostic[]
+  entityNames: ReadonlyMap<string, string>
+  targetProjection?: CompileResult['targetProjection']
+  onShowDiagnostics?: () => void
+}) {
+  const { t, locale } = useI18n()
+  const blocking = issues.filter((issue) => issue.severity === 'error')
+  const summaries = presentDiagnostics(blocking, { locale, t, exportable: false, entityNames, targetProjection }).slice(0, 3)
+  return <div className="workspace-export-preview-blocked-state" role="status">
+    <AlertTriangle size={26} />
+    <strong>{t('workspace.export.blockedPreviewTitle', { target: getTargetCapabilities(target).label })}</strong>
+    <p>{t('workspace.export.blockedPreviewCounts', { target: getTargetCapabilities(target).label, blockers: status.errorCount, warnings: status.warningCount })}</p>
+    {summaries.length > 0 && <div className="workspace-export-blocked-summaries"><span>{t('workspace.export.blockedPreviewMainIssues')}</span><ul>{summaries.map((summary) => <li key={summary.key}><strong>{summary.title}</strong><small>{summary.description}</small></li>)}</ul></div>}
+    {onShowDiagnostics && <button type="button" className="secondary-action" onClick={onShowDiagnostics}>{t('workspace.export.viewAllIssues')}</button>}
+    <small>{t('workspace.export.blockedReason')}</small>
   </div>
 }
 
@@ -243,8 +263,7 @@ function TargetStatus({ target, state, active, graphIssues }: { target: PrimaryT
     <span><strong>{capabilities.label}</strong><small>{t('newProject.baseline', { version: capabilities.baselineVersion })}</small>{target === 'surge' && <small>{t('newProject.targetDescription.surge')}</small>}{target === 'shadowrocket' && <small>{t('newProject.targetDescription.shadowrocket')}</small>}</span>
     <b className={`is-${status.kind}`}>{status.kind === 'loading' ? <LoaderCircle className="spin" size={13} /> : status.kind === 'ready' ? <Check size={13} /> : status.kind === 'blocked' ? <AlertTriangle size={13} /> : null}{label}</b>
     {status.kind === 'available' && <small>{t('workspace.targetCheckAfterSwitching')}</small>}
-    {status.kind !== 'available' && compatibleNodeCount !== undefined && <small>{t('workspace.export.nodes', { count: compatibleNodeCount })}</small>}
-    {status.warningCount > 0 && <small>{t(status.warningCount === 1 ? 'workspace.targetWarning' : 'workspace.targetWarnings', { count: status.warningCount })}</small>}
+    {status.kind !== 'available' && compatibleNodeCount !== undefined && <small>{t('workspace.targetCompatibilitySummary', { compatible: compatibleNodeCount, blockers: status.errorCount, warnings: status.warningCount })}</small>}
   </div>
 }
 

@@ -42,6 +42,7 @@ export interface DiagnosticCountSummary {
 }
 
 const SURGE_SKIPPED = 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED'
+const SURGE_NO_MEMBERS = 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS'
 const SURGE_MATERIALIZED = 'SURGE_REMOTE_PROXY_SOURCE_MATERIALIZED'
 const MIHOMO_VARIANT = 'MIHOMO_PROXY_VARIANT_UNSUPPORTED'
 
@@ -149,12 +150,15 @@ function presentationBuckets(issues: readonly StructuredDiagnostic[]): Presentat
 
 function knownPresentationKey(issue: StructuredDiagnostic, index: number) {
   if (issue.code === MIHOMO_VARIANT || issue.code === SURGE_MATERIALIZED) return `${issue.severity}:${issue.code}`
-  if (issue.code === SURGE_SKIPPED) return `${issue.severity}:${issue.code}:${issue.entityId ?? issue.nodeId ?? index}`
+  if (issue.code === SURGE_NO_MEMBERS || issue.code === SURGE_SKIPPED) {
+    return `surge-strategy:${issue.entityId ?? issue.nodeId ?? index}`
+  }
   return undefined
 }
 
 function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
   const issue = bucket.issues[0]
+  if (issue.code === SURGE_NO_MEMBERS || bucket.issues.some((candidate) => candidate.code === SURGE_NO_MEMBERS)) return presentSurgeStrategy(bucket, context)
   if (issue.code === SURGE_SKIPPED) return presentSurgeSkipped(bucket, context)
   if (issue.code === SURGE_MATERIALIZED) return presentSurgeMaterialized(bucket, context)
   if (issue.code === MIHOMO_VARIANT) return presentMihomoVariant(bucket, context)
@@ -163,6 +167,34 @@ function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentati
   const shadowrocketKind = shadowrocketPresentationKind(issue)
   if (shadowrocketKind) return presentShadowrocket(bucket, context, shadowrocketKind)
   return presentGeneric(bucket, context)
+}
+
+function presentSurgeStrategy(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
+  const blocker = bucket.issues.find((issue) => issue.code === SURGE_NO_MEMBERS) ?? bucket.issues[0]
+  const skippedIssue = bucket.issues.find((issue) => issue.code === SURGE_SKIPPED)
+  const projection = surgeStrategyProjection(context.targetProjection, blocker.entityId ?? blocker.nodeId)
+  const parsed = projection || !skippedIssue ? undefined : parseSurgeSkippedDiagnostic(skippedIssue.message)
+  const compatible = projection?.compatibleCount ?? parsed?.compatible
+  const total = projection?.candidateCount ?? parsed?.total
+  const skipped = projection?.skippedCount ?? parsed?.skipped
+  const entityId = blocker.entityId ?? blocker.nodeId
+  const strategy = entityId ? context.entityNames?.get(entityId) ?? parsed?.strategy : parsed?.strategy
+  const description = compatible !== undefined && total !== undefined && skipped !== undefined
+    ? strategy
+      ? context.t('diagnostic.surgeStrategy.descriptionWithStrategy', { strategy, compatible, total, skipped })
+      : context.t('diagnostic.surgeStrategy.description', { compatible, total, skipped })
+    : blocker.message
+  const projectionReasons = projection?.reasons
+    ?? (parsed ? parsed.reasons.map((reason) => ({ code: reason.label, label: reason.label, endpointCount: reason.count })) : undefined)
+  return {
+    ...basePresentation(bucket),
+    title: strategy ?? context.t('diagnostic.surgeStrategy.title'),
+    description,
+    impact: '',
+    action: undefined,
+    reasonSummaries: projectionReasons ? presentStructuredSurgeSkipReasons(projectionReasons, context.t) : [],
+    ...(projection ? { projectionReasons: projection.reasons } : {}),
+  }
 }
 
 function shadowrocketPresentationKind(issue: StructuredDiagnostic): ShadowrocketPresentationKind | undefined {

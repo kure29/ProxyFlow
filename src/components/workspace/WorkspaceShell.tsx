@@ -233,7 +233,7 @@ export function WorkspaceShell({
           onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled, enabled: !disabled })}
           onDelete={(item) => removeNode(item.node.id)}
         />}
-        {activeSection === 'proxies' && <ProxiesWorkspace proxies={projection.proxies} />}
+        {activeSection === 'proxies' && <ProxiesWorkspace proxies={projection.proxies} target={activeProductTarget} targetProjection={activeTargetProjection} />}
         {activeSection === 'processing' && <ProcessingWorkspace
           items={orderedProcessing}
           runtime={pipelineRuntime}
@@ -288,12 +288,14 @@ export function WorkspaceShell({
           diagnostics={inspectDiagnostics}
           compatibilityDiagnostics={compatibilityDiagnostics}
           targetProjection={activeTargetProjection}
+          target={activeProductTarget}
           onOpenNode={openNodeInWorkspace}
         />}
         {activeSection === 'export' && <WorkspaceExportPanel
           primaryTarget={primaryTarget}
           compiles={targetCompiles}
           onSelectTarget={setPrimaryTarget}
+          onShowDiagnostics={() => onSectionChange('inspect')}
           onPreview={(target) => setPreviewOpen(true, target)}
         />}
       </section>

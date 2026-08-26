@@ -100,6 +100,9 @@ describe('Surge projection skip reasons', () => {
         blockingCount: 1, status: 'blocked',
       })],
     }))
+    expect(result.targetProjection?.endpoints).toHaveLength(13)
+    expect(result.targetProjection?.endpoints?.every((endpoint) => endpoint.status === 'blocked' && endpoint.compatibleCount === 0 && endpoint.skippedCount === 1)).toBe(true)
+    expect(new Set(result.targetProjection?.endpoints?.map((endpoint) => endpoint.sourceId))).toEqual(new Set(['anytls-projection']))
   })
 
   it.each([

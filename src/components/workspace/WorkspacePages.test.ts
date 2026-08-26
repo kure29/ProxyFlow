@@ -7,7 +7,7 @@ import { I18nProvider, setCurrentLocale } from '../../i18n'
 import { demoNodes, demoProject } from '../../data/demoProject'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { createWorkspaceProjection } from '../../core/workspace'
-import { collectProxyFilterOptions, ProcessingWorkspace, ProjectHealthWorkspace, resolveRelativeSourceTime, StrategiesWorkspace } from './WorkspacePages'
+import { collectProxyFilterOptions, ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, resolveRelativeSourceTime, StrategiesWorkspace } from './WorkspacePages'
 import type { CompatibilityIssue } from '../../types/project'
 
 describe('Workspace page presentation helpers', () => {
@@ -68,7 +68,7 @@ describe('Workspace page presentation helpers', () => {
     })))
 
     expect(html).toContain('88 nodes have compatibility limits')
-    expect(html).toContain('This warning does not itself block export.')
+    expect(html).not.toContain('This warning does not itself block export.')
     expect(html).toContain('87 related issues')
     expect((html.match(/88 nodes have compatibility limits/g) ?? [])).toHaveLength(1)
     expect(html.indexOf('MIHOMO_PROXY_VARIANT_UNSUPPORTED')).toBeGreaterThan(html.indexOf('<details class="workspace-health-technical">'))
@@ -157,5 +157,86 @@ describe('Workspace page presentation helpers', () => {
     expect(html).toContain('0 / 13 compatible nodes')
     expect(html).toContain('Blocked')
     expect(html).not.toContain('<b class="is-partial">Partial</b>')
+  })
+
+  it('separates healthy source state from endpoint-level Surge incompatibility', () => {
+    setCurrentLocale('en-US')
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(ProxiesWorkspace, {
+      target: 'surge',
+      proxies: [{
+        id: 'anytls-01', name: 'AnyTLS 01', protocol: 'anytls', region: 'HK', sourceId: 'source', sourceName: 'Fixture',
+        sourceAvailability: 'healthy', compatibility: 'partial',
+      }],
+      targetProjection: {
+        target: 'surge', candidateCount: 1, compatibleCount: 0, skippedCount: 1, blockingCount: 0, status: 'blocked', reasons: [], strategies: [],
+        endpoints: [{ target: 'surge', sourceId: 'source', endpointId: 'anytls-01', candidateCount: 1, compatibleCount: 0, skippedCount: 1, status: 'blocked', reasons: [] }],
+      } as TargetProjectionSummary,
+    })))
+
+    expect(html).toContain('Healthy')
+    expect(html).toContain('Surge incompatible')
+    expect(html).not.toContain('<b class="is-partial">Partial</b>')
+  })
+
+  it('does not reuse a Surge endpoint projection after switching to Mihomo', () => {
+    setCurrentLocale('en-US')
+    const projection: TargetProjectionSummary = {
+      target: 'surge', candidateCount: 1, compatibleCount: 0, skippedCount: 1, blockingCount: 1, status: 'blocked', reasons: [], strategies: [],
+      endpoints: [{ target: 'surge', sourceId: 'source', endpointId: 'anytls-01', candidateCount: 1, compatibleCount: 0, skippedCount: 1, status: 'blocked', reasons: [] }],
+    }
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(ProxiesWorkspace, {
+      target: 'mihomo',
+      proxies: [{
+        id: 'anytls-01', name: 'AnyTLS 01', protocol: 'anytls', region: 'HK', sourceId: 'source', sourceName: 'Fixture',
+        sourceAvailability: 'healthy', compatibility: 'supported',
+      }],
+      targetProjection: projection,
+    })))
+
+    expect(html).toContain('Mihomo compatible')
+    expect(html).not.toContain('Surge incompatible')
+  })
+
+  it('shows one diagnostics summary and groups strategy blocker with its skipped-node cause', () => {
+    setCurrentLocale('en-US')
+    useBuilderStore.getState().hydrate(structuredClone(demoProject))
+    const strategyId = demoNodes.find((node) => node.data.category === 'strategy')!.id
+    const diagnostics: CompatibilityIssue[] = [
+      { target: 'surge', code: 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS', severity: 'error', feature: 'strategy', entityId: strategyId, message: 'No compatible members.' },
+      { target: 'surge', code: 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED', severity: 'warning', feature: 'strategy', entityId: strategyId, message: 'Surge can use 0 of 13 candidates in strategy “Hong Kong Auto”. 13 endpoints were skipped.' },
+      { target: 'surge', code: 'SURGE_DNS_UNSUPPORTED', severity: 'error', feature: 'dns', entityId: 'dns', message: 'DNS is unsupported.' },
+      { target: 'surge', code: 'SURGE_ROUTE_UNSUPPORTED', severity: 'error', feature: 'routing', entityId: 'route', message: 'Route is unsupported.' },
+      { target: 'surge', code: 'SURGE_WARNING', severity: 'warning', feature: 'proxy', entityId: 'source', message: 'Warning.' },
+    ]
+    const targetProjection: TargetProjectionSummary = {
+      target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 3, status: 'blocked',
+      reasons: [
+        { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+        { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+      ],
+      strategies: [{ target: 'surge', strategyId, candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 1, status: 'blocked', reasons: [
+        { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+        { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+      ] }],
+    }
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(ProjectHealthWorkspace, {
+      nodes: demoNodes,
+      diagnostics: [],
+      compatibilityDiagnostics: diagnostics,
+      targetProjection,
+      target: 'surge',
+      onOpenNode: () => undefined,
+    })))
+
+    expect(html).toContain('3 blockers')
+    expect(html).toContain('2 warnings')
+    expect(html).toContain('SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS')
+    expect(html).toContain('0 of 13 candidate nodes')
+    expect(html).toContain('13 nodes use TLS client fingerprint settings that Surge cannot represent')
+    expect((html.match(/SURGE_PROXY_SET_ENDPOINTS_SKIPPED/g) ?? [])).toHaveLength(1)
+    expect(html).not.toContain('Export is blocked until this is resolved.')
+    expect(html).not.toContain('Review the affected setting and try again.')
+    expect((html.match(/<details class="workspace-health-technical"/g) ?? []).length).toBeGreaterThan(0)
+    expect(html).not.toContain('<details class="workspace-health-technical" open')
   })
 })
