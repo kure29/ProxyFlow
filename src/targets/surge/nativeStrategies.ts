@@ -224,7 +224,7 @@ function allEndpoints(ir: ProxyFlowIR) {
 function isSurgeMatcher(value: unknown): value is Extract<TargetNativeStrategyIR, { kind: 'subnet' }>['conditions'][number]['matcher'] {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
-  if (typeof candidate.value !== 'string' || !candidate.value.trim()) return false
+  if (typeof candidate.value !== 'string' || !candidate.value.trim() || /[\r\n\u0000-\u001f\u007f]/.test(candidate.value)) return false
   if (candidate.kind === 'ssid' || candidate.kind === 'bssid' || candidate.kind === 'router') return true
   return candidate.kind === 'network-type' && ['WIFI', 'WIRED', 'CELLULAR'].includes(candidate.value)
 }

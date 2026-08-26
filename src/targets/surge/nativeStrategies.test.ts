@@ -78,6 +78,16 @@ describe('Surge target-native Smart and Subnet strategies', () => {
     expect(result.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining(['SURGE_SUBNET_DEFAULT_REQUIRED', 'SURGE_SUBNET_MATCHER_INVALID']))
   })
 
+  it('rejects control characters in Subnet matcher values', () => {
+    const malformed = natives().map((strategy) => strategy.kind === 'subnet' ? {
+      ...strategy,
+      conditions: [{ matcher: { kind: 'ssid' as const, value: 'Home-WiFi\nFINAL,DIRECT' }, policy: { kind: 'builtin' as const, id: 'DIRECT' as const } }],
+    } : strategy) as TargetNativeStrategyIR[]
+    const result = compileSurge(ir(), { nativeStrategies: malformed })
+    expect(result.success).toBe(false)
+    expect(result.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'SURGE_SUBNET_MATCHER_INVALID', severity: 'error' })]))
+  })
+
   it('lowers every supported Subnet matcher without changing condition order', () => {
     const subnet = natives().find((strategy) => strategy.kind === 'subnet')!
     const allMatchers = [
