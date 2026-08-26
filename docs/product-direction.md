@@ -66,10 +66,13 @@ Current target status:
   tests, and Universal IR infrastructure remain available for regression and
   possible future use. Historical Projects load without data loss, can switch
   to a supported target, and retain their target-specific data.
-- Shadowrocket: Compiler foundation registered but product export remains
-  paused pending the evidence and real-client gates in
-  [`shadowrocket-rc-readiness.md`](shadowrocket-rc-readiness.md). Stash and
-  Quantumult X remain planned.
+- Shadowrocket: Supported product Export Target for the exact evidence-bounded
+  subset pinned to Shadowrocket 2.2.65 build 2615. The adapter does not claim
+  universal native Shadowrocket capability: mixed IP/GEO precedence,
+  unverified IPv6 behavior, encrypted/richer DNS roles, Service Rules, native
+  remote sources, and other unproven protocol variants remain conditional or
+  fail closed as documented in [`shadowrocket-rc-readiness.md`](shadowrocket-rc-readiness.md).
+  Stash and Quantumult X remain planned.
 
 Subscription Request Profile is independent from Export Target. Auto, Mihomo,
 sing-box, and Generic request profiles remain available.
@@ -197,9 +200,10 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - A Project has at most one active DNS owner node. That node may hold multiple
   resolver profiles; target-specific resolver roles must use capability-driven
   controls and fail closed when unsupported.
-- Mihomo, Surge, and Loon are production Export targets. sing-box is paused but
-  retained below the product surface. Planned targets must not appear as ready
-  or actionable before a real compiler path and acceptance evidence exist.
+- Mihomo, Surge, Loon, and the evidence-bounded Shadowrocket adapter are
+  production Export targets. sing-box is paused but retained below the product
+  surface. Planned targets must not appear as ready or actionable before a real
+  compiler path and acceptance evidence exist.
 - Project export must not contain Runtime credentials or cached subscription
   credentials.
 - Supported product claims require capability, validation, and compiler

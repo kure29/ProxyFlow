@@ -1,9 +1,10 @@
 # Shadowrocket Compiler Foundation
 
-Status: **registered and paused**. The backend is intentionally not exposed as
-a product target. This document is the evidence-bounded capability audit for
-the first compiler slice and records the gates that must be closed before
-Shadowrocket can become a supported target.
+Status: **supported for an evidence-bounded subset**. The adapter is exposed
+through the ordinary product target surfaces, but this does not equate native
+Shadowrocket capability with ProxyFlow support. The accepted boundary is pinned
+to Shadowrocket 2.2.65 build 2615; unsupported and unproven intent still fails
+closed.
 
 The intended pipeline is:
 
@@ -87,9 +88,9 @@ unsupported intent is silently omitted or downgraded.
 
 ## Acceptance gate
 
-Before changing `productStatus` from `paused` to `supported`, a human must
-provide sanitized evidence for import, representative proxy traffic, strategy
-selection, routing precedence, DNS behavior, and a representative materialized
-subscription. The exact tested subset now has a pinned record in
-`docs/shadowrocket-acceptance.md`; unsupported, deferred, and untested native
-features remain outside the intended exposure boundary.
+The evidence gate for the currently exposed subset is pinned to sanitized
+records for import, representative proxy traffic, strategy selection, the
+tested routing boundaries, DNS behavior, and a representative materialized
+subscription. Product exposure remains under human review in the stacked Draft
+PR; unsupported, deferred, and untested native features remain outside the
+intended exposure boundary.

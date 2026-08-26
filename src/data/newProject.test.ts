@@ -17,10 +17,10 @@ describe('blank project creation', () => {
     expect(project.graph.edges.some((edge) => edge.data?.semantic === 'dns')).toBe(false)
   })
 
-  it('marks a paused internal Shadowrocket project as paused in its output node', () => {
+  it('creates an exposed Shadowrocket project with supported output metadata', () => {
     const project = createBlankProject('shadowrocket')
     const output = project.graph.nodes.find((node) => node.data.blockType === 'output')
 
-    expect(output?.data).toEqual(expect.objectContaining({ client: 'shadowrocket', compatibility: 'Paused' }))
+    expect(output?.data).toEqual(expect.objectContaining({ client: 'shadowrocket', compatibility: 'Supported' }))
   })
 })

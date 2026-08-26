@@ -6,7 +6,8 @@ import type { SubscriptionRequestProfile } from '../subscription'
 export const PRIMARY_TARGETS = ['mihomo', 'surge', 'sing-box', 'loon', 'shadowrocket'] as const
 
 export type PrimaryTarget = typeof PRIMARY_TARGETS[number]
-export type ProductTarget = Exclude<PrimaryTarget, 'sing-box' | 'shadowrocket'>
+/** Targets exposed through the ordinary product surfaces. sing-box remains registered but paused. */
+export type ProductTarget = Exclude<PrimaryTarget, 'sing-box'>
 export type TargetProductStatus = 'supported' | 'paused'
 export type CapabilityStatus = 'supported' | 'partial' | 'unsupported' | 'target-native'
 export type StrategyCapability = 'manual' | 'auto' | 'failover' | 'load-balance' | 'fixed' | 'chain'
@@ -414,8 +415,8 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
   shadowrocket: {
     target: 'shadowrocket',
     label: 'Shadowrocket',
-    baselineVersion: 'audit pending',
-    productStatus: 'paused',
+    baselineVersion: '2.2.65 build 2615',
+    productStatus: 'supported',
     protocols: {
       http: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN', 'HTTP/HTTPS syntax is implemented in the adapter but awaits authoritative syntax pinning and client acceptance.'),
       socks5: partial('SHADOWROCKET_PROXY_VARIANT_UNPROVEN'),

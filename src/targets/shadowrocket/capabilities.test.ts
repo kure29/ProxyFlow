@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { SHADOWROCKET_MINIMUM_VERSION, SHADOWROCKET_SUPPORTED_DNS, SHADOWROCKET_SUPPORTED_MATCHERS, shadowrocketCapabilities } from './capabilities'
 
 describe('Shadowrocket capability boundary', () => {
-  it('remains registered but paused until evidence gates close', () => {
-    expect(SHADOWROCKET_MINIMUM_VERSION).toBe('audit pending')
-    expect(shadowrocketCapabilities.productStatus).toBe('paused')
+  it('exposes only the evidence-pinned product boundary', () => {
+    expect(SHADOWROCKET_MINIMUM_VERSION).toBe('2.2.65 build 2615')
+    expect(shadowrocketCapabilities.productStatus).toBe('supported')
     expect(shadowrocketCapabilities.native['shadowrocket-profile'].status).toBe('target-native')
   })
 

@@ -73,7 +73,7 @@ export interface PrimaryTargetHealth {
 }
 
 export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: PrimaryTarget | null): PrimaryTargetHealth {
-  if (target && getTargetCapabilities(target).productStatus === 'paused' && target !== 'shadowrocket') return {
+  if (target && getTargetCapabilities(target).productStatus === 'paused') return {
     status: 'blocked',
     diagnostics: [pausedTargetDiagnostic(target)],
   }
@@ -109,7 +109,7 @@ export function summarizePrimaryTargetHealth(compiles: ProjectCompiles, target: 
 
 function pausedTargetDiagnostic(target: PrimaryTarget): StructuredDiagnostic {
   return {
-    code: target === 'shadowrocket' ? 'SHADOWROCKET_PRODUCT_SUPPORT_PAUSED' : 'TARGET_PRODUCT_SUPPORT_PAUSED',
+    code: 'TARGET_PRODUCT_SUPPORT_PAUSED',
     severity: 'error',
     message: translateCurrent('compiler.targetPaused', { target: getTargetCapabilities(target).label }),
   }

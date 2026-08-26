@@ -204,6 +204,6 @@ URL Subscription 的 `exportMode` 是客户端无关的用户意图：
 
 Planner 的决策是 per ProxySet / per consumer path。同一 Source 的直接分支可以 native remote，而经过 Filter 的另一分支仍 materialize；同一 target 输出中两者可以并存。第一阶段只有未经过 Transform 的 URL Source 可走 native path；Filter、Rename、Sort、Dedupe、Merge、Limit、manual merge、Fixed identity 与 Proxy Chain hop 都保守 materialize。
 
-Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。Surge、Loon 与 sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 分别生成 materialized policies 或 explicit outbounds，`remote` 失败闭合。Quantumult X、Shadowrocket 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics。
+Mihomo capability + adapter 首先实现 HTTP proxy-provider lowering。同一 Source ID 的多个 consumer 复用稳定、与显示名称无关的 provider key。Surge、Loon 与 sing-box 当前未声明 native remote capability，因此 `auto` / `materialized` 分别生成 materialized policies 或 explicit outbounds，`remote` 失败闭合。Quantumult X 或 Stash 只需声明经过验证的 capability 并实现 target adapter，不需要修改 Subscription Parser、ProxySet lineage 或 Graph semantics；Shadowrocket 已通过同一 registry 暴露其证据边界适配器。
 
 为避免旧 Project 输出静默改变，缺少 `exportMode` 的持久化 URL Source 在 V2 additive migration 中规范为 `materialized`；新建 URL Source 默认 `auto`。Project Schema 与 IR major version 均保持 V2。

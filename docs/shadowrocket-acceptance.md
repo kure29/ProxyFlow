@@ -1,8 +1,8 @@
 # Shadowrocket Acceptance Gate
 
-This remains a human-gated workflow. Shadowrocket is registered but paused;
-the local harness does not expose the target, change `productStatus`, import a
-profile into the client, or make a network request. A narrow real-client record
+This remains a human-gated workflow for real-client behavior. Shadowrocket is
+exposed only for the evidence-bounded product subset; the local harness does
+not import a profile into the client or make a network request. A narrow real-client record
 now exists for Shadowrocket 2.2.65 build 2615 covering standalone GEOIP,
 standalone IP-CIDR, and the resulting mixed IP/GEO fail-closed boundary; it is
 not generalized to other versions or builds.
@@ -461,6 +461,7 @@ Remaining unproven boundaries:
 ```
 
 The deterministic fixture and every private profile have separate hashes. A
-failed or missing human result keeps the target paused and the relevant
-capability audit item open. Syntax/import acceptance and behavioral acceptance
-must remain separate fields; neither one may be inferred from the other.
+failed or missing human result keeps the relevant capability audit item open
+and blocks the affected export; it does not justify widening the adapter.
+Syntax/import acceptance and behavioral acceptance must remain separate fields;
+neither one may be inferred from the other.

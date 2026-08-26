@@ -203,7 +203,7 @@ export function resolveVisiblePreviewTargets(primaryTarget: PrimaryTarget | null
 }
 
 export function shouldShowPreviewPausedWarning(mode: PreviewMode) {
-  return (mode === 'loon' || mode === 'shadowrocket') && getTargetCapabilities(mode).productStatus === 'paused'
+  return mode === 'loon' && getTargetCapabilities(mode).productStatus === 'paused'
 }
 
 function CompatibilitySummary({ label, state, warningCount }: { label: string; state: TargetCompileState; warningCount: number }) {
