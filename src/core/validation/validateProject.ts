@@ -2,6 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
+import { isPolicyReference, isTargetNativeStrategyConfig } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -57,6 +58,15 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     }
     if (node.data.blockType === 'limit' && (!Number.isInteger(node.data.limit) || node.data.limit! < 1)) {
       add('LIMIT_INVALID', 'Limit must be a positive integer.', 'error')
+    }
+    if (node.data.blockType === 'target-native-strategy') {
+      const native = node.data.targetNativeStrategy
+      if (!isTargetNativeStrategyConfig(native)) add('TARGET_NATIVE_STRATEGY_INVALID', 'This target-native strategy has invalid typed configuration.', 'error')
+      else if (native.kind === 'smart' && native.members.some((member) => !isPolicyReference(member) || member.kind !== 'proxy')) add('SURGE_SMART_MEMBER_UNSUPPORTED', 'Surge Smart accepts proxy endpoints only.', 'error')
+      else if (native.kind === 'subnet') {
+        if (!isPolicyReference(native.defaultPolicy)) add('SURGE_SUBNET_DEFAULT_REQUIRED', 'Surge Subnet requires an explicit default policy.', 'error')
+        if (native.conditions.some((condition) => !condition?.matcher || typeof condition.matcher.value !== 'string' || !condition.matcher.value.trim())) add('SURGE_SUBNET_MATCHER_INVALID', 'Every Subnet condition requires a matcher value.', 'error')
+      }
     }
   }
   return issues
