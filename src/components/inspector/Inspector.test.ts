@@ -151,25 +151,40 @@ describe('Routing Inspector product UI', () => {
     const surgeStrategy = finalProject('surge')
     useBuilderStore.getState().hydrate(surgeStrategy)
     expect(useBuilderStore.getState().primaryTarget).toBe('surge')
-    expect(getFinalDnsFailedUiState({ primaryTarget: 'surge', finalTargetKind: 'strategy', hasPersistedIntent: false }).toggleDisabled).toBe(false)
+    expect(getFinalDnsFailedUiState({ primaryTarget: 'surge', finalTargetKind: 'strategy', hasConfiguredFinalTarget: true, hasPersistedIntent: false }).toggleDisabled).toBe(false)
     let html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(RoutingInspector, { node: useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')! })))
     const freshNode = useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!
-    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: freshNode, primaryTarget: 'surge' })))).not.toContain('disabled=""')
+    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: freshNode, primaryTarget: 'surge', hasConfiguredFinalTarget: true })))).not.toContain('disabled=""')
     expect(html).toContain('Use Final policy when DNS resolution fails')
+
+    const unconfigured = finalProject('surge')
+    const unconfiguredNode = unconfigured.graph.nodes.find((item) => item.id === 'final-route')!
+    unconfiguredNode.data.targetKind = undefined
+    unconfiguredNode.data.targetId = undefined
+    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: unconfiguredNode, primaryTarget: 'surge', hasConfiguredFinalTarget: false })))).toContain('Select a Final policy before enabling this option.')
+
+    const persistedUnconfigured = finalProject('surge', 'strategy', true)
+    const persistedUnconfiguredNode = persistedUnconfigured.graph.nodes.find((item) => item.id === 'final-route')!
+    persistedUnconfiguredNode.data.targetKind = undefined
+    persistedUnconfiguredNode.data.targetId = undefined
+    html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: persistedUnconfiguredNode, primaryTarget: 'surge', hasConfiguredFinalTarget: false })))
+    expect(html).toContain('checked=""')
+    expect(html).toContain('Final policy is not configured.')
+    expect(html).not.toContain('disabled=""')
 
     const reject = finalProject('surge', 'reject')
     const rejectNode = reject.graph.nodes.find((item) => item.id === 'final-route')!
-    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: rejectNode, primaryTarget: 'surge' })))).not.toContain('disabled=""')
+    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: rejectNode, primaryTarget: 'surge', hasConfiguredFinalTarget: true })))).not.toContain('disabled=""')
 
     const direct = finalProject('surge', 'direct')
     useBuilderStore.getState().hydrate(direct)
-    html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!, primaryTarget: 'surge' })))
+    html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!, primaryTarget: 'surge', hasConfiguredFinalTarget: true })))
     expect(html).toContain('dns-failed cannot be used with DIRECT')
     expect(html).toContain('disabled=""')
 
     const persistedDirect = finalProject('surge', 'direct', true)
     useBuilderStore.getState().hydrate(persistedDirect)
-    html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!, primaryTarget: 'surge' })))
+    html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node: useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!, primaryTarget: 'surge', hasConfiguredFinalTarget: true })))
     expect(html).toContain('checked=""')
     expect(html).toContain('dns-failed is incompatible with DIRECT')
     expect(html).not.toContain('disabled=""')
@@ -179,7 +194,7 @@ describe('Routing Inspector product UI', () => {
     const project = finalProject('mihomo', 'strategy', true)
     useBuilderStore.getState().hydrate(project)
     const node = useBuilderStore.getState().nodes.find((item) => item.id === 'final-route')!
-    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'mihomo' })))
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'mihomo', hasConfiguredFinalTarget: true })))
     expect(html).toContain('This is a Surge-only Final option.')
     expect(html).toContain('The current target does not support this intent.')
     expect(html).toContain('checked=""')
@@ -190,8 +205,8 @@ describe('Routing Inspector product UI', () => {
   it('allows dns-failed for typed Surge Smart and Subnet Final targets', () => {
     const project = structuredClone(surgeNativeAcceptanceProject)
     const node = project.graph.nodes.find((item) => item.id === 'final-route')!
-    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'surge', finalTargetNativeKind: 'subnet' })))).not.toContain('disabled=""')
-    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'surge', finalTargetNativeKind: 'smart' })))).not.toContain('disabled=""')
+    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'surge', finalTargetNativeKind: 'subnet', hasConfiguredFinalTarget: true })))).not.toContain('disabled=""')
+    expect(renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeFinalOptionsEditor, { node, primaryTarget: 'surge', finalTargetNativeKind: 'smart', hasConfiguredFinalTarget: true })))).not.toContain('disabled=""')
   })
 
   it('preserves the typed intent through target switching and DIRECT transitions', () => {
@@ -244,5 +259,23 @@ describe('Routing Inspector product UI', () => {
     expect(result.success).toBe(false)
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_FINAL_DNS_FAILED_DIRECT_UNSUPPORTED' }))
     expect(result.content).not.toContain('FINAL,DIRECT,dns-failed')
+  })
+
+  it('keeps compiler safety authoritative when persisted intent has no Final target', () => {
+    const project = structuredClone(v08BasicRoutingFixture)
+    project.primaryTarget = 'surge'
+    const final = project.graph.nodes.find((node) => node.data.blockType === 'final')!
+    final.data.targetKind = undefined
+    final.data.targetId = undefined
+    final.data.targetLabel = undefined
+    Object.assign(final.data, finalDnsFailedOptionsPatch(true))
+    const graph = compileGraph(project, { validationTarget: 'surge', retainDraftOnErrorForDiagnostics: true })
+    expect(graph.success).toBe(false)
+    expect(graph.issues).toContainEqual(expect.objectContaining({ code: 'FINAL_TARGET_MISSING' }))
+    expect(graph.targetNativeFinalOptions).toEqual(expect.objectContaining({ finalNodeId: final.id, dnsFailed: true }))
+    const result = compileSurge(graph.ir!, { targetNativeFinalOptions: graph.targetNativeFinalOptions })
+    expect(result.success).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_WITHOUT_FINAL' }))
+    expect(result.content).toBe('')
   })
 })
