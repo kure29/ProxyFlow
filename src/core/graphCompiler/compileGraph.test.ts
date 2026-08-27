@@ -80,6 +80,85 @@ describe('compileGraph', () => {
     expect(china.ir?.routes[0].target).toEqual({ kind: 'direct' })
   })
 
+  it.each(['DIRECT', 'REJECT'] as const)('keeps a typed strategy target when its label is %s', (targetLabel) => {
+    const project = structuredClone(openAiRouteFixture)
+    const route = project.graph.nodes.find((node) => node.id === 'openai-route')!
+    route.data.targetKind = 'strategy'
+    route.data.targetLabel = targetLabel
+    const result = compileGraph(project)
+    expect(result.success).toBe(true)
+    expect(result.ir?.routes.find((item) => item.id === route.id)?.target).toEqual({ kind: 'strategy', id: 'us-auto' })
+  })
+
+  it.each(['direct-labeled-strategy', 'reject-labeled-strategy'] as const)('keeps a typed strategy target whose ID contains %s', (targetId) => {
+    const project = structuredClone(openAiRouteFixture)
+    const source = project.graph.nodes.find((node) => node.id === 'subscription')!
+    const original = project.graph.nodes.find((node) => node.id === 'us-auto')!
+    const strategy = { ...structuredClone(original), id: targetId, data: { ...structuredClone(original.data), title: targetId } }
+    project.graph.nodes.push(strategy)
+    project.graph.edges.push({ id: `e-sub-${targetId}`, source: source.id, target: targetId, type: 'smoothstep', data: { semantic: 'data' } })
+    const route = project.graph.nodes.find((node) => node.id === 'openai-route')!
+    route.data.targetKind = 'strategy'
+    route.data.targetId = targetId
+    route.data.targetLabel = targetId
+    const routeEdge = project.graph.edges.find((edge) => edge.source === route.id && edge.data?.semantic === 'route')!
+    routeEdge.target = targetId
+    const result = compileGraph(project)
+    expect(result.success).toBe(true)
+    expect(result.ir?.routes.find((item) => item.id === route.id)?.target).toEqual({ kind: 'strategy', id: targetId })
+  })
+
+  it.each([
+    ['direct', 'REJECT', { kind: 'direct' }],
+    ['reject', 'DIRECT', { kind: 'reject' }],
+  ] as const)('keeps typed %s targets independent of their labels', (targetKind, targetLabel, expectedTarget) => {
+    const project = structuredClone(openAiRouteFixture)
+    const route = project.graph.nodes.find((node) => node.id === 'openai-route')!
+    route.data.targetKind = targetKind
+    route.data.targetId = 'us-auto'
+    route.data.targetLabel = targetLabel
+    const result = compileGraph(project)
+    expect(result.success).toBe(true)
+    expect(result.ir?.routes.find((item) => item.id === route.id)?.target).toEqual(expectedTarget)
+  })
+
+  it.each([
+    ['strategy target without an ID', (data: typeof openAiRouteFixture.graph.nodes[number]['data']) => {
+      data.targetKind = 'strategy'
+      data.targetId = undefined
+      data.targetLabel = 'DIRECT'
+    }],
+    ['unknown strategy target', (data: typeof openAiRouteFixture.graph.nodes[number]['data']) => {
+      data.targetKind = 'strategy'
+      data.targetId = 'missing-strategy'
+      data.targetLabel = 'REJECT'
+    }],
+    ['missing target kind', (data: typeof openAiRouteFixture.graph.nodes[number]['data']) => {
+      data.targetKind = undefined
+      data.targetId = 'us-auto'
+      data.targetLabel = 'DIRECT'
+    }],
+  ] as const)('fails closed for a %s instead of inferring a built-in target', (_name, configure) => {
+    const project = structuredClone(openAiRouteFixture)
+    const route = project.graph.nodes.find((node) => node.id === 'openai-route')!
+    configure(route.data)
+    const result = compileGraph(project)
+    expect(result.success).toBe(false)
+    expect(result.ir).toBeUndefined()
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'ROUTE_TARGET_MISSING', nodeId: route.id, severity: 'error' }))
+  })
+
+  it.each(['DIRECT', 'REJECT'] as const)('keeps a Final strategy target when its label is %s', (targetLabel) => {
+    const project = structuredClone(openAiRouteFixture)
+    const final = project.graph.nodes.find((node) => node.id === 'final')!
+    final.data.targetKind = 'strategy'
+    final.data.targetId = 'us-auto'
+    final.data.targetLabel = targetLabel
+    const result = compileGraph(project)
+    expect(result.success).toBe(true)
+    expect(result.ir?.finalRoute?.target).toEqual({ kind: 'strategy', id: 'us-auto' })
+  })
+
   it('compiles typed custom route matchers', () => {
     const domain = compileGraph(customDomainRouteFixture)
     const port = compileGraph(customPortRouteFixture)

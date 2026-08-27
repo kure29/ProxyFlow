@@ -109,6 +109,18 @@ describe('Surge FINAL dns-failed', () => {
     expect(ruleLines(result.content).at(-1)).toBe(`FINAL,${expectedName},dns-failed`)
   })
 
+  it('keeps typed DIRECT ownership when its stale ID names a native strategy', () => {
+    const project = structuredClone(surgeNativeAcceptanceProject)
+    const final = project.graph.nodes.find((node) => node.id === 'final-route')!
+    final.data.targetKind = 'direct'
+    final.data.targetId = 'hk-subnet'
+    final.data.targetLabel = 'DIRECT'
+    const graph = compileGraph(project, { validationTarget: 'surge' })
+    expect(graph.success, graph.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
+    expect(graph.nativeFinalRoute).toBeUndefined()
+    expect(graph.ir?.finalRoute?.target).toEqual({ kind: 'direct' })
+  })
+
   it('fails closed for malformed, owner-mismatched and orphan runtime options', () => {
     const malformed = compileSurge(baseIR(), {
       targetNativeFinalOptions: { ...finalOptions, dnsFailed: false } as never,

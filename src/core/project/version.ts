@@ -52,21 +52,28 @@ function migrateV1(project: ProxyFlowProject): ProjectMigrationResult {
   const finalNodes = migrated.graph.nodes.filter((node) => node.data.blockType === 'final')
   let repairedLegacyFinal = false
 
-  for (const finalNode of finalNodes) {
-    const target = finalNode.data.targetId ? nodesById.get(finalNode.data.targetId) : undefined
+  // V1 persisted route semantics in targetId/targetLabel. Resolve those
+  // values once at the migration boundary so the compiler only consumes
+  // typed targetKind data. Existing typed values are authoritative.
+  for (const node of migrated.graph.nodes) {
+    if (node.data.category !== 'routing' || node.data.targetKind) continue
+    const target = node.data.targetId ? nodesById.get(node.data.targetId) : undefined
     if (target && ['strategy', 'chain'].includes(target.data.category)) {
-      finalNode.data.targetKind = 'strategy'
+      node.data.targetKind = 'strategy'
       continue
     }
-    const label = String(finalNode.data.targetLabel ?? '').toLowerCase()
-    if (label.includes('direct')) {
-      finalNode.data.targetKind = 'direct'
+    const legacyLabel = String(node.data.targetLabel ?? '').trim().toLowerCase()
+    const legacyId = String(node.data.targetId ?? '').trim().toLowerCase()
+    if (/\bdirect\b/.test(legacyLabel) || legacyId === 'direct') {
+      node.data.targetKind = 'direct'
       continue
     }
-    if (label.includes('reject')) {
-      finalNode.data.targetKind = 'reject'
-      continue
-    }
+    if (/\breject\b/.test(legacyLabel) || legacyId === 'reject') node.data.targetKind = 'reject'
+  }
+
+  for (const finalNode of finalNodes) {
+    if (finalNode.data.targetKind) continue
+    const target = finalNode.data.targetId ? nodesById.get(finalNode.data.targetId) : undefined
     if (!target || target.data.category !== 'output') continue
 
     const replacement = preferredLegacyFinalTarget(migrated.graph.nodes)

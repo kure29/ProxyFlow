@@ -97,7 +97,5 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
 }
 
 function hasInlineFinalTarget(node: GraphNode) {
-  if (node.data.targetKind === 'direct' || node.data.targetKind === 'reject') return true
-  const legacyTarget = `${node.data.targetId ?? ''} ${node.data.targetLabel ?? ''}`.trim().toLowerCase()
-  return /\b(?:direct|reject)\b/.test(legacyTarget)
+  return node.data.targetKind === 'direct' || node.data.targetKind === 'reject'
 }
