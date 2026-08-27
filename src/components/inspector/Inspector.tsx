@@ -27,6 +27,7 @@ import {
   type SubscriptionRequestProfile, type SubscriptionRuntimeRecord,
 } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
+import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState } from '../../core/routing/finalOptionsProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -721,6 +722,48 @@ function ChainInspector({ node }: InspectorProps) {
   </>
 }
 
+export interface SurgeFinalOptionsEditorProps {
+  node: GraphNode
+  primaryTarget: PrimaryTarget | null | undefined
+  finalTargetNativeKind?: 'smart' | 'subnet'
+}
+
+/** Small, Final-only editor for the typed Surge dns-failed intent. */
+export function SurgeFinalOptionsEditor({ node, primaryTarget, finalTargetNativeKind }: SurgeFinalOptionsEditorProps) {
+  const { t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const state = getFinalDnsFailedUiState({
+    primaryTarget,
+    finalTargetKind: node.data.targetKind,
+    finalTargetNativeKind,
+    hasPersistedIntent: node.data.targetNativeFinalOptions !== undefined,
+  })
+  const hint = state.isDirectFinal && !state.hasPersistedIntent
+    ? t('inspector.finalOptions.directUnsupported')
+    : t('inspector.finalOptions.hint')
+  return <section className="target-native-card final-options-editor" data-final-options="dns-failed" data-final-target-native-kind={finalTargetNativeKind ?? ''}>
+    <div className="target-native-card-heading">
+      <span><strong>{t('inspector.finalOptions.title')}</strong><small>{hint}</small></span>
+      <em className="node-native-badge">{t('inspector.finalOptions.surgeOnlyLabel')}</em>
+    </div>
+    <label className="toggle-row compact">
+      <span><strong>{t('inspector.finalOptions.label')}</strong><small>{t('inspector.finalOptions.toggleHint')}</small></span>
+      <input
+        type="checkbox"
+        aria-label={t('inspector.finalOptions.label')}
+        checked={state.hasPersistedIntent}
+        disabled={state.toggleDisabled}
+        onChange={(event) => {
+          if (event.target.checked && !state.canCreate) return
+          update(node.id, finalDnsFailedOptionsPatch(event.target.checked))
+        }}
+      />
+    </label>
+    {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.finalOptions.surgeOnly')}</strong><small>{t('inspector.finalOptions.targetMismatch')}</small></span></div>}
+    {state.isIncompatible && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.finalOptions.incompatible')}</strong><small>{t('inspector.finalOptions.directUnsupported')}</small></span></div>}
+  </section>
+}
+
 export function RoutingInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
@@ -730,6 +773,13 @@ export function RoutingInspector({ node }: InspectorProps) {
   const update = useBuilderStore((state) => state.updateNodeData)
   const setTarget = useBuilderStore((state) => state.setRoutingTarget)
   const targets = nodes.filter((item) => ['strategy', 'chain'].includes(item.data.category))
+  const finalTargetNativeKind = node.data.blockType === 'final' && node.data.targetKind === 'strategy' && node.data.targetId
+    ? (() => {
+      const target = nodes.find((item) => item.id === node.data.targetId)
+      if (target?.data.blockType !== 'target-native-strategy' || !isTargetNativeStrategyConfig(target.data.targetNativeStrategy)) return undefined
+      return target.data.targetNativeStrategy.kind
+    })()
+    : undefined
   const services = node.data.services ?? []
   const matcherKind = resolveRouteMatcherKind(node.data)
   const routingCapabilities = authoringTarget ? getTargetCapabilities(authoringTarget).routingMatchers : undefined
@@ -775,6 +825,7 @@ export function RoutingInspector({ node }: InspectorProps) {
     {isCustomRule && matcherKind === 'rule-set' && !nativeRuleSet && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
     {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><WebSelect label={t('inspector.targetStrategy')} value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(value) => setTarget(node.id, value)} options={[{ value: '', label: t('inspector.selectTarget'), disabled: true }, { value: '__direct__', label: 'DIRECT' }, { value: '__reject__', label: 'REJECT' }, ...targets.map((target) => ({ value: target.id, label: localizeNodeTitle(target, locale) }))]} /></Field>
+    {node.data.blockType === 'final' && <SurgeFinalOptionsEditor node={node} primaryTarget={primaryTarget} finalTargetNativeKind={finalTargetNativeKind} />}
     {isCustomRule && <Advanced>
       <Field label={t('inspector.advancedMatcher')}>
         <WebSelect label={t('inspector.advancedMatcher')} value={isAdvancedMatcher ? matcherKind : '__none__'} onChange={(value) => setMatcher(value === '__none__' ? 'domain-suffix' : value as BlockNodeData['routeMatcherKind'])} options={[
