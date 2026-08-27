@@ -76,7 +76,8 @@ describe('target capability registry', () => {
     }))
     expect(getTargetCapabilities('mihomo').ruleSources['sing-box-binary'].status).toBe('unsupported')
     expect(getTargetCapabilities('surge').routingMatchers['domain-suffix'].status).toBe('supported')
-    expect(getTargetCapabilities('surge').routingMatchers.port.status).toBe('unsupported')
+    expect(getTargetCapabilities('surge').routingMatchers.port.status).toBe('supported')
+    expect(getTargetCapabilities('surge').routingMatchers.asn.status).toBe('supported')
   })
 
   it('declares remote proxy sources as an independently extensible target capability', () => {

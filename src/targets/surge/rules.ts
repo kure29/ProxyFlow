@@ -43,6 +43,8 @@ function matcherType(matcher: TrafficMatcherIR) {
     case 'domain-keyword': return 'DOMAIN-KEYWORD'
     case 'ip-cidr': return 'IP-CIDR'
     case 'ip-cidr6': return 'IP-CIDR6'
+    case 'port': return 'DEST-PORT'
+    case 'asn': return 'IP-ASN'
     case 'geo-ip': return 'GEOIP'
     default: return undefined
   }
@@ -56,6 +58,10 @@ function matcherPayload(matcher: TrafficMatcherIR) {
     case 'ip-cidr':
     case 'ip-cidr6':
       return matcher.value
+    case 'port':
+      return String(matcher.port)
+    case 'asn':
+      return String(matcher.value)
     case 'geo-ip':
       return matcher.countryCode
     default:

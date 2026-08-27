@@ -91,7 +91,7 @@ export function checkSurgeCompatibility(
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) resolveSurgeServiceRuleSource(ir, serviceId, route.id, issues)
     }
-    else if (!['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'geo-ip'].includes(route.matcher.kind)) issues.push(surgeIssue(
+    else if (!['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'asn', 'geo-ip'].includes(route.matcher.kind)) issues.push(surgeIssue(
       'SURGE_MATCHER_UNSUPPORTED', 'error', 'route',
       `Matcher “${route.matcher.kind}” is outside the lossless routing subset of this Surge compiler phase.`, route.id,
     ))
