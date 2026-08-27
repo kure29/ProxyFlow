@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompatibilityIssue, GraphNode } from '../../types/project'
+import type { TargetProjectionSummary } from '../compiler'
 import type { StructuredDiagnostic } from '../compiler/diagnostics'
 import type { WorkspaceNodeItem, WorkspaceProxySummary } from './projectWorkspace'
 import {
@@ -119,6 +120,48 @@ describe('workspace presentation', () => {
       kind: 'chain', advanced: true, capability: 'partial', summary: { kind: 'chain', hopCount: 2 },
     }))
     expect(summarizeWorkspaceStrategy(chain, null).capability).toBe('unknown')
+  })
+
+  it.each([
+    ['blocked', 0, 13, 13],
+    ['partial', 8, 13, 5],
+    ['ready', 13, 13, 0],
+  ] as const)('projects %s target-specific strategy state without changing neutral runtime counts', (status, compatibleCount, candidateCount, skippedCount) => {
+    const strategy = item(node('auto', 'auto-select', { category: 'strategy' }))
+    const projection: TargetProjectionSummary = {
+      target: 'surge', candidateCount, compatibleCount, skippedCount, blockingCount: status === 'blocked' ? 1 : 0,
+      status, reasons: [],
+      strategies: [{
+        target: 'surge', strategyId: 'auto', candidateCount, compatibleCount, skippedCount,
+        blockingCount: status === 'blocked' ? 1 : 0, status, reasons: [],
+      }],
+    }
+
+    const shown = summarizeWorkspaceStrategy(strategy, 'surge', {
+      status: 'ready', outputCount: candidateCount,
+    }, [], projection)
+    expect(shown.candidateCount).toBe(candidateCount)
+    expect(shown.targetProjection).toEqual(expect.objectContaining({
+      target: 'surge', strategyId: 'auto', candidateCount, compatibleCount, skippedCount, status,
+    }))
+  })
+
+  it('keeps Mihomo and Surge projection results scoped to the selected target', () => {
+    const strategy = item(node('auto', 'auto-select', { category: 'strategy' }))
+    const surgeProjection: TargetProjectionSummary = {
+      target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13,
+      blockingCount: 1, status: 'blocked', reasons: [],
+      strategies: [{ target: 'surge', strategyId: 'auto', candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 1, status: 'blocked', reasons: [] }],
+    }
+    const mihomoProjection: TargetProjectionSummary = {
+      target: 'mihomo', candidateCount: 13, compatibleCount: 13, skippedCount: 0,
+      blockingCount: 0, status: 'ready', reasons: [],
+      strategies: [{ target: 'mihomo', strategyId: 'auto', candidateCount: 13, compatibleCount: 13, skippedCount: 0, blockingCount: 0, status: 'ready', reasons: [] }],
+    }
+    expect(summarizeWorkspaceStrategy(strategy, 'surge', undefined, [], surgeProjection).targetProjection?.target).toBe('surge')
+    expect(summarizeWorkspaceStrategy(strategy, 'mihomo', undefined, [], mihomoProjection).targetProjection).toEqual(expect.objectContaining({ target: 'mihomo', status: 'ready', compatibleCount: 13 }))
+    expect(summarizeWorkspaceStrategy(strategy, 'mihomo', undefined, [], surgeProjection).targetProjection).toBeUndefined()
+    expect(summarizeWorkspaceStrategy(strategy, 'surge', undefined, [], mihomoProjection).targetProjection).toBeUndefined()
   })
 
   it('groups project and compatibility diagnostics while locating only real graph nodes', () => {

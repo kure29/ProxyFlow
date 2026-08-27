@@ -81,4 +81,52 @@ describe('SurgeProjectionSummary', () => {
     expect(html).not.toContain('<details>')
     expect(html).not.toContain('SURGE_REMOTE_PROXY_SOURCE_MATERIALIZED')
   })
+
+  it('renders every structured reason and the blocked 0/N projection state', () => {
+    const html = render({
+      success: false,
+      content: '',
+      generatedAt: '2026-08-26T00:00:00.000Z',
+      mock: false,
+      stats: {
+        proxyCount: 0,
+        endpointCount: 0,
+        candidateCount: 13,
+        compatibleEndpointCount: 0,
+        skippedEndpointCount: 13,
+        blockingIssueCount: 1,
+      },
+      targetProjection: {
+        target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13,
+        blockingCount: 1, status: 'blocked',
+        reasons: [
+          { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+          { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+        ],
+        strategies: [{
+          target: 'surge', strategyId: 'auto', candidateCount: 13, compatibleCount: 0,
+          skippedCount: 13, blockingCount: 1, status: 'blocked',
+          reasons: [
+            { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+            { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+          ],
+        }],
+      },
+      issues: [{
+        target: 'surge', code: 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED', severity: 'warning', feature: 'strategy', entityId: 'auto',
+        message: 'A compiler message with an intentionally different shape.',
+      }, {
+        target: 'surge', code: 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS', severity: 'error', feature: 'strategy', entityId: 'auto',
+        message: 'Strategy “Hong Kong Auto” has 13 materialized candidates, but none can be represented by Surge.',
+      }],
+    })
+
+    expect(html).toContain('<dt>Compatible</dt><dd>0 <span>/ 13</span></dd>')
+    expect(html).toContain('<dt>Skipped</dt><dd>13</dd>')
+    expect(html).toContain('<dt>Blocking</dt><dd>1</dd>')
+    expect(html).toContain('13 nodes use TLS client fingerprint settings that Surge cannot represent')
+    expect(html).toContain('13 nodes use AnyTLS session parameters that Surge cannot represent')
+    expect(html).toContain('SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED')
+    expect(html).toContain('SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED')
+  })
 })

@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { StructuredDiagnostic } from '../../core/compiler'
+import type { TargetProjectionSummary } from '../../core/compiler'
 import { I18nProvider, setCurrentLocale, translate } from '../../i18n'
 import { DiagnosticPresentationList } from './DiagnosticPresentationList'
 import { mergeProjectHealthDiagnostics, presentDiagnostics, summarizeDiagnosticCounts } from './diagnosticPresentation'
@@ -159,6 +160,62 @@ describe('human diagnostic presentation', () => {
     expect(shown.title).toBe('Skipped incompatible nodes')
     expect(shown.description).not.toContain('future compiler')
     expect(shown.technicalDetails[0].issue.message).toBe('A future compiler message shape.')
+  })
+
+  it('uses structured Surge projection reasons instead of reparsing the warning message', () => {
+    const projection: TargetProjectionSummary = {
+      target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13,
+      blockingCount: 1, status: 'blocked',
+      reasons: [
+        { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+        { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+      ],
+      strategies: [{
+        target: 'surge', strategyId: 'auto', candidateCount: 13, compatibleCount: 0,
+        skippedCount: 13, blockingCount: 1, status: 'blocked',
+        reasons: [
+          { code: 'SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED', label: 'TLS client fingerprint unsupported', endpointCount: 13 },
+          { code: 'SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED', label: 'AnyTLS session parameters unsupported', endpointCount: 13 },
+        ],
+      }],
+    }
+    const warning: StructuredDiagnostic = {
+      ...surgeSkipped,
+      entityId: 'auto',
+      message: 'A compiler message with an intentionally different shape.',
+    }
+    const shown = presentDiagnostics([warning], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: false,
+      targetProjection: projection,
+    })[0]
+
+    expect(shown.description).toContain('13 candidate nodes')
+    expect(shown.description).toContain('0 can be used')
+    expect(shown.reasonSummaries).toEqual([
+      '13 nodes use TLS client fingerprint settings that Surge cannot represent',
+      '13 nodes use AnyTLS session parameters that Surge cannot represent',
+    ])
+    expect(shown.projectionReasons).toEqual(projection.strategies[0].reasons)
+
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(DiagnosticPresentationList, {
+      issues: [warning], exportable: false, targetProjection: projection,
+    })))
+    expect(html).toContain('SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED')
+    expect(html).toContain('SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED')
+    expect(html).toContain('× 13')
+  })
+
+  it('keeps known AnyTLS reason labels distinct in the legacy-message fallback', () => {
+    const shown = presentDiagnostics([{
+      ...surgeSkipped,
+      message: 'Surge can use 0 of 13 candidates. 13 incompatible endpoints were skipped (TLS client fingerprint unsupported: 13, AnyTLS session parameters unsupported: 13).',
+    }], {
+      locale: 'en-US', t: (key, values) => translate('en-US', key, values), exportable: false,
+    })[0]
+    expect(shown.reasonSummaries).toEqual([
+      '13 nodes use TLS client fingerprint settings that Surge cannot represent',
+      '13 nodes use AnyTLS session parameters that Surge cannot represent',
+    ])
   })
 
   it('keeps mapped human explanations even when the English compiler message already matches them', () => {

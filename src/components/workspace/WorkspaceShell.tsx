@@ -79,7 +79,6 @@ export function WorkspaceShell({
   const moveRule = useBuilderStore((state) => state.moveRoutingRule)
   const moveRuleToIndex = useBuilderStore((state) => state.moveRoutingRuleToIndex)
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
-  const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
   const refreshAllSubscriptions = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
@@ -87,7 +86,7 @@ export function WorkspaceShell({
   const [editorOpen, setEditorOpen] = useState(false)
   const previousSectionRef = useRef(activeSection)
   const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || targetDialogOpen)
+  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || activeSection === 'strategies' || targetDialogOpen)
   const activeProductTarget = resolveActiveProductTarget(primaryTarget)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
@@ -110,6 +109,7 @@ export function WorkspaceShell({
     () => stateForTarget(targetCompiles, activeProductTarget).result?.issues ?? [],
     [activeProductTarget, targetCompiles],
   )
+  const activeTargetProjection = stateForTarget(targetCompiles, activeProductTarget).result?.targetProjection
   const inspectDiagnostics = useMemo(() => mergeProjectHealthDiagnostics(
     projection.compileIssues,
     primaryHealth.diagnostics,
@@ -232,7 +232,7 @@ export function WorkspaceShell({
           onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled, enabled: !disabled })}
           onDelete={(item) => removeNode(item.node.id)}
         />}
-        {activeSection === 'proxies' && <ProxiesWorkspace proxies={projection.proxies} />}
+        {activeSection === 'proxies' && <ProxiesWorkspace proxies={projection.proxies} target={activeProductTarget} targetProjection={activeTargetProjection} />}
         {activeSection === 'processing' && <ProcessingWorkspace
           items={orderedProcessing}
           runtime={pipelineRuntime}
@@ -250,6 +250,7 @@ export function WorkspaceShell({
           target={activeProductTarget}
           runtime={pipelineRuntime}
           issues={projection.compileIssues}
+          targetProjection={activeTargetProjection}
           onEdit={editInWorkspace}
           onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
@@ -285,13 +286,15 @@ export function WorkspaceShell({
           nodes={nodes}
           diagnostics={inspectDiagnostics}
           compatibilityDiagnostics={compatibilityDiagnostics}
+          targetProjection={activeTargetProjection}
+          target={activeProductTarget}
           onOpenNode={openNodeInWorkspace}
         />}
         {activeSection === 'export' && <WorkspaceExportPanel
           primaryTarget={primaryTarget}
           compiles={targetCompiles}
           onSelectTarget={setPrimaryTarget}
-          onPreview={(target) => setPreviewOpen(true, target)}
+          onShowDiagnostics={() => onSectionChange('inspect')}
         />}
       </section>
     </main>

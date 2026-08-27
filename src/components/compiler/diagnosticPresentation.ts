@@ -6,6 +6,7 @@ import {
   type MessageKey,
   type TranslationValues,
 } from '../../i18n'
+import type { TargetProjectionReason, TargetProjectionSummary, TargetStrategyProjectionSummary } from '../../core/compiler'
 
 export type DiagnosticTranslator = (key: MessageKey, values?: TranslationValues) => string
 
@@ -14,6 +15,7 @@ export interface DiagnosticPresentationContext {
   t: DiagnosticTranslator
   exportable?: boolean
   entityNames?: ReadonlyMap<string, string>
+  targetProjection?: TargetProjectionSummary
 }
 
 export interface DiagnosticPresentation {
@@ -26,6 +28,7 @@ export interface DiagnosticPresentation {
   occurrenceCount: number
   affectedCount?: number
   reasonSummaries: string[]
+  projectionReasons?: TargetProjectionReason[]
   technicalDetails: GroupedDiagnostic<StructuredDiagnostic>[]
   locationIssue?: StructuredDiagnostic
 }
@@ -39,6 +42,7 @@ export interface DiagnosticCountSummary {
 }
 
 const SURGE_SKIPPED = 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED'
+const SURGE_NO_MEMBERS = 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS'
 const SURGE_MATERIALIZED = 'SURGE_REMOTE_PROXY_SOURCE_MATERIALIZED'
 const MIHOMO_VARIANT = 'MIHOMO_PROXY_VARIANT_UNSUPPORTED'
 
@@ -56,6 +60,12 @@ interface SurgeSkippedDetails {
   skipped: number
   strategy?: string
   reasons: Array<{ label: string; count: number }>
+}
+
+const structuredSurgeReasonMessages: Partial<Record<string, MessageKey>> = {
+  SURGE_TLS_CLIENT_FINGERPRINT_UNSUPPORTED: 'diagnostic.surgeSkipped.reason.tlsFingerprint',
+  SURGE_ANYTLS_SESSION_PARAMETERS_UNSUPPORTED: 'diagnostic.surgeSkipped.reason.anytlsSession',
+  SURGE_ANYTLS_UDP_DISABLE_UNSUPPORTED: 'diagnostic.surgeSkipped.reason.anytlsUdp',
 }
 
 type LoonPresentationKind =
@@ -140,12 +150,15 @@ function presentationBuckets(issues: readonly StructuredDiagnostic[]): Presentat
 
 function knownPresentationKey(issue: StructuredDiagnostic, index: number) {
   if (issue.code === MIHOMO_VARIANT || issue.code === SURGE_MATERIALIZED) return `${issue.severity}:${issue.code}`
-  if (issue.code === SURGE_SKIPPED) return `${issue.severity}:${issue.code}:${issue.entityId ?? issue.nodeId ?? index}`
+  if (issue.code === SURGE_NO_MEMBERS || issue.code === SURGE_SKIPPED) {
+    return `surge-strategy:${issue.entityId ?? issue.nodeId ?? index}`
+  }
   return undefined
 }
 
 function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
   const issue = bucket.issues[0]
+  if (issue.code === SURGE_NO_MEMBERS || bucket.issues.some((candidate) => candidate.code === SURGE_NO_MEMBERS)) return presentSurgeStrategy(bucket, context)
   if (issue.code === SURGE_SKIPPED) return presentSurgeSkipped(bucket, context)
   if (issue.code === SURGE_MATERIALIZED) return presentSurgeMaterialized(bucket, context)
   if (issue.code === MIHOMO_VARIANT) return presentMihomoVariant(bucket, context)
@@ -154,6 +167,34 @@ function presentBucket(bucket: PresentationBucket, context: DiagnosticPresentati
   const shadowrocketKind = shadowrocketPresentationKind(issue)
   if (shadowrocketKind) return presentShadowrocket(bucket, context, shadowrocketKind)
   return presentGeneric(bucket, context)
+}
+
+function presentSurgeStrategy(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
+  const blocker = bucket.issues.find((issue) => issue.code === SURGE_NO_MEMBERS) ?? bucket.issues[0]
+  const skippedIssue = bucket.issues.find((issue) => issue.code === SURGE_SKIPPED)
+  const projection = surgeStrategyProjection(context.targetProjection, blocker.entityId ?? blocker.nodeId)
+  const parsed = projection || !skippedIssue ? undefined : parseSurgeSkippedDiagnostic(skippedIssue.message)
+  const compatible = projection?.compatibleCount ?? parsed?.compatible
+  const total = projection?.candidateCount ?? parsed?.total
+  const skipped = projection?.skippedCount ?? parsed?.skipped
+  const entityId = blocker.entityId ?? blocker.nodeId
+  const strategy = entityId ? context.entityNames?.get(entityId) ?? parsed?.strategy : parsed?.strategy
+  const description = compatible !== undefined && total !== undefined && skipped !== undefined
+    ? strategy
+      ? context.t('diagnostic.surgeStrategy.descriptionWithStrategy', { strategy, compatible, total, skipped })
+      : context.t('diagnostic.surgeStrategy.description', { compatible, total, skipped })
+    : blocker.message
+  const projectionReasons = projection?.reasons
+    ?? (parsed ? parsed.reasons.map((reason) => ({ code: reason.label, label: reason.label, endpointCount: reason.count })) : undefined)
+  return {
+    ...basePresentation(bucket),
+    title: strategy ?? context.t('diagnostic.surgeStrategy.title'),
+    description,
+    impact: '',
+    action: undefined,
+    reasonSummaries: projectionReasons ? presentStructuredSurgeSkipReasons(projectionReasons, context.t) : [],
+    ...(projection ? { projectionReasons: projection.reasons } : {}),
+  }
 }
 
 function shadowrocketPresentationKind(issue: StructuredDiagnostic): ShadowrocketPresentationKind | undefined {
@@ -203,10 +244,12 @@ function presentLoon(
 }
 
 function presentSurgeSkipped(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
-  const parsed = parseSurgeSkippedDiagnostic(bucket.issues[0].message)
-  const compatible = parsed?.compatible
-  const total = parsed?.total
-  const skipped = parsed?.skipped
+  const issue = bucket.issues[0]
+  const projection = surgeStrategyProjection(context.targetProjection, issue.entityId ?? issue.nodeId)
+  const parsed = projection ? undefined : parseSurgeSkippedDiagnostic(issue.message)
+  const compatible = projection?.compatibleCount ?? parsed?.compatible
+  const total = projection?.candidateCount ?? parsed?.total
+  const skipped = projection?.skippedCount ?? parsed?.skipped
   const entityId = bucket.issues[0].entityId ?? bucket.issues[0].nodeId
   const strategy = entityId ? context.entityNames?.get(entityId) ?? parsed?.strategy : parsed?.strategy
   const hasCounts = compatible !== undefined && total !== undefined && skipped !== undefined
@@ -226,8 +269,20 @@ function presentSurgeSkipped(bucket: PresentationBucket, context: DiagnosticPres
       : context.t('diagnostic.surgeSkipped.impactExportable'),
     action: context.t('diagnostic.surgeSkipped.action'),
     ...(skipped === undefined ? {} : { affectedCount: skipped }),
-    reasonSummaries: parsed ? presentSurgeSkipReasons(parsed.reasons, context.t) : [],
+    ...(projection ? {
+      projectionReasons: projection.reasons,
+      reasonSummaries: presentStructuredSurgeSkipReasons(projection.reasons, context.t),
+    } : { reasonSummaries: parsed ? presentSurgeSkipReasons(parsed.reasons, context.t) : [] }),
   }
+}
+
+function surgeStrategyProjection(
+  summary: TargetProjectionSummary | undefined,
+  strategyId: string | undefined,
+): TargetStrategyProjectionSummary | TargetProjectionSummary | undefined {
+  if (!summary || summary.target !== 'surge') return undefined
+  if (strategyId) return summary.strategies.find((strategy) => strategy.strategyId === strategyId)
+  return summary
 }
 
 function presentSurgeMaterialized(bucket: PresentationBucket, context: DiagnosticPresentationContext): DiagnosticPresentation {
@@ -299,8 +354,21 @@ function parseSurgeSkippedDiagnostic(message: string): SurgeSkippedDetails | und
 
 function presentSurgeSkipReasons(reasons: SurgeSkippedDetails['reasons'], t: DiagnosticTranslator) {
   const counts = new Map<'protocol' | 'plugin' | 'transport' | 'parameters', number>()
+  const structured: string[] = []
   for (const reason of reasons) {
     const normalized = reason.label.toLocaleLowerCase()
+    if (normalized === 'tls client fingerprint unsupported') {
+      structured.push(t('diagnostic.surgeSkipped.reason.tlsFingerprint', { count: reason.count }))
+      continue
+    }
+    if (normalized === 'anytls session parameters unsupported') {
+      structured.push(t('diagnostic.surgeSkipped.reason.anytlsSession', { count: reason.count }))
+      continue
+    }
+    if (normalized === 'anytls udp disable unsupported') {
+      structured.push(t('diagnostic.surgeSkipped.reason.anytlsUdp', { count: reason.count }))
+      continue
+    }
     const kind = normalized === 'vless' || normalized === 'vmess'
       ? 'protocol'
       : normalized.includes('plugin')
@@ -310,7 +378,16 @@ function presentSurgeSkipReasons(reasons: SurgeSkippedDetails['reasons'], t: Dia
           : 'parameters'
     counts.set(kind, (counts.get(kind) ?? 0) + reason.count)
   }
-  return [...counts].map(([kind, count]) => t(`diagnostic.surgeSkipped.reason.${kind}`, { count }))
+  return [...structured, ...[...counts].map(([kind, count]) => t(`diagnostic.surgeSkipped.reason.${kind}` as MessageKey, { count }))]
+}
+
+function presentStructuredSurgeSkipReasons(reasons: readonly TargetProjectionReason[], t: DiagnosticTranslator) {
+  return reasons.map((reason) => {
+    const key = structuredSurgeReasonMessages[reason.code]
+    return key
+      ? t(key, { count: reason.endpointCount })
+      : t('diagnostic.surgeSkipped.reason.structured', { label: reason.label, count: reason.endpointCount })
+  })
 }
 
 function severityRank(severity: StructuredDiagnostic['severity']) {

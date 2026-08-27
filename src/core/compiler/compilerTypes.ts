@@ -2,10 +2,57 @@ import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
 import type { TargetNativeRouteIR, TargetNativeStrategyIR } from '../targetNative'
 
+export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
+
+export interface TargetProjectionReason {
+  code: string
+  label: string
+  /** Number of distinct projected endpoints affected by this reason. */
+  endpointCount: number
+}
+
+export interface TargetStrategyProjectionSummary {
+  target: TargetClient
+  strategyId: string
+  candidateCount: number
+  compatibleCount: number
+  skippedCount: number
+  blockingCount: number
+  status: TargetProjectionStatus
+  reasons: TargetProjectionReason[]
+}
+
+/** Target-specific compatibility for one materialized endpoint. */
+export interface TargetEndpointProjectionSummary {
+  target: TargetClient
+  endpointId: string
+  sourceId?: string
+  candidateCount: number
+  compatibleCount: number
+  skippedCount: number
+  status: TargetProjectionStatus
+  reasons: TargetProjectionReason[]
+}
+
+export interface TargetProjectionSummary {
+  target: TargetClient
+  candidateCount: number
+  compatibleCount: number
+  skippedCount: number
+  blockingCount: number
+  status: TargetProjectionStatus
+  reasons: TargetProjectionReason[]
+  strategies: TargetStrategyProjectionSummary[]
+  /** Optional endpoint-level details for node workspace presentation. */
+  endpoints?: TargetEndpointProjectionSummary[]
+}
+
 export interface CompileResult {
   success: boolean
   content: string
   issues: CompatibilityIssue[]
+  /** Optional target-specific projection data for workspace diagnostics. */
+  targetProjection?: TargetProjectionSummary
   generatedAt: string
   mock: boolean
   stats?: {

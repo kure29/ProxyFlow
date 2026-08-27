@@ -173,7 +173,7 @@ export function PreviewModal() {
           {loading
             ? <div className="ir-error-panel"><LoaderCircle className="spin" size={24} /><h3>{t('preview.loadingTitle')}</h3><p>{t('preview.loadingPanel')}</p></div>
             : !compileSuccess
-              ? <IssuePanel title={failedTitle} issues={shownIssues} entityNames={entityNames} availableNodeIds={availableNodeIds} onLocate={locateIssue} />
+              ? <IssuePanel title={failedTitle} issues={shownIssues} entityNames={entityNames} targetProjection={targetState.result?.targetProjection} availableNodeIds={availableNodeIds} onLocate={locateIssue} />
               : <pre><code>{content}</code></pre>}
         </div>
       </div>
@@ -245,15 +245,16 @@ export function resolvePreviewCompatibilityStatus(status: TargetCompileState['st
           : 'blocked'
 }
 
-function IssuePanel({ title, issues, entityNames, availableNodeIds, onLocate }: {
+function IssuePanel({ title, issues, entityNames, targetProjection, availableNodeIds, onLocate }: {
   title: string
   issues: DisplayIssue[]
   entityNames: ReadonlyMap<string, string>
+  targetProjection?: import('../../core/compiler').TargetProjectionSummary
   availableNodeIds: ReadonlySet<string>
   onLocate: (issue: DisplayIssue) => void
 }) {
   const { t } = useI18n()
-  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><DiagnosticPresentationList issues={issues} exportable={false} entityNames={entityNames} availableNodeIds={availableNodeIds} onLocate={onLocate} /></div>
+  return <div className="ir-error-panel"><AlertTriangle size={24} /><h3>{title}</h3><p>{t('preview.fixIssues')}</p><DiagnosticPresentationList issues={issues} exportable={false} entityNames={entityNames} targetProjection={targetProjection} availableNodeIds={availableNodeIds} onLocate={onLocate} /></div>
 }
 
 function issueLog(issues: DisplayIssue[]) {

@@ -1,6 +1,7 @@
 import { getTargetCapabilities, strategyCapabilityForBlockType } from '../capabilities'
 import type { CapabilityStatus, PrimaryTarget } from '../capabilities'
 import { diagnosticNodeId, type StructuredDiagnostic } from '../compiler/diagnostics'
+import type { TargetProjectionSummary, TargetStrategyProjectionSummary } from '../compiler/compilerTypes'
 import type { SubscriptionActiveState, SubscriptionFreshness, SubscriptionRefreshStatus } from '../subscription'
 import type { BlockType, CompatibilityIssue, GraphNode } from '../../types/project'
 import type { WorkspaceNodeItem, WorkspaceProxySummary, WorkspaceSourceAvailability } from './projectWorkspace'
@@ -161,6 +162,7 @@ export interface WorkspaceStrategyPresentation {
   status: WorkspacePresentationStatus
   capability: CapabilityStatus | 'unknown'
   candidateCount?: number
+  targetProjection?: TargetStrategyProjectionSummary
   summary: WorkspaceStrategySummary
 }
 
@@ -169,9 +171,13 @@ export function summarizeWorkspaceStrategy(
   target: PrimaryTarget | null,
   runtime?: WorkspacePipelineRuntimeLike,
   issues: readonly WorkspacePresentationIssueLike[] = [],
+  targetProjection?: TargetProjectionSummary,
 ): WorkspaceStrategyPresentation {
   const kind = strategyKind(item.node.data.blockType)
   const capability = strategyCapability(item.node.data.blockType, target)
+  const projected = targetProjection?.target === target
+    ? targetProjection.strategies.find((strategy) => strategy.strategyId === item.node.id)
+    : undefined
   return {
     id: item.node.id,
     title: item.node.data.title,
@@ -181,6 +187,7 @@ export function summarizeWorkspaceStrategy(
     status: presentationStatus(item.node, runtime, issues),
     capability,
     ...strategyCandidateCount(item.node, runtime),
+    ...(projected ? { targetProjection: projected } : {}),
     summary: strategySummary(item.node, kind),
   }
 }
