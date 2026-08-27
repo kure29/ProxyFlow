@@ -13,7 +13,8 @@ import {
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
-import type { TargetNativeStrategyIR } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
+import { isTargetNativeFinalOptionsIR } from '../../core/targetNative'
 import type { TargetNativeRouteIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
@@ -33,9 +34,13 @@ export function checkSurgeCompatibility(
   nativeStrategies: readonly TargetNativeStrategyIR[] = [],
   nativeRuleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
   nativeRoutes: readonly TargetNativeRouteIR[] = [],
+  nativeFinalRoute?: TargetNativeRouteIR,
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR,
 ): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
   const policyOwners = new Map<string, string>()
+
+  validateSurgeFinalOptions(ir, nativeFinalRoute, targetNativeFinalOptions, issues)
 
   for (const source of ir.sources) {
     if (source.kind === 'provider' || source.kind === 'imported-config'
@@ -123,6 +128,34 @@ export function checkSurgeCompatibility(
   issues.push(...planSurgeDns(ir.dns).issues)
 
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+function validateSurgeFinalOptions(
+  ir: ProxyFlowIR,
+  nativeFinalRoute: TargetNativeRouteIR | undefined,
+  options: TargetNativeFinalOptionsIR | undefined,
+  issues: CompatibilityIssue[],
+) {
+  if (options === undefined) return
+  if (!isTargetNativeFinalOptionsIR(options)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_FINAL_OPTIONS_INVALID', 'error', 'final',
+      'Target-native Final options have invalid runtime data.', 'final',
+    ))
+    return
+  }
+  if (!ir.finalRoute && !nativeFinalRoute) issues.push(surgeIssue(
+    'SURGE_TARGET_NATIVE_FINAL_OPTIONS_WITHOUT_FINAL', 'error', 'final',
+    'Target-native Final options require an effective Final route.', options.finalNodeId,
+  ))
+  if (nativeFinalRoute && options.finalNodeId !== nativeFinalRoute.id) issues.push(surgeIssue(
+    'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', 'error', 'final',
+    'Target-native Final options do not belong to the effective target-native Final route.', options.finalNodeId,
+  ))
+  if (ir.finalRoute?.target.kind === 'direct') issues.push(surgeIssue(
+    'SURGE_FINAL_DNS_FAILED_DIRECT_UNSUPPORTED', 'error', 'final',
+    'Surge dns-failed is only meaningful for a non-DIRECT Final policy.', options.finalNodeId,
+  ))
 }
 
 function strategyProxySetRefs(strategy: StrategyIR): ProxySetRef[] {

@@ -4,7 +4,7 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
-import type { TargetNativeRuleSetSourceConfig, TargetNativeStrategyConfig } from '../core/targetNative'
+import type { TargetNativeFinalOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeStrategyConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -154,6 +154,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   customRuleSource?: CustomRuleSource
   /** Typed target-native Rule Set provenance, kept outside TrafficMatcherIR. */
   targetNativeRuleSet?: TargetNativeRuleSetSourceConfig
+  /** Typed target-native Final rule options, kept outside FinalRouteIR. */
+  targetNativeFinalOptions?: TargetNativeFinalOptionsConfig
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number

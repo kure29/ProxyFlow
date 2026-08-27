@@ -1,7 +1,7 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
@@ -23,6 +23,7 @@ export interface SurgeCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
 }
@@ -38,13 +39,13 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const nativeRoutes = options.nativeRoutes ?? []
   const nativeFinalRoute = options.nativeFinalRoute
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes)
+  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes, nativeFinalRoute, options.targetNativeFinalOptions)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(
     ir, issues, generatedAt, projection,
   )
 
-  const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute, nativeRuleSetSources)
+  const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute, nativeRuleSetSources, options.targetNativeFinalOptions)
   compileSurgeStrategies(context)
   compileSurgeNativeStrategies(nativeStrategies, context)
   const rules = compileSurgeRules(context)
@@ -123,6 +124,7 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeStrategies: options?.nativeStrategies,
       nativeRoutes: options?.nativeRoutes,
       nativeFinalRoute: options?.nativeFinalRoute,
+      targetNativeFinalOptions: options?.targetNativeFinalOptions,
       targetNativeRuleSetSources: options?.targetNativeRuleSetSources,
       nativeRuleSetSources: options?.nativeRuleSetSources,
     })

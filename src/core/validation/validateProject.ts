@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -87,6 +87,10 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
           return condition.matcher.kind === 'mccmnc' && !isValidSurgeMccmnc(condition.matcher.value)
         })) add('SURGE_SUBNET_MATCHER_INVALID', 'Every Subnet condition requires a valid matcher value.', 'error')
       }
+    }
+    if (node.data.targetNativeFinalOptions !== undefined) {
+      if (node.data.blockType !== 'final') add('TARGET_NATIVE_FINAL_OPTIONS_INVALID', 'Target-native Final options may only be attached to a Final node.', 'error')
+      else if (!isTargetNativeFinalOptionsConfig(node.data.targetNativeFinalOptions)) add('TARGET_NATIVE_FINAL_OPTIONS_INVALID', 'This target-native Final options config is invalid.', 'error')
     }
   }
   return issues

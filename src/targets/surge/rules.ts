@@ -2,7 +2,7 @@ import type { RouteTargetIR, TrafficMatcherIR } from '../../core/ir'
 import type { SurgeCompileContext } from './context'
 import { surgeIssue } from './errors'
 import { resolveSurgeServiceRuleSource } from './serviceRules'
-import { serializeSurgeRule } from './serializer'
+import { serializeSurgeFinalRule, serializeSurgeRule } from './serializer'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
 export function compileSurgeRules(context: SurgeCompileContext) {
@@ -31,13 +31,18 @@ export function compileSurgeRules(context: SurgeCompileContext) {
     const payload = matcherPayload(route.matcher)
     if (type && payload !== undefined) rules.push(serializeSurgeRule(type, payload, target))
   }
-  if (context.ir.finalRoute) {
+  const finalOptions = context.targetNativeFinalOptions?.dnsFailed ? { dnsFailed: true as const } : undefined
+  if (context.ir.finalRoute && context.nativeFinalRoute) {
+    context.issues.push(surgeIssue(
+      'SURGE_FINAL_ROUTE_AMBIGUOUS', 'error', 'route',
+      'Surge received both a Universal and a target-native Final route.', 'final',
+    ))
+  } else if (context.ir.finalRoute) {
     const target = targetName(context.ir.finalRoute.target, 'final', context)
-    if (target) rules.push(serializeSurgeRule('FINAL', undefined, target))
-  }
-  if (context.nativeFinalRoute) {
+    if (target) rules.push(serializeSurgeFinalRule(target, finalOptions))
+  } else if (context.nativeFinalRoute) {
     const target = targetName(context.nativeFinalRoute.target, context.nativeFinalRoute.id, context)
-    if (target) rules.push(serializeSurgeRule('FINAL', undefined, target))
+    if (target) rules.push(serializeSurgeFinalRule(target, finalOptions))
   }
   return rules
 }

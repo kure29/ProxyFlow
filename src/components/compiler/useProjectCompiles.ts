@@ -58,14 +58,16 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
+    targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
-  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeRuleSetSources, mihomoOutput])
+  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
   const targetNativeOptions = useMemo(() => ({
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
+    targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
-  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeRuleSetSources])
+  }), [graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRuleSetSources])
   const compileEnabled = enabled && graphResult.success
   const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
   const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge, targetNativeOptions)

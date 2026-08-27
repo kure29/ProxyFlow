@@ -8,6 +8,8 @@ import type { TargetNativeRouteIR } from '../targetNative'
 export interface CompiledRouting {
   routes: RouteIR[]
   nativeRoutes: TargetNativeRouteIR[]
+  /** Internal graph identity used to bind target-native Final options. */
+  effectiveFinalNodeId?: string
   nativeFinalRoute?: TargetNativeRouteIR
   finalRoute?: FinalRouteIR
 }
@@ -60,11 +62,13 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
     { nodeId: finalNodes[0].id, entity: { type: 'final', id: finalNodes[0].id } },
   ))
   const finalNode = finalNodes[0]
+  const effectiveFinalNodeId = finalNode.id
   const target = compileRouteTarget(finalNode.data.targetKind, finalNode.data.targetId, finalNode.data.targetLabel, context)
   const nativeTarget = nativeStrategyTarget(finalNode.data.targetId, context)
   if (nativeTarget) return {
     routes,
     nativeRoutes,
+    effectiveFinalNodeId,
     nativeFinalRoute: { id: finalNode.id, name: finalNode.data.title, target: nativeTarget, priority: Number.MAX_SAFE_INTEGER },
   }
   if (!target) {
@@ -72,9 +76,9 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
       'FINAL_TARGET_MISSING', 'error', 'compile', `Final route "${finalNode.data.title}" has no valid target.`,
       { nodeId: finalNode.id, entity: { type: 'final', id: finalNode.id } },
     ))
-    return { routes, nativeRoutes }
+    return { routes, nativeRoutes, effectiveFinalNodeId }
   }
-  return { routes, nativeRoutes, finalRoute: { target } }
+  return { routes, nativeRoutes, effectiveFinalNodeId, finalRoute: { target } }
 }
 
 function nativeStrategyTarget(targetId: string | undefined, context: GraphCompileContext) {

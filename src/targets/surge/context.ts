@@ -4,7 +4,7 @@ import type { SurgePolicyEntry } from './model'
 import { SurgeNameRegistry } from './naming'
 import { createSurgeProjectionContext, type SurgeProjectionContext } from './projection'
 import { compileSurgeProxy } from './proxies'
-import type { TargetNativeRouteIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SurgeStrategyTemplate {
   entry: SurgePolicyEntry
@@ -25,6 +25,7 @@ export interface SurgeCompileContext {
   projection: SurgeProjectionContext
   nativeRoutes: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   nativeRuleSetSources: TargetNativeRuleSetSourceIR[]
 }
 
@@ -36,6 +37,7 @@ export function createSurgeContext(
   nativeRoutes: readonly TargetNativeRouteIR[] = [],
   nativeFinalRoute?: TargetNativeRouteIR,
   nativeRuleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR,
 ): SurgeCompileContext {
   const policyNames = new SurgeNameRegistry()
   for (const strategy of ir.strategies) policyNames.reserve(strategy.name)
@@ -56,6 +58,7 @@ export function createSurgeContext(
     projection,
     nativeRoutes: [...nativeRoutes],
     nativeFinalRoute,
+    targetNativeFinalOptions,
     nativeRuleSetSources: [...nativeRuleSetSources],
   }
 }

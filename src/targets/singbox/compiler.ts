@@ -12,7 +12,7 @@ import { compileSingBoxProxyOutbounds } from './outbounds'
 import { compileSingBoxRouting } from './rules'
 import { serializeSingBoxConfig } from './serializer'
 import { compileSingBoxStrategies } from './strategies'
-import { targetNativeUnsupportedIssues, type TargetNativeStrategyIR } from '../../core/targetNative'
+import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SingBoxCompileOptions {
   now?: () => Date
@@ -20,6 +20,7 @@ export interface SingBoxCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
 }
@@ -32,7 +33,7 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources))
+  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions))
   const compatibility = checkSingBoxCompatibility(ir)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
@@ -77,6 +78,6 @@ export class SingBoxCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
-    return compileSingBox(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
+    return compileSingBox(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
   }
 }
