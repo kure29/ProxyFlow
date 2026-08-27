@@ -1,4 +1,4 @@
-import { parse as parseYaml } from 'yaml'
+import { parseDocument } from 'yaml'
 import { getTargetCapabilities, type PrimaryTarget } from '../capabilities'
 import { normalizeCustomMatcher, type TrafficMatcherIR } from '../ir'
 import type {
@@ -30,6 +30,18 @@ export type CustomRuleSourceParseResult =
   | { ok: true; source: CustomRuleSource; issues: CustomRuleSourceIssue[] }
   | { ok: false; issues: CustomRuleSourceIssue[] }
 
+type RuleLineDialect = 'policy-bearing' | 'policy-less'
+
+interface ExtractedRuleLines {
+  lines: ExtractedRuleLine[]
+  dialect: RuleLineDialect
+}
+
+interface ExtractedRuleLine {
+  value: string
+  line: number
+}
+
 const MAX_SOURCE_BYTES = 1_000_000
 const MAX_RULES = 10_000
 
@@ -37,6 +49,7 @@ export function detectCustomRuleSourceFormat(content: string, fileName?: string)
   const extension = fileName?.toLowerCase().match(/\.([^.]+)$/)?.[1]
   if (extension === 'yaml' || extension === 'yml') return 'mihomo-yaml'
   const head = content.trimStart().slice(0, 200)
+  if (/^(?:---\s*)?\[(?:Rule|General|Proxy|Proxy Group)\]\s*$/im.test(head)) return 'surge-list'
   if (/^(?:---\s*)?(?:payload|rules)\s*:/i.test(head) || head.startsWith('[') || head.startsWith('{')) return 'mihomo-yaml'
   return 'surge-list'
 }
@@ -61,15 +74,16 @@ export function parseCustomRuleSource(input: CustomRuleSourceInput): CustomRuleS
     issues.push({ code: 'RULE_SOURCE_FORMAT_OVERRIDE', severity: 'warning', message: `Detected ${detected}; parsed as the selected ${format} format.` })
   }
 
-  const lines = format === 'mihomo-yaml'
+  const extracted = format === 'mihomo-yaml'
     ? extractMihomoRuleLines(input.content, issues)
     : extractSurgeRuleLines(input.content)
-  if (!lines) return { ok: false, issues }
+  if (!extracted) return { ok: false, issues }
+  const { lines, dialect } = extracted
   if (lines.length > MAX_RULES) issues.push(error('RULE_SOURCE_TOO_MANY_RULES', `Rule source exceeds the ${MAX_RULES} rule first-phase limit.`))
 
   const matchers: ServiceMatcherDefinition[] = []
-  for (const [index, line] of lines.entries()) {
-    const normalized = normalizeRuleLine(line, index + 1, issues)
+  for (const extractedLine of lines) {
+    const normalized = normalizeRuleLine(extractedLine.value, extractedLine.line, dialect, issues)
     if (normalized) matchers.push(normalized)
   }
   if (matchers.length === 0) issues.push(error('RULE_SOURCE_NO_SUPPORTED_RULES', 'Rule source contains no supported rules.'))
@@ -113,15 +127,24 @@ export function ruleSourceMatchersToIR(source: CustomRuleSource): TrafficMatcher
   return matchers
 }
 
-function extractMihomoRuleLines(content: string, issues: CustomRuleSourceIssue[]) {
+function extractMihomoRuleLines(content: string, issues: CustomRuleSourceIssue[]): ExtractedRuleLines | undefined {
   try {
-    const parsed = parseYaml(content) as unknown
-    const candidate = Array.isArray(parsed)
-      ? parsed
-      : isRecord(parsed) && Array.isArray(parsed.payload)
-        ? parsed.payload
-        : isRecord(parsed) && Array.isArray(parsed.rules)
-          ? parsed.rules
+    const document = parseDocument(content)
+    if (document.errors.length > 0) {
+      issues.push(error('RULE_SOURCE_YAML_INVALID', 'The Mihomo YAML could not be parsed.'))
+      return undefined
+    }
+    const parsed = document.toJS() as unknown
+    const isArray = Array.isArray(parsed)
+    const hasPayload = isRecord(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'payload')
+    const hasRules = isRecord(parsed) && Object.prototype.hasOwnProperty.call(parsed, 'rules')
+    if (hasPayload && hasRules) {
+      issues.push(error('RULE_SOURCE_YAML_SHAPE_INVALID', 'Mihomo YAML must contain either a payload or rules array, not both.'))
+      return undefined
+    }
+    const candidate: unknown[] | undefined = isArray ? parsed
+      : hasPayload && isRecord(parsed) && Array.isArray(parsed.payload) ? parsed.payload
+        : hasRules && isRecord(parsed) && Array.isArray(parsed.rules) ? parsed.rules
           : undefined
     if (!candidate) {
       issues.push(error('RULE_SOURCE_YAML_SHAPE_INVALID', 'Mihomo YAML must be an array or contain a payload/rules array.'))
@@ -131,19 +154,53 @@ function extractMihomoRuleLines(content: string, issues: CustomRuleSourceIssue[]
       issues.push(error('RULE_SOURCE_YAML_ENTRY_INVALID', 'Every Mihomo rule entry must be a string.'))
       return undefined
     }
-    return candidate as string[]
+    const candidateNode = isArray ? document.contents : findYamlMapValueNode(document.contents, hasPayload ? 'payload' : 'rules')
+    const candidateItems = isYamlSequence(candidateNode) ? candidateNode.items : undefined
+    if (!candidateItems || candidateItems.length !== candidate.length) {
+      issues.push(error('RULE_SOURCE_YAML_SHAPE_INVALID', 'Mihomo YAML rule entries could not be located safely.'))
+      return undefined
+    }
+    return {
+      lines: (candidate as string[]).map((value, index) => ({
+        value,
+        line: yamlNodeLine(candidateItems[index], content, index + 1),
+      })),
+      dialect: hasRules ? 'policy-bearing' : 'policy-less',
+    }
   } catch {
     issues.push(error('RULE_SOURCE_YAML_INVALID', 'The Mihomo YAML could not be parsed.'))
     return undefined
   }
 }
 
-function extractSurgeRuleLines(content: string) {
-  return content.split(/\r?\n/).map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#') && !line.startsWith(';') && !/^\[.*\]$/.test(line))
+function extractSurgeRuleLines(content: string): ExtractedRuleLines {
+  const rawLines = content.split(/\r?\n/)
+  const hasSections = rawLines.some((line) => /^\s*\[[^\]]+\]\s*$/.test(line))
+  if (!hasSections) return {
+    lines: rawLines.flatMap((line, index) => {
+      const value = line.trim()
+      return isRuleContentLine(value) ? [{ value, line: index + 1 }] : []
+    }),
+    dialect: 'policy-less' as const,
+  }
+
+  let section = ''
+  let sawRuleSection = false
+  const lines: ExtractedRuleLine[] = []
+  for (const [index, rawLine] of rawLines.entries()) {
+    const line = rawLine.trim()
+    const header = line.match(/^\[([^\]]+)\]$/)?.[1]
+    if (header) {
+      section = header.trim().toLowerCase()
+      sawRuleSection ||= section === 'rule'
+      continue
+    }
+    if (section === 'rule' && isRuleContentLine(line)) lines.push({ value: line, line: index + 1 })
+  }
+  return { lines: sawRuleSection ? lines : [], dialect: 'policy-bearing' as const }
 }
 
-function normalizeRuleLine(raw: string, line: number, issues: CustomRuleSourceIssue[]): ServiceMatcherDefinition | undefined {
+function normalizeRuleLine(raw: string, line: number, dialect: RuleLineDialect, issues: CustomRuleSourceIssue[]): ServiceMatcherDefinition | undefined {
   const value = raw.trim().replace(/^['"]|['"]$/g, '')
   if (!value || value.startsWith('#') || value.startsWith(';')) return undefined
   const fields = value.split(',').map((field) => field.trim())
@@ -153,10 +210,16 @@ function normalizeRuleLine(raw: string, line: number, issues: CustomRuleSourceIs
   }
   const type = fields.length > 1 ? fields[0].toUpperCase() : inferRuleType(fields[0])
   const payload = fields.length > 1 ? fields[1] : normalizeUntypedPayload(fields[0])
-  if (fields.length === 3) issues.push({
-    code: 'RULE_SOURCE_POLICY_OVERRIDDEN', severity: 'warning', line,
-    message: 'The source policy is replaced by the target selected in ProxyFlow.',
-  })
+  if (fields.length === 3) {
+    if (dialect === 'policy-less') {
+      issues.push(error('RULE_SOURCE_OPTIONS_UNSUPPORTED', 'This rule contains an unsupported option/modifier in a policy-less source.', line))
+      return undefined
+    }
+    issues.push({
+      code: 'RULE_SOURCE_POLICY_OVERRIDDEN', severity: 'warning', line,
+      message: 'The source policy is replaced by the target selected in ProxyFlow.',
+    })
+  }
   const kind = type === 'DOMAIN' ? 'domain'
     : type === 'DOMAIN-SUFFIX' ? 'domain-suffix'
       : type === 'DOMAIN-KEYWORD' ? 'domain-keyword'
@@ -181,6 +244,25 @@ function normalizeRuleLine(raw: string, line: number, issues: CustomRuleSourceIs
       || result.matcher.kind === 'ip-cidr' || result.matcher.kind === 'ip-cidr6'
       ? { kind: result.matcher.kind, value: result.matcher.value }
       : undefined
+}
+
+function isRuleContentLine(line: string) {
+  return Boolean(line) && !line.startsWith('#') && !line.startsWith(';') && !/^\[.*\]$/.test(line)
+}
+
+function findYamlMapValueNode(root: unknown, key: string): unknown {
+  if (!isRecord(root) || !Array.isArray(root.items)) return undefined
+  const pair = root.items.find((item) => isRecord(item) && isRecord(item.key) && item.key.value === key)
+  return isRecord(pair) ? pair.value : undefined
+}
+
+function isYamlSequence(value: unknown): value is { items: unknown[] } {
+  return isRecord(value) && Array.isArray(value.items)
+}
+
+function yamlNodeLine(node: unknown, content: string, fallback: number) {
+  if (!isRecord(node) || !Array.isArray(node.range) || typeof node.range[0] !== 'number') return fallback
+  return content.slice(0, node.range[0]).split(/\r?\n/).length
 }
 
 function inferRuleType(value: string) {
