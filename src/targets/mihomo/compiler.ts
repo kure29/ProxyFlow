@@ -24,6 +24,8 @@ export interface MihomoCompileOptions {
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
+  targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
+  nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
 }
@@ -40,7 +42,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions))
+  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
   const compatibility = checkMihomoCompatibility(ir)
@@ -93,7 +95,7 @@ export class MihomoCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: TargetCompileOptions) {
-    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
+    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
   }
 }
 

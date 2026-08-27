@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -91,6 +91,10 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     if (node.data.targetNativeFinalOptions !== undefined) {
       if (node.data.blockType !== 'final') add('TARGET_NATIVE_FINAL_OPTIONS_INVALID', 'Target-native Final options may only be attached to a Final node.', 'error')
       else if (!isTargetNativeFinalOptionsConfig(node.data.targetNativeFinalOptions)) add('TARGET_NATIVE_FINAL_OPTIONS_INVALID', 'This target-native Final options config is invalid.', 'error')
+    }
+    if (node.data.targetNativeRouteOptions !== undefined) {
+      if (!isRoutingRuleType(node.data.blockType)) add('TARGET_NATIVE_ROUTE_OPTIONS_INVALID', 'Target-native route options may only be attached to a routing rule.', 'error')
+      else if (!isTargetNativeRouteOptionsConfig(node.data.targetNativeRouteOptions)) add('TARGET_NATIVE_ROUTE_OPTIONS_INVALID', 'This target-native route options config is invalid.', 'error')
     }
   }
   return issues
