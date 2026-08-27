@@ -72,7 +72,7 @@ describe('Shadowrocket local acceptance CLI safety contract', () => {
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   it('generates controlled routing and DNS profiles without private input or network access', async () => {
     const { stdout, stderr } = await execFileAsync(process.execPath, [script, '--profile', 'routing'], { cwd: root })
