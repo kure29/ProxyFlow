@@ -79,7 +79,6 @@ export function WorkspaceShell({
   const moveRule = useBuilderStore((state) => state.moveRoutingRule)
   const moveRuleToIndex = useBuilderStore((state) => state.moveRoutingRuleToIndex)
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
-  const setPreviewOpen = useBuilderStore((state) => state.setPreviewOpen)
   const setPrimaryTarget = useBuilderStore((state) => state.setPrimaryTarget)
   const refreshAllSubscriptions = useBuilderStore((state) => state.refreshAllSubscriptions)
   const refreshableCount = useBuilderStore((state) => state.nodes.filter((node) => node.data.blockType === 'subscription' && node.data.enabled !== false && node.data.subscriptionInputKind === 'url' && Boolean(node.data.subscriptionUrl?.trim())).length)
@@ -296,7 +295,6 @@ export function WorkspaceShell({
           compiles={targetCompiles}
           onSelectTarget={setPrimaryTarget}
           onShowDiagnostics={() => onSectionChange('inspect')}
-          onPreview={(target) => setPreviewOpen(true, target)}
         />}
       </section>
     </main>

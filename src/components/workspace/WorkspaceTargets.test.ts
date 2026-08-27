@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { CompileResult } from '../../core/compiler'
 import { compileGraph } from '../../core/graphCompiler'
+import { demoNodes, demoProject } from '../../data/demoProject'
 import { createBlankProject } from '../../data/newProject'
 import { I18nProvider } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -119,7 +120,7 @@ describe('Workspace target status', () => {
     const compiles = {
       graphResult: compileGraph(project, { validationTarget: 'mihomo' }),
       mihomoState: { status: 'success', result: successResult },
-      surgeState: { status: 'idle' },
+      surgeState: { status: 'error', result: surgeBlockedResult },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
       shadowrocketState: { status: 'idle' },
@@ -127,16 +128,15 @@ describe('Workspace target status', () => {
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
       primaryTarget: 'sing-box',
       compiles,
-      onPreview: () => undefined,
       onSelectTarget: () => undefined,
     })))
     expect(html).toContain('sing-box official export is paused')
     expect(html).not.toContain('/third-party/sing-box/icon.svg')
-    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(8)
+    expect((html.match(/workspace-target-icon/g) ?? [])).toHaveLength(5)
     expect(html).toContain('Surge')
     expect(html).toContain('Loon')
     expect(html).toContain('Shadowrocket')
-    expect((html.match(/loon\.png/g) ?? [])).toHaveLength(4)
+    expect((html.match(/loon\.png/g) ?? [])).toHaveLength(2)
   })
 
   it('keeps a supported Loon Project on the Loon compiler and .conf artifact path', () => {
@@ -157,7 +157,7 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'loon', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+      primaryTarget: 'loon', compiles, onSelectTarget: () => undefined,
     })))
     expect(html).not.toContain('Loon official export is paused')
     expect(html).toContain('我的代理配置-loon.conf')
@@ -186,7 +186,7 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'success', result: shadowrocketResult },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'shadowrocket', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+      primaryTarget: 'shadowrocket', compiles, onSelectTarget: () => undefined,
     })))
     expect(html).not.toContain('Shadowrocket official export is paused')
     expect(html).toContain('-shadowrocket.conf')
@@ -210,36 +210,103 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+      primaryTarget: 'surge', compiles, onSelectTarget: () => undefined,
     })))
     expect(useBuilderStore.getState().primaryTarget).toBe('surge')
     expect(html).toContain('Surge configuration cannot be generated yet')
     expect(html).not.toContain('SURGE_PROXY_PROTOCOL_UNSUPPORTED')
-    expect(html).toContain('7 compatible nodes')
     expect(html).not.toContain('0 compatible nodes')
     expect(html).toContain('Surge configuration cannot be generated yet')
     expect(html).not.toContain('workspace-export-code-toolbar')
     expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
 
-  it('renders a concise blocked export state without fake configuration正文', () => {
+  it('keeps checking inside the same preview shell without rendering configuration', () => {
     const project = createBlankProject('surge')
-    project.name = 'Blocked Export'
     useBuilderStore.getState().hydrate(structuredClone(project))
     const compiles = {
       graphResult: compileGraph(project, { validationTarget: 'surge' }),
+      mihomoState: { status: 'idle' }, surgeState: { status: 'idle' }, singBoxState: { status: 'idle' }, loonState: { status: 'idle' }, shadowrocketState: { status: 'idle' },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'surge', compiles, onSelectTarget: () => undefined,
+    })))
+
+    expect(html).toContain('workspace-export-preview is-loading')
+    expect(html).toContain('workspace-export-preview-checking')
+    expect(html).toContain('Checking compatibility')
+    expect(html).not.toContain('workspace-export-code-toolbar')
+    expect(html).not.toContain('workspace-export-preview-blocked-state')
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('keeps Mihomo settings available while blocked without enabling export actions', () => {
+    const project = createBlankProject('mihomo')
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const blockedResult: CompileResult = {
+      ...successResult,
+      success: false,
+      content: '',
+      issues: [{ target: 'mihomo', code: 'MIHOMO_BLOCKED', severity: 'error', feature: 'network', message: 'Mihomo output is blocked.' }],
+    }
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'mihomo' }),
+      mihomoState: { status: 'error', result: blockedResult }, surgeState: { status: 'idle' }, singBoxState: { status: 'idle' }, loonState: { status: 'idle' }, shadowrocketState: { status: 'idle' },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'mihomo', compiles, onSelectTarget: () => undefined,
+    })))
+
+    expect(html).toContain('workspace-export-settings-trigger')
+    expect(html).toContain('Cannot export yet')
+    expect((html.match(/disabled=""/g) ?? [])).toHaveLength(2)
+    expect(html).not.toContain('workspace-export-code-toolbar')
+  })
+
+  it('renders a concise blocked export state without fake configuration正文', () => {
+    const project = structuredClone(demoProject)
+    project.primaryTarget = 'surge'
+    project.name = 'Blocked Export'
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const strategyId = demoNodes.find((node) => node.data.category === 'strategy')!.id
+    const blockedStrategyResult: CompileResult = {
+      ...surgeBlockedResult,
+      issues: [
+        { target: 'surge', code: 'SURGE_STRATEGY_NO_COMPATIBLE_MEMBERS', severity: 'error', feature: 'strategy', entityId: strategyId, message: 'No compatible members.' },
+        { target: 'surge', code: 'SURGE_PROXY_SET_ENDPOINTS_SKIPPED', severity: 'warning', feature: 'strategy', entityId: strategyId, message: 'Surge can use 0 of 13 candidates. 13 endpoints were skipped.' },
+      ],
+      stats: { proxyCount: 0, endpointCount: 0, candidateCount: 13, compatibleEndpointCount: 0, skippedEndpointCount: 13, blockingIssueCount: 1 },
+      targetProjection: {
+        target: 'surge', candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 1, status: 'blocked', reasons: [],
+        strategies: [{ target: 'surge', strategyId, candidateCount: 13, compatibleCount: 0, skippedCount: 13, blockingCount: 1, status: 'blocked', reasons: [] }],
+      },
+    }
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'surge' }),
       mihomoState: { status: 'idle' },
-      surgeState: { status: 'error', result: surgeBlockedResult },
+      surgeState: { status: 'error', result: blockedStrategyResult },
       singBoxState: { status: 'idle' },
       loonState: { status: 'idle' },
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
+      primaryTarget: 'surge', compiles, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
     })))
 
     expect(html).toContain('Surge configuration cannot be generated yet')
+    expect(html).toContain('Hong Kong auto select')
+    expect(html).toContain('0 of 13 candidate nodes can be used by Surge')
     expect(html).toContain('View all issues')
+    expect((html.match(/View all issues/g) ?? [])).toHaveLength(1)
+    expect(html).toContain('Cannot export yet · 1 blocker · 2 warnings')
+    expect(html).toContain('workspace-export-preview is-blocked')
+    expect((html.match(/workspace-export-preview is-blocked/g) ?? [])).toHaveLength(1)
+    expect(html).not.toContain('workspace-export-summary-header')
+    expect(html).toContain('workspace-export-target-list')
+    expect((html.match(/workspace-export-target-item/g) ?? [])).toHaveLength(4)
+    expect(html).not.toContain('workspace-export-compatibility')
+    expect(html).not.toContain('workspace-export-actions')
+    expect(html).not.toContain('workspace-target-status')
     expect(html).not.toContain('workspace-export-code-toolbar')
     expect(html).not.toContain('<ol class="workspace-export-code"')
     expect(html).not.toContain('workspace-export-diagnostics')
@@ -271,21 +338,49 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'surge', compiles, onPreview: () => undefined, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
+      primaryTarget: 'surge', compiles, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
     })))
     expect(html).toContain('Ready to export')
     expect(html).toContain('我的代理配置-surge.conf')
     expect(html).toContain('[General]')
     expect(html).toContain('iOS 5.22+ / Mac 6.9+')
     expect(html).toContain('Minimum supported versions: iOS 5.22+ / Mac 6.9+.')
-    expect(html).toContain('<dt>Compatible</dt><dd>18 <span>/ 30</span></dd>')
-    expect(html).toContain('<dt>Skipped</dt><dd>12</dd>')
-    expect(html).toContain('<dt>Blocking</dt><dd>0</dd>')
+    expect(html).toContain('Ready to export · 1 warning')
+    expect(html).toContain('workspace-export-preview is-ready')
+    expect((html.match(/workspace-export-preview is-ready/g) ?? [])).toHaveLength(1)
+    expect(html).not.toContain('workspace-export-summary-header')
     expect(html).not.toContain('Skipped 12 incompatible nodes')
     expect(html).not.toContain('Technical details')
     expect(html).toContain('Available')
     expect(html).not.toContain('Checking')
     expect(html).not.toContain('disabled=""')
+    expect(html).not.toContain('workspace-export-configuration')
+    expect(html).not.toContain('workspace-export-settings-trigger')
+  })
+
+  it('deduplicates repeated high-level blocker summaries without exposing technical codes', () => {
+    const project = createBlankProject('shadowrocket')
+    useBuilderStore.getState().hydrate(structuredClone(project))
+    const repeatedIssues = ['proxy-a', 'proxy-b', 'proxy-c'].map((entityId) => ({
+      target: 'shadowrocket' as const,
+      code: 'SHADOWROCKET_PROXY_PROTOCOL_UNPROVEN',
+      severity: 'error' as const,
+      feature: 'proxy',
+      entityId,
+      message: `Unproven proxy mapping for ${entityId}.`,
+    }))
+    const compiles = {
+      graphResult: compileGraph(project, { validationTarget: 'shadowrocket' }),
+      mihomoState: { status: 'idle' }, surgeState: { status: 'idle' }, singBoxState: { status: 'idle' }, loonState: { status: 'idle' },
+      shadowrocketState: { status: 'error', result: { ...successResult, success: false, content: '', issues: repeatedIssues } },
+    } as ProjectCompiles
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
+      primaryTarget: 'shadowrocket', compiles, onSelectTarget: () => undefined, onShowDiagnostics: () => undefined,
+    })))
+
+    expect((html.match(/Shadowrocket behavior is not proven/g) ?? [])).toHaveLength(1)
+    expect(html).toContain('Cannot export yet · 3 blockers · 0 warnings')
+    expect(html).not.toContain('SHADOWROCKET_PROXY_PROTOCOL_UNPROVEN')
   })
 
   it('shows an inactive Surge target as available on a ready Mihomo export', () => {
@@ -300,10 +395,18 @@ describe('Workspace target status', () => {
       shadowrocketState: { status: 'idle' },
     } as ProjectCompiles
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceExportPanel, {
-      primaryTarget: 'mihomo', compiles, onPreview: () => undefined, onSelectTarget: () => undefined,
+      primaryTarget: 'mihomo', compiles, onSelectTarget: () => undefined,
     })))
     expect(html).toContain('Available')
-    expect(html).toContain('Compatibility is checked after switching')
+    expect(html).not.toContain('Available · switch to check')
     expect(html).not.toContain('Checking')
+    expect(html).not.toContain('1 blocker · 0 warnings')
+    expect(html).not.toContain('SURGE_PROXY_PROTOCOL_UNSUPPORTED')
+    expect(html).toContain('workspace-export-preview is-ready')
+    expect(html).toContain('workspace-export-settings-trigger')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('aria-controls="workspace-export-settings-drawer"')
+    expect(html).not.toContain('workspace-export-configuration')
+    expect(html).not.toContain('<aside id="workspace-export-settings-drawer"')
   })
 })
