@@ -769,7 +769,7 @@ export function RoutingInspector({ node }: InspectorProps) {
     {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><small>{t('inspector.servicesSelected', { count: services.length })}</small></div>
     <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service) ?? resolveLegacyServiceDefinition(service); const label = definition?.name ?? service; const selected = activeService === service || activeService === definition?.name; return <div className={selected ? 'is-active' : ''} key={service}><span className="service-mark-slot"><ServiceMark serviceId={definition?.id ?? service} selected={selected} /></span><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
     <ServiceMultiSelectPopover selected={services} onChange={(next) => update(node.id, { services: next })} /></>}
-    {isCustomRule && matcherKind === 'rule-set' && <RuleSetSourceEditor nativeRuleSet={nativeRuleSet} onChange={(value) => {
+    {isCustomRule && matcherKind === 'rule-set' && <RuleSetSourceEditor nativeRuleSet={nativeRuleSet} authoringTarget={authoringTarget} onChange={(value) => {
       update(node.id, ruleSetSourcePatch(value, node.data.customRuleSource?.id))
     }} t={t} />}
     {isCustomRule && matcherKind === 'rule-set' && !nativeRuleSet && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
@@ -908,10 +908,28 @@ export function ruleSetSourcePatch(selection: RuleSetSourceSelection, customSour
   }
 }
 
+export function isSurgeBuiltinRuleSetSelectionDisabled(authoringTarget: PrimaryTarget | null | undefined) {
+  return authoringTarget !== 'surge'
+}
+
+export function ruleSetSourceOptions(
+  authoringTarget: PrimaryTarget | null | undefined,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const disabled = isSurgeBuiltinRuleSetSelectionDisabled(authoringTarget)
+  const surgeOnly = disabled ? ` · ${t('inspector.ruleSetSource.surgeOnlyLabel')}` : ''
+  return [
+    { value: 'custom', label: t('inspector.ruleSetSource.custom') },
+    { value: 'LAN', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · LAN${surgeOnly}`, ...(disabled ? { disabled: true } : {}) },
+    { value: 'SYSTEM', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · SYSTEM${surgeOnly}`, ...(disabled ? { disabled: true } : {}) },
+  ]
+}
+
 function RuleSetSourceEditor({
-  nativeRuleSet, onChange, t,
+  nativeRuleSet, authoringTarget, onChange, t,
 }: {
   nativeRuleSet?: { target: 'surge'; kind: 'builtin-rule-set'; name: SurgeBuiltinRuleSetName }
+  authoringTarget?: PrimaryTarget | null
   onChange: (value: RuleSetSourceSelection) => void
   t: ReturnType<typeof useI18n>['t']
 }) {
@@ -922,11 +940,7 @@ function RuleSetSourceEditor({
         label={t('inspector.ruleSetSource.title')}
         value={value}
         onChange={(next) => onChange(next as RuleSetSourceSelection)}
-        options={[
-          { value: 'custom', label: t('inspector.ruleSetSource.custom') },
-          { value: 'LAN', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · LAN` },
-          { value: 'SYSTEM', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · SYSTEM` },
-        ]}
+        options={ruleSetSourceOptions(authoringTarget, t)}
       />
     </Field>
     {nativeRuleSet && <div className="target-native-card">

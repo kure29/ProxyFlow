@@ -3,9 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import { serviceCatalog } from '../../data/serviceCatalog'
-import { I18nProvider } from '../../i18n'
+import { I18nProvider, translate } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
-import { nextListboxOptionIndex, nextServiceOptionIndex, ruleSetSourcePatch, RoutingInspector } from './Inspector'
+import { isSurgeBuiltinRuleSetSelectionDisabled, nextListboxOptionIndex, nextServiceOptionIndex, ruleSetSourceOptions, ruleSetSourcePatch, RoutingInspector } from './Inspector'
 import type { GraphNode, ProxyFlowProject } from '../../types/project'
 
 function ruleProject(target: ProxyFlowProject['primaryTarget'], native?: 'LAN' | 'SYSTEM'): ProxyFlowProject {
@@ -79,6 +79,10 @@ describe('Routing Inspector product UI', () => {
     expect(html).toContain('Surge built-in Rule Sets are only supported by Surge.')
     expect(html).toContain('Mihomo')
     expect(html).toContain('Surge built-in · SYSTEM')
+    const options = ruleSetSourceOptions('mihomo', (key, values) => translate('en-US', key, values))
+    expect(options.find((option) => option.value === 'SYSTEM')?.disabled).toBe(true)
+    expect(options.find((option) => option.value === 'custom')?.disabled).toBeUndefined()
+    expect(useBuilderStore.getState().nodes[0].data.targetNativeRuleSet).toEqual({ target: 'surge', kind: 'builtin-rule-set', name: 'SYSTEM' })
   })
 
   it('renders the custom source editor when no typed built-in is selected', () => {
@@ -101,5 +105,24 @@ describe('Routing Inspector product UI', () => {
     })
     expect(ruleSetSourcePatch('custom', 'remote-source')).toEqual({ targetNativeRuleSet: undefined, routeMatcherValue: 'remote-source' })
     expect(ruleSetSourcePatch('custom')).toEqual({ targetNativeRuleSet: undefined, routeMatcherValue: '' })
+  })
+
+  it('disables only new Surge built-in selections for non-Surge authoring targets', () => {
+    const t = (key: Parameters<typeof translate>[1], values?: Parameters<typeof translate>[2]) => translate('en-US', key, values)
+    expect(isSurgeBuiltinRuleSetSelectionDisabled('mihomo')).toBe(true)
+    expect(isSurgeBuiltinRuleSetSelectionDisabled('loon')).toBe(true)
+    expect(isSurgeBuiltinRuleSetSelectionDisabled('shadowrocket')).toBe(true)
+    expect(isSurgeBuiltinRuleSetSelectionDisabled('surge')).toBe(false)
+
+    const mihomoOptions = ruleSetSourceOptions('mihomo', t)
+    expect(mihomoOptions[0]).toMatchObject({ value: 'custom', label: 'Custom Rule Set' })
+    expect(mihomoOptions[0].disabled).toBeUndefined()
+    expect(mihomoOptions[1]).toEqual({ value: 'LAN', disabled: true, label: 'Surge built-in · LAN · Surge only' })
+    expect(mihomoOptions[2]).toEqual({ value: 'SYSTEM', disabled: true, label: 'Surge built-in · SYSTEM · Surge only' })
+    const surgeOptions = ruleSetSourceOptions('surge', t)
+    expect(surgeOptions[0]).toMatchObject({ value: 'custom', label: 'Custom Rule Set' })
+    expect(surgeOptions[0].disabled).toBeUndefined()
+    expect(surgeOptions[1]).toEqual({ value: 'LAN', label: 'Surge built-in · LAN' })
+    expect(surgeOptions[2]).toEqual({ value: 'SYSTEM', label: 'Surge built-in · SYSTEM' })
   })
 })
