@@ -443,6 +443,14 @@
 }
 
 .custom-rule-source { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface-subtle); }
+.rule-set-source-selector { display: grid; gap: var(--space-3); margin-bottom: var(--space-3); }
+.rule-set-source-selector .inspector-field { margin-bottom: 0; }
+.target-native-card { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border)); border-radius: var(--radius-card); background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)); }
+.target-native-card-heading { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.target-native-card-heading > span { min-width: 0; display: grid; gap: 2px; }
+.target-native-card-heading strong { color: var(--color-text); font-size: var(--text-body-size); }
+.target-native-card-heading small { color: var(--color-text-muted); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
+.target-native-card code { overflow-wrap: anywhere; color: var(--color-primary); font-size: var(--text-meta-size); }
 .custom-rule-source .inspector-field { margin-bottom: 0; }
 .custom-rule-source-heading, .custom-rule-source-heading > span, .custom-rule-source-status, .custom-rule-source-status > span { min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
 .custom-rule-source-heading > span, .custom-rule-source-status > span { align-items: flex-start; flex-direction: column; gap: 1px; }
@@ -2264,6 +2272,17 @@
     display: grid;
     gap: var(--space-1);
   }
+
+  .routing-native-choice-group { display: grid; gap: var(--space-1); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
+  .routing-native-choice-group > header { display: grid; gap: 2px; padding: 0 var(--space-3) var(--space-1); }
+  .routing-native-choice-group > header strong { color: var(--color-text); font-size: var(--text-meta-size); }
+  .routing-native-choice-group > header small { color: var(--color-text-muted); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
+  .routing-native-choice-group > button { width: 100%; min-width: 0; min-height: 52px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-small); color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); text-align: left; }
+  .routing-native-choice-group > button:hover:not(:disabled) { color: var(--color-text); background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-subtle)); }
+  .routing-native-choice-group > button:disabled { opacity: .55; }
+  .routing-native-choice-group > button > span { min-width: 0; display: grid; gap: 2px; }
+  .routing-native-choice-group > button strong { color: var(--color-text); font-size: var(--text-body-size); }
+  .routing-native-choice-group > button small { color: var(--color-text-muted); font-size: var(--text-meta-size); }
 
   .routing-kind-choices > button,
   .routing-matcher-choices > button,

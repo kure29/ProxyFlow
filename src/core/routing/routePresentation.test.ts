@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import type { GraphNode, RouteMatcherKind } from '../../types/project'
 import {
-  presentRoutingRule, resolveSelectedServices, sumKnownRuleCounts, type RoutingPresentationCopy,
+  presentRoutingRule, resolveSelectedServices, ruleSetPresentationName, sumKnownRuleCounts, type RoutingPresentationCopy,
 } from './routePresentation'
 
 const copy: RoutingPresentationCopy = {
@@ -70,5 +70,19 @@ describe('routing presentation', () => {
     expect(selected.map((service) => service.id)).toEqual(['openai', 'claude'])
     expect(sumKnownRuleCounts(selected)).toBe(24)
     expect(sumKnownRuleCounts([{ ...selected[0], ruleSources: [] }])).toBeUndefined()
+  })
+
+  it('presents typed Surge built-ins by semantic name, never by synthetic source ID', () => {
+    const data = {
+      targetNativeRuleSet: { target: 'surge' as const, kind: 'builtin-rule-set' as const, name: 'LAN' as const },
+      routeMatcherValue: 'surge-builtin-ruleset-lan',
+    }
+    expect(ruleSetPresentationName(data)).toBe('LAN')
+    expect(presentRoutingRule(route('lan', {
+      ...data, routeMatcherKind: 'rule-set', targetKind: 'direct', targetId: 'DIRECT',
+    }), serviceCatalog, [], copy).matcherSummary).toBe('rule-set · LAN')
+    expect(presentRoutingRule(route('lan', {
+      ...data, routeMatcherKind: 'rule-set', targetKind: 'direct', targetId: 'DIRECT',
+    }), serviceCatalog, [], copy).matcherSummary).not.toContain('surge-builtin-ruleset-lan')
   })
 })

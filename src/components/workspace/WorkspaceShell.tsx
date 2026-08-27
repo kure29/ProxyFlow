@@ -262,6 +262,7 @@ export function WorkspaceShell({
           services={project.services}
           issues={projection.compileIssues}
           capabilities={getTargetCapabilities(activeProductTarget).routingMatchers}
+          authoringTarget={activeProductTarget}
           copy={routingWorkspaceCopy(t, activeProductTarget)}
           onCreate={addNode}
           onMove={moveRule}
@@ -313,6 +314,9 @@ function routingWorkspaceCopy(t: ReturnType<typeof useI18n>['t'], target: Primar
     finalRoute: t('workspace.routing.finalRoute'), target: t('workspace.routing.target'), moveUp: t('workspace.moveUp'), moveDown: t('workspace.moveDown'),
     dragRule: t('workspace.routing.drag'), more: t('workspace.routing.more'),
     edit: t('workspace.edit'), duplicate: t('canvas.copyNode'), delete: t('workspace.delete'), cancel: t('workspace.cancel'),
+    surgeBuiltinTitle: t('workspace.routing.surgeBuiltinTitle'), surgeBuiltinDescription: t('workspace.routing.surgeBuiltinDescription'),
+    surgeBuiltinLan: t('workspace.routing.surgeBuiltinLan'), surgeBuiltinSystem: t('workspace.routing.surgeBuiltinSystem'),
+    surgeBuiltinLanDescription: t('workspace.routing.surgeBuiltinLanDescription'), surgeBuiltinSystemDescription: t('workspace.routing.surgeBuiltinSystemDescription'), surgeOnly: t('workspace.routing.surgeOnly'),
     unsupportedByTarget: t('workspace.routing.unsupportedByTarget', { target: target ? getTargetCapabilities(target).label : t('workspace.targetRequired') }),
     statusLabels: { ready: t('workspace.routing.status.ready'), warning: t('workspace.routing.status.warning'), error: t('workspace.routing.status.error'), disabled: t('workspace.routing.status.disabled') },
     capabilityLabels: { supported: t('workspace.compatibility.supported'), partial: t('workspace.compatibility.partial'), unsupported: t('workspace.compatibility.unsupported'), 'target-native': t('workspace.compatibility.targetNative') },

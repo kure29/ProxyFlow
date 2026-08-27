@@ -16,6 +16,19 @@ export interface TargetNativeRuleSetSourceIR extends TargetNativeRuleSetSourceCo
   sourceId: string
 }
 
+/**
+ * Stable project-local identifiers for the two Surge built-in Rule Sets.
+ * These IDs are provenance handles only; they are never interpreted as
+ * Universal matcher syntax or used to infer a built-in source.
+ */
+export function surgeBuiltinRuleSetSourceId(name: SurgeBuiltinRuleSetName) {
+  return `surge-builtin-ruleset-${name.toLowerCase()}`
+}
+
+export function surgeBuiltinRuleSetSourceConfig(name: SurgeBuiltinRuleSetName): TargetNativeRuleSetSourceConfig {
+  return { target: 'surge', kind: 'builtin-rule-set', name }
+}
+
 export function isTargetNativeRuleSetSourceConfig(value: unknown): value is TargetNativeRuleSetSourceConfig {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
