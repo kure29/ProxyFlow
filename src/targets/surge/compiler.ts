@@ -1,6 +1,7 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
+import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
@@ -22,6 +23,8 @@ export interface SurgeCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
+  nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
 }
 
 export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {}): CompileResult {
@@ -34,13 +37,14 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRoutes = options.nativeRoutes ?? []
   const nativeFinalRoute = options.nativeFinalRoute
-  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies)
+  const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
+  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(
     ir, issues, generatedAt, projection,
   )
 
-  const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute)
+  const context = createSurgeContext(ir, issues, projection, nativeStrategies, nativeRoutes, nativeFinalRoute, nativeRuleSetSources)
   compileSurgeStrategies(context)
   compileSurgeNativeStrategies(nativeStrategies, context)
   const rules = compileSurgeRules(context)
@@ -119,6 +123,8 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeStrategies: options?.nativeStrategies,
       nativeRoutes: options?.nativeRoutes,
       nativeFinalRoute: options?.nativeFinalRoute,
+      targetNativeRuleSetSources: options?.targetNativeRuleSetSources,
+      nativeRuleSetSources: options?.nativeRuleSetSources,
     })
   }
 }

@@ -14,6 +14,8 @@ import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
 import type { TargetNativeStrategyIR } from '../../core/targetNative'
+import type { TargetNativeRouteIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
+import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
 export interface SurgeCompatibilityResult {
   supported: boolean
@@ -29,6 +31,8 @@ export function checkSurgeCompatibility(
   ir: ProxyFlowIR,
   projection = createSurgeProjectionContext(),
   nativeStrategies: readonly TargetNativeStrategyIR[] = [],
+  nativeRuleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
+  nativeRoutes: readonly TargetNativeRouteIR[] = [],
 ): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
   const policyOwners = new Map<string, string>()
@@ -84,12 +88,31 @@ export function checkSurgeCompatibility(
   validateHealthCheckScope(ir.strategies, issues)
   validateStrategyCycles(ir.strategies, issues)
 
-  for (const route of ir.routes) {
+  const targetNativeRuleSetSourceIds = new Set(
+    nativeRuleSetSources
+      .filter((source) => Boolean(source) && typeof source === 'object' && typeof source.sourceId === 'string')
+      .map((source) => source.sourceId),
+  )
+  for (const route of [...ir.routes, ...nativeRoutes]) {
+    if (!route.matcher) continue
     if (!Number.isFinite(route.priority)) issues.push(surgeIssue(
       'SURGE_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route “${route.name}” has a non-finite priority.`, route.id,
     ))
     if (route.matcher.kind === 'service') {
-      for (const serviceId of route.matcher.serviceIds) resolveSurgeServiceRuleSource(ir, serviceId, route.id, issues)
+      for (const serviceId of route.matcher.serviceIds) {
+        const service = ir.services.find((item) => item.id === serviceId)
+        if (service?.ruleSources.some((source) => targetNativeRuleSetSourceIds.has(source.id))) issues.push(surgeIssue(
+          'SURGE_RULE_SET_SOURCE_UNSUPPORTED', 'error', 'service-rule',
+          `Service “${service.name}” contains a target-native Rule Set source and cannot be consumed as a Universal service route.`, route.id,
+        ))
+        else resolveSurgeServiceRuleSource(ir, serviceId, route.id, issues)
+      }
+    }
+    else if (route.matcher.kind === 'rule-set') {
+      if (!resolveSurgeBuiltinRuleSetName(ir, route.matcher.id, nativeRuleSetSources)) issues.push(surgeIssue(
+        'SURGE_RULE_SET_SOURCE_UNSUPPORTED', 'error', 'route',
+        `Rule Set source “${route.matcher.id}” is not a proven Surge built-in LAN/SYSTEM source.`, route.id,
+      ))
     }
     else if (!['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'asn', 'geo-ip'].includes(route.matcher.kind)) issues.push(surgeIssue(
       'SURGE_MATCHER_UNSUPPORTED', 'error', 'route',

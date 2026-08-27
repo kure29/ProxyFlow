@@ -6,6 +6,7 @@ import { compileRouting } from './compileRouting'
 import { compileSources } from './compileSources'
 import { compileStrategies } from './compileStrategies'
 import { compileTargetNativeStrategies } from './compileTargetNativeStrategies'
+import { compileTargetNativeRuleSetSources } from './compileTargetNativeRuleSets'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
@@ -18,6 +19,8 @@ export interface GraphCompileResult {
   nativeStrategies?: import('../targetNative').TargetNativeStrategyIR[]
   /** Descriptive alias for integrations that call the extension target-native strategies. */
   targetNativeStrategies?: import('../targetNative').TargetNativeStrategyIR[]
+  nativeRuleSetSources?: import('../targetNative').TargetNativeRuleSetSourceIR[]
+  targetNativeRuleSetSources?: import('../targetNative').TargetNativeRuleSetSourceIR[]
   nativeRoutes?: import('../targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../targetNative').TargetNativeRouteIR
   issues: SemanticIssue[]
@@ -28,7 +31,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
   try {
     const context = createGraphCompileContext(project, options)
     context.issues.push(...validateGraphStructure(project))
-    const customRuleSourceServices = project.graph.nodes.flatMap((node) => {
+    const customRuleSourceServices: ProxyFlowIR['services'] = project.graph.nodes.flatMap((node): ProxyFlowIR['services'] => {
       if (node.data.disabled || node.data.blockType !== 'custom-rule' || node.data.routeMatcherKind !== 'rule-set') return []
       const source = node.data.customRuleSource
       if (!source) return []
@@ -60,6 +63,26 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     const routing = compileRouting(context)
     const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
     const nativeStrategies = compileTargetNativeStrategies(context, validationTarget)
+    const nativeRuleSetSources = compileTargetNativeRuleSetSources(context, validationTarget)
+    const targetNativeRuleSetServices: ProxyFlowIR['services'] = []
+    const knownRuleSourceIds = new Set([
+      ...project.services.flatMap((service) => service.ruleSources.map((source) => source.id)),
+      ...customRuleSourceServices.flatMap((service) => service.ruleSources.map((source) => source.id)),
+    ])
+    const syntheticRuleSourceIds = new Set<string>()
+    for (const node of project.graph.nodes) {
+      if (node.data.disabled || node.data.routeMatcherKind !== 'rule-set') continue
+      if (node.data.customRuleSource || !node.data.targetNativeRuleSet) continue
+      const sourceId = node.data.routeMatcherValue?.trim()
+      if (!sourceId) continue
+      if (knownRuleSourceIds.has(sourceId) || syntheticRuleSourceIds.has(sourceId)) continue
+      syntheticRuleSourceIds.add(sourceId)
+      targetNativeRuleSetServices.push({
+        id: `target-native-rule-set:${sourceId}`,
+        name: `Built-in Rule Set ${sourceId}`,
+        ruleSources: [{ id: sourceId, provider: 'builtin' as const }],
+      })
+    }
     const draft: ProxyFlowIR = {
       version: PROXYFLOW_IR_VERSION,
       metadata: {
@@ -82,7 +105,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
           ...(behavior ? { behavior } : {}),
           ...(url ? { url } : {}),
         })),
-      })), ...customRuleSourceServices],
+      })), ...customRuleSourceServices, ...targetNativeRuleSetServices],
       routes: routing.routes,
       finalRoute: routing.finalRoute,
       dns: compileDns(context),
@@ -98,6 +121,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       issues,
       nativeStrategies,
       targetNativeStrategies: nativeStrategies,
+      nativeRuleSetSources,
+      targetNativeRuleSetSources: nativeRuleSetSources,
       nativeRoutes: routing.nativeRoutes,
       nativeFinalRoute: routing.nativeFinalRoute,
       ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
@@ -107,6 +132,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       success: false,
       nativeStrategies: [],
       targetNativeStrategies: [],
+      nativeRuleSetSources: [],
+      targetNativeRuleSetSources: [],
       nativeRoutes: [],
       issues: [semanticIssue(
         'GRAPH_COMPILE_INTERNAL_ERROR',

@@ -3,6 +3,7 @@ import type { SurgeCompileContext } from './context'
 import { surgeIssue } from './errors'
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { serializeSurgeRule } from './serializer'
+import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
 export function compileSurgeRules(context: SurgeCompileContext) {
   const rules: string[] = []
@@ -19,6 +20,11 @@ export function compileSurgeRules(context: SurgeCompileContext) {
         const source = resolveSurgeServiceRuleSource(context.ir, serviceId, route.id, context.issues)
         if (source) rules.push(serializeSurgeRule('RULE-SET', source.url, target))
       }
+      continue
+    }
+    if (route.matcher.kind === 'rule-set') {
+      const name = resolveSurgeBuiltinRuleSetName(context.ir, route.matcher.id, context.nativeRuleSetSources)
+      if (name) rules.push(serializeSurgeRule('RULE-SET', name, target))
       continue
     }
     const type = matcherType(route.matcher)

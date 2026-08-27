@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
-import type { TargetNativeRouteIR, TargetNativeStrategyIR } from '../targetNative'
+import type { TargetNativeRouteIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../targetNative'
 
 export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
 
@@ -74,6 +74,10 @@ export interface TargetCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  /** Explicit target-native Rule Set provenance extracted from the graph. */
+  targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
+  /** Short alias accepted by headless integrations. */
+  nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
 }
 
 export interface ConfigCompiler {
