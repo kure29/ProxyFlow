@@ -5,7 +5,7 @@ import { ServiceMark } from '../services/ServiceMark'
 import { resolveServiceMarkId } from '../services/serviceMarkDefinitions'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, GraphNode } from '../../types/project'
-import { isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, type PolicyReference, type SurgeSubnetMatcher } from '../../core/targetNative'
+import { isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, type PolicyReference, type SurgeSubnetMatcher } from '../../core/targetNative'
 import {
   categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle, useI18n,
   type Locale,
@@ -151,7 +151,7 @@ function nativeMatcherLabel(matcher: SurgeSubnetMatcher) {
 }
 
 export function routeMatcherNodeSummary(data: Pick<BlockNodeData, 'routeMatcherKind' | 'routeMatcherValue' | 'routeMatcherPort' | 'targetNativeRuleSet' | 'targetNativeSourcePort' | 'customRuleSource'>) {
-  if (data.routeMatcherKind === 'source-port') return data.targetNativeSourcePort?.port ?? data.routeMatcherPort ?? '…'
+  if (data.routeMatcherKind === 'source-port') return isTargetNativeSourcePortConfig(data.targetNativeSourcePort) ? data.targetNativeSourcePort.port : '…'
   if (data.routeMatcherKind === 'port') return data.routeMatcherPort ?? '…'
   if (data.routeMatcherKind === 'rule-set') return ruleSetPresentationName(data) || '…'
   return data.routeMatcherValue || '…'

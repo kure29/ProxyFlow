@@ -83,6 +83,47 @@ describe('Surge-native SRC-PORT lowering', () => {
     expect(malformedMatcherResult.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_SOURCE_PORT_INVALID', severity: 'error' }))
   })
 
+  it('fails closed whenever runtime matcher and source-port provenance are not an exact pair', () => {
+    const misplaced = sourcePortRoute({ kind: 'direct' })
+    misplaced.matcher = { kind: 'domain', value: 'example.com' }
+
+    const missingMatcher = sourcePortRoute({ kind: 'direct' })
+    missingMatcher.matcher = undefined
+
+    const missingProvenance = sourcePortRoute({ kind: 'direct' })
+    missingProvenance.targetNativeSourcePort = undefined
+
+    const mismatchedPort = sourcePortRoute({ kind: 'direct' })
+    mismatchedPort.targetNativeSourcePort = { ...mismatchedPort.targetNativeSourcePort!, port: 80 }
+
+    for (const route of [misplaced, missingMatcher, missingProvenance, mismatchedPort]) {
+      const result = compileSurge(baseIR(), { nativeRoutes: [route] })
+      expect(result.success).toBe(false)
+      expect(result.content).toBe('')
+      expect(result.issues).toContainEqual(expect.objectContaining({
+        code: 'SURGE_TARGET_NATIVE_SOURCE_PORT_INVALID',
+        severity: 'error',
+        entityId: 'source-port-route',
+      }))
+    }
+  })
+
+  it('fails closed on malformed compiler-owned mixed-route ordering provenance', () => {
+    const ir = baseIR()
+    ir.routes.push({
+      id: 'domain-route', name: 'Domain', matcher: { kind: 'domain', value: 'example.com' },
+      target: { kind: 'direct' }, priority: 10,
+    })
+    const nativeRoute = sourcePortRoute({ kind: 'direct' })
+    nativeRoute.routingOrder = 2
+    const result = compileSurge(ir, { nativeRoutes: [nativeRoute] })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'SURGE_ROUTE_ORDER_INVALID', severity: 'error',
+    }))
+  })
+
   it('rejects the Surge-native route on every non-Surge compiler', async () => {
     const compilers = [compileMihomo, compileLoon, compileShadowrocket, compileSingBox]
     for (const compiler of compilers) {

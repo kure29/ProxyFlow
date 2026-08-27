@@ -17,6 +17,7 @@ export interface CompiledRouting {
 
 export function compileRouting(context: GraphCompileContext, validationTarget?: PrimaryTarget | null): CompiledRouting {
   const nativeRoutes: TargetNativeRouteIR[] = []
+  let emittedRouteOrder = 0
   const routes = rankRoutingRules(context.project.graph.nodes).flatMap(({ node, priority }): RouteIR[] => {
     const matcherKind = resolveRouteMatcherKind(node.data)
     if (matcherKind !== 'source-port' && node.data.targetNativeSourcePort !== undefined) {
@@ -62,8 +63,10 @@ export function compileRouting(context: GraphCompileContext, validationTarget?: 
         matcher: { kind: 'source-port', port: config.port },
         target,
         priority,
+        routingOrder: emittedRouteOrder,
         targetNativeSourcePort: targetNativeSourcePortConfigToIR(node.id, config),
       })
+      emittedRouteOrder += 1
       return []
     }
     const matcher = matcherKind === 'service'
@@ -79,7 +82,8 @@ export function compileRouting(context: GraphCompileContext, validationTarget?: 
       return []
     }
     if (nativeTarget) {
-      nativeRoutes.push({ id: node.id, name: node.data.title, matcher, target: nativeTarget, priority })
+      nativeRoutes.push({ id: node.id, name: node.data.title, matcher, target: nativeTarget, priority, routingOrder: emittedRouteOrder })
+      emittedRouteOrder += 1
       return []
     }
     const target = compileRouteTarget(node.data.targetKind, node.data.targetId, context)
@@ -90,13 +94,15 @@ export function compileRouting(context: GraphCompileContext, validationTarget?: 
       ))
       return []
     }
-    return [{
+    const route: RouteIR = {
       id: node.id,
       name: node.data.title,
       matcher,
       target,
       priority,
-    }]
+    }
+    emittedRouteOrder += 1
+    return [route]
   })
 
   const finalNodes = context.project.graph.nodes.filter((node) => !node.data.disabled && node.data.blockType === 'final')

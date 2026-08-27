@@ -106,7 +106,7 @@ function customMatcherSummary(
 ) {
   if (!matcherKind) return copy.emptyMatcher
   const value = matcherKind === 'source-port'
-    ? data.targetNativeSourcePort?.port ?? data.routeMatcherPort
+    ? isTargetNativeSourcePortConfig(data.targetNativeSourcePort) ? data.targetNativeSourcePort.port : undefined
     : matcherKind === 'port'
       ? data.routeMatcherPort
     : matcherKind === 'rule-set'

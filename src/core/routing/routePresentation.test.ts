@@ -96,4 +96,22 @@ describe('routing presentation', () => {
     expect(presentation.matcherSummary).toBe('source-port · 443')
     expect(presentation.status).toBe('ready')
   })
+
+  it('does not present a stale destination-port draft as configured source-port intent', () => {
+    const presentation = presentRoutingRule(route('source-port-stale', {
+      routeMatcherKind: 'source-port',
+      routeMatcherPort: 443,
+      targetKind: 'direct',
+    }), serviceCatalog, [], copy)
+    expect(presentation.matcherSummary).toBe('source-port · Not configured')
+    expect(presentation.status).toBe('error')
+
+    const malformed = presentRoutingRule(route('source-port-malformed', {
+      routeMatcherKind: 'source-port',
+      targetNativeSourcePort: { target: 'surge', kind: 'source-port', port: 443, extendedMatching: true } as never,
+      targetKind: 'direct',
+    }), serviceCatalog, [], copy)
+    expect(malformed.matcherSummary).toBe('source-port · Not configured')
+    expect(malformed.status).toBe('error')
+  })
 })

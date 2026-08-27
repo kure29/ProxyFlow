@@ -26,7 +26,7 @@ import {
   type SubscriptionExportMode, type SubscriptionFreshness, type SubscriptionRefreshError,
   type SubscriptionRequestProfile, type SubscriptionRuntimeRecord,
 } from '../../core/subscription'
-import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
+import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeMatcherSelectionPatch } from '../../core/routing/routeProductModel'
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
@@ -44,7 +44,7 @@ import {
   type PrimaryTarget,
 } from '../../core/capabilities'
 import {
-  isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSourcePort, surgeBuiltinRuleSetSourceConfig,
+  isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isValidSourcePort, surgeBuiltinRuleSetSourceConfig,
   surgeBuiltinRuleSetSourceId,
   type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
 } from '../../core/targetNative'
@@ -847,17 +847,14 @@ export function RoutingInspector({ node }: InspectorProps) {
   const isServiceRoute = matcherKind === 'service'
   const isAdvancedMatcher = Boolean(matcherKind && matcherKind !== 'rule-set' && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
   const matcherValue = node.data.routeMatcherValue ?? ''
+  const sourcePortValue = isTargetNativeSourcePortConfig(node.data.targetNativeSourcePort)
+    ? node.data.targetNativeSourcePort.port
+    : undefined
   const hasConfiguredMatcher = isRouteMatcherConfigured(matcherKind, node.data)
-  const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(node.id, {
-    routeMatcherKind: value,
-    ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
-    ...(value !== 'port' && value !== 'source-port' ? { routeMatcherPort: undefined } : {}),
-    ...(value === 'rule-set' ? { routeMatcherValue: node.data.customRuleSource?.id ?? node.data.routeMatcherValue ?? '' }
-      : value !== 'service' && value !== 'port' && value !== 'source-port' ? { routeMatcherValue: '' } : {}),
-    ...(value === 'source-port' ? {} : { targetNativeSourcePort: undefined }),
-    ...(value === 'rule-set' ? {} : { targetNativeRuleSet: undefined }),
-    ...(value === 'service' ? { ruleSource: node.data.ruleSource ?? 'ios_rule_script' } : {}),
-  })
+  const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(
+    node.id,
+    routeMatcherSelectionPatch(value, node.data, authoringTarget),
+  )
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     {primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused' && <div className="validation-banner"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(primaryTarget).label })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
@@ -889,7 +886,7 @@ export function RoutingInspector({ node }: InspectorProps) {
         ]} />
       </Field>
       {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
-      {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'source-port' ? node.data.targetNativeSourcePort?.port ?? node.data.routeMatcherPort : matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
+      {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'source-port' ? sourcePortValue : matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
     </Advanced>}
   </>
 }
@@ -1150,8 +1147,11 @@ function fileToDataUrl(file: File) {
 
 function MatcherValueField({ node, kind, matcherValue, update, t }: { node: GraphNode; kind: NonNullable<BlockNodeData['routeMatcherKind']>; matcherValue: string; update: ReturnType<typeof useBuilderStore.getState>['updateNodeData']; t: ReturnType<typeof useI18n>['t'] }) {
   if (kind === 'service') return null
+  const sourcePortValue = isTargetNativeSourcePortConfig(node.data.targetNativeSourcePort)
+    ? node.data.targetNativeSourcePort.port
+    : undefined
   return kind === 'port' || kind === 'source-port'
-    ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={(kind === 'source-port' ? node.data.targetNativeSourcePort?.port ?? node.data.routeMatcherPort : node.data.routeMatcherPort) ?? ''} placeholder="443" onChange={(event) => {
+    ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={(kind === 'source-port' ? sourcePortValue : node.data.routeMatcherPort) ?? ''} placeholder="443" onChange={(event) => {
       const port = Number(event.target.value)
       update(node.id, {
         routeMatcherPort: port,

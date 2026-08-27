@@ -34,7 +34,6 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     feature: 'SRC-PORT', status: 'supported',
     reason: 'The documented Surge baseline supports an exact source-port matcher; this first slice intentionally defers ranges and comparison expressions.',
     officialReference: docs.sourceAndPortRules,
-    diagnostic: 'SURGE_TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED',
   },
   {
     feature: 'Remote Proxy Source', status: 'unsupported',

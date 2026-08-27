@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { demoNodes } from '../../data/demoProject'
 import { blockByType, blockLibrary } from '../../data/blockLibrary'
 import type { GraphNode } from '../../types/project'
-import { moveRoutingRule, moveRoutingRuleToIndex, rankRoutingRules, rankWorkspaceRoutingRules, resolveRouteMatcherKind, routeOrder } from './routeProductModel'
+import { moveRoutingRule, moveRoutingRuleToIndex, rankRoutingRules, rankWorkspaceRoutingRules, resolveRouteMatcherKind, routeMatcherSelectionPatch, routeOrder } from './routeProductModel'
 
 const route = (id: string, blockType: GraphNode['data']['blockType'], routePriority?: number): GraphNode => ({
   id, type: 'block', position: { x: 0, y: 0 }, data: {
@@ -22,6 +22,29 @@ describe('routing product model adapter', () => {
   it('uses lower priority first and insertion order as the stable tie-break', () => {
     const nodes = [route('first', 'service-rule', 10), route('second', 'custom-rule', 10), route('third', 'routing-group', 5)]
     expect(rankRoutingRules(nodes).map(({ node }) => node.id)).toEqual(['third', 'first', 'second'])
+  })
+
+  it('keeps DEST-PORT to SRC-PORT selection visually and semantically atomic', () => {
+    const destinationPort = {
+      ...route('port', 'custom-rule').data,
+      routeMatcherKind: 'port' as const,
+      routeMatcherPort: 443,
+    }
+    const sourcePortPatch = routeMatcherSelectionPatch('source-port', destinationPort, 'surge')
+    expect(sourcePortPatch).toEqual(expect.objectContaining({
+      routeMatcherKind: 'source-port',
+      routeMatcherPort: 443,
+      targetNativeSourcePort: { target: 'surge', kind: 'source-port', port: 443 },
+    }))
+
+    expect(routeMatcherSelectionPatch('domain', { ...destinationPort, ...sourcePortPatch }, 'surge')).toEqual(expect.objectContaining({
+      routeMatcherKind: 'domain',
+      targetNativeSourcePort: undefined,
+    }))
+    expect(routeMatcherSelectionPatch('source-port', destinationPort, 'mihomo')).toEqual(expect.objectContaining({
+      routeMatcherPort: undefined,
+      targetNativeSourcePort: undefined,
+    }))
   })
 
   it('moves visible routing rules by assigning deterministic priorities', () => {

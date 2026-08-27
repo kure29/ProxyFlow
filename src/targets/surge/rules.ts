@@ -7,11 +7,7 @@ import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
 export function compileSurgeRules(context: SurgeCompileContext) {
   const rules: string[] = []
-  const routes = [
-    ...context.ir.routes.map((route, index) => ({ route, index })),
-    ...context.nativeRoutes.map((route, index) => ({ route, index: context.ir.routes.length + index })),
-  ]
-    .sort((left, right) => left.route.priority - right.route.priority || left.index - right.index)
+  const routes = orderedSurgeRoutes(context)
   const routeOptions = new Map(context.targetNativeRouteOptions.map((option) => [option.routeId, option]))
   for (const { route } of routes) {
     const target = targetName(route.target, route.id, context)
@@ -47,6 +43,31 @@ export function compileSurgeRules(context: SurgeCompileContext) {
     if (target) rules.push(serializeSurgeFinalRule(target, finalOptions))
   }
   return rules
+}
+
+function orderedSurgeRoutes(context: SurgeCompileContext) {
+  const total = context.ir.routes.length + context.nativeRoutes.length
+  const nativeOrders = context.nativeRoutes.map((route) => route.routingOrder)
+  const hasCompleteCompilerOrder = context.nativeRoutes.length > 0
+    && nativeOrders.every((order): order is number => typeof order === 'number'
+      && Number.isSafeInteger(order) && order >= 0 && order < total)
+    && new Set(nativeOrders).size === nativeOrders.length
+
+  const routes = hasCompleteCompilerOrder
+    ? (() => {
+        const occupied = new Set(nativeOrders)
+        const universalOrders = Array.from({ length: total }, (_, order) => order).filter((order) => !occupied.has(order))
+        return [
+          ...context.ir.routes.map((route, index) => ({ route, order: universalOrders[index] })),
+          ...context.nativeRoutes.map((route) => ({ route, order: route.routingOrder! })),
+        ]
+      })()
+    : [
+        ...context.ir.routes.map((route, index) => ({ route, order: index })),
+        ...context.nativeRoutes.map((route, index) => ({ route, order: context.ir.routes.length + index })),
+      ]
+
+  return routes.sort((left, right) => left.route.priority - right.route.priority || left.order - right.order)
 }
 
 type SurgeRouteMatcher = TrafficMatcherIR | { kind: 'source-port'; port: number }
