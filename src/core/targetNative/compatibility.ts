@@ -1,6 +1,8 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
+import { isTargetNativeStrategyIR } from './strategy'
 import type { TargetNativeRuleSetSourceIR } from './ruleSet'
+import { isTargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
 import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from './routeOptions'
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
@@ -14,26 +16,48 @@ export function targetNativeUnsupportedIssues(
   finalOptions?: TargetNativeFinalOptionsIR,
   routeOptions: readonly TargetNativeRouteOptionsIR[] = [],
 ): CompatibilityIssue[] {
-  const strategyIssues = strategies
-    .filter((strategy) => strategy && strategy.target !== target)
-    .map((strategy) => ({
+  const strategyIssues = strategies.flatMap((strategy) => {
+    if (!strategy || !isTargetNativeStrategyIR(strategy)) {
+      const raw = strategy as unknown as { id?: unknown }
+      return [{
+        target,
+        code: 'TARGET_NATIVE_STRATEGY_INVALID',
+        severity: 'error' as const,
+        feature: 'target-native-strategy',
+        entityId: typeof raw?.id === 'string' ? raw.id : undefined,
+        message: 'A target-native strategy contains invalid runtime data.',
+      }]
+    }
+    return strategy.target !== target ? [{
       target,
       code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
       severity: 'error' as const,
       feature: 'target-native-strategy',
       entityId: strategy.id,
-      message: `Target-native strategy “${typeof strategy.name === 'string' ? strategy.name : 'Unnamed'}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
-    }))
-  const ruleSetIssues = ruleSetSources
-    .filter((source) => source && source.target !== target)
-    .map((source) => ({
+      message: `Target-native strategy “${strategy.name}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
+    }] : []
+  })
+  const ruleSetIssues = ruleSetSources.flatMap((source) => {
+    if (!source || !isTargetNativeRuleSetSourceIR(source)) {
+      const raw = source as unknown as { sourceId?: unknown }
+      return [{
+        target,
+        code: 'TARGET_NATIVE_RULE_SET_INVALID',
+        severity: 'error' as const,
+        feature: 'target-native-rule-set',
+        entityId: typeof raw?.sourceId === 'string' ? raw.sourceId : undefined,
+        message: 'A target-native Rule Set source contains invalid runtime data.',
+      }]
+    }
+    return source.target !== target ? [{
       target,
       code: 'TARGET_NATIVE_RULE_SET_UNSUPPORTED',
       severity: 'error' as const,
       feature: 'target-native-rule-set',
       entityId: source.sourceId,
-      message: `Target-native Rule Set “${typeof source.name === 'string' ? source.name : 'Unnamed'}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
-    }))
+      message: `Target-native Rule Set “${source.name}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
+    }] : []
+  })
   const finalOptionsIssues = finalOptions !== undefined
     && (!isTargetNativeFinalOptionsIR(finalOptions) || finalOptions.target !== target) ? [{
     target,

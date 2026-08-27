@@ -25,6 +25,8 @@ export interface GraphCompileResult {
   targetNativeRuleSetSources?: import('../targetNative').TargetNativeRuleSetSourceIR[]
   nativeRoutes?: import('../targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../targetNative').TargetNativeRouteIR
+  /** Compiler-owned Project Final node identity used by target adapters. */
+  effectiveFinalNodeId?: string
   targetNativeFinalOptions?: import('../targetNative').TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: import('../targetNative').TargetNativeRouteOptionsIR[]
   issues: SemanticIssue[]
@@ -131,6 +133,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       targetNativeRuleSetSources: nativeRuleSetSources,
       nativeRoutes: routing.nativeRoutes,
       nativeFinalRoute: routing.nativeFinalRoute,
+      effectiveFinalNodeId: routing.effectiveFinalNodeId,
       targetNativeFinalOptions,
       targetNativeRouteOptions,
       ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
@@ -143,6 +146,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       nativeRuleSetSources: [],
       targetNativeRuleSetSources: [],
       nativeRoutes: [],
+      effectiveFinalNodeId: undefined,
       targetNativeFinalOptions: undefined,
       targetNativeRouteOptions: [],
       issues: [semanticIssue(

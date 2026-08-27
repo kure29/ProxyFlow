@@ -34,6 +34,7 @@ function sourcePortRoute(target: TargetNativeRouteIR['target']): TargetNativeRou
     matcher: { kind: 'source-port', port: 443 },
     target,
     priority: 10,
+    routingOrder: 0,
     targetNativeSourcePort: provenance,
   }
 }
@@ -51,7 +52,7 @@ describe('Surge-native SRC-PORT lowering', () => {
 
   it('preserves priority and insertion order for source-port routes', () => {
     const first = sourcePortRoute({ kind: 'direct' })
-    const second = { ...sourcePortRoute({ kind: 'reject' }), id: 'source-port-second', name: 'Second', targetNativeSourcePort: { ...sourcePortRoute({ kind: 'reject' }).targetNativeSourcePort!, routeId: 'source-port-second' } }
+    const second = { ...sourcePortRoute({ kind: 'reject' }), id: 'source-port-second', name: 'Second', routingOrder: 1, targetNativeSourcePort: { ...sourcePortRoute({ kind: 'reject' }).targetNativeSourcePort!, routeId: 'source-port-second' } }
     first.priority = 20
     second.priority = 20
     const result = compileSurge(baseIR(), { nativeRoutes: [first, second] })
@@ -122,6 +123,49 @@ describe('Surge-native SRC-PORT lowering', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({
       code: 'SURGE_ROUTE_ORDER_INVALID', severity: 'error',
     }))
+  })
+
+  it('requires routingOrder on every native route', () => {
+    const missing = sourcePortRoute({ kind: 'direct' })
+    delete missing.routingOrder
+    const result = compileSurge(baseIR(), { nativeRoutes: [missing] })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_ROUTE_ORDER_INVALID', severity: 'error' }))
+  })
+
+  it.each([
+    ['duplicate', [0, 0]],
+    ['negative', [-1, 1]],
+    ['float', [0.5, 1]],
+    ['NaN', [Number.NaN, 1]],
+    ['Infinity', [Number.POSITIVE_INFINITY, 1]],
+    ['out-of-range', [0, 2]],
+  ] as const)('rejects %s native routingOrder provenance', (_label, orders) => {
+    const first = sourcePortRoute({ kind: 'direct' })
+    const second = { ...sourcePortRoute({ kind: 'reject' }), id: 'source-port-second', name: 'Second', targetNativeSourcePort: { ...sourcePortRoute({ kind: 'reject' }).targetNativeSourcePort!, routeId: 'source-port-second' } }
+    first.routingOrder = orders[0]
+    second.routingOrder = orders[1]
+    const result = compileSurge(baseIR(), { nativeRoutes: [first, second] })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_ROUTE_ORDER_INVALID', severity: 'error' }))
+  })
+
+  it('reconstructs valid mixed Universal/native route positions from routingOrder', () => {
+    const ir = baseIR()
+    ir.routes.push({
+      id: 'universal-route', name: 'Universal', matcher: { kind: 'domain', value: 'example.com' },
+      target: { kind: 'direct' }, priority: 10,
+    })
+    const native = sourcePortRoute({ kind: 'reject' })
+    native.routingOrder = 1
+    const result = compileSurge(ir, { nativeRoutes: [native] })
+    expect(result.success).toBe(true)
+    expect(result.content.split('\n').filter((line) => line.startsWith('DOMAIN,') || line.startsWith('SRC-PORT,'))).toEqual([
+      'DOMAIN,example.com,DIRECT',
+      'SRC-PORT,443,REJECT',
+    ])
   })
 
   it('rejects the Surge-native route on every non-Surge compiler', async () => {

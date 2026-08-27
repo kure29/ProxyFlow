@@ -47,25 +47,13 @@ export function compileSurgeRules(context: SurgeCompileContext) {
 
 function orderedSurgeRoutes(context: SurgeCompileContext) {
   const total = context.ir.routes.length + context.nativeRoutes.length
-  const nativeOrders = context.nativeRoutes.map((route) => route.routingOrder)
-  const hasCompleteCompilerOrder = context.nativeRoutes.length > 0
-    && nativeOrders.every((order): order is number => typeof order === 'number'
-      && Number.isSafeInteger(order) && order >= 0 && order < total)
-    && new Set(nativeOrders).size === nativeOrders.length
-
-  const routes = hasCompleteCompilerOrder
-    ? (() => {
-        const occupied = new Set(nativeOrders)
-        const universalOrders = Array.from({ length: total }, (_, order) => order).filter((order) => !occupied.has(order))
-        return [
-          ...context.ir.routes.map((route, index) => ({ route, order: universalOrders[index] })),
-          ...context.nativeRoutes.map((route) => ({ route, order: route.routingOrder! })),
-        ]
-      })()
-    : [
-        ...context.ir.routes.map((route, index) => ({ route, order: index })),
-        ...context.nativeRoutes.map((route, index) => ({ route, order: context.ir.routes.length + index })),
-      ]
+  const nativeOrders = context.nativeRoutes.map((route) => route.routingOrder!)
+  const occupied = new Set(nativeOrders)
+  const universalOrders = Array.from({ length: total }, (_, order) => order).filter((order) => !occupied.has(order))
+  const routes = [
+    ...context.ir.routes.map((route, index) => ({ route, order: universalOrders[index]! })),
+    ...context.nativeRoutes.map((route) => ({ route, order: route.routingOrder! })),
+  ]
 
   return routes.sort((left, right) => left.route.priority - right.route.priority || left.order - right.order)
 }

@@ -30,16 +30,34 @@ export function surgeBuiltinRuleSetSourceConfig(name: SurgeBuiltinRuleSetName): 
 }
 
 export function isTargetNativeRuleSetSourceConfig(value: unknown): value is TargetNativeRuleSetSourceConfig {
-  if (!value || typeof value !== 'object') return false
+  if (!value || typeof value !== 'object' || !hasExactKeys(value, ['target', 'kind', 'name'])) return false
   const candidate = value as Record<string, unknown>
   return candidate.target === 'surge'
     && candidate.kind === 'builtin-rule-set'
     && (candidate.name === 'LAN' || candidate.name === 'SYSTEM')
 }
 
+export function isTargetNativeRuleSetSourceIR(value: unknown): value is TargetNativeRuleSetSourceIR {
+  if (!value || typeof value !== 'object' || !hasExactKeys(value, ['sourceId', 'target', 'kind', 'name'])) return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.sourceId === 'string'
+    && Boolean(candidate.sourceId.trim())
+    && isTargetNativeRuleSetSourceConfig({
+      target: candidate.target,
+      kind: candidate.kind,
+      name: candidate.name,
+    })
+}
+
 export function targetNativeRuleSetSourceConfigToIR(
   sourceId: string,
   config: TargetNativeRuleSetSourceConfig,
 ): TargetNativeRuleSetSourceIR {
-  return { sourceId, ...structuredClone(config) }
+  return { ...structuredClone(config), sourceId }
+}
+
+function hasExactKeys(value: object, allowed: readonly string[]) {
+  const keys = Reflect.ownKeys(value)
+  return keys.length === allowed.length
+    && keys.every((key) => typeof key === 'string' && allowed.includes(key))
 }

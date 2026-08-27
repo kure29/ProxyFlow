@@ -219,10 +219,12 @@ describe('Surge built-in Rule Set lowering', () => {
     )
 
     expect(compileWith([{ sourceId: 'other', target: 'surge', kind: 'builtin-rule-set', name: 'LAN' }])).toMatchObject({ success: false })
-    expect(compileWith([
+    const duplicate = compileWith([
       builtinSources[0],
       { ...builtinSources[0] },
-    ])).toMatchObject({ success: false })
+    ])
+    expect(duplicate).toMatchObject({ success: false, content: '' })
+    expect(duplicate.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_RULE_SET_AMBIGUOUS', severity: 'error' }))
     expect(compileWith([{ sourceId: 'surge-lan', target: 'mihomo', kind: 'builtin-rule-set', name: 'LAN' } as unknown as TargetNativeRuleSetSourceIR])).toMatchObject({ success: false })
     expect(compileWith([{ sourceId: 'surge-lan', target: 'surge', kind: 'builtin-rule-set', name: 'OTHER' } as unknown as TargetNativeRuleSetSourceIR])).toMatchObject({ success: false })
 
@@ -236,6 +238,36 @@ describe('Surge built-in Rule Set lowering', () => {
       id: 'surge-lan', provider: 'builtin', inlineMatchers: [{ kind: 'domain', value: 'example.com' }],
     }
     expect(compileSurge(inlineBuiltin, { now: fixedNow, nativeRuleSetSources: builtinSources })).toMatchObject({ success: false })
+  })
+
+  it('rejects spoofed Project sourceId fields before producing Rule Set IR', () => {
+    const project = {
+      version: 1,
+      id: 'graph-builtins-spoof',
+      name: 'Graph built-ins spoof',
+      primaryTarget: 'surge' as const,
+      graph: {
+        nodes: [
+          { id: 'route', type: 'block' as const, position: { x: 0, y: 0 }, data: {
+            blockType: 'custom-rule' as const, category: 'routing' as const, title: 'LAN', subtitle: '', icon: 'rule',
+            routeMatcherKind: 'rule-set' as const, routeMatcherValue: 'surge-lan', targetKind: 'direct' as const, targetLabel: 'DIRECT', routePriority: 10,
+            targetNativeRuleSet: { target: 'surge' as const, kind: 'builtin-rule-set' as const, name: 'LAN' as const, sourceId: 'spoofed' },
+          } },
+          { id: 'final', type: 'block' as const, position: { x: 0, y: 0 }, data: {
+            blockType: 'final' as const, category: 'routing' as const, title: 'Final', subtitle: '', icon: 'flag', targetKind: 'direct' as const,
+          } },
+          { id: 'output', type: 'block' as const, position: { x: 0, y: 0 }, data: {
+            blockType: 'output' as const, category: 'output' as const, title: 'Surge', subtitle: '', icon: 'export', client: 'surge' as const,
+          } },
+        ],
+        edges: [],
+      },
+      services: [], outputs: [], updatedAt: '2026-08-27T00:00:00.000Z',
+    }
+    const result = compileGraph(project)
+    expect(result.success).toBe(false)
+    expect(result.nativeRuleSetSources).toEqual([])
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_RULE_SET_INVALID', severity: 'error' }))
   })
 
   it('rejects a target-native service source instead of treating it as a Universal service route', () => {

@@ -18,22 +18,32 @@ export interface TargetNativeFinalOptionsIR extends TargetNativeFinalOptionsConf
 }
 
 export function isTargetNativeFinalOptionsConfig(value: unknown): value is TargetNativeFinalOptionsConfig {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as unknown as Record<string, unknown>
+  if (!value || typeof value !== 'object' || !hasExactKeys(value, ['target', 'kind', 'dnsFailed'])) return false
+  const candidate = value as Record<string, unknown>
   return candidate.target === 'surge'
     && candidate.kind === 'final-options'
     && candidate.dnsFailed === true
 }
 
 export function isTargetNativeFinalOptionsIR(value: unknown): value is TargetNativeFinalOptionsIR {
-  if (!isTargetNativeFinalOptionsConfig(value)) return false
-  const candidate = value as unknown as Record<string, unknown>
-  return typeof candidate.finalNodeId === 'string' && Boolean(candidate.finalNodeId.trim())
+  if (!value || typeof value !== 'object' || !hasExactKeys(value, ['finalNodeId', 'target', 'kind', 'dnsFailed'])) return false
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.finalNodeId === 'string'
+    && Boolean(candidate.finalNodeId.trim())
+    && candidate.target === 'surge'
+    && candidate.kind === 'final-options'
+    && candidate.dnsFailed === true
 }
 
 export function targetNativeFinalOptionsConfigToIR(
   finalNodeId: string,
   config: TargetNativeFinalOptionsConfig,
 ): TargetNativeFinalOptionsIR {
-  return { finalNodeId, ...structuredClone(config) }
+  return { ...structuredClone(config), finalNodeId }
+}
+
+function hasExactKeys(value: object, allowed: readonly string[]) {
+  const keys = Reflect.ownKeys(value)
+  return keys.length === allowed.length
+    && keys.every((key) => typeof key === 'string' && allowed.includes(key))
 }

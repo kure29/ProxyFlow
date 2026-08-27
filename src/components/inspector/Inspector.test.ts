@@ -255,7 +255,7 @@ describe('Routing Inspector product UI', () => {
     Object.assign(final.data, finalDnsFailedOptionsPatch(true))
     const graph = compileGraph(project, { validationTarget: 'surge' })
     expect(graph.success, graph.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
-    const result = compileSurge(graph.ir!, { targetNativeFinalOptions: graph.targetNativeFinalOptions, nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute })
+    const result = compileSurge(graph.ir!, { targetNativeFinalOptions: graph.targetNativeFinalOptions, nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute, effectiveFinalNodeId: graph.effectiveFinalNodeId })
     expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
     expect(result.content).toContain('FINAL,US Auto,dns-failed')
 
@@ -263,7 +263,7 @@ describe('Routing Inspector product UI', () => {
     const removedFinal = removedProject.graph.nodes.find((node) => node.data.blockType === 'final')!
     Object.assign(removedFinal.data, finalDnsFailedOptionsPatch(false))
     const removedGraph = compileGraph(removedProject, { validationTarget: 'surge' })
-    const removedResult = compileSurge(removedGraph.ir!, { targetNativeFinalOptions: removedGraph.targetNativeFinalOptions, nativeStrategies: removedGraph.nativeStrategies, nativeRoutes: removedGraph.nativeRoutes, nativeFinalRoute: removedGraph.nativeFinalRoute })
+    const removedResult = compileSurge(removedGraph.ir!, { targetNativeFinalOptions: removedGraph.targetNativeFinalOptions, nativeStrategies: removedGraph.nativeStrategies, nativeRoutes: removedGraph.nativeRoutes, nativeFinalRoute: removedGraph.nativeFinalRoute, effectiveFinalNodeId: removedGraph.effectiveFinalNodeId })
     expect(removedResult.success).toBe(true)
     expect(removedResult.content).toContain('FINAL,US Auto\n')
     expect(removedResult.content).not.toContain('FINAL,US Auto,dns-failed')
@@ -281,7 +281,7 @@ describe('Routing Inspector product UI', () => {
     Object.assign(final.data, finalDnsFailedOptionsPatch(true))
     const graph = compileGraph(project, { validationTarget: 'surge' })
     expect(graph.success).toBe(true)
-    const result = compileSurge(graph.ir!, { targetNativeFinalOptions: graph.targetNativeFinalOptions, nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute })
+    const result = compileSurge(graph.ir!, { targetNativeFinalOptions: graph.targetNativeFinalOptions, nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute, effectiveFinalNodeId: graph.effectiveFinalNodeId })
     expect(result.success).toBe(false)
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_FINAL_DNS_FAILED_DIRECT_UNSUPPORTED' }))
     expect(result.content).not.toContain('FINAL,DIRECT,dns-failed')

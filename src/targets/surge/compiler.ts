@@ -23,6 +23,8 @@ export interface SurgeCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  /** Compiler-owned Project Final node identity used to bind Final options. */
+  effectiveFinalNodeId?: string
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: TargetNativeRouteOptionsIR[]
   nativeRouteOptions?: TargetNativeRouteOptionsIR[]
@@ -42,7 +44,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const nativeFinalRoute = options.nativeFinalRoute
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
   const routeOptions = options.targetNativeRouteOptions ?? options.nativeRouteOptions ?? []
-  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes, nativeFinalRoute, options.targetNativeFinalOptions, routeOptions)
+  const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes, nativeFinalRoute, options.targetNativeFinalOptions, routeOptions, options.effectiveFinalNodeId)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(
     ir, issues, generatedAt, projection,
@@ -127,6 +129,7 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeStrategies: options?.nativeStrategies,
       nativeRoutes: options?.nativeRoutes,
       nativeFinalRoute: options?.nativeFinalRoute,
+      effectiveFinalNodeId: options?.effectiveFinalNodeId,
       targetNativeFinalOptions: options?.targetNativeFinalOptions,
       targetNativeRouteOptions: options?.targetNativeRouteOptions,
       nativeRouteOptions: options?.nativeRouteOptions,

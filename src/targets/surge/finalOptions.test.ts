@@ -50,17 +50,17 @@ describe('Surge FINAL dns-failed', () => {
   })
 
   it('lowers a Universal strategy modifier and keeps FINAL last', () => {
-    const result = compileSurge(baseIR(), { targetNativeFinalOptions: finalOptions })
+    const result = compileSurge(baseIR(), { targetNativeFinalOptions: finalOptions, effectiveFinalNodeId: 'final' })
     expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
     expect(ruleLines(result.content)).toEqual(['DOMAIN,example.com,DIRECT', 'FINAL,Proxy,dns-failed'])
   })
 
   it('allows REJECT and blocks DIRECT without silently dropping the modifier', () => {
-    const rejected = compileSurge(baseIR({ kind: 'reject' }), { targetNativeFinalOptions: finalOptions })
+    const rejected = compileSurge(baseIR({ kind: 'reject' }), { targetNativeFinalOptions: finalOptions, effectiveFinalNodeId: 'final' })
     expect(rejected.success).toBe(true)
     expect(ruleLines(rejected.content).at(-1)).toBe('FINAL,REJECT,dns-failed')
 
-    const direct = compileSurge(baseIR({ kind: 'direct' }), { targetNativeFinalOptions: finalOptions })
+    const direct = compileSurge(baseIR({ kind: 'direct' }), { targetNativeFinalOptions: finalOptions, effectiveFinalNodeId: 'final' })
     expect(direct.success).toBe(false)
     expect(direct.content).toBe('')
     expect(direct.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_FINAL_DNS_FAILED_DIRECT_UNSUPPORTED', severity: 'error' }))
@@ -72,6 +72,23 @@ describe('Surge FINAL dns-failed', () => {
     expect(ruleLines(result.content).at(-1)).toBe('FINAL,Proxy')
   })
 
+  it('fails closed when Final owner metadata is absent', () => {
+    const result = compileSurge(baseIR({ kind: 'reject' }), { targetNativeFinalOptions: finalOptions })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', severity: 'error' }))
+  })
+
+  it('rejects a spoofed Universal Final owner even when an effective Final exists', () => {
+    const result = compileSurge(baseIR({ kind: 'reject' }), {
+      targetNativeFinalOptions: { ...finalOptions, finalNodeId: 'spoofed-final' },
+      effectiveFinalNodeId: 'final',
+    })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', severity: 'error' }))
+  })
+
   it('blocks a malformed headless Universal + native Final combination without emitting either Final', () => {
     const result = compileSurge(baseIR(), {
       nativeStrategies: [{
@@ -81,6 +98,7 @@ describe('Surge FINAL dns-failed', () => {
         id: 'native-final', name: 'Native Final', target: { kind: 'strategy', id: 'native' }, priority: Number.MAX_SAFE_INTEGER,
       },
       targetNativeFinalOptions: { ...finalOptions, finalNodeId: 'native-final' },
+      effectiveFinalNodeId: 'native-final',
     })
     expect(result.success).toBe(false)
     expect(result.content).toBe('')
@@ -104,6 +122,7 @@ describe('Surge FINAL dns-failed', () => {
       nativeRoutes: graph.nativeRoutes,
       nativeFinalRoute: graph.nativeFinalRoute,
       targetNativeFinalOptions: graph.targetNativeFinalOptions,
+      effectiveFinalNodeId: graph.effectiveFinalNodeId,
     })
     expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
     expect(ruleLines(result.content).at(-1)).toBe(`FINAL,${expectedName},dns-failed`)
@@ -134,12 +153,21 @@ describe('Surge FINAL dns-failed', () => {
     expect(wrongTarget.success).toBe(false)
     expect(wrongTarget.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_INVALID', severity: 'error' }))
 
+    const extraField = compileSurge(baseIR(), {
+      targetNativeFinalOptions: { ...finalOptions, extendedMatching: true } as never,
+      effectiveFinalNodeId: 'final',
+    })
+    expect(extraField.success).toBe(false)
+    expect(extraField.content).toBe('')
+    expect(extraField.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_INVALID', severity: 'error' }))
+
     const nativeProject = structuredClone(surgeNativeAcceptanceProject)
     const graph = compileGraph(nativeProject, { validationTarget: 'surge' })
     const mismatch = compileSurge(graph.ir!, {
       nativeStrategies: graph.nativeStrategies,
       nativeFinalRoute: graph.nativeFinalRoute,
       targetNativeFinalOptions: { ...finalOptions, finalNodeId: 'other-final' },
+      effectiveFinalNodeId: graph.effectiveFinalNodeId,
     })
     expect(mismatch.success).toBe(false)
     expect(mismatch.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', severity: 'error' }))

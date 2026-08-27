@@ -74,6 +74,8 @@ export interface TargetCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
   nativeFinalRoute?: TargetNativeRouteIR
+  /** Compiler-owned Project Final node identity used to bind Final options. */
+  effectiveFinalNodeId?: string
   /** Explicit target-native Final rule options extracted from the Project graph. */
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   /** Explicit target-native route options extracted from the Project graph. */
