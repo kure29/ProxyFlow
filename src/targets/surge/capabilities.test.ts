@@ -6,6 +6,7 @@ describe('Surge capability matrix', () => {
   it('records every Phase 3 decision with an official reference and stable fail-closed diagnostic', () => {
     expect(SURGE_CAPABILITY_MATRIX.map((item) => item.feature)).toEqual([
       'Service Rules',
+      'SRC-PORT',
       'Remote Proxy Source',
       'Select',
       'Target-native Smart',

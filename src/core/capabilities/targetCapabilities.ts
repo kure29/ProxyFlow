@@ -102,6 +102,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'geo-ip': supported(),
       'geo-site': supported(),
       'rule-set': partial('MIHOMO_RULE_SOURCE_FORMAT_UNSUPPORTED', 'The referenced source must lower to a Mihomo rule provider.'),
+      'source-port': unsupported('TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED'),
     },
     ruleSources: {
       yaml: supported(),
@@ -197,6 +198,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'geo-ip': supported(),
       'geo-site': unsupported('SURGE_MATCHER_UNSUPPORTED'),
       'rule-set': unsupported('SURGE_MATCHER_UNSUPPORTED'),
+      'source-port': targetNative('Surge SRC-PORT exact-port matcher; ranges and comparisons remain deferred.'),
     },
     ruleSources: {
       yaml: unsupported('SURGE_MATCHER_UNSUPPORTED'),
@@ -281,6 +283,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'geo-ip': unsupported('SINGBOX_MATCHER_UNSUPPORTED'),
       'geo-site': unsupported('SINGBOX_MATCHER_UNSUPPORTED'),
       'rule-set': partial('SINGBOX_INVALID_RULESET', 'The referenced source must use sing-box source or binary format.'),
+      'source-port': unsupported('TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED'),
     },
     ruleSources: {
       yaml: unsupported('SINGBOX_RULE_SOURCE_FORMAT_UNSUPPORTED'),
@@ -374,6 +377,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'geo-ip': partial('LOON_ROUTE_ORDER_SEMANTICS_UNSUPPORTED'),
       'geo-site': unsupported('LOON_MATCHER_UNSUPPORTED'),
       'rule-set': unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
+      'source-port': unsupported('TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED'),
     },
     ruleSources: {
       yaml: unsupported('LOON_RULE_SOURCE_FORMAT_UNPROVEN'),
@@ -466,6 +470,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
       'geo-ip': partial('SHADOWROCKET_ROUTE_ORDER_UNPROVEN'),
       'geo-site': unsupported('SHADOWROCKET_MATCHER_UNSUPPORTED'),
       'rule-set': unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),
+      'source-port': unsupported('TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED'),
     },
     ruleSources: {
       yaml: unsupported('SHADOWROCKET_RULE_SOURCE_UNPROVEN'),

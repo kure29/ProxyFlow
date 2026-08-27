@@ -1,10 +1,10 @@
 import { normalizeCustomMatcher } from '../ir'
 import type { BlockNodeData, GraphNode, RouteMatcherKind, ServiceDefinition } from '../../types/project'
 import { resolveRouteMatcherKind } from './routeProductModel'
-import { isTargetNativeRuleSetSourceConfig } from '../targetNative'
+import { isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig } from '../targetNative'
 
 export const CUSTOM_ROUTE_MATCHERS = [
-  'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'rule-set',
+  'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'source-port', 'rule-set',
 ] as const satisfies readonly RouteMatcherKind[]
 
 export type CustomRouteMatcherKind = typeof CUSTOM_ROUTE_MATCHERS[number]
@@ -105,8 +105,10 @@ function customMatcherSummary(
   copy: RoutingPresentationCopy,
 ) {
   if (!matcherKind) return copy.emptyMatcher
-  const value = matcherKind === 'port'
-    ? data.routeMatcherPort
+  const value = matcherKind === 'source-port'
+    ? data.targetNativeSourcePort?.port ?? data.routeMatcherPort
+    : matcherKind === 'port'
+      ? data.routeMatcherPort
     : matcherKind === 'rule-set'
       ? ruleSetPresentationName(data)
       : data.routeMatcherValue?.trim()
@@ -148,5 +150,6 @@ function hasValidTarget(data: BlockNodeData) {
 function hasValidMatcher(data: BlockNodeData, matcherKind: RouteMatcherKind | undefined) {
   if (!matcherKind) return false
   if (matcherKind === 'service') return (data.services ?? []).some((service) => service.trim())
+  if (matcherKind === 'source-port') return isTargetNativeSourcePortConfig(data.targetNativeSourcePort)
   return normalizeCustomMatcher(matcherKind, data.routeMatcherValue, data.routeMatcherPort).ok
 }

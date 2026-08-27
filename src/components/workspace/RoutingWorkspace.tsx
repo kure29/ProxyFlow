@@ -362,7 +362,9 @@ function CustomMatcherChoices({ capabilities, authoringTarget, copy, onSelect, o
   const builtinDescription = (name: SurgeBuiltinRuleSetName) => name === 'LAN' ? copy.surgeBuiltinLanDescription : copy.surgeBuiltinSystemDescription
   return <div className="routing-matcher-choices">
     {CUSTOM_ROUTE_MATCHERS.map((matcher) => {
-    const capability = capabilities[matcher]
+    const capability = matcher === 'source-port'
+      ? authoringTarget === 'surge' ? { status: 'supported' as const } : { status: 'unsupported' as const, reason: 'SURGE_TARGET_ONLY' }
+      : capabilities[matcher]
     return <button type="button" disabled={capabilityUnavailable(capability)} key={matcher} onClick={() => onSelect(matcher)}>
       <span><strong>{copy.presentation.matcherLabels[matcher]}</strong><small>{copy.customRuleDescription}</small></span>
       <CapabilityBadge capability={capability} copy={copy} />
@@ -427,6 +429,11 @@ export function effectiveRoutingCapability(
       ? { status: 'supported' }
       : { status: 'unsupported', reason: 'SURGE_TARGET_ONLY' }
   }
+  if (matcherKind === 'source-port') {
+    return authoringTarget === 'surge'
+      ? { status: 'supported' }
+      : { status: 'unsupported', reason: 'SURGE_TARGET_ONLY' }
+  }
   return capabilities[matcherKind]
 }
 
@@ -444,8 +451,9 @@ export function createCustomRuleData(matcher: CustomRouteMatcherKind, title: str
     title,
     titleKey: undefined,
     routeMatcherKind: matcher,
-    routeMatcherValue: matcher === 'port' ? undefined : '',
+    routeMatcherValue: matcher === 'port' || matcher === 'source-port' ? undefined : '',
     routeMatcherPort: undefined,
+    ...(matcher === 'source-port' ? { targetNativeSourcePort: undefined } : {}),
     ruleSource: 'custom',
   }
 }

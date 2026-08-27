@@ -29,6 +29,8 @@ describe('Surge no-resolve Product model', () => {
     expect(isRouteMatcherConfigured('service', { services: [] })).toBe(false)
     expect(isRouteMatcherConfigured('ip-cidr', { routeMatcherValue: '203.0.113.0/24' })).toBe(true)
     expect(isRouteMatcherConfigured('port', { routeMatcherPort: 443 })).toBe(true)
+    expect(isRouteMatcherConfigured('source-port', { targetNativeSourcePort: { target: 'surge', kind: 'source-port', port: 443 } })).toBe(true)
+    expect(isRouteMatcherConfigured('source-port', { targetNativeSourcePort: { target: 'surge', kind: 'source-port', port: 0 } as never })).toBe(false)
     expect(isRouteMatcherConfigured(undefined, {})).toBe(false)
     expect(routeNoResolveOptionsPatch(true)).toEqual({ targetNativeRouteOptions: { target: 'surge', kind: 'route-options', noResolve: true } })
     expect(routeNoResolveOptionsPatch(false)).toEqual({ targetNativeRouteOptions: undefined })

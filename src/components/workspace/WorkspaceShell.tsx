@@ -324,7 +324,7 @@ function routingWorkspaceCopy(t: ReturnType<typeof useI18n>['t'], target: Primar
       matcherLabels: {
         service: t('inspector.matcher.service'), domain: t('inspector.matcher.domain'), 'domain-suffix': t('inspector.matcher.domainSuffix'),
         'domain-keyword': t('inspector.matcher.domainKeyword'), 'ip-cidr': t('inspector.matcher.ipCidr'), 'ip-cidr6': t('inspector.matcher.ipCidr6'),
-        port: t('inspector.matcher.port'), asn: t('inspector.matcher.asn'), 'geo-ip': t('inspector.matcher.geoIp'), 'geo-site': t('inspector.matcher.geoSite'), 'rule-set': t('inspector.matcher.ruleSet'),
+        port: t('inspector.matcher.port'), 'source-port': t('inspector.matcher.sourcePort'), asn: t('inspector.matcher.asn'), 'geo-ip': t('inspector.matcher.geoIp'), 'geo-site': t('inspector.matcher.geoSite'), 'rule-set': t('inspector.matcher.ruleSet'),
       },
       emptyMatcher: t('workspace.routing.emptyMatcher'), targetMissing: t('workspace.targetMissing'), ruleCount: (count) => t('workspace.routing.ruleCount', { count }),
     },

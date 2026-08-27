@@ -13,6 +13,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 | Feature | Status | Exact subset or reason | Diagnostic |
 | --- | --- | --- | --- |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
+| SRC-PORT | Target-native | Exact single source-port matcher is emitted as `SRC-PORT,<port>,<policy>` for the documented Surge baseline (iOS 5.22+ / Mac 6.9+). Ranges and comparison expressions remain deferred; other targets fail closed because no equivalent is proven. | `TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED` |
 | Remote Proxy Source | Unsupported natively | `policy-path` accepts Surge policy lines or a Surge profile. Universal IR does not retain a contract proving either format. Auto materializes a validated snapshot; Remote fails. | `SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN` |
 | Select | Supported | Explicit policy order and nested policy-group references are preserved. | — |
 | URL Test | Conditional | Explicit members, result-validity `interval`, millisecond `tolerance`, and the strict shared global test-URL subset are supported. | `SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED` |
@@ -139,6 +140,7 @@ Unconsumed parser Partial metadata, client fingerprints, Reality, unsupported tr
 - [Fallback](https://manual.nssurge.com/policy-groups/fallback.html)
 - [Load Balance](https://manual.nssurge.com/policy-groups/load-balance.html)
 - [Policies Overview](https://manual.nssurge.com/policies/overview.html)
+- [Source and Port Rules](https://manual.nssurge.com/rules/source-and-port.html)
 - [VMess](https://manual.nssurge.com/policies/vmess.html)
 - [UDP](https://manual.nssurge.com/policies/udp.html)
 - [HTTP](https://manual.nssurge.com/policies/http.html)

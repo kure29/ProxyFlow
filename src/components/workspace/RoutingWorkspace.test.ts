@@ -44,12 +44,16 @@ describe('Routing Workspace helpers', () => {
     }))
     expect(createCustomRuleData('ip-cidr', 'Custom Rule')).toEqual(expect.objectContaining({ routeMatcherKind: 'ip-cidr', routeMatcherValue: '' }))
     expect(createCustomRuleData('port', 'Custom Rule')).toEqual(expect.objectContaining({ routeMatcherKind: 'port', routeMatcherValue: undefined, routeMatcherPort: undefined }))
+    expect(createCustomRuleData('source-port', 'Source Port')).toEqual(expect.objectContaining({ routeMatcherKind: 'source-port', routeMatcherPort: undefined, targetNativeSourcePort: undefined }))
   })
 
   it('marks retained matchers unsupported by the selected target without deleting them', () => {
     expect(routingRuleStatusForCapability('ready', 'asn', targetCapabilityRegistry['sing-box'].routingMatchers)).toBe('error')
     expect(routingRuleStatusForCapability('ready', 'asn', targetCapabilityRegistry.mihomo.routingMatchers)).toBe('ready')
     expect(routingRuleStatusForCapability('disabled', 'asn', targetCapabilityRegistry['sing-box'].routingMatchers)).toBe('disabled')
+    expect(capabilityUnavailable(targetCapabilityRegistry.surge.routingMatchers['source-port'])).toBe(false)
+    expect(capabilityUnavailable(targetCapabilityRegistry.mihomo.routingMatchers['source-port'])).toBe(true)
+    expect(routingRuleStatusForCapability('ready', 'source-port', targetCapabilityRegistry.mihomo.routingMatchers)).toBe('error')
   })
 
   it('creates typed Surge built-in source data with deterministic IDs', () => {
@@ -71,6 +75,9 @@ describe('Routing Workspace helpers', () => {
     expect(effectiveRoutingCapability(node, 'rule-set', targetCapabilityRegistry.mihomo.routingMatchers, 'mihomo')?.status).toBe('unsupported')
     expect(routingRuleStatusForCapability('ready', 'rule-set', targetCapabilityRegistry.surge.routingMatchers, node, 'surge')).toBe('ready')
     expect(routingRuleStatusForCapability('ready', 'rule-set', targetCapabilityRegistry.mihomo.routingMatchers, node, 'mihomo')).toBe('error')
+
+    expect(effectiveRoutingCapability(undefined, 'source-port', {}, 'surge')?.status).toBe('supported')
+    expect(effectiveRoutingCapability(undefined, 'source-port', {}, 'mihomo')?.status).toBe('unsupported')
   })
 
   it('carries Workspace-created LAN data through graph and Surge compilation', () => {

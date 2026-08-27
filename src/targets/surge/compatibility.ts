@@ -15,6 +15,7 @@ import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
 import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
 import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR } from '../../core/targetNative'
+import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from '../../core/targetNative'
 import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { SURGE_NO_RESOLVE_MATCHERS } from '../../core/routing/routeOptionsProductModel'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
@@ -121,6 +122,16 @@ export function checkSurgeCompatibility(
         'SURGE_RULE_SET_SOURCE_UNSUPPORTED', 'error', 'route',
         `Rule Set source “${route.matcher.id}” is not a proven Surge built-in LAN/SYSTEM source.`, route.id,
       ))
+    }
+    else if (route.matcher.kind === 'source-port') {
+      const provenance = 'targetNativeSourcePort' in route ? route.targetNativeSourcePort : undefined
+      if (!isTargetNativeSourcePortMatcher(route.matcher)
+        || !isTargetNativeSourcePortIR(provenance)
+        || provenance.routeId !== route.id
+        || provenance.port !== route.matcher.port) issues.push(surgeIssue(
+          'SURGE_TARGET_NATIVE_SOURCE_PORT_INVALID', 'error', 'route',
+          `Surge source-port route “${route.name}” has invalid runtime data or owner provenance.`, route.id,
+        ))
     }
     else if (!['domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'asn', 'geo-ip'].includes(route.matcher.kind)) issues.push(surgeIssue(
       'SURGE_MATCHER_UNSUPPORTED', 'error', 'route',

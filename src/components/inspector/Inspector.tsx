@@ -44,7 +44,7 @@ import {
   type PrimaryTarget,
 } from '../../core/capabilities'
 import {
-  isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, surgeBuiltinRuleSetSourceConfig,
+  isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSourcePort, surgeBuiltinRuleSetSourceConfig,
   surgeBuiltinRuleSetSourceId,
   type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
 } from '../../core/targetNative'
@@ -851,9 +851,10 @@ export function RoutingInspector({ node }: InspectorProps) {
   const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(node.id, {
     routeMatcherKind: value,
     ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
-    ...(value !== 'port' ? { routeMatcherPort: undefined } : {}),
+    ...(value !== 'port' && value !== 'source-port' ? { routeMatcherPort: undefined } : {}),
     ...(value === 'rule-set' ? { routeMatcherValue: node.data.customRuleSource?.id ?? node.data.routeMatcherValue ?? '' }
-      : value !== 'service' && value !== 'port' ? { routeMatcherValue: '' } : {}),
+      : value !== 'service' && value !== 'port' && value !== 'source-port' ? { routeMatcherValue: '' } : {}),
+    ...(value === 'source-port' ? {} : { targetNativeSourcePort: undefined }),
     ...(value === 'rule-set' ? {} : { targetNativeRuleSet: undefined }),
     ...(value === 'service' ? { ruleSource: node.data.ruleSource ?? 'ios_rule_script' } : {}),
   })
@@ -866,7 +867,7 @@ export function RoutingInspector({ node }: InspectorProps) {
       <WebSelect label={t('inspector.matcherType')} value={isAdvancedMatcher ? '' : matcherKind ?? ''} onChange={(value) => setMatcher(value as BlockNodeData['routeMatcherKind'])} options={[
         { value: '', label: t('inspector.selectBasicMatcher'), disabled: true },
         ...BASIC_ROUTE_MATCHERS.filter((value) => value !== 'service').map((value) => { const unsupported = routingCapabilities?.[value].status === 'unsupported'; return { value, label: `${matcherLabel(value, t)}${unsupported ? ` · ${t('inspector.unsupported')}` : ''}`, disabled: unsupported } }),
-        { value: 'rule-set', label: t('inspector.matcher.ruleSet') },
+      { value: 'rule-set', label: t('inspector.matcher.ruleSet') },
       ]} />
     </Field>}
     {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><small>{t('inspector.servicesSelected', { count: services.length })}</small></div>
@@ -888,7 +889,7 @@ export function RoutingInspector({ node }: InspectorProps) {
         ]} />
       </Field>
       {isAdvancedMatcher && matcherKind && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
-      {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
+      {matcherKind && matcherKind !== 'rule-set' && <div className="actual-rules"><div><span>{t('inspector.matcherPreview')}</span><code>{formatMatcherPreview(matcherKind, matcherKind === 'source-port' ? node.data.targetNativeSourcePort?.port ?? node.data.routeMatcherPort : matcherKind === 'port' ? node.data.routeMatcherPort : matcherValue)}</code></div></div>}
     </Advanced>}
   </>
 }
@@ -1149,8 +1150,14 @@ function fileToDataUrl(file: File) {
 
 function MatcherValueField({ node, kind, matcherValue, update, t }: { node: GraphNode; kind: NonNullable<BlockNodeData['routeMatcherKind']>; matcherValue: string; update: ReturnType<typeof useBuilderStore.getState>['updateNodeData']; t: ReturnType<typeof useI18n>['t'] }) {
   if (kind === 'service') return null
-  return kind === 'port'
-    ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={node.data.routeMatcherPort ?? ''} placeholder="443" onChange={(event) => update(node.id, { routeMatcherPort: Number(event.target.value) })} /></Field>
+  return kind === 'port' || kind === 'source-port'
+    ? <Field label={t('inspector.matcherValue')}><input type="number" min="1" max="65535" value={(kind === 'source-port' ? node.data.targetNativeSourcePort?.port ?? node.data.routeMatcherPort : node.data.routeMatcherPort) ?? ''} placeholder="443" onChange={(event) => {
+      const port = Number(event.target.value)
+      update(node.id, {
+        routeMatcherPort: port,
+        ...(kind === 'source-port' ? { targetNativeSourcePort: isValidSourcePort(port) ? { target: 'surge', kind: 'source-port', port } : undefined } : {}),
+      })
+    }} /></Field>
     : <Field label={t('inspector.matcherValue')} hint={kind === 'geo-ip' ? 'ISO 3166-1 alpha-2' : undefined}><input value={matcherValue} placeholder={matcherPlaceholder(kind)} onChange={(event) => update(node.id, { routeMatcherValue: event.target.value })} /></Field>
 }
 
@@ -1162,6 +1169,7 @@ function matcherLabel(kind: NonNullable<BlockNodeData['routeMatcherKind']>, t: R
   if (kind === 'ip-cidr') return t('inspector.matcher.ipCidr')
   if (kind === 'ip-cidr6') return t('inspector.matcher.ipCidr6')
   if (kind === 'port') return t('inspector.matcher.port')
+  if (kind === 'source-port') return t('inspector.matcher.sourcePort')
   if (kind === 'asn') return t('inspector.matcher.asn')
   if (kind === 'geo-ip') return t('inspector.matcher.geoIp')
   if (kind === 'geo-site') return t('inspector.matcher.geoSite')

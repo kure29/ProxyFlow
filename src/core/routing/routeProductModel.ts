@@ -3,7 +3,7 @@ import type { BlockNodeData, GraphNode, RouteMatcherKind } from '../../types/pro
 export const ROUTING_RULE_TYPES = ['routing-group', 'service-rule', 'custom-rule'] as const
 
 export const BASIC_ROUTE_MATCHERS: RouteMatcherKind[] = [
-  'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port',
+  'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'source-port',
 ]
 
 export const ADVANCED_ROUTE_MATCHERS: RouteMatcherKind[] = ['asn', 'geo-ip', 'geo-site', 'rule-set']

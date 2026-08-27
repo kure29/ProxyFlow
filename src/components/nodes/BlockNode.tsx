@@ -150,7 +150,8 @@ function nativeMatcherLabel(matcher: SurgeSubnetMatcher) {
   return matcher.kind === 'network-type' ? `TYPE:${matcher.value}` : `${matcher.kind.toUpperCase()}:${matcher.value}`
 }
 
-export function routeMatcherNodeSummary(data: Pick<BlockNodeData, 'routeMatcherKind' | 'routeMatcherValue' | 'routeMatcherPort' | 'targetNativeRuleSet' | 'customRuleSource'>) {
+export function routeMatcherNodeSummary(data: Pick<BlockNodeData, 'routeMatcherKind' | 'routeMatcherValue' | 'routeMatcherPort' | 'targetNativeRuleSet' | 'targetNativeSourcePort' | 'customRuleSource'>) {
+  if (data.routeMatcherKind === 'source-port') return data.targetNativeSourcePort?.port ?? data.routeMatcherPort ?? '…'
   if (data.routeMatcherKind === 'port') return data.routeMatcherPort ?? '…'
   if (data.routeMatcherKind === 'rule-set') return ruleSetPresentationName(data) || '…'
   return data.routeMatcherValue || '…'

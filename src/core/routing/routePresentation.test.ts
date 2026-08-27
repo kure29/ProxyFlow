@@ -7,7 +7,7 @@ import {
 
 const copy: RoutingPresentationCopy = {
   matcherLabels: Object.fromEntries([
-    'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port',
+    'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'source-port',
     'asn', 'geo-ip', 'geo-site', 'rule-set',
   ].map((kind) => [kind, kind])) as Record<RouteMatcherKind, string>,
   emptyMatcher: 'Not configured',
@@ -84,5 +84,16 @@ describe('routing presentation', () => {
     expect(presentRoutingRule(route('lan', {
       ...data, routeMatcherKind: 'rule-set', targetKind: 'direct', targetId: 'DIRECT',
     }), serviceCatalog, [], copy).matcherSummary).not.toContain('surge-builtin-ruleset-lan')
+  })
+
+  it('presents a typed source-port matcher without treating it as a destination port', () => {
+    const presentation = presentRoutingRule(route('source-port', {
+      routeMatcherKind: 'source-port',
+      targetNativeSourcePort: { target: 'surge', kind: 'source-port', port: 443 },
+      routeMatcherPort: 80,
+      targetKind: 'direct',
+    }), serviceCatalog, [], copy)
+    expect(presentation.matcherSummary).toBe('source-port · 443')
+    expect(presentation.status).toBe('ready')
   })
 })

@@ -4,7 +4,7 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
-import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeStrategyConfig } from '../core/targetNative'
+import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -45,7 +45,7 @@ export type BlockType =
   | 'output'
 
 export type EdgeSemantic = 'data' | 'route' | 'strategy' | 'chain' | 'output' | 'dns'
-export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
+export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-keyword' | 'ip-cidr' | 'ip-cidr6' | 'port' | 'source-port' | 'asn' | 'geo-ip' | 'geo-site' | 'rule-set'
 export type DnsResolverKind = 'doh' | 'dot' | 'udp' | 'system'
 export type DnsResolverRole = 'default' | 'direct' | 'fallback'
 export type DnsResolverRegion = 'system' | 'global' | 'mainland-china'
@@ -158,6 +158,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   targetNativeFinalOptions?: TargetNativeFinalOptionsConfig
   /** Typed target-native route options, kept outside Universal RouteIR. */
   targetNativeRouteOptions?: TargetNativeRouteOptionsConfig
+  /** Typed Surge-native source-port matcher, kept outside Universal TrafficMatcherIR. */
+  targetNativeSourcePort?: TargetNativeSourcePortConfig
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number
