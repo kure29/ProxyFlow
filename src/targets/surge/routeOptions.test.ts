@@ -90,6 +90,13 @@ describe('Surge native no-resolve route option', () => {
     expect(malformed.content).toBe('')
     expect(malformed.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_INVALID', severity: 'error' }))
 
+    const extraSemanticField = compileSurge(baseIR(), {
+      targetNativeRouteOptions: [{ ...routeOptions, extendedMatching: true } as never],
+    })
+    expect(extraSemanticField.success).toBe(false)
+    expect(extraSemanticField.content).toBe('')
+    expect(extraSemanticField.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_INVALID', severity: 'error' }))
+
     const orphan = compileSurge(baseIR(), { targetNativeRouteOptions: [{ ...routeOptions, routeId: 'missing' }] })
     expect(orphan.success).toBe(false)
     expect(orphan.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_ORPHAN', severity: 'error' }))
@@ -149,6 +156,21 @@ describe('Surge native no-resolve route option', () => {
     expect(graph.targetNativeRouteOptions).toEqual([])
     expect(graph.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_OPTIONS_UNSUPPORTED', severity: 'error' }))
     expect(route.data.targetNativeRouteOptions).toEqual({ target: 'surge', kind: 'route-options', noResolve: true })
+  })
+
+  it('rejects spoofed Project ownership without producing a route-options IR entry', () => {
+    const project = structuredClone(v08BasicRoutingFixture)
+    project.primaryTarget = 'surge'
+    const route = project.graph.nodes.find((node) => node.id === 'openai')!
+    route.data.targetNativeRouteOptions = {
+      target: 'surge', kind: 'route-options', noResolve: true, routeId: 'another-route',
+    } as never
+    const graph = compileGraph(project, { validationTarget: 'surge' })
+    expect(graph.success).toBe(false)
+    expect(graph.targetNativeRouteOptions).toEqual([])
+    expect(graph.issues).toContainEqual(expect.objectContaining({
+      code: 'TARGET_NATIVE_ROUTE_OPTIONS_INVALID', nodeId: route.id, severity: 'error',
+    }))
   })
 
   it.each([

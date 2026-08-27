@@ -18,23 +18,38 @@ export interface TargetNativeRouteOptionsIR extends TargetNativeRouteOptionsConf
   routeId: string
 }
 
-export function isTargetNativeRouteOptionsConfig(value: unknown): value is TargetNativeRouteOptionsConfig {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as unknown as Record<string, unknown>
+const CONFIG_KEYS = ['target', 'kind', 'noResolve'] as const
+const IR_KEYS = ['routeId', ...CONFIG_KEYS] as const
+
+function hasExactKeys(value: object, allowed: readonly string[]) {
+  const keys = Reflect.ownKeys(value)
+  return keys.length === allowed.length
+    && keys.every((key) => typeof key === 'string' && allowed.includes(key))
+}
+
+function hasValidRouteOptionFields(candidate: Record<string, unknown>) {
   return candidate.target === 'surge'
     && candidate.kind === 'route-options'
     && candidate.noResolve === true
 }
 
-export function isTargetNativeRouteOptionsIR(value: unknown): value is TargetNativeRouteOptionsIR {
-  if (!isTargetNativeRouteOptionsConfig(value)) return false
+export function isTargetNativeRouteOptionsConfig(value: unknown): value is TargetNativeRouteOptionsConfig {
+  if (!value || typeof value !== 'object') return false
   const candidate = value as unknown as Record<string, unknown>
-  return typeof candidate.routeId === 'string' && Boolean(candidate.routeId.trim())
+  return hasExactKeys(value, CONFIG_KEYS) && hasValidRouteOptionFields(candidate)
+}
+
+export function isTargetNativeRouteOptionsIR(value: unknown): value is TargetNativeRouteOptionsIR {
+  if (!value || typeof value !== 'object' || !hasExactKeys(value, IR_KEYS)) return false
+  const candidate = value as unknown as Record<string, unknown>
+  return hasValidRouteOptionFields(candidate)
+    && typeof candidate.routeId === 'string'
+    && Boolean(candidate.routeId.trim())
 }
 
 export function targetNativeRouteOptionsConfigToIR(
   routeId: string,
   config: TargetNativeRouteOptionsConfig,
 ): TargetNativeRouteOptionsIR {
-  return { routeId, ...structuredClone(config) }
+  return { ...structuredClone(config), routeId }
 }

@@ -13,6 +13,8 @@ describe('target-native route options', () => {
     expect(isTargetNativeRouteOptionsConfig({ ...config, noResolve: false })).toBe(false)
     expect(isTargetNativeRouteOptionsConfig({ ...config, kind: 'final-options' })).toBe(false)
     expect(isTargetNativeRouteOptionsConfig({ ...config, target: 'mihomo' })).toBe(false)
+    expect(isTargetNativeRouteOptionsConfig({ ...config, routeId: 'spoofed' })).toBe(false)
+    expect(isTargetNativeRouteOptionsConfig({ ...config, extendedMatching: true })).toBe(false)
   })
 
   it('binds config provenance to one route', () => {
@@ -20,5 +22,7 @@ describe('target-native route options', () => {
     expect(options).toEqual({ routeId: 'route-1', ...config })
     expect(isTargetNativeRouteOptionsIR(options)).toBe(true)
     expect(isTargetNativeRouteOptionsIR({ ...options, routeId: '' })).toBe(false)
+    expect(isTargetNativeRouteOptionsIR({ ...options, extendedMatching: true })).toBe(false)
+    expect(targetNativeRouteOptionsConfigToIR('route-1', { ...config, routeId: 'spoofed' } as never).routeId).toBe('route-1')
   })
 })
