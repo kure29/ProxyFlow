@@ -45,6 +45,21 @@ describe('validateGraph', () => {
     ]))
   })
 
+  it('accepts typed Final options only on enabled Final nodes', () => {
+    const nodes = structuredClone(demoNodes)
+    const final = nodes.find((node) => node.data.blockType === 'final')!
+    final.data.targetNativeFinalOptions = { target: 'surge', kind: 'final-options', dnsFailed: true }
+    expect(validateGraph(nodes, demoEdges)).not.toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID' }))
+
+    final.data.targetNativeFinalOptions = { target: 'surge', kind: 'final-options', dnsFailed: false } as never
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID', nodeId: final.id, severity: 'error' }))
+
+    final.data.targetNativeFinalOptions = undefined
+    const route = nodes.find((node) => node.data.blockType === 'service-rule')!
+    route.data.targetNativeFinalOptions = { target: 'surge', kind: 'final-options', dnsFailed: true }
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID', nodeId: route.id, severity: 'error' }))
+  })
+
   it('reports an invalid filter regular expression as an error', () => {
     const nodes = demoNodes.map((node) => node.id === 'hk-filter' ? {
       ...node,

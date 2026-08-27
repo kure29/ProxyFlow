@@ -74,10 +74,20 @@ function isTypedSmartEntry(entry: SurgePolicyEntry): entry is SurgeSmartPolicyEn
 }
 
 export function serializeSurgeRule(type: string, payload: string | undefined, policy: string) {
-  for (const value of [type, payload, policy]) {
-    if (value !== undefined && /[\r\n\u0000]/.test(value)) throw new Error('Surge rule tokens must be single-line values.')
-  }
+  assertSurgeRuleTokens([type, payload, policy])
   return [type, ...(payload === undefined ? [] : [serializeSurgeToken(payload)]), serializeSurgeToken(policy)].join(',')
+}
+
+export interface SurgeFinalRuleOptions {
+  dnsFailed?: true
+}
+
+/** Serialize the typed Surge FINAL grammar, including target-native modifiers. */
+export function serializeSurgeFinalRule(policy: string, options: SurgeFinalRuleOptions = {}) {
+  if (options.dnsFailed !== undefined && options.dnsFailed !== true) throw new Error('Surge FINAL options are invalid.')
+  if (!options.dnsFailed) return serializeSurgeRule('FINAL', undefined, policy)
+  assertSurgeRuleTokens(['FINAL', policy, 'dns-failed'], true)
+  return ['FINAL', serializeSurgeToken(policy), 'dns-failed'].join(',')
 }
 
 export function serializeSurgeToken(value: string | number | boolean) {
@@ -101,6 +111,13 @@ export function isSafeSurgePolicyName(value: string) {
 
 function serializeSection(name: string, lines: string[]) {
   return `[${name}]${lines.length ? `\n${lines.join('\n')}` : ''}`
+}
+
+function assertSurgeRuleTokens(values: Array<string | undefined>, rejectControls = false) {
+  for (const value of values) {
+    const unsafe = rejectControls ? /[\u0000-\u001f\u007f]/ : /[\r\n\u0000]/
+    if (value !== undefined && unsafe.test(value)) throw new Error('Surge rule tokens must be single-line values.')
+  }
 }
 
 function needsQuoting(value: string) {

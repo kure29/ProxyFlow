@@ -10,7 +10,7 @@ import { compileLoonRouting } from './routing'
 import { serializeLoonProfile } from './serializer'
 import { compileLoonStrategies } from './strategies'
 import { createLoonProjectionContext, loonProjectionStats, type LoonProjectionContext } from './projection'
-import { targetNativeUnsupportedIssues, type TargetNativeStrategyIR } from '../../core/targetNative'
+import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface LoonCompileOptions {
   now?: () => Date
@@ -18,6 +18,7 @@ export interface LoonCompileOptions {
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
+  targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
 }
@@ -30,7 +31,7 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources))
+  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions))
   const projection = createLoonProjectionContext()
   const compatibility = checkLoonCompatibility(ir, projection)
   issues.push(...compatibility.issues)
@@ -106,6 +107,6 @@ export class LoonCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
-    return compileLoon(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
+    return compileLoon(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
   }
 }
