@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -32,6 +32,10 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
             if (node.data.customRuleSource.id !== normalized.matcher.id) add('ROUTE_RULE_SOURCE_REFERENCE_MISMATCH', 'This route does not reference its attached rule source.', 'error')
             else if (!node.data.customRuleSource.enabled) add('RULE_SOURCE_DISABLED', 'This rule source is disabled.', 'error')
             else if (node.data.customRuleSource.matchers.length === 0) add('RULE_SOURCE_NO_SUPPORTED_RULES', 'This rule source has no normalized rules.', 'error')
+            continue
+          }
+          if (node.data.targetNativeRuleSet) {
+            if (!isTargetNativeRuleSetSourceConfig(node.data.targetNativeRuleSet)) add('TARGET_NATIVE_RULE_SET_INVALID', 'This target-native Rule Set source has invalid typed configuration.', 'error')
             continue
           }
           const matches = findRuleSourceMatches(services, normalized.matcher.id)

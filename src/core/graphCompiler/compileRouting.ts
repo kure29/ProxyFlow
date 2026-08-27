@@ -120,6 +120,7 @@ function compileCustomMatcher(nodeId: string, name: string, kind: Exclude<NonNul
     }
     const matches = findRuleSourceMatches(context.project.services, normalized.matcher.id)
     if (matches.length === 0) {
+      if (data.targetNativeRuleSet) return normalized.matcher
       context.addIssue(semanticIssue(
         'ROUTE_RULE_SET_NOT_FOUND', 'error', 'compile', `Route "${name}" references missing rule set "${normalized.matcher.id}".`,
         { nodeId, entity: { type: 'route', id: nodeId } },
