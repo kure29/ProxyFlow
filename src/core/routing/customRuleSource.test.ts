@@ -53,6 +53,20 @@ describe('custom rule source parsing', () => {
     if (source.ok) expect(validateCustomRuleSourceForTarget({ ...source.source, matchers: [{ kind: 'domain', value: 'example.com' }] }, 'sing-box')).toEqual([])
   })
 
+  it('ignores #, ;, and // comments in a sectionless Surge Rule Set', () => {
+    const result = parseContent('# hash comment\n; semicolon comment\n// slash comment\nDOMAIN,example.com')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.source.matchers).toEqual([{ kind: 'domain', value: 'example.com' }])
+  })
+
+  it('preserves physical line numbers after a // comment before a modifier error', () => {
+    const result = parseContent('// slash comment\n\nIP-CIDR,203.0.113.0/24,no-resolve')
+    expect(result.ok).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: 'RULE_SOURCE_OPTIONS_UNSUPPORTED', severity: 'error', line: 3,
+    }))
+  })
+
   it.each([
     ['IP-CIDR,203.0.113.0/24,no-resolve', 'fictional.list', 1],
     ['IP-CIDR6,2001:db8::/32,no-resolve', 'fictional.list', 1],
@@ -129,11 +143,11 @@ describe('custom rule source parsing', () => {
   })
 
   it('only parses rules from an explicit Surge Rule section', () => {
-    const result = parseContent('[General]\nhttp-api = 127.0.0.1\n[Rule]\n# comment\n\nDOMAIN,example.com,Proxy\n[Proxy]\nProxy = http,proxy.example,443', 'fictional.conf')
+    const result = parseContent('[General]\nhttp-api = 127.0.0.1\n[Rule]\n# hash comment\n; semicolon comment\n// slash comment\n\nDOMAIN,example.com,Proxy\n[Proxy]\nProxy = http,proxy.example,443', 'fictional.conf')
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.source.matchers).toEqual([{ kind: 'domain', value: 'example.com' }])
-    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'RULE_SOURCE_POLICY_OVERRIDDEN', severity: 'warning', line: 6 }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'RULE_SOURCE_POLICY_OVERRIDDEN', severity: 'warning', line: 8 }))
   })
 
   it('accepts modifier-looking policy names only in explicit full-rule grammar', () => {

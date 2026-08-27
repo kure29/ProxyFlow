@@ -247,7 +247,7 @@ function normalizeRuleLine(raw: string, line: number, dialect: RuleLineDialect, 
 }
 
 function isRuleContentLine(line: string) {
-  return Boolean(line) && !line.startsWith('#') && !line.startsWith(';') && !/^\[.*\]$/.test(line)
+  return Boolean(line) && !line.startsWith('#') && !line.startsWith(';') && !line.startsWith('//') && !/^\[.*\]$/.test(line)
 }
 
 function findYamlMapValueNode(root: unknown, key: string): unknown {
