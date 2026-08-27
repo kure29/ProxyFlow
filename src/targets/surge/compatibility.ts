@@ -13,9 +13,10 @@ import {
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
-import type { TargetNativeFinalOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
-import { isTargetNativeFinalOptionsIR } from '../../core/targetNative'
-import type { TargetNativeRouteIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
+import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR } from '../../core/targetNative'
+import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
+import { SURGE_NO_RESOLVE_MATCHERS } from '../../core/routing/routeOptionsProductModel'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
 
 export interface SurgeCompatibilityResult {
@@ -36,11 +37,13 @@ export function checkSurgeCompatibility(
   nativeRoutes: readonly TargetNativeRouteIR[] = [],
   nativeFinalRoute?: TargetNativeRouteIR,
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR,
+  targetNativeRouteOptions: readonly TargetNativeRouteOptionsIR[] = [],
 ): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
   const policyOwners = new Map<string, string>()
 
   validateSurgeFinalOptions(ir, nativeFinalRoute, targetNativeFinalOptions, issues)
+  validateSurgeRouteOptions(ir, nativeRoutes, targetNativeRouteOptions, issues)
 
   for (const source of ir.sources) {
     if (source.kind === 'provider' || source.kind === 'imported-config'
@@ -128,6 +131,58 @@ export function checkSurgeCompatibility(
   issues.push(...planSurgeDns(ir.dns).issues)
 
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+function validateSurgeRouteOptions(
+  ir: ProxyFlowIR,
+  nativeRoutes: readonly TargetNativeRouteIR[],
+  options: readonly TargetNativeRouteOptionsIR[],
+  issues: CompatibilityIssue[],
+) {
+  const routes = [...ir.routes, ...nativeRoutes]
+  const routeCounts = new Map<string, number>()
+  for (const route of routes) routeCounts.set(route.id, (routeCounts.get(route.id) ?? 0) + 1)
+  const seenOwners = new Set<string>()
+  for (const option of options) {
+    if (!isTargetNativeRouteOptionsIR(option)) {
+      const rawOption = option as unknown as { routeId?: unknown }
+      issues.push(surgeIssue(
+        'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_INVALID', 'error', 'route',
+        'Target-native route options have invalid runtime data.', typeof rawOption.routeId === 'string' ? rawOption.routeId : 'route-options',
+      ))
+      continue
+    }
+    if (seenOwners.has(option.routeId)) {
+      issues.push(surgeIssue(
+        'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_DUPLICATE', 'error', 'route',
+        `Target-native route options are attached more than once to route “${option.routeId}”.`, option.routeId,
+      ))
+      continue
+    }
+    seenOwners.add(option.routeId)
+    const count = routeCounts.get(option.routeId) ?? 0
+    if (count === 0) {
+      issues.push(surgeIssue(
+        'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_ORPHAN', 'error', 'route',
+        `Target-native route options reference missing route “${option.routeId}”.`, option.routeId,
+      ))
+      continue
+    }
+    if (count !== 1) {
+      issues.push(surgeIssue(
+        'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_OWNER_MISMATCH', 'error', 'route',
+        `Target-native route options resolve to ${count} route owners for “${option.routeId}”.`, option.routeId,
+      ))
+      continue
+    }
+    const route = routes.find((candidate) => candidate.id === option.routeId)
+    if (!route?.matcher || !(SURGE_NO_RESOLVE_MATCHERS as readonly string[]).includes(route.matcher.kind)) {
+      issues.push(surgeIssue(
+        'SURGE_NO_RESOLVE_MATCHER_UNSUPPORTED', 'error', 'route',
+        `Surge no-resolve is only supported for IP-CIDR, IP-CIDR6, GEOIP, IP-ASN, and RULE-SET routes; route “${route?.name ?? option.routeId}” uses ${route?.matcher?.kind ?? 'no matcher'}.`, option.routeId,
+      ))
+    }
+  }
 }
 
 function validateSurgeFinalOptions(

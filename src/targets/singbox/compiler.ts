@@ -21,6 +21,8 @@ export interface SingBoxCompileOptions {
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
+  targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
+  nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
 }
@@ -33,7 +35,7 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions))
+  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
   const compatibility = checkSingBoxCompatibility(ir)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)
@@ -78,6 +80,6 @@ export class SingBoxCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
-    return compileSingBox(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
+    return compileSingBox(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
   }
 }

@@ -9,8 +9,9 @@ import { compileGraph } from '../../core/graphCompiler'
 import { compileSurge } from '../../targets/surge/compiler'
 import { v08BasicRoutingFixture } from '../../core/__fixtures__/v08Acceptance'
 import { surgeNativeAcceptanceProject } from '../../core/__fixtures__/surgeNativeStrategies'
-import { isSurgeBuiltinRuleSetSelectionDisabled, nextListboxOptionIndex, nextServiceOptionIndex, ruleSetSourceOptions, ruleSetSourcePatch, RoutingInspector, SurgeFinalOptionsEditor } from './Inspector'
+import { isSurgeBuiltinRuleSetSelectionDisabled, nextListboxOptionIndex, nextServiceOptionIndex, ruleSetSourceOptions, ruleSetSourcePatch, RoutingInspector, SurgeFinalOptionsEditor, SurgeRouteOptionsEditor } from './Inspector'
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState } from '../../core/routing/finalOptionsProductModel'
+import { routeNoResolveOptionsPatch, getRouteNoResolveUiState } from '../../core/routing/routeOptionsProductModel'
 import type { GraphNode, ProxyFlowProject } from '../../types/project'
 
 function ruleProject(target: ProxyFlowProject['primaryTarget'], native?: 'LAN' | 'SYSTEM'): ProxyFlowProject {
@@ -80,6 +81,31 @@ describe('Routing Inspector product UI', () => {
     expect(html).not.toContain('Not supported by Surge')
     expect(html).not.toContain('Upload file')
     expect(html).not.toContain('https://rules.example.com')
+  })
+
+  it('renders the Surge route no-resolve control with the create/remove permission split', () => {
+    const project = structuredClone(v08BasicRoutingFixture)
+    project.primaryTarget = 'surge'
+    const route = project.graph.nodes.find((node) => node.id === 'openai')!
+    route.data.targetNativeRouteOptions = routeNoResolveOptionsPatch(true).targetNativeRouteOptions
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeRouteOptionsEditor, { node: route, primaryTarget: 'surge', matcherKind: 'service', hasConfiguredMatcher: true })))
+    expect(html).toContain('Skip DNS resolution for this rule')
+    expect(html).toContain('checked=""')
+    expect(html).not.toContain('disabled=""')
+
+    const domain = { ...route, data: { ...route.data, routeMatcherKind: 'domain' as const, routeMatcherValue: 'example.com', targetNativeRouteOptions: routeNoResolveOptionsPatch(true).targetNativeRouteOptions } }
+    const unsupported = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeRouteOptionsEditor, { node: domain, primaryTarget: 'surge', matcherKind: 'domain', hasConfiguredMatcher: true })))
+    expect(unsupported).toContain('no-resolve is not supported for this matcher')
+    expect(unsupported).not.toContain('disabled=""')
+
+    const nonSurge = renderToStaticMarkup(createElement(I18nProvider, null, createElement(SurgeRouteOptionsEditor, { node: route, primaryTarget: 'mihomo', matcherKind: 'service', hasConfiguredMatcher: true })))
+    expect(nonSurge).toContain('This is a Surge-only route option.')
+    expect(nonSurge).not.toContain('disabled=""')
+  })
+
+  it('keeps the route Product model explicit about creation versus removal', () => {
+    expect(getRouteNoResolveUiState({ primaryTarget: 'surge', matcherKind: 'ip-cidr', hasConfiguredMatcher: true, hasPersistedIntent: false }).canCreate).toBe(true)
+    expect(getRouteNoResolveUiState({ primaryTarget: 'mihomo', matcherKind: 'ip-cidr', hasConfiguredMatcher: true, hasPersistedIntent: true }).canRemove).toBe(true)
   })
 
   it('renders SYSTEM with the same typed built-in surface', () => {

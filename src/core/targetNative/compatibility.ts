@@ -2,6 +2,7 @@ import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
 import type { TargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
+import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from './routeOptions'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
 export function targetNativeUnsupportedIssues(
@@ -10,6 +11,7 @@ export function targetNativeUnsupportedIssues(
   routes: readonly TargetNativeRouteIR[] = [],
   ruleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
   finalOptions?: TargetNativeFinalOptionsIR,
+  routeOptions: readonly TargetNativeRouteOptionsIR[] = [],
 ): CompatibilityIssue[] {
   const strategyIssues = strategies
     .filter((strategy) => strategy && strategy.target !== target)
@@ -40,7 +42,15 @@ export function targetNativeUnsupportedIssues(
     entityId: isTargetNativeFinalOptionsIR(finalOptions) ? finalOptions.finalNodeId : undefined,
     message: `Surge-specific Final dns-failed intent has no proven equivalent for ${target}; change or remove it before export.`,
   }] : []
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routes.map((route) => ({
+  const routeOptionsIssues = routeOptions.flatMap((options) => !isTargetNativeRouteOptionsIR(options) || options.target !== target ? [{
+    target,
+    code: 'TARGET_NATIVE_ROUTE_OPTIONS_UNSUPPORTED',
+    severity: 'error' as const,
+    feature: 'target-native-route-options',
+    entityId: isTargetNativeRouteOptionsIR(options) ? options.routeId : undefined,
+    message: `Surge-specific route options have no proven equivalent for ${target}; change or remove them before export.`,
+  }] : [])
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routes.map((route) => ({
     target,
     code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
     severity: 'error' as const,

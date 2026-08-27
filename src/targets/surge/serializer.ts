@@ -73,9 +73,15 @@ function isTypedSmartEntry(entry: SurgePolicyEntry): entry is SurgeSmartPolicyEn
   return true
 }
 
-export function serializeSurgeRule(type: string, payload: string | undefined, policy: string) {
+export interface SurgeRuleOptions {
+  noResolve?: true
+}
+
+export function serializeSurgeRule(type: string, payload: string | undefined, policy: string, options: SurgeRuleOptions = {}) {
+  if (options.noResolve !== undefined && options.noResolve !== true) throw new Error('Surge rule options are invalid.')
+  if (options.noResolve && !['IP-CIDR', 'IP-CIDR6', 'GEOIP', 'IP-ASN', 'RULE-SET'].includes(type)) throw new Error(`Surge no-resolve is not supported for ${type} rules.`)
   assertSurgeRuleTokens([type, payload, policy])
-  return [type, ...(payload === undefined ? [] : [serializeSurgeToken(payload)]), serializeSurgeToken(policy)].join(',')
+  return [type, ...(payload === undefined ? [] : [serializeSurgeToken(payload)]), serializeSurgeToken(policy), ...(options.noResolve ? ['no-resolve'] : [])].join(',')
 }
 
 export interface SurgeFinalRuleOptions {

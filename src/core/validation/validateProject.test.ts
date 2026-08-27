@@ -71,6 +71,21 @@ describe('validateGraph', () => {
     expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID', nodeId: route.id, severity: 'error' }))
   })
 
+  it('accepts typed route options only on routing rules', () => {
+    const nodes = structuredClone(demoNodes)
+    const route = nodes.find((node) => node.data.blockType === 'service-rule')!
+    route.data.targetNativeRouteOptions = { target: 'surge', kind: 'route-options', noResolve: true }
+    expect(validateGraph(nodes, demoEdges)).not.toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_OPTIONS_INVALID' }))
+
+    route.data.targetNativeRouteOptions = { target: 'surge', kind: 'route-options', noResolve: false } as never
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_OPTIONS_INVALID', nodeId: route.id, severity: 'error' }))
+
+    route.data.targetNativeRouteOptions = undefined
+    const final = nodes.find((node) => node.data.blockType === 'final')!
+    final.data.targetNativeRouteOptions = { target: 'surge', kind: 'route-options', noResolve: true }
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_OPTIONS_INVALID', nodeId: final.id, severity: 'error' }))
+  })
+
   it('reports an invalid filter regular expression as an error', () => {
     const nodes = demoNodes.map((node) => node.id === 'hk-filter' ? {
       ...node,

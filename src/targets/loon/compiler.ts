@@ -19,6 +19,8 @@ export interface LoonCompileOptions {
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
+  targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
+  nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
 }
@@ -31,7 +33,7 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions))
+  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
   const projection = createLoonProjectionContext()
   const compatibility = checkLoonCompatibility(ir, projection)
   issues.push(...compatibility.issues)
@@ -107,6 +109,6 @@ export class LoonCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
-    return compileLoon(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
+    return compileLoon(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources })
   }
 }

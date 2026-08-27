@@ -8,6 +8,7 @@ import { compileStrategies } from './compileStrategies'
 import { compileTargetNativeStrategies } from './compileTargetNativeStrategies'
 import { compileTargetNativeRuleSetSources } from './compileTargetNativeRuleSets'
 import { compileTargetNativeFinalOptions } from './compileTargetNativeFinalOptions'
+import { compileTargetNativeRouteOptions } from './compileTargetNativeRouteOptions'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
@@ -25,6 +26,7 @@ export interface GraphCompileResult {
   nativeRoutes?: import('../targetNative').TargetNativeRouteIR[]
   nativeFinalRoute?: import('../targetNative').TargetNativeRouteIR
   targetNativeFinalOptions?: import('../targetNative').TargetNativeFinalOptionsIR
+  targetNativeRouteOptions?: import('../targetNative').TargetNativeRouteOptionsIR[]
   issues: SemanticIssue[]
   success: boolean
 }
@@ -65,6 +67,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     const routing = compileRouting(context)
     const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
     const targetNativeFinalOptions = compileTargetNativeFinalOptions(context, routing.effectiveFinalNodeId, validationTarget)
+    const targetNativeRouteOptions = compileTargetNativeRouteOptions(context, validationTarget)
     const nativeStrategies = compileTargetNativeStrategies(context, validationTarget)
     const nativeRuleSetSources = compileTargetNativeRuleSetSources(context, validationTarget)
     const targetNativeRuleSetServices: ProxyFlowIR['services'] = []
@@ -129,6 +132,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       nativeRoutes: routing.nativeRoutes,
       nativeFinalRoute: routing.nativeFinalRoute,
       targetNativeFinalOptions,
+      targetNativeRouteOptions,
       ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
     }
   } catch (error) {
@@ -140,6 +144,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       targetNativeRuleSetSources: [],
       nativeRoutes: [],
       targetNativeFinalOptions: undefined,
+      targetNativeRouteOptions: [],
       issues: [semanticIssue(
         'GRAPH_COMPILE_INTERNAL_ERROR',
         'error',

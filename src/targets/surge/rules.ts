@@ -12,24 +12,26 @@ export function compileSurgeRules(context: SurgeCompileContext) {
     ...context.nativeRoutes.map((route, index) => ({ route, index: context.ir.routes.length + index })),
   ]
     .sort((left, right) => left.route.priority - right.route.priority || left.index - right.index)
+  const routeOptions = new Map(context.targetNativeRouteOptions.map((option) => [option.routeId, option]))
   for (const { route } of routes) {
     const target = targetName(route.target, route.id, context)
     if (!target || !route.matcher) continue
+    const options = routeOptions.get(route.id)?.noResolve ? { noResolve: true as const } : undefined
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) {
         const source = resolveSurgeServiceRuleSource(context.ir, serviceId, route.id, context.issues)
-        if (source) rules.push(serializeSurgeRule('RULE-SET', source.url, target))
+        if (source) rules.push(serializeSurgeRule('RULE-SET', source.url, target, options))
       }
       continue
     }
     if (route.matcher.kind === 'rule-set') {
       const name = resolveSurgeBuiltinRuleSetName(context.ir, route.matcher.id, context.nativeRuleSetSources)
-      if (name) rules.push(serializeSurgeRule('RULE-SET', name, target))
+      if (name) rules.push(serializeSurgeRule('RULE-SET', name, target, options))
       continue
     }
     const type = matcherType(route.matcher)
     const payload = matcherPayload(route.matcher)
-    if (type && payload !== undefined) rules.push(serializeSurgeRule(type, payload, target))
+    if (type && payload !== undefined) rules.push(serializeSurgeRule(type, payload, target, options))
   }
   const finalOptions = context.targetNativeFinalOptions?.dnsFailed ? { dnsFailed: true as const } : undefined
   if (context.ir.finalRoute && context.nativeFinalRoute) {

@@ -28,6 +28,7 @@ import {
 } from '../../core/subscription'
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
+import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -769,6 +770,50 @@ export function SurgeFinalOptionsEditor({ node, primaryTarget, finalTargetNative
   </section>
 }
 
+export interface SurgeRouteOptionsEditorProps {
+  node: GraphNode
+  primaryTarget: PrimaryTarget | null | undefined
+  matcherKind: BlockNodeData['routeMatcherKind']
+  hasConfiguredMatcher: boolean
+}
+
+/** Small routing-rule editor for the typed Surge `no-resolve` intent. */
+export function SurgeRouteOptionsEditor({ node, primaryTarget, matcherKind, hasConfiguredMatcher }: SurgeRouteOptionsEditorProps) {
+  const { t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const state = getRouteNoResolveUiState({
+    primaryTarget,
+    matcherKind,
+    hasConfiguredMatcher,
+    hasPersistedIntent: node.data.targetNativeRouteOptions !== undefined,
+  })
+  const hint = state.isMatcherMissing
+    ? t('inspector.routeOptions.matcherMissingHint')
+    : state.isMatcherSupported ? t('inspector.routeOptions.hint') : t('inspector.routeOptions.unsupportedHint')
+  return <section className="target-native-card route-options-editor" data-route-options="no-resolve" data-route-matcher-kind={matcherKind ?? ''}>
+    <div className="target-native-card-heading">
+      <span><strong>{t('inspector.routeOptions.title')}</strong><small>{hint}</small></span>
+      <em className="node-native-badge">{t('inspector.routeOptions.surgeOnlyLabel')}</em>
+    </div>
+    <label className="toggle-row compact">
+      <span><strong>{t('inspector.routeOptions.label')}</strong><small>{t('inspector.routeOptions.toggleHint')}</small></span>
+      <input
+        type="checkbox"
+        aria-label={t('inspector.routeOptions.label')}
+        checked={state.hasPersistedIntent}
+        disabled={state.toggleDisabled}
+        onChange={(event) => {
+          if (event.target.checked && !state.canCreate) return
+          update(node.id, routeNoResolveOptionsPatch(event.target.checked))
+        }}
+      />
+    </label>
+    {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.routeOptions.surgeOnly')}</strong><small>{t('inspector.routeOptions.targetMismatch')}</small></span></div>}
+    {state.isMatcherMissing && state.hasPersistedIntent && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.routeOptions.matcherMissing')}</strong><small>{t('inspector.routeOptions.matcherMissingDetail')}</small></span></div>}
+    {state.isIncompatible && !state.isMatcherMissing && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.routeOptions.incompatible')}</strong><small>{t('inspector.routeOptions.unsupportedHint')}</small></span></div>}
+  </section>
+}
+
 export function RoutingInspector({ node }: InspectorProps) {
   const { locale, t } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
@@ -802,6 +847,7 @@ export function RoutingInspector({ node }: InspectorProps) {
   const isServiceRoute = matcherKind === 'service'
   const isAdvancedMatcher = Boolean(matcherKind && matcherKind !== 'rule-set' && ADVANCED_ROUTE_MATCHERS.includes(matcherKind))
   const matcherValue = node.data.routeMatcherValue ?? ''
+  const hasConfiguredMatcher = isRouteMatcherConfigured(matcherKind, node.data)
   const setMatcher = (value: BlockNodeData['routeMatcherKind']) => update(node.id, {
     routeMatcherKind: value,
     ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
@@ -831,6 +877,7 @@ export function RoutingInspector({ node }: InspectorProps) {
     }} t={t} />}
     {isCustomRule && matcherKind === 'rule-set' && !nativeRuleSet && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
     {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
+    {isRouteRule && <SurgeRouteOptionsEditor node={node} primaryTarget={primaryTarget} matcherKind={matcherKind} hasConfiguredMatcher={hasConfiguredMatcher} />}
     <Field label={t('inspector.targetStrategy')}><WebSelect label={t('inspector.targetStrategy')} value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(value) => setTarget(node.id, value)} options={[{ value: '', label: t('inspector.selectTarget'), disabled: true }, { value: '__direct__', label: 'DIRECT' }, { value: '__reject__', label: 'REJECT' }, ...targets.map((target) => ({ value: target.id, label: localizeNodeTitle(target, locale) }))]} /></Field>
     {node.data.blockType === 'final' && <SurgeFinalOptionsEditor node={node} primaryTarget={primaryTarget} finalTargetNativeKind={finalTargetNativeKind} hasConfiguredFinalTarget={hasConfiguredFinalTarget} />}
     {isCustomRule && <Advanced>
