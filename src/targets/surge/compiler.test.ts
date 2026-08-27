@@ -6,6 +6,8 @@ import {
   type ResolvedProxyEndpointIR,
   type TrafficMatcherIR,
 } from '../../core/ir'
+import { compileGraph } from '../../core/graphCompiler'
+import { surgeNativeAcceptanceProject } from '../../core/__fixtures__/surgeNativeStrategies'
 import { legacyChinaServiceDefinition } from '../../data/legacyServices'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { compileSurge, SurgeCompiler } from './compiler'
@@ -87,6 +89,46 @@ function replaceStrategies(ir: ProxyFlowIR, strategies: ProxyFlowIR['strategies'
 }
 
 describe('SurgeCompiler', () => {
+  it('lowers a graph strategy target with a DIRECT display label as a strategy policy', () => {
+    const project = structuredClone(surgeNativeAcceptanceProject)
+    const strategyId = 'direct-labeled-strategy'
+    project.graph.nodes.push(
+      {
+        id: 'proxy', type: 'block', position: { x: 0, y: 240 }, data: {
+          blockType: 'manual-proxy', category: 'source', title: 'Proxy', subtitle: '', icon: 'server',
+          proxyProtocol: 'socks5', proxyServer: 'proxy.example.test', proxyPort: 1080,
+        },
+      },
+      {
+        id: strategyId, type: 'block', position: { x: 260, y: 240 }, data: {
+          blockType: 'auto-select', category: 'strategy', title: 'DIRECT Labeled Strategy', subtitle: '', icon: 'gauge',
+        },
+      },
+      {
+        id: 'labeled-route', type: 'block', position: { x: 520, y: 240 }, data: {
+          blockType: 'custom-rule', category: 'routing', title: 'Labeled route', subtitle: '', icon: 'route',
+          routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com',
+          targetKind: 'strategy', targetId: strategyId, targetLabel: 'DIRECT', routePriority: 10,
+        },
+      },
+    )
+    project.graph.edges.push(
+      { id: 'proxy-strategy', source: 'proxy', target: strategyId, type: 'smoothstep', data: { semantic: 'data' } },
+      { id: 'route-strategy', source: 'labeled-route', target: strategyId, type: 'smoothstep', data: { semantic: 'route' } },
+    )
+
+    const graph = compileGraph(project, { validationTarget: 'surge' })
+    expect(graph.success, graph.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
+    expect(graph.ir?.routes.find((route) => route.id === 'labeled-route')?.target).toEqual({ kind: 'strategy', id: strategyId })
+    const result = compileSurge(graph.ir!, {
+      nativeStrategies: graph.nativeStrategies,
+      nativeFinalRoute: graph.nativeFinalRoute,
+    })
+    expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
+    expect(sectionLines(result.content, 'Rule')).toContain('DOMAIN-SUFFIX,example.com,DIRECT Labeled Strategy')
+    expect(sectionLines(result.content, 'Rule')).not.toContain('DOMAIN-SUFFIX,example.com,DIRECT')
+  })
+
   it('compiles the representative minimal profile fixture and implements ConfigCompiler', async () => {
     const ir = baseIR()
     const result = compileSuccessfully(ir)

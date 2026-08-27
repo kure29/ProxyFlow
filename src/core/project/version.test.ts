@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import { legacyChinaServiceDefinition } from '../../data/legacyServices'
+import { chinaDirectFixture } from '../__fixtures__/graphFixtures'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from './version'
 
 describe('project schema version', () => {
@@ -76,6 +77,20 @@ describe('project schema version', () => {
       subtitle: '真实编译 · MVP', compatibility: 'Compiled',
     }))
     expect(result.project?.graph.edges).toContainEqual(expect.objectContaining({ source: final.id, target: 'us-via-hk', data: { semantic: 'route' } }))
+  })
+
+  it('normalizes legacy V1 route targets once before compiler ownership', () => {
+    const legacy = structuredClone(chinaDirectFixture)
+    for (const node of legacy.graph.nodes.filter((item) => item.data.category === 'routing')) delete node.data.targetKind
+    legacy.graph.nodes.find((node) => node.id === 'final')!.data.targetLabel = 'DIRECT'
+    const result = migrateProject(legacy)
+    expect(result).toEqual(expect.objectContaining({ success: true, migrated: true, toVersion: 2 }))
+    expect(result.project?.graph.nodes.find((node) => node.id === 'china-route')?.data).toEqual(expect.objectContaining({
+      targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct',
+    }))
+    expect(result.project?.graph.nodes.find((node) => node.id === 'final')?.data).toEqual(expect.objectContaining({
+      targetId: 'auto', targetKind: 'strategy',
+    }))
   })
 
   it('fails closed for unknown project versions without overwriting recovery data', () => {

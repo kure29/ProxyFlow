@@ -30,12 +30,14 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
       ))
       return []
     }
-    const nativeTarget = nativeStrategyTarget(node.data.targetId, context)
+    const nativeTarget = node.data.targetKind === 'strategy'
+      ? nativeStrategyTarget(node.data.targetId, context)
+      : undefined
     if (nativeTarget) {
       nativeRoutes.push({ id: node.id, name: node.data.title, matcher, target: nativeTarget, priority })
       return []
     }
-    const target = compileRouteTarget(node.data.targetKind, node.data.targetId, node.data.targetLabel, context)
+    const target = compileRouteTarget(node.data.targetKind, node.data.targetId, context)
     if (!target) {
       context.addIssue(semanticIssue(
         'ROUTE_TARGET_MISSING', 'error', 'compile', `Route "${node.data.title}" has no valid target.`,
@@ -63,8 +65,10 @@ export function compileRouting(context: GraphCompileContext): CompiledRouting {
   ))
   const finalNode = finalNodes[0]
   const effectiveFinalNodeId = finalNode.id
-  const target = compileRouteTarget(finalNode.data.targetKind, finalNode.data.targetId, finalNode.data.targetLabel, context)
-  const nativeTarget = nativeStrategyTarget(finalNode.data.targetId, context)
+  const target = compileRouteTarget(finalNode.data.targetKind, finalNode.data.targetId, context)
+  const nativeTarget = finalNode.data.targetKind === 'strategy'
+    ? nativeStrategyTarget(finalNode.data.targetId, context)
+    : undefined
   if (nativeTarget) return {
     routes,
     nativeRoutes,
@@ -157,15 +161,11 @@ function compileServiceIds(nodeId: string, name: string, services: string[], con
 function compileRouteTarget(
   targetKind: 'strategy' | 'direct' | 'reject' | undefined,
   targetId: string | undefined,
-  targetLabel: string | undefined,
   context: GraphCompileContext,
 ): RouteTargetIR | undefined {
   if (targetKind === 'direct') return { kind: 'direct' }
   if (targetKind === 'reject') return { kind: 'reject' }
-  const normalized = `${targetId ?? ''} ${targetLabel ?? ''}`.trim().toLowerCase()
-  if (/\bdirect\b/.test(normalized)) return { kind: 'direct' }
-  if (/\breject\b/.test(normalized)) return { kind: 'reject' }
-  if (!targetId) return undefined
+  if (targetKind !== 'strategy' || !targetId) return undefined
   const targetNode = context.nodesById.get(targetId)
   return targetNode && isStrategyNode(targetNode) ? { kind: 'strategy', id: targetId } : undefined
 }

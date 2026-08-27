@@ -45,6 +45,17 @@ describe('validateGraph', () => {
     ]))
   })
 
+  it('does not infer an inline Final target from an untyped label', () => {
+    const nodes = demoNodes.map((node) => node.id === 'final-route' ? {
+      ...node,
+      data: { ...node.data, targetKind: undefined, targetId: undefined, targetLabel: 'DIRECT' },
+    } : node)
+    const edges = demoEdges.filter((edge) => edge.source !== 'final-route')
+    expect(validateGraph(nodes, edges)).toContainEqual(expect.objectContaining({
+      nodeId: 'final-route', code: 'UI_FINAL_TARGET_MISSING', severity: 'error',
+    }))
+  })
+
   it('accepts typed Final options only on enabled Final nodes', () => {
     const nodes = structuredClone(demoNodes)
     const final = nodes.find((node) => node.data.blockType === 'final')!

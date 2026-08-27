@@ -44,7 +44,7 @@ const subscription = (id: string) => node(id, 'subscription', 'source', {
   subscriptionUrl: `https://example.com/${id}`, subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', subscriptionExportMode: 'auto', enabled: true,
 })
 const output = () => node('output', 'output', 'output', { client: 'mihomo' })
-const final = (targetId: string) => node('final', 'final', 'routing', { targetId, targetLabel: targetId })
+const final = (targetId: string) => node('final', 'final', 'routing', { targetId, targetLabel: targetId, targetKind: 'strategy' })
 const validTail = (targetId: string) => ({
   nodes: [final(targetId), output()],
   edges: [edge(`e-final-${targetId}`, 'final', targetId, 'route'), edge(`e-${targetId}-output`, targetId, 'output', 'output')],
@@ -121,7 +121,7 @@ export const openAiRouteFixture = (() => {
   return project('openai-to-us-auto', [
     subscription('subscription'),
     node('us-auto', 'auto-select', 'strategy'),
-    node('openai-route', 'service-rule', 'routing', { services: ['OpenAI'], targetId: 'us-auto', targetLabel: 'US Auto' }),
+    node('openai-route', 'service-rule', 'routing', { services: ['OpenAI'], targetId: 'us-auto', targetLabel: 'US Auto', targetKind: 'strategy' }),
     ...tail.nodes,
   ], [
     edge('e-sub-auto', 'subscription', 'us-auto', 'data'),
@@ -135,7 +135,7 @@ export const chinaDirectFixture = (() => {
   return project('china-direct', [
     subscription('subscription'),
     node('auto', 'auto-select', 'strategy'),
-    node('china-route', 'service-rule', 'routing', { services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT' }),
+    node('china-route', 'service-rule', 'routing', { services: ['China Mainland'], targetId: 'output', targetLabel: 'DIRECT', targetKind: 'direct' }),
     ...tail.nodes,
   ], [
     edge('e-sub-auto', 'subscription', 'auto', 'data'),
@@ -150,7 +150,7 @@ export const customDomainRouteFixture = (() => {
     subscription('subscription'),
     node('auto', 'auto-select', 'strategy'),
     node('custom-route', 'custom-rule', 'routing', {
-      routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com', targetId: 'auto', targetLabel: 'Auto',
+      routeMatcherKind: 'domain-suffix', routeMatcherValue: 'example.com', targetId: 'auto', targetLabel: 'Auto', targetKind: 'strategy',
     }),
     ...tail.nodes,
   ], [
@@ -166,7 +166,7 @@ export const customPortRouteFixture = (() => {
     subscription('subscription'),
     node('auto', 'auto-select', 'strategy'),
     node('custom-route', 'custom-rule', 'routing', {
-      routeMatcherKind: 'port', routeMatcherPort: 443, targetId: 'auto', targetLabel: 'Auto',
+      routeMatcherKind: 'port', routeMatcherPort: 443, targetId: 'auto', targetLabel: 'Auto', targetKind: 'strategy',
     }),
     ...tail.nodes,
   ], [
@@ -189,7 +189,7 @@ function chainFixture(id: string, hopIds: string[]) {
     ...sourceNodes,
     ...strategyNodes,
     node('chain', 'proxy-chain', 'chain', { hopIds }),
-    node('route', 'routing-group', 'routing', { services: ['OpenAI'], targetId: 'chain', targetLabel: 'Chain' }),
+    node('route', 'routing-group', 'routing', { services: ['OpenAI'], targetId: 'chain', targetLabel: 'Chain', targetKind: 'strategy' }),
     ...tail.nodes,
   ], [
     ...hopIds.map((hopId) => edge(`e-${hopId}-input`, `${hopId}-source`, hopId, 'data')),
