@@ -337,6 +337,82 @@ describe('SurgeCompiler', () => {
     ])
   })
 
+  it('lowers DEST-PORT for DIRECT, REJECT and compiled strategy targets', () => {
+    const ir = baseIR()
+    ir.routes = [
+      route('dns', { kind: 'port', port: 53 }, { kind: 'direct' }, 10),
+      route('smtp', { kind: 'port', port: 25 }, { kind: 'reject' }, 20),
+      route('https', { kind: 'port', port: 443 }, { kind: 'strategy', id: 'manual' }, 30),
+    ]
+
+    const result = compileSuccessfully(ir)
+    expect(sectionLines(result.content, 'Rule')).toEqual([
+      'DEST-PORT,53,DIRECT',
+      'DEST-PORT,25,REJECT',
+      'DEST-PORT,443,Proxy',
+      'FINAL,Proxy',
+    ])
+    expect(result.issues.map((issue) => issue.code)).not.toContain('SURGE_MATCHER_UNSUPPORTED')
+  })
+
+  it('lowers IP-ASN in canonical numeric form for DIRECT, REJECT and compiled strategy targets', () => {
+    const ir = baseIR()
+    ir.routes = [
+      route('cloudflare', { kind: 'asn', value: 13335 }, { kind: 'direct' }, 10),
+      route('google', { kind: 'asn', value: 15169 }, { kind: 'reject' }, 20),
+      route('amazon', { kind: 'asn', value: 16509 }, { kind: 'strategy', id: 'manual' }, 30),
+    ]
+
+    const result = compileSuccessfully(ir)
+    expect(sectionLines(result.content, 'Rule')).toEqual([
+      'IP-ASN,13335,DIRECT',
+      'IP-ASN,15169,REJECT',
+      'IP-ASN,16509,Proxy',
+      'FINAL,Proxy',
+    ])
+    expect(result.content).not.toContain('IP-ASN,AS')
+    expect(result.issues.map((issue) => issue.code)).not.toContain('SURGE_MATCHER_UNSUPPORTED')
+  })
+
+  it('preserves cross-matcher priority ordering and keeps FINAL last', () => {
+    const ir = baseIR()
+    ir.routes = [
+      route('domain', { kind: 'domain', value: 'domain.example' }, { kind: 'direct' }, 10),
+      route('port', { kind: 'port', port: 443 }, { kind: 'reject' }, 20),
+      route('asn', { kind: 'asn', value: 13335 }, { kind: 'strategy', id: 'manual' }, 30),
+      route('geo', { kind: 'geo-ip', countryCode: 'US' }, { kind: 'direct' }, 40),
+    ]
+
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      'DOMAIN,domain.example,DIRECT',
+      'DEST-PORT,443,REJECT',
+      'IP-ASN,13335,Proxy',
+      'GEOIP,US,DIRECT',
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('keeps same-priority port and ASN routes in stable insertion order', () => {
+    const ir = baseIR()
+    ir.routes = [
+      route('first', { kind: 'port', port: 443 }, { kind: 'direct' }, 10),
+      route('second', { kind: 'asn', value: 13335 }, { kind: 'reject' }, 10),
+    ]
+
+    expect(sectionLines(compileSuccessfully(ir).content, 'Rule')).toEqual([
+      'DEST-PORT,443,DIRECT',
+      'IP-ASN,13335,REJECT',
+      'FINAL,Proxy',
+    ])
+  })
+
+  it('continues to fail closed for unsupported geo-site matchers', () => {
+    const ir = baseIR()
+    ir.routes = [route('geo-site', { kind: 'geo-site', category: 'cn' }, { kind: 'direct' }, 10)]
+
+    compileFailure(ir, 'SURGE_MATCHER_UNSUPPORTED')
+  })
+
   it('keeps Service, Service and FINAL in priority order', () => {
     const ir = baseIR()
     ir.services = structuredClone(serviceCatalog)
