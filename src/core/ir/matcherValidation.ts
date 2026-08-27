@@ -85,6 +85,46 @@ export function validateMatcherIR(matcher: TrafficMatcherIR): MatcherValidationC
   return result.ok ? undefined : result.code
 }
 
+/**
+ * Runtime boundary guard for deserialised matcher records.
+ *
+ * Universal IR validation performs semantic checks on typed values, but
+ * target-native compiler extensions must also reject unknown own keys before
+ * they can be silently stripped by a target serializer.
+ */
+export function isExactTrafficMatcherIR(value: unknown): value is TrafficMatcherIR {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  const kind = candidate.kind
+  if (kind === 'service') {
+    if (!hasExactKeys(value, ['kind', 'serviceIds']) || !Array.isArray(candidate.serviceIds)
+      || !candidate.serviceIds.every((id) => typeof id === 'string' && Boolean(id.trim()))) return false
+  } else if (kind === 'domain' || kind === 'domain-suffix' || kind === 'domain-keyword'
+    || kind === 'ip-cidr' || kind === 'ip-cidr6') {
+    if (!hasExactKeys(value, ['kind', 'value']) || typeof candidate.value !== 'string') return false
+  } else if (kind === 'port') {
+    if (!hasExactKeys(value, ['kind', 'port']) || typeof candidate.port !== 'number') return false
+  } else if (kind === 'asn') {
+    if (!hasExactKeys(value, ['kind', 'value']) || typeof candidate.value !== 'number') return false
+  } else if (kind === 'geo-ip') {
+    if (!hasExactKeys(value, ['kind', 'countryCode']) || typeof candidate.countryCode !== 'string') return false
+  } else if (kind === 'geo-site') {
+    if (!hasExactKeys(value, ['kind', 'category']) || typeof candidate.category !== 'string') return false
+  } else if (kind === 'rule-set') {
+    if (!hasExactKeys(value, ['kind', 'id']) || typeof candidate.id !== 'string') return false
+  } else {
+    return false
+  }
+
+  return validateMatcherIR(value as TrafficMatcherIR) === undefined
+}
+
+function hasExactKeys(value: object, allowed: readonly string[]) {
+  const keys = Reflect.ownKeys(value)
+  return keys.length === allowed.length
+    && keys.every((key) => typeof key === 'string' && allowed.includes(key))
+}
+
 function normalizeInteger(value: unknown) {
   if (typeof value === 'number') return value
   if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim())

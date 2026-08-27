@@ -19,7 +19,7 @@ export interface SingBoxCompileOptions {
   targetNativeStrategies?: TargetNativeStrategyIR[]
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
-  nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
+  nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
@@ -35,7 +35,7 @@ export function compileSingBox(ir: ProxyFlowIR, options: SingBoxCompileOptions =
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
+  issues.push(...targetNativeUnsupportedIssues('sing-box', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute))
   const compatibility = checkSingBoxCompatibility(ir)
   issues.push(...compatibility.issues)
   if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(issues, generatedAt)

@@ -107,7 +107,7 @@ describe('Surge native no-resolve route option', () => {
 
     const ambiguous = compileSurge(baseIR(), {
       targetNativeRouteOptions: [routeOptions],
-      nativeRoutes: [{ id: 'route', name: 'Native route', matcher: baseIR().routes[0].matcher, target: { kind: 'strategy', id: 'proxy-group' }, priority: 20 }],
+      nativeRoutes: [{ id: 'route', name: 'Native route', matcher: baseIR().routes[0].matcher, target: { kind: 'strategy', id: 'proxy-group' }, priority: 20, routingOrder: 1 }],
     })
     expect(ambiguous.success).toBe(false)
     expect(ambiguous.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_OWNER_MISMATCH', severity: 'error' }))

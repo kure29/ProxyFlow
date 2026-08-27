@@ -12,7 +12,7 @@ import { compileShadowrocketStrategies } from './strategies'
 import { createShadowrocketProjectionContext, shadowrocketProjectionStats } from './projection'
 import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR } from '../../core/targetNative'
 
-export interface ShadowrocketCompileOptions { now?: () => Date; targetNativeStrategies?: TargetNativeStrategyIR[]; nativeStrategies?: TargetNativeStrategyIR[]; nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]; nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR; targetNativeFinalOptions?: TargetNativeFinalOptionsIR; targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]; nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[] }
+export interface ShadowrocketCompileOptions { now?: () => Date; targetNativeStrategies?: TargetNativeStrategyIR[]; nativeStrategies?: TargetNativeStrategyIR[]; nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]; nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR; targetNativeFinalOptions?: TargetNativeFinalOptionsIR; targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]; nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[] }
 
 export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompileOptions = {}): CompileResult {
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
@@ -29,7 +29,7 @@ export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompil
     issues.push(...irIssues.map((issue) => shadowrocketIssue(`IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId)))
     const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
     const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-    issues.push(...targetNativeUnsupportedIssues('shadowrocket', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
+    issues.push(...targetNativeUnsupportedIssues('shadowrocket', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute))
     let compatibility
     try {
       compatibility = checkShadowrocketCompatibility(ir, projection)

@@ -24,7 +24,7 @@ export interface GraphCompileResult {
   nativeRuleSetSources?: import('../targetNative').TargetNativeRuleSetSourceIR[]
   targetNativeRuleSetSources?: import('../targetNative').TargetNativeRuleSetSourceIR[]
   nativeRoutes?: import('../targetNative').TargetNativeRouteIR[]
-  nativeFinalRoute?: import('../targetNative').TargetNativeRouteIR
+  nativeFinalRoute?: import('../targetNative').TargetNativeFinalRouteIR
   /** Compiler-owned Project Final node identity used by target adapters. */
   effectiveFinalNodeId?: string
   targetNativeFinalOptions?: import('../targetNative').TargetNativeFinalOptionsIR

@@ -22,7 +22,7 @@ export interface MihomoCompileOptions {
   targetNativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
   nativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
-  nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
+  nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
@@ -42,7 +42,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
+  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute))
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
   const compatibility = checkMihomoCompatibility(ir)

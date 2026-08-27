@@ -17,7 +17,7 @@ export interface LoonCompileOptions {
   targetNativeStrategies?: TargetNativeStrategyIR[]
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
-  nativeFinalRoute?: import('../../core/targetNative').TargetNativeRouteIR
+  nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
   nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]
@@ -33,7 +33,7 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, [...(options.nativeRoutes ?? []), ...(options.nativeFinalRoute ? [options.nativeFinalRoute] : [])], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions))
+  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute))
   const projection = createLoonProjectionContext()
   const compatibility = checkLoonCompatibility(ir, projection)
   issues.push(...compatibility.issues)

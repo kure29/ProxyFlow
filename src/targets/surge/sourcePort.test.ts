@@ -89,7 +89,7 @@ describe('Surge-native SRC-PORT lowering', () => {
     misplaced.matcher = { kind: 'domain', value: 'example.com' }
 
     const missingMatcher = sourcePortRoute({ kind: 'direct' })
-    missingMatcher.matcher = undefined
+    missingMatcher.matcher = undefined as never
 
     const missingProvenance = sourcePortRoute({ kind: 'direct' })
     missingProvenance.targetNativeSourcePort = undefined
@@ -127,7 +127,7 @@ describe('Surge-native SRC-PORT lowering', () => {
 
   it('requires routingOrder on every native route', () => {
     const missing = sourcePortRoute({ kind: 'direct' })
-    delete missing.routingOrder
+    delete (missing as { routingOrder?: number }).routingOrder
     const result = compileSurge(baseIR(), { nativeRoutes: [missing] })
     expect(result.success).toBe(false)
     expect(result.content).toBe('')
