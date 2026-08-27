@@ -1,6 +1,6 @@
 import type { ProxyFlowIR, ProxyEndpointIR } from '../../core/ir'
 import {
-  isPolicyReference, isTargetNativeStrategyConfig, isValidSurgeMccmnc, subnetMatcherExpression,
+  isPolicyReference, isTargetNativeStrategyIR, isValidSurgeMccmnc, subnetMatcherExpression,
   type PolicyReference, type TargetNativeStrategyIR,
 } from '../../core/targetNative'
 import type { CompatibilityIssue } from '../../types/project'
@@ -20,14 +20,26 @@ export function validateSurgeNativeStrategies(
   const endpointById = allEndpoints(ir)
   const strategyIds = new Set(ir.strategies.map((strategy) => strategy.id))
   const nativeIds = new Set(nativeStrategies.flatMap((strategy) => typeof strategy?.id === 'string' ? [strategy.id] : []))
+  const seenIds = new Set<string>()
   const names = new Map<string, string>()
   for (const strategy of nativeStrategies) {
-    if (!strategy || typeof strategy.id !== 'string' || typeof strategy.name !== 'string' || !isTargetNativeStrategyConfig(strategy)) {
+    if (!strategy || !isTargetNativeStrategyIR(strategy)) {
+      reportMalformedStrategySemantics(strategy, issues)
+      const raw = strategy as unknown as { id?: unknown }
       issues.push(surgeIssue(
-        'TARGET_NATIVE_STRATEGY_INVALID', 'error', 'strategy', 'A target-native strategy contains invalid typed configuration.', typeof strategy?.id === 'string' ? strategy.id : undefined,
+        'TARGET_NATIVE_STRATEGY_INVALID', 'error', 'strategy', 'A target-native strategy contains invalid typed configuration.', typeof raw?.id === 'string' ? raw.id : undefined,
       ))
       continue
     }
+    if (seenIds.has(strategy.id)) issues.push(surgeIssue(
+      'SURGE_NATIVE_STRATEGY_ID_DUPLICATE', 'error', 'strategy',
+      `Target-native strategy id “${strategy.id}” occurs more than once and cannot be lowered deterministically.`, strategy.id,
+    ))
+    seenIds.add(strategy.id)
+    if (strategyIds.has(strategy.id)) issues.push(surgeIssue(
+      'SURGE_NATIVE_STRATEGY_ID_COLLISION', 'error', 'strategy',
+      `Target-native strategy id “${strategy.id}” collides with a Universal strategy id.`, strategy.id,
+    ))
     if (!isSafeSurgePolicyName(strategy.name)) issues.push(surgeIssue(
       'SURGE_POLICY_NAME_UNSAFE', 'error', 'naming', `Policy name “${strategy.name}” cannot be preserved safely in the current Surge profile grammar.`, strategy.id,
     ))
@@ -93,12 +105,47 @@ export function validateSurgeNativeStrategies(
   validateNativeStrategyCycles(nativeStrategies, issues)
 }
 
+/**
+ * Preserve useful semantic diagnostics for malformed runtime records while
+ * keeping the exact-shape guard authoritative for admission to compilation.
+ */
+function reportMalformedStrategySemantics(strategy: unknown, issues: CompatibilityIssue[]) {
+  if (!strategy || typeof strategy !== 'object') return
+  const raw = strategy as Record<string, unknown>
+  const name = typeof raw.name === 'string' ? raw.name : 'Unnamed'
+  const id = typeof raw.id === 'string' ? raw.id : undefined
+  if (raw.kind === 'smart' && Array.isArray(raw.members)) {
+    for (const member of raw.members) if (!isPolicyReference(member) || member.kind !== 'proxy') issues.push(surgeIssue(
+      'SURGE_SMART_MEMBER_UNSUPPORTED', 'error', 'strategy',
+      `Smart strategy “${name}” accepts proxy endpoints only; malformed or ${isPolicyReference(member) ? member.kind : 'unknown'} policies are not valid candidates.`, id,
+    ))
+    return
+  }
+  if (raw.kind !== 'subnet') return
+  if (!isPolicyReference(raw.defaultPolicy)) issues.push(surgeIssue(
+    isUnsupportedBuiltinReference(raw.defaultPolicy) ? 'SURGE_SUBNET_BUILTIN_UNSUPPORTED' : 'SURGE_SUBNET_DEFAULT_REQUIRED',
+    'error', 'strategy', `Subnet strategy “${name}” requires a supported default policy reference.`, id,
+  ))
+  if (!Array.isArray(raw.conditions)) return
+  raw.conditions.forEach((condition, index) => {
+    const candidate = condition as Record<string, unknown> | null
+    if (!candidate || !isSurgeMatcher(candidate.matcher)) issues.push(surgeIssue(
+      'SURGE_SUBNET_MATCHER_INVALID', 'error', 'strategy',
+      `Subnet strategy “${name}” condition ${index + 1} has a missing or invalid matcher value.`, id,
+    ))
+    if (!candidate || !isPolicyReference(candidate.policy)) issues.push(surgeIssue(
+      isUnsupportedBuiltinReference(candidate?.policy) ? 'SURGE_SUBNET_BUILTIN_UNSUPPORTED' : 'SURGE_SUBNET_POLICY_INVALID',
+      'error', 'strategy', `Subnet strategy “${name}” condition ${index + 1} has no valid policy target.`, id,
+    ))
+  })
+}
+
 function validateNativeStrategyCycles(
   nativeStrategies: readonly TargetNativeStrategyIR[],
   issues: CompatibilityIssue[],
 ) {
   const strategies = new Map(nativeStrategies.flatMap((strategy) => {
-    if (!strategy || typeof strategy.id !== 'string' || !isTargetNativeStrategyConfig(strategy)) return []
+    if (!strategy || !isTargetNativeStrategyIR(strategy)) return []
     return [[strategy.id, strategy] as const]
   }))
   const visiting = new Set<string>()
@@ -175,7 +222,7 @@ export function compileSurgeNativeStrategies(
   context: SurgeCompileContext,
 ) {
   const validStrategies = nativeStrategies.filter((strategy): strategy is TargetNativeStrategyIR => Boolean(
-    strategy && typeof strategy.id === 'string' && typeof strategy.name === 'string' && isTargetNativeStrategyConfig(strategy),
+    strategy && isTargetNativeStrategyIR(strategy),
   )).sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
   // Register every native name before compiling any entry so references are
   // independent of the physical node/array order in the Project graph.

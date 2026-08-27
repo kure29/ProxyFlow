@@ -1,6 +1,6 @@
 import { findRuleSourceMatches, type ProxyFlowIR } from '../../core/ir'
 import {
-  isTargetNativeRuleSetSourceConfig,
+  isTargetNativeRuleSetSourceIR,
   type TargetNativeRuleSetSourceIR,
 } from '../../core/targetNative'
 
@@ -21,6 +21,6 @@ export function resolveSurgeBuiltinRuleSetName(
   ))
   if (nativeMatches.length !== 1) return undefined
   const native = nativeMatches[0]
-  if (native.target !== 'surge' || native.kind !== 'builtin-rule-set' || !isTargetNativeRuleSetSourceConfig(native)) return undefined
+  if (native.target !== 'surge' || native.kind !== 'builtin-rule-set' || !isTargetNativeRuleSetSourceIR(native)) return undefined
   return native.name
 }

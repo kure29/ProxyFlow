@@ -14,7 +14,7 @@ import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
 import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
-import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR } from '../../core/targetNative'
+import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR, isTargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from '../../core/targetNative'
 import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { SURGE_NO_RESOLVE_MATCHERS } from '../../core/routing/routeOptionsProductModel'
@@ -39,11 +39,16 @@ export function checkSurgeCompatibility(
   nativeFinalRoute?: TargetNativeRouteIR,
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR,
   targetNativeRouteOptions: readonly TargetNativeRouteOptionsIR[] = [],
+  effectiveFinalNodeId?: string,
 ): SurgeCompatibilityResult {
   const issues: CompatibilityIssue[] = []
   const policyOwners = new Map<string, string>()
 
-  validateSurgeFinalOptions(ir, nativeFinalRoute, targetNativeFinalOptions, issues)
+  if (ir.finalRoute && nativeFinalRoute) issues.push(surgeIssue(
+    'SURGE_FINAL_ROUTE_AMBIGUOUS', 'error', 'route',
+    'Surge received both a Universal and a target-native Final route.', 'final',
+  ))
+  validateSurgeFinalOptions(ir, nativeFinalRoute, targetNativeFinalOptions, effectiveFinalNodeId, issues)
   validateSurgeRouteOptions(ir, nativeRoutes, targetNativeRouteOptions, issues)
 
   for (const source of ir.sources) {
@@ -99,10 +104,9 @@ export function checkSurgeCompatibility(
   validateSurgeRouteOrdering(ir, nativeRoutes, issues)
 
   const targetNativeRuleSetSourceIds = new Set(
-    nativeRuleSetSources
-      .filter((source) => Boolean(source) && typeof source === 'object' && typeof source.sourceId === 'string')
-      .map((source) => source.sourceId),
+    nativeRuleSetSources.flatMap((source) => isTargetNativeRuleSetSourceIR(source) ? [source.sourceId] : []),
   )
+  validateSurgeRuleSetSources(nativeRuleSetSources, issues)
   for (const route of [...ir.routes, ...nativeRoutes]) {
     if (!Number.isFinite(route.priority)) issues.push(surgeIssue(
       'SURGE_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route “${route.name}” has a non-finite priority.`, route.id,
@@ -151,7 +155,7 @@ function validateSurgeRouteOrdering(
   nativeRoutes: readonly TargetNativeRouteIR[],
   issues: CompatibilityIssue[],
 ) {
-  if (!nativeRoutes.some((route) => route.routingOrder !== undefined)) return
+  if (nativeRoutes.length === 0) return
   const total = ir.routes.length + nativeRoutes.length
   const orders = nativeRoutes.map((route) => route.routingOrder)
   const valid = orders.every((order): order is number => typeof order === 'number'
@@ -161,6 +165,28 @@ function validateSurgeRouteOrdering(
     'SURGE_ROUTE_ORDER_INVALID', 'error', 'route',
     'Target-native route ordering provenance is incomplete, duplicated, or outside the compiled route set.', 'route-order',
   ))
+}
+
+function validateSurgeRuleSetSources(
+  sources: readonly TargetNativeRuleSetSourceIR[],
+  issues: CompatibilityIssue[],
+) {
+  const seen = new Set<string>()
+  for (const source of sources) {
+    if (!isTargetNativeRuleSetSourceIR(source)) {
+      const raw = source as unknown as { sourceId?: unknown }
+      issues.push(surgeIssue(
+        'TARGET_NATIVE_RULE_SET_INVALID', 'error', 'rule-set',
+        'A target-native Rule Set source contains invalid runtime data.', typeof raw.sourceId === 'string' ? raw.sourceId : 'rule-set',
+      ))
+      continue
+    }
+    if (seen.has(source.sourceId)) issues.push(surgeIssue(
+      'TARGET_NATIVE_RULE_SET_AMBIGUOUS', 'error', 'rule-set',
+      `Target-native Rule Set source id “${source.sourceId}” occurs more than once and cannot be resolved deterministically.`, source.sourceId,
+    ))
+    seen.add(source.sourceId)
+  }
 }
 
 function validateSurgeRouteOptions(
@@ -219,6 +245,7 @@ function validateSurgeFinalOptions(
   ir: ProxyFlowIR,
   nativeFinalRoute: TargetNativeRouteIR | undefined,
   options: TargetNativeFinalOptionsIR | undefined,
+  effectiveFinalNodeId: string | undefined,
   issues: CompatibilityIssue[],
 ) {
   if (options === undefined) return
@@ -233,9 +260,13 @@ function validateSurgeFinalOptions(
     'SURGE_TARGET_NATIVE_FINAL_OPTIONS_WITHOUT_FINAL', 'error', 'final',
     'Target-native Final options require an effective Final route.', options.finalNodeId,
   ))
-  if (nativeFinalRoute && options.finalNodeId !== nativeFinalRoute.id) issues.push(surgeIssue(
+  if ((ir.finalRoute || nativeFinalRoute) && (!effectiveFinalNodeId || options.finalNodeId !== effectiveFinalNodeId)) issues.push(surgeIssue(
     'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', 'error', 'final',
-    'Target-native Final options do not belong to the effective target-native Final route.', options.finalNodeId,
+    'Target-native Final options do not belong to the compiler-proven effective Final route.', options.finalNodeId,
+  ))
+  if (nativeFinalRoute && (!effectiveFinalNodeId || nativeFinalRoute.id !== effectiveFinalNodeId)) issues.push(surgeIssue(
+    'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', 'error', 'final',
+    'Target-native Final options cannot be bound to the effective target-native Final route.', options.finalNodeId,
   ))
   if (ir.finalRoute?.target.kind === 'direct') issues.push(surgeIssue(
     'SURGE_FINAL_DNS_FAILED_DIRECT_UNSUPPORTED', 'error', 'final',

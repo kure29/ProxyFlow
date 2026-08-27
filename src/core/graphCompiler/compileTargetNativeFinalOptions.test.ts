@@ -102,6 +102,18 @@ describe('compileTargetNativeFinalOptions', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID', severity: 'error' }))
   })
 
+  it('rejects spoofed Project finalNodeId fields before producing Final options IR', () => {
+    const project = universalProject()
+    project.graph.nodes.find((node) => node.id === 'final-route')!.data.targetNativeFinalOptions = {
+      ...enabledOptions,
+      finalNodeId: 'spoofed',
+    } as never
+    const result = compileGraph(project, { validationTarget: 'surge' })
+    expect(result.success).toBe(false)
+    expect(result.targetNativeFinalOptions).toBeUndefined()
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_OPTIONS_INVALID', severity: 'error' }))
+  })
+
   it('keeps FINAL_MISSING unchanged', () => {
     const project: ProxyFlowProject = structuredClone(universalProject())
     project.graph.nodes = project.graph.nodes.filter((node) => node.data.blockType !== 'final')
