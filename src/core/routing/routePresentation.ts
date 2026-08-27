@@ -1,6 +1,7 @@
 import { normalizeCustomMatcher } from '../ir'
 import type { BlockNodeData, GraphNode, RouteMatcherKind, ServiceDefinition } from '../../types/project'
 import { resolveRouteMatcherKind } from './routeProductModel'
+import { isTargetNativeRuleSetSourceConfig } from '../targetNative'
 
 export const CUSTOM_ROUTE_MATCHERS = [
   'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'rule-set',
@@ -107,11 +108,18 @@ function customMatcherSummary(
   const value = matcherKind === 'port'
     ? data.routeMatcherPort
     : matcherKind === 'rule-set'
-      ? data.customRuleSource?.name ?? data.routeMatcherValue?.trim()
+      ? ruleSetPresentationName(data)
       : data.routeMatcherValue?.trim()
   return value === undefined || value === ''
     ? `${copy.matcherLabels[matcherKind]} · ${copy.emptyMatcher}`
     : `${copy.matcherLabels[matcherKind]} · ${value}`
+}
+
+/** Human-facing Rule Set label; never exposes the synthetic source ID for a
+ * typed Surge built-in source. */
+export function ruleSetPresentationName(data: Pick<BlockNodeData, 'targetNativeRuleSet' | 'customRuleSource' | 'routeMatcherValue'>) {
+  if (isTargetNativeRuleSetSourceConfig(data.targetNativeRuleSet)) return data.targetNativeRuleSet.name
+  return data.customRuleSource?.name ?? data.routeMatcherValue?.trim()
 }
 
 function routeTargetSummary(data: BlockNodeData, missing: string) {

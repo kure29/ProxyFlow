@@ -41,7 +41,11 @@ import {
   getTargetCapabilities, isPrimaryTarget, isProductTarget, PRODUCT_TARGETS, resolveActiveProductTarget,
   type PrimaryTarget,
 } from '../../core/capabilities'
-import { isTargetNativeStrategyConfig, type PolicyReference, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher } from '../../core/targetNative'
+import {
+  isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, surgeBuiltinRuleSetSourceConfig,
+  surgeBuiltinRuleSetSourceId,
+  type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
+} from '../../core/targetNative'
 import {
   parseCustomRuleSource, validateCustomRuleSourceForTarget, type CustomRuleSourceIssue,
   type CustomRuleSourceRequestedFormat,
@@ -730,7 +734,11 @@ export function RoutingInspector({ node }: InspectorProps) {
   const matcherKind = resolveRouteMatcherKind(node.data)
   const routingCapabilities = authoringTarget ? getTargetCapabilities(authoringTarget).routingMatchers : undefined
   const matcherCapability = matcherKind ? routingCapabilities?.[matcherKind] : undefined
-  const unsupportedMatcher = matcherCapability?.status === 'unsupported'
+  const nativeRuleSet = matcherKind === 'rule-set' && isTargetNativeRuleSetSourceConfig(node.data.targetNativeRuleSet)
+    ? node.data.targetNativeRuleSet
+    : undefined
+  const unsupportedMatcher = matcherCapability?.status === 'unsupported' && !nativeRuleSet
+  const nativeRuleSetMismatch = Boolean(nativeRuleSet && authoringTarget && authoringTarget !== 'surge')
   const isRouteRule = isRoutingRuleType(node.data.blockType)
   const isServiceRule = isRouteRule && node.data.blockType !== 'custom-rule'
   const isCustomRule = node.data.blockType === 'custom-rule'
@@ -741,14 +749,16 @@ export function RoutingInspector({ node }: InspectorProps) {
     routeMatcherKind: value,
     ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
     ...(value !== 'port' ? { routeMatcherPort: undefined } : {}),
-    ...(value === 'rule-set' ? { routeMatcherValue: node.data.customRuleSource?.id ?? '' }
+    ...(value === 'rule-set' ? { routeMatcherValue: node.data.customRuleSource?.id ?? node.data.routeMatcherValue ?? '' }
       : value !== 'service' && value !== 'port' ? { routeMatcherValue: '' } : {}),
+    ...(value === 'rule-set' ? {} : { targetNativeRuleSet: undefined }),
     ...(value === 'service' ? { ruleSource: node.data.ruleSource ?? 'ios_rule_script' } : {}),
   })
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
     {primaryTarget && getTargetCapabilities(primaryTarget).productStatus === 'paused' && <div className="validation-banner"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(primaryTarget).label })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
     {unsupportedMatcher && authoringTarget && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('workspace.routing.unsupportedByTarget', { target: getTargetCapabilities(authoringTarget).label })}</strong>{matcherCapability.reason && <code>{matcherCapability.reason}</code>}</span></div>}
+    {nativeRuleSetMismatch && authoringTarget && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.ruleSetSource.surgeOnly')}</strong><small>{t('inspector.ruleSetSource.targetMismatch', { target: getTargetCapabilities(authoringTarget).label })}</small></span></div>}
     {isCustomRule && <Field label={t('inspector.matcherType')}>
       <WebSelect label={t('inspector.matcherType')} value={isAdvancedMatcher ? '' : matcherKind ?? ''} onChange={(value) => setMatcher(value as BlockNodeData['routeMatcherKind'])} options={[
         { value: '', label: t('inspector.selectBasicMatcher'), disabled: true },
@@ -759,7 +769,10 @@ export function RoutingInspector({ node }: InspectorProps) {
     {isServiceRule && isServiceRoute && <><div className="section-label"><span>{t('inspector.services')}</span><small>{t('inspector.servicesSelected', { count: services.length })}</small></div>
     <div className="service-list">{services.map((service) => { const definition = serviceCatalog.find((item) => item.id === service || item.name === service) ?? resolveLegacyServiceDefinition(service); const label = definition?.name ?? service; const selected = activeService === service || activeService === definition?.name; return <div className={selected ? 'is-active' : ''} key={service}><span className="service-mark-slot"><ServiceMark serviceId={definition?.id ?? service} selected={selected} /></span><span><strong>{localizeKnownSystemText(label, locale)}</strong><small>{definition?.description ?? t('inspector.serviceDefinition')}</small></span><button type="button" aria-label={`${t('inspector.removeService')} ${label}`} onClick={() => update(node.id, { services: services.filter((item) => item !== service) })}><X size={15} /></button></div> })}</div>
     <ServiceMultiSelectPopover selected={services} onChange={(next) => update(node.id, { services: next })} /></>}
-    {isCustomRule && matcherKind === 'rule-set' && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
+    {isCustomRule && matcherKind === 'rule-set' && <RuleSetSourceEditor nativeRuleSet={nativeRuleSet} authoringTarget={authoringTarget} onChange={(value) => {
+      update(node.id, ruleSetSourcePatch(value, node.data.customRuleSource?.id))
+    }} t={t} />}
+    {isCustomRule && matcherKind === 'rule-set' && !nativeRuleSet && <CustomRuleSourceEditor key={node.id} node={node} primaryTarget={authoringTarget} update={update} t={t} />}
     {isCustomRule && !isAdvancedMatcher && matcherKind && matcherKind !== 'rule-set' && <MatcherValueField node={node} kind={matcherKind} matcherValue={matcherValue} update={update} t={t} />}
     <Field label={t('inspector.targetStrategy')}><WebSelect label={t('inspector.targetStrategy')} value={node.data.targetKind === 'direct' ? '__direct__' : node.data.targetKind === 'reject' ? '__reject__' : node.data.targetId ?? ''} onChange={(value) => setTarget(node.id, value)} options={[{ value: '', label: t('inspector.selectTarget'), disabled: true }, { value: '__direct__', label: 'DIRECT' }, { value: '__reject__', label: 'REJECT' }, ...targets.map((target) => ({ value: target.id, label: localizeNodeTitle(target, locale) }))]} /></Field>
     {isCustomRule && <Advanced>
@@ -880,6 +893,61 @@ export function nextServiceOptionIndex(
   return services.slice(0, selectedIndex).filter(
     (service) => !selected.includes(service.id) && !selected.includes(service.name),
   ).length
+}
+
+type RuleSetSourceSelection = 'custom' | SurgeBuiltinRuleSetName
+
+export function ruleSetSourcePatch(selection: RuleSetSourceSelection, customSourceId?: string): Partial<BlockNodeData> {
+  if (selection === 'custom') {
+    return { targetNativeRuleSet: undefined, routeMatcherValue: customSourceId ?? '' }
+  }
+  return {
+    targetNativeRuleSet: surgeBuiltinRuleSetSourceConfig(selection),
+    routeMatcherValue: surgeBuiltinRuleSetSourceId(selection),
+    customRuleSource: undefined,
+  }
+}
+
+export function isSurgeBuiltinRuleSetSelectionDisabled(authoringTarget: PrimaryTarget | null | undefined) {
+  return authoringTarget !== 'surge'
+}
+
+export function ruleSetSourceOptions(
+  authoringTarget: PrimaryTarget | null | undefined,
+  t: ReturnType<typeof useI18n>['t'],
+) {
+  const disabled = isSurgeBuiltinRuleSetSelectionDisabled(authoringTarget)
+  const surgeOnly = disabled ? ` · ${t('inspector.ruleSetSource.surgeOnlyLabel')}` : ''
+  return [
+    { value: 'custom', label: t('inspector.ruleSetSource.custom') },
+    { value: 'LAN', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · LAN${surgeOnly}`, ...(disabled ? { disabled: true } : {}) },
+    { value: 'SYSTEM', label: `${t('inspector.ruleSetSource.surgeBuiltin')} · SYSTEM${surgeOnly}`, ...(disabled ? { disabled: true } : {}) },
+  ]
+}
+
+function RuleSetSourceEditor({
+  nativeRuleSet, authoringTarget, onChange, t,
+}: {
+  nativeRuleSet?: { target: 'surge'; kind: 'builtin-rule-set'; name: SurgeBuiltinRuleSetName }
+  authoringTarget?: PrimaryTarget | null
+  onChange: (value: RuleSetSourceSelection) => void
+  t: ReturnType<typeof useI18n>['t']
+}) {
+  const value: RuleSetSourceSelection = nativeRuleSet?.name ?? 'custom'
+  return <section className="rule-set-source-selector" aria-label={t('inspector.ruleSetSource.title')}>
+    <Field label={t('inspector.ruleSetSource.title')} hint={t('inspector.ruleSetSource.hint')}>
+      <WebSelect
+        label={t('inspector.ruleSetSource.title')}
+        value={value}
+        onChange={(next) => onChange(next as RuleSetSourceSelection)}
+        options={ruleSetSourceOptions(authoringTarget, t)}
+      />
+    </Field>
+    {nativeRuleSet && <div className="target-native-card">
+      <div className="target-native-card-heading"><span><strong>{t('inspector.ruleSetSource.builtinTitle', { name: nativeRuleSet.name })}</strong><small>{nativeRuleSet.name === 'LAN' ? t('inspector.ruleSetSource.builtinLanDescription') : t('inspector.ruleSetSource.builtinSystemDescription')}</small></span><em className="node-native-badge">{t('inspector.ruleSetSource.targetBadge')}</em></div>
+      <code>RULE-SET,{nativeRuleSet.name},&lt;policy&gt;</code>
+    </div>}
+  </section>
 }
 
 function CustomRuleSourceEditor({ node, primaryTarget, update, t }: {

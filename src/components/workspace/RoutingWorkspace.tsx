@@ -4,12 +4,13 @@ import {
   AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CheckCircle2, ChevronLeft, CircleOff,
   GripVertical, Plus, Search, X,
 } from 'lucide-react'
-import type { CapabilityDeclaration, CapabilityStatus } from '../../core/capabilities'
+import type { CapabilityDeclaration, CapabilityStatus, PrimaryTarget } from '../../core/capabilities'
 import {
   CUSTOM_ROUTE_MATCHERS, presentRoutingRule, resolveSelectedServices, sumKnownRuleCounts,
   type CustomRouteMatcherKind, type RoutingIssueLike, type RoutingPresentationCopy,
   type RoutingRuleStatus,
 } from '../../core/routing/routePresentation'
+import { isTargetNativeRuleSetSourceConfig, surgeBuiltinRuleSetSourceConfig, surgeBuiltinRuleSetSourceId, type SurgeBuiltinRuleSetName } from '../../core/targetNative'
 import type { WorkspaceNodeItem, WorkspaceRoutingItem } from '../../core/workspace'
 import type { BlockNodeData, BlockType, GraphNode, RouteMatcherKind, ServiceDefinition } from '../../types/project'
 import { currentAuthoringServices } from '../../data/legacyServices'
@@ -50,6 +51,13 @@ export interface RoutingWorkspaceCopy {
   delete: string
   cancel: string
   unsupportedByTarget: string
+  surgeBuiltinTitle: string
+  surgeBuiltinDescription: string
+  surgeBuiltinLan: string
+  surgeBuiltinSystem: string
+  surgeBuiltinLanDescription: string
+  surgeBuiltinSystemDescription: string
+  surgeOnly: string
   statusLabels: Record<RoutingRuleStatus, string>
   capabilityLabels: Record<CapabilityStatus, string>
   presentation: RoutingPresentationCopy
@@ -61,6 +69,7 @@ export interface RoutingWorkspaceProps {
   services: readonly ServiceDefinition[]
   issues?: readonly RoutingIssueLike[]
   capabilities?: RoutingCapabilityMap
+  authoringTarget?: PrimaryTarget | null
   copy: RoutingWorkspaceCopy
   onCreate: (blockType: BlockType, data?: Partial<BlockNodeData>) => void
   onMove: (nodeId: string, direction: 'up' | 'down') => void
@@ -79,6 +88,7 @@ export function RoutingWorkspace({
   services,
   issues = [],
   capabilities = {},
+  authoringTarget = null,
   copy,
   onCreate,
   onMove,
@@ -184,6 +194,11 @@ export function RoutingWorkspace({
     closeAddPopover(false)
   }
 
+  const createSurgeBuiltinRule = (name: SurgeBuiltinRuleSetName) => {
+    onCreate('custom-rule', createSurgeBuiltinRuleSetData(name, name === 'LAN' ? copy.surgeBuiltinLan : copy.surgeBuiltinSystem))
+    closeAddPopover(false)
+  }
+
   const dropAt = (event: DragEvent<HTMLElement>, targetIndex: number) => {
     event.preventDefault()
     const nodeId = draggingId || event.dataTransfer.getData('text/plain')
@@ -216,7 +231,7 @@ export function RoutingWorkspace({
       <div className={`routing-add-content is-${stage}`}>
         {stage === 'kind' && <RuleKindChoices capabilities={capabilities} copy={copy} onSelect={setStage} />}
         {stage === 'service' && <ServiceChoices services={visibleServices} query={serviceQuery} capability={capabilities.service} copy={copy} onQueryChange={setServiceQuery} onSelect={createServiceRule} />}
-        {stage === 'custom' && <CustomMatcherChoices capabilities={capabilities} copy={copy} onSelect={createCustomRule} />}
+        {stage === 'custom' && <CustomMatcherChoices capabilities={capabilities} authoringTarget={authoringTarget} copy={copy} onSelect={createCustomRule} onSelectBuiltin={createSurgeBuiltinRule} />}
       </div>
     </div>
   </>, document.body)
@@ -234,8 +249,8 @@ export function RoutingWorkspace({
     <div className="routing-rule-list" role="list">
       {items.map((item, index) => {
         const presentation = presentRoutingRule(item.node, services, issues, copy.presentation)
-        const unsupported = Boolean(presentation.matcherKind && capabilityUnavailable(capabilities[presentation.matcherKind]))
-        const status = routingRuleStatusForCapability(presentation.status, presentation.matcherKind, capabilities)
+        const unsupported = Boolean(presentation.matcherKind && capabilityUnavailable(effectiveRoutingCapability(item.node, presentation.matcherKind, capabilities, authoringTarget)))
+        const status = routingRuleStatusForCapability(presentation.status, presentation.matcherKind, capabilities, item.node, authoringTarget)
         const title = getNodeTitle?.(item.node) ?? presentation.title
         const target = getTargetSummary?.(item.node, presentation.targetSummary) ?? presentation.targetSummary
         const selectedServices = presentation.intent === 'service'
@@ -336,18 +351,35 @@ function ServiceChoices({ services, query, capability, copy, onQueryChange, onSe
   </div>
 }
 
-function CustomMatcherChoices({ capabilities, copy, onSelect }: {
+function CustomMatcherChoices({ capabilities, authoringTarget, copy, onSelect, onSelectBuiltin }: {
   capabilities: RoutingCapabilityMap
+  authoringTarget: PrimaryTarget | null
   copy: RoutingWorkspaceCopy
   onSelect: (matcher: CustomRouteMatcherKind) => void
+  onSelectBuiltin: (name: SurgeBuiltinRuleSetName) => void
 }) {
-  return <div className="routing-matcher-choices">{CUSTOM_ROUTE_MATCHERS.map((matcher) => {
+  const builtinDisabled = authoringTarget !== 'surge'
+  const builtinDescription = (name: SurgeBuiltinRuleSetName) => name === 'LAN' ? copy.surgeBuiltinLanDescription : copy.surgeBuiltinSystemDescription
+  return <div className="routing-matcher-choices">
+    {CUSTOM_ROUTE_MATCHERS.map((matcher) => {
     const capability = capabilities[matcher]
     return <button type="button" disabled={capabilityUnavailable(capability)} key={matcher} onClick={() => onSelect(matcher)}>
       <span><strong>{copy.presentation.matcherLabels[matcher]}</strong><small>{copy.customRuleDescription}</small></span>
       <CapabilityBadge capability={capability} copy={copy} />
     </button>
-  })}</div>
+    })}
+    <div className="routing-native-choice-group">
+      <header><strong>{copy.surgeBuiltinTitle}</strong><small>{copy.surgeBuiltinDescription}</small></header>
+      <button type="button" disabled={builtinDisabled} onClick={() => onSelectBuiltin('LAN')}>
+        <span><strong>{copy.surgeBuiltinLan}</strong><small>{builtinDisabled ? copy.surgeOnly : builtinDescription('LAN')}</small></span>
+        {builtinDisabled ? <b data-capability="unsupported">{copy.surgeOnly}</b> : <ArrowRight size={15} />}
+      </button>
+      <button type="button" disabled={builtinDisabled} onClick={() => onSelectBuiltin('SYSTEM')}>
+        <span><strong>{copy.surgeBuiltinSystem}</strong><small>{builtinDisabled ? copy.surgeOnly : builtinDescription('SYSTEM')}</small></span>
+        {builtinDisabled ? <b data-capability="unsupported">{copy.surgeOnly}</b> : <ArrowRight size={15} />}
+      </button>
+    </div>
+  </div>
 }
 
 function CapabilityBadge({ capability, copy }: { capability?: CapabilityDeclaration; copy: RoutingWorkspaceCopy }) {
@@ -377,9 +409,25 @@ export function routingRuleStatusForCapability(
   status: RoutingRuleStatus,
   matcherKind: RouteMatcherKind | undefined,
   capabilities: RoutingCapabilityMap,
+  node?: GraphNode,
+  authoringTarget?: PrimaryTarget | null,
 ): RoutingRuleStatus {
   if (status === 'disabled' || !matcherKind) return status
-  return capabilityUnavailable(capabilities[matcherKind]) ? 'error' : status
+  return capabilityUnavailable(effectiveRoutingCapability(node, matcherKind, capabilities, authoringTarget)) ? 'error' : status
+}
+
+export function effectiveRoutingCapability(
+  node: GraphNode | undefined,
+  matcherKind: RouteMatcherKind,
+  capabilities: RoutingCapabilityMap,
+  authoringTarget?: PrimaryTarget | null,
+): CapabilityDeclaration | undefined {
+  if (matcherKind === 'rule-set' && node && isTargetNativeRuleSetSourceConfig(node.data.targetNativeRuleSet)) {
+    return authoringTarget === 'surge'
+      ? { status: 'supported' }
+      : { status: 'unsupported', reason: 'SURGE_TARGET_ONLY' }
+  }
+  return capabilities[matcherKind]
 }
 
 export function createServiceRuleData(service: ServiceDefinition): Partial<BlockNodeData> {
@@ -399,6 +447,18 @@ export function createCustomRuleData(matcher: CustomRouteMatcherKind, title: str
     routeMatcherValue: matcher === 'port' ? undefined : '',
     routeMatcherPort: undefined,
     ruleSource: 'custom',
+  }
+}
+
+export function createSurgeBuiltinRuleSetData(name: SurgeBuiltinRuleSetName, title: string): Partial<BlockNodeData> {
+  return {
+    title,
+    titleKey: undefined,
+    routeMatcherKind: 'rule-set',
+    routeMatcherValue: surgeBuiltinRuleSetSourceId(name),
+    ruleSource: 'custom',
+    customRuleSource: undefined,
+    targetNativeRuleSet: surgeBuiltinRuleSetSourceConfig(name),
   }
 }
 

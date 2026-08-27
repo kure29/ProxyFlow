@@ -5,7 +5,7 @@ import { ServiceMark } from '../services/ServiceMark'
 import { resolveServiceMarkId } from '../services/serviceMarkDefinitions'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, GraphNode } from '../../types/project'
-import { isTargetNativeStrategyConfig, type PolicyReference, type SurgeSubnetMatcher } from '../../core/targetNative'
+import { isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, type PolicyReference, type SurgeSubnetMatcher } from '../../core/targetNative'
 import {
   categoryKey, localizeDataValue, localizeDiagnosticMessage, localizeKnownSystemText, localizeNodeTitle, useI18n,
   type Locale,
@@ -13,6 +13,7 @@ import {
 import { detectRegion } from '../../core/proxy'
 import { snapshotFreshness } from '../../core/subscription'
 import { resolveRouteMatcherKind } from '../../core/routing/routeProductModel'
+import { ruleSetPresentationName } from '../../core/routing/routePresentation'
 import { normalizeDnsResolvers } from '../../core/dns/resolverProfiles'
 
 const noInput = new Set(['subscription', 'manual-proxy', 'provider', 'import-config', 'routing-group', 'service-rule', 'custom-rule', 'final', 'target-native-strategy'])
@@ -98,7 +99,7 @@ export function BlockNode({ id, data, selected, isConnectable }: NodeProps<Graph
         )}
 
         {resolveRouteMatcherKind(data) && resolveRouteMatcherKind(data) !== 'service' && (
-          <div className="node-chip-row"><span>{resolveRouteMatcherKind(data)}</span><em>{data.routeMatcherKind === 'port' ? data.routeMatcherPort ?? '…' : data.routeMatcherValue || '…'}</em></div>
+          <div className="node-chip-row"><span>{resolveRouteMatcherKind(data)}</span><em>{routeMatcherNodeSummary(data)}</em>{resolveRouteMatcherKind(data) === 'rule-set' && isTargetNativeRuleSetSourceConfig(data.targetNativeRuleSet) && <b className="node-native-badge">{data.targetNativeRuleSet.name}</b>}</div>
         )}
 
         {data.blockType === 'dns' && (
@@ -147,6 +148,12 @@ function TargetNativeSummary({ data, nodes, t }: { data: BlockNodeData; nodes: G
 
 function nativeMatcherLabel(matcher: SurgeSubnetMatcher) {
   return matcher.kind === 'network-type' ? `TYPE:${matcher.value}` : `${matcher.kind.toUpperCase()}:${matcher.value}`
+}
+
+export function routeMatcherNodeSummary(data: Pick<BlockNodeData, 'routeMatcherKind' | 'routeMatcherValue' | 'routeMatcherPort' | 'targetNativeRuleSet' | 'customRuleSource'>) {
+  if (data.routeMatcherKind === 'port') return data.routeMatcherPort ?? '…'
+  if (data.routeMatcherKind === 'rule-set') return ruleSetPresentationName(data) || '…'
+  return data.routeMatcherValue || '…'
 }
 
 function policyReferenceLabel(reference: PolicyReference | undefined, nodes: GraphNode[]) {

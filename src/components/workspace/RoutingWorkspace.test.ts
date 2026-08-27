@@ -3,10 +3,15 @@ import { targetCapabilityRegistry } from '../../core/capabilities'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { legacyChinaServiceDefinition } from '../../data/legacyServices'
 import { createBlankProject } from '../../data/newProject'
+import type { GraphNode } from '../../types/project'
 import {
-  capabilityUnavailable, createCustomRuleData, createServiceRuleData, filterRoutingServices,
-  routingRuleStatusForCapability,
+  capabilityUnavailable, createCustomRuleData, createServiceRuleData, createSurgeBuiltinRuleSetData,
+  effectiveRoutingCapability, filterRoutingServices, routingRuleStatusForCapability,
 } from './RoutingWorkspace'
+import { surgeBuiltinRuleSetSourceId } from '../../core/targetNative'
+import { compileGraph } from '../../core/graphCompiler'
+import { compileSurge } from '../../targets/surge/compiler'
+import type { ProxyFlowProject } from '../../types/project'
 
 describe('Routing Workspace helpers', () => {
   it('filters services by stable product metadata without reading rule source URLs', () => {
@@ -45,5 +50,62 @@ describe('Routing Workspace helpers', () => {
     expect(routingRuleStatusForCapability('ready', 'asn', targetCapabilityRegistry['sing-box'].routingMatchers)).toBe('error')
     expect(routingRuleStatusForCapability('ready', 'asn', targetCapabilityRegistry.mihomo.routingMatchers)).toBe('ready')
     expect(routingRuleStatusForCapability('disabled', 'asn', targetCapabilityRegistry['sing-box'].routingMatchers)).toBe('disabled')
+  })
+
+  it('creates typed Surge built-in source data with deterministic IDs', () => {
+    expect(surgeBuiltinRuleSetSourceId('LAN')).toBe('surge-builtin-ruleset-lan')
+    expect(createSurgeBuiltinRuleSetData('LAN', 'LAN')).toEqual(expect.objectContaining({
+      routeMatcherKind: 'rule-set', routeMatcherValue: 'surge-builtin-ruleset-lan',
+      targetNativeRuleSet: { target: 'surge', kind: 'builtin-rule-set', name: 'LAN' },
+      customRuleSource: undefined,
+    }))
+    expect(createSurgeBuiltinRuleSetData('SYSTEM', 'SYSTEM').targetNativeRuleSet).toEqual({ target: 'surge', kind: 'builtin-rule-set', name: 'SYSTEM' })
+  })
+
+  it('treats typed Surge built-ins as supported only on Surge', () => {
+    const node = {
+      id: 'lan', type: 'block', position: { x: 0, y: 0 },
+      data: { blockType: 'custom-rule', category: 'routing', title: 'LAN', subtitle: '', icon: 'route', routeMatcherKind: 'rule-set', routeMatcherValue: 'surge-builtin-ruleset-lan', targetNativeRuleSet: { target: 'surge', kind: 'builtin-rule-set', name: 'LAN' } },
+    } as GraphNode
+    expect(effectiveRoutingCapability(node, 'rule-set', targetCapabilityRegistry.surge.routingMatchers, 'surge')?.status).toBe('supported')
+    expect(effectiveRoutingCapability(node, 'rule-set', targetCapabilityRegistry.mihomo.routingMatchers, 'mihomo')?.status).toBe('unsupported')
+    expect(routingRuleStatusForCapability('ready', 'rule-set', targetCapabilityRegistry.surge.routingMatchers, node, 'surge')).toBe('ready')
+    expect(routingRuleStatusForCapability('ready', 'rule-set', targetCapabilityRegistry.mihomo.routingMatchers, node, 'mihomo')).toBe('error')
+  })
+
+  it('carries Workspace-created LAN data through graph and Surge compilation', () => {
+    const data = createSurgeBuiltinRuleSetData('LAN', 'LAN')
+    const project: ProxyFlowProject = {
+      version: 1, id: 'workspace-built-in', name: 'Workspace built-in', primaryTarget: 'surge',
+      graph: { nodes: [
+        { id: 'route', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'custom-rule', category: 'routing', title: 'LAN', subtitle: '', icon: 'rule', targetKind: 'direct', ...data } },
+        { id: 'final', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'final', category: 'routing', title: 'Final', subtitle: '', icon: 'flag', targetKind: 'direct' } },
+        { id: 'output', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'output', category: 'output', title: 'Surge', subtitle: '', icon: 'export', client: 'surge' } },
+      ], edges: [] },
+      services: [], outputs: [], updatedAt: '2026-08-27T00:00:00.000Z',
+    }
+    const graph = compileGraph(project)
+    expect(graph.success, graph.issues.map((issue) => issue.code).join(',')).toBe(true)
+    const compiled = compileSurge(graph.ir!, { nativeRuleSetSources: graph.nativeRuleSetSources })
+    expect(compiled.success, compiled.issues.map((issue) => issue.code).join(',')).toBe(true)
+    expect(compiled.content).toContain('RULE-SET,LAN,DIRECT')
+  })
+
+  it('carries Workspace-created SYSTEM data through graph and Surge compilation', () => {
+    const data = createSurgeBuiltinRuleSetData('SYSTEM', 'SYSTEM')
+    const project: ProxyFlowProject = {
+      version: 1, id: 'workspace-built-in-system', name: 'Workspace built-in SYSTEM', primaryTarget: 'surge',
+      graph: { nodes: [
+        { id: 'route', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'custom-rule', category: 'routing', title: 'SYSTEM', subtitle: '', icon: 'rule', targetKind: 'direct', ...data } },
+        { id: 'final', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'final', category: 'routing', title: 'Final', subtitle: '', icon: 'flag', targetKind: 'direct' } },
+        { id: 'output', type: 'block', position: { x: 0, y: 0 }, data: { blockType: 'output', category: 'output', title: 'Surge', subtitle: '', icon: 'export', client: 'surge' } },
+      ], edges: [] },
+      services: [], outputs: [], updatedAt: '2026-08-27T00:00:00.000Z',
+    }
+    const graph = compileGraph(project)
+    expect(graph.success, graph.issues.map((issue) => issue.code).join(',')).toBe(true)
+    const compiled = compileSurge(graph.ir!, { nativeRuleSetSources: graph.nativeRuleSetSources })
+    expect(compiled.success, compiled.issues.map((issue) => issue.code).join(',')).toBe(true)
+    expect(compiled.content).toContain('RULE-SET,SYSTEM,DIRECT')
   })
 })

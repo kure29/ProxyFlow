@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GraphNode } from '../../types/project'
-import { resolveFinalTargetSummary, summarizeDnsNode } from './BlockNode'
+import { resolveFinalTargetSummary, routeMatcherNodeSummary, summarizeDnsNode } from './BlockNode'
 
 describe('Visual Flow node summaries', () => {
   it('summarizes only enabled DNS resolvers from current node data', () => {
@@ -32,5 +32,13 @@ describe('Visual Flow node summaries', () => {
     expect(resolveFinalTargetSummary({ targetKind: 'strategy', targetId: 'auto', targetLabel: 'Stale label' }, [strategy], 'en-US', 'Missing')).toBe('US Auto')
     expect(resolveFinalTargetSummary({ targetLabel: 'Fallback' }, [strategy], 'en-US', 'Missing')).toBe('Fallback')
     expect(resolveFinalTargetSummary({}, [strategy], 'en-US', 'Missing')).toBe('Missing')
+  })
+
+  it('hides typed Surge built-in source IDs in the node summary', () => {
+    expect(routeMatcherNodeSummary({
+      routeMatcherKind: 'rule-set',
+      routeMatcherValue: 'surge-builtin-ruleset-system',
+      targetNativeRuleSet: { target: 'surge', kind: 'builtin-rule-set', name: 'SYSTEM' },
+    })).toBe('SYSTEM')
   })
 })
