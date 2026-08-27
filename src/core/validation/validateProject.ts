@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -23,6 +23,9 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
       if (!kind) add('UI_ROUTE_MATCHER_MISSING', 'This routing rule has no matcher value.', 'error')
       else if (kind === 'service') {
         if ((node.data.services ?? []).length === 0) add('UI_ROUTE_MATCHER_MISSING', 'This routing rule has no service matcher.', 'error')
+      }
+      else if (kind === 'source-port') {
+        if (!isTargetNativeSourcePortConfig(node.data.targetNativeSourcePort)) add('TARGET_NATIVE_SOURCE_PORT_INVALID', 'This Surge source-port matcher has invalid typed configuration.', 'error')
       }
       else {
         const normalized = normalizeCustomMatcher(kind, node.data.routeMatcherValue, node.data.routeMatcherPort)
@@ -95,6 +98,9 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     if (node.data.targetNativeRouteOptions !== undefined) {
       if (!isRoutingRuleType(node.data.blockType)) add('TARGET_NATIVE_ROUTE_OPTIONS_INVALID', 'Target-native route options may only be attached to a routing rule.', 'error')
       else if (!isTargetNativeRouteOptionsConfig(node.data.targetNativeRouteOptions)) add('TARGET_NATIVE_ROUTE_OPTIONS_INVALID', 'This target-native route options config is invalid.', 'error')
+    }
+    if (node.data.targetNativeSourcePort !== undefined && node.data.routeMatcherKind !== 'source-port') {
+      add('TARGET_NATIVE_SOURCE_PORT_INVALID', 'Target-native source-port intent may only be attached to a source-port routing rule.', 'error')
     }
   }
   return issues

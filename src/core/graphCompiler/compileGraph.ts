@@ -64,8 +64,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
         }],
       }]
     })
-    const routing = compileRouting(context)
     const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
+    const routing = compileRouting(context, validationTarget)
     const targetNativeFinalOptions = compileTargetNativeFinalOptions(context, routing.effectiveFinalNodeId, validationTarget)
     const targetNativeRouteOptions = compileTargetNativeRouteOptions(context, validationTarget)
     const nativeStrategies = compileTargetNativeStrategies(context, validationTarget)

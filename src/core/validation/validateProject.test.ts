@@ -86,6 +86,17 @@ describe('validateGraph', () => {
     expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_OPTIONS_INVALID', nodeId: final.id, severity: 'error' }))
   })
 
+  it('validates the exact typed Surge source-port matcher shape', () => {
+    const nodes = structuredClone(demoNodes)
+    const route = nodes.find((node) => node.data.blockType === 'service-rule')!
+    route.data.routeMatcherKind = 'source-port'
+    route.data.targetNativeSourcePort = { target: 'surge', kind: 'source-port', port: 443 }
+    expect(validateGraph(nodes, demoEdges)).not.toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_SOURCE_PORT_INVALID', nodeId: route.id }))
+
+    route.data.targetNativeSourcePort = { target: 'surge', kind: 'source-port', port: 443, extendedMatching: true } as never
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_SOURCE_PORT_INVALID', nodeId: route.id, severity: 'error' }))
+  })
+
   it('reports an invalid filter regular expression as an error', () => {
     const nodes = demoNodes.map((node) => node.id === 'hk-filter' ? {
       ...node,

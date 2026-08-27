@@ -6,6 +6,7 @@ describe('Surge capability matrix', () => {
   it('records every Phase 3 decision with an official reference and stable fail-closed diagnostic', () => {
     expect(SURGE_CAPABILITY_MATRIX.map((item) => item.feature)).toEqual([
       'Service Rules',
+      'SRC-PORT',
       'Remote Proxy Source',
       'Select',
       'Target-native Smart',
@@ -32,6 +33,7 @@ describe('Surge capability matrix', () => {
     expect(SURGE_CAPABILITY_MATRIX.find((item) => item.feature === 'DNS')).toEqual(expect.objectContaining({
       status: 'conditional', diagnostic: 'SURGE_DNS_MIXED_TRANSPORT_SEMANTICS_UNSUPPORTED',
     }))
+    expect(SURGE_CAPABILITY_MATRIX.find((item) => item.feature === 'SRC-PORT')).not.toHaveProperty('diagnostic')
   })
 
   it('records native Smart and Subnet support without widening Universal strategies', () => {

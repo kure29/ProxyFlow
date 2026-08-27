@@ -62,9 +62,13 @@ export interface TargetNativeStrategyIRBase {
 export interface TargetNativeRouteIR {
   id: string
   name: string
-  matcher?: import('../ir').TrafficMatcherIR
-  target: { kind: 'strategy'; id: string }
+  matcher?: import('../ir').TrafficMatcherIR | { kind: 'source-port'; port: number }
+  target: import('../ir').RouteTargetIR
   priority: number
+  /** Compiler-owned rank among all emitted Project routes, including Universal routes. */
+  routingOrder?: number
+  /** Exact typed provenance for a Surge-native source-port matcher. */
+  targetNativeSourcePort?: import('./sourcePort').TargetNativeSourcePortIR
 }
 
 export type TargetNativeStrategyIR = TargetNativeStrategyIRBase & SurgeNativeStrategyConfig

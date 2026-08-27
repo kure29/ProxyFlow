@@ -20,6 +20,7 @@ const docs = {
   dnsOverview: 'https://manual.nssurge.com/dns/overview.html',
   dnsServers: 'https://manual.nssurge.com/dns/dns-server.html',
   encryptedDns: 'https://manual.nssurge.com/dns/encrypted-dns.html',
+  sourceAndPortRules: 'https://manual.nssurge.com/rules/source-and-port.html',
 } as const
 
 /** Target-backend audit data. This is deliberately separate from the product target registry. */
@@ -28,6 +29,11 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     feature: 'Service Rules', status: 'supported',
     reason: 'The ten branded services lower to first-party Surge RULE-SET assets.',
     officialReference: 'https://manual.nssurge.com/rules/ruleset.html',
+  },
+  {
+    feature: 'SRC-PORT', status: 'supported',
+    reason: 'The documented Surge baseline supports an exact source-port matcher; this first slice intentionally defers ranges and comparison expressions.',
+    officialReference: docs.sourceAndPortRules,
   },
   {
     feature: 'Remote Proxy Source', status: 'unsupported',

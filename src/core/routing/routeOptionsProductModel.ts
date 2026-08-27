@@ -1,6 +1,7 @@
 import type { BlockNodeData } from '../../types/project'
 import type { PrimaryTarget } from '../capabilities'
 import type { TargetNativeRouteOptionsConfig } from '../targetNative'
+import { isTargetNativeSourcePortConfig } from '../targetNative'
 
 /** Matcher kinds for which Surge documents the native `no-resolve` modifier. */
 export const SURGE_NO_RESOLVE_MATCHERS = [
@@ -36,11 +37,12 @@ export function isSurgeNoResolveMatcher(value: BlockNodeData['routeMatcherKind']
 
 export function isRouteMatcherConfigured(
   matcherKind: BlockNodeData['routeMatcherKind'],
-  data: Pick<BlockNodeData, 'services' | 'routeMatcherValue' | 'routeMatcherPort' | 'customRuleSource' | 'targetNativeRuleSet'>,
+  data: Pick<BlockNodeData, 'services' | 'routeMatcherValue' | 'routeMatcherPort' | 'customRuleSource' | 'targetNativeRuleSet' | 'targetNativeSourcePort'>,
 ) {
   if (!matcherKind) return false
   if (matcherKind === 'service') return (data.services ?? []).some((service) => typeof service === 'string' && service.trim().length > 0)
   if (matcherKind === 'port') return Number.isInteger(data.routeMatcherPort) && data.routeMatcherPort! >= 1 && data.routeMatcherPort! <= 65535
+  if (matcherKind === 'source-port') return isTargetNativeSourcePortConfig(data.targetNativeSourcePort)
   if (matcherKind === 'rule-set') return Boolean(data.customRuleSource?.id?.trim() || data.routeMatcherValue?.trim())
   return Boolean(data.routeMatcherValue?.trim())
 }

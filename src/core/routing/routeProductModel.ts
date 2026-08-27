@@ -1,9 +1,11 @@
 import type { BlockNodeData, GraphNode, RouteMatcherKind } from '../../types/project'
+import type { PrimaryTarget } from '../capabilities'
+import { isTargetNativeSourcePortConfig, isValidSourcePort } from '../targetNative'
 
 export const ROUTING_RULE_TYPES = ['routing-group', 'service-rule', 'custom-rule'] as const
 
 export const BASIC_ROUTE_MATCHERS: RouteMatcherKind[] = [
-  'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port',
+  'service', 'domain', 'domain-suffix', 'domain-keyword', 'ip-cidr', 'ip-cidr6', 'port', 'source-port',
 ]
 
 export const ADVANCED_ROUTE_MATCHERS: RouteMatcherKind[] = ['asn', 'geo-ip', 'geo-site', 'rule-set']
@@ -17,6 +19,36 @@ export function resolveRouteMatcherKind(data: BlockNodeData): RouteMatcherKind |
   if (data.routeMatcherKind) return data.routeMatcherKind
   if (data.blockType === 'routing-group' || data.blockType === 'service-rule') return 'service'
   return undefined
+}
+
+/** Produces one atomic Product-state transition for a routing matcher selection. */
+export function routeMatcherSelectionPatch(
+  value: BlockNodeData['routeMatcherKind'],
+  data: BlockNodeData,
+  authoringTarget: PrimaryTarget | null,
+): Partial<BlockNodeData> {
+  const existingSourcePort = isTargetNativeSourcePortConfig(data.targetNativeSourcePort)
+    ? data.targetNativeSourcePort
+    : undefined
+  const convertedSourcePort = authoringTarget === 'surge' && isValidSourcePort(data.routeMatcherPort)
+    ? { target: 'surge' as const, kind: 'source-port' as const, port: data.routeMatcherPort }
+    : undefined
+  const sourcePort = value === 'source-port' ? existingSourcePort ?? convertedSourcePort : undefined
+
+  return {
+    routeMatcherKind: value,
+    ...(value === 'service' ? { routeMatcherValue: undefined, routeMatcherPort: undefined } : { services: [] }),
+    ...(value === 'source-port'
+      ? { routeMatcherPort: sourcePort?.port, targetNativeSourcePort: sourcePort }
+      : {
+          ...(value !== 'port' ? { routeMatcherPort: undefined } : {}),
+          targetNativeSourcePort: undefined,
+        }),
+    ...(value === 'rule-set' ? { routeMatcherValue: data.customRuleSource?.id ?? data.routeMatcherValue ?? '' }
+      : value !== 'service' && value !== 'port' && value !== 'source-port' ? { routeMatcherValue: '' } : {}),
+    ...(value === 'rule-set' ? {} : { targetNativeRuleSet: undefined }),
+    ...(value === 'service' ? { ruleSource: data.ruleSource ?? 'ios_rule_script' } : {}),
+  }
 }
 
 export interface RankedRoutingRule {

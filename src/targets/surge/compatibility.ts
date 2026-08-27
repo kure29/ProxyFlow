@@ -15,6 +15,7 @@ import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
 import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
 import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR } from '../../core/targetNative'
+import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from '../../core/targetNative'
 import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { SURGE_NO_RESOLVE_MATCHERS } from '../../core/routing/routeOptionsProductModel'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
@@ -95,6 +96,7 @@ export function checkSurgeCompatibility(
   validateChainStrategies(ir, projection, issues)
   validateHealthCheckScope(ir.strategies, issues)
   validateStrategyCycles(ir.strategies, issues)
+  validateSurgeRouteOrdering(ir, nativeRoutes, issues)
 
   const targetNativeRuleSetSourceIds = new Set(
     nativeRuleSetSources
@@ -102,10 +104,21 @@ export function checkSurgeCompatibility(
       .map((source) => source.sourceId),
   )
   for (const route of [...ir.routes, ...nativeRoutes]) {
-    if (!route.matcher) continue
     if (!Number.isFinite(route.priority)) issues.push(surgeIssue(
       'SURGE_ROUTE_PRIORITY_INVALID', 'error', 'route', `Route “${route.name}” has a non-finite priority.`, route.id,
     ))
+    const sourcePortProvenance = 'targetNativeSourcePort' in route ? route.targetNativeSourcePort : undefined
+    if (sourcePortProvenance !== undefined || route.matcher?.kind === 'source-port') {
+      if (!isTargetNativeSourcePortMatcher(route.matcher)
+        || !isTargetNativeSourcePortIR(sourcePortProvenance)
+        || sourcePortProvenance.routeId !== route.id
+        || sourcePortProvenance.port !== route.matcher.port) issues.push(surgeIssue(
+          'SURGE_TARGET_NATIVE_SOURCE_PORT_INVALID', 'error', 'route',
+          `Surge source-port route “${route.name}” has invalid runtime data or owner provenance.`, route.id,
+        ))
+      continue
+    }
+    if (!route.matcher) continue
     if (route.matcher.kind === 'service') {
       for (const serviceId of route.matcher.serviceIds) {
         const service = ir.services.find((item) => item.id === serviceId)
@@ -131,6 +144,23 @@ export function checkSurgeCompatibility(
   issues.push(...planSurgeDns(ir.dns).issues)
 
   return { supported: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+function validateSurgeRouteOrdering(
+  ir: ProxyFlowIR,
+  nativeRoutes: readonly TargetNativeRouteIR[],
+  issues: CompatibilityIssue[],
+) {
+  if (!nativeRoutes.some((route) => route.routingOrder !== undefined)) return
+  const total = ir.routes.length + nativeRoutes.length
+  const orders = nativeRoutes.map((route) => route.routingOrder)
+  const valid = orders.every((order): order is number => typeof order === 'number'
+    && Number.isSafeInteger(order) && order >= 0 && order < total)
+    && new Set(orders).size === orders.length
+  if (!valid) issues.push(surgeIssue(
+    'SURGE_ROUTE_ORDER_INVALID', 'error', 'route',
+    'Target-native route ordering provenance is incomplete, duplicated, or outside the compiled route set.', 'route-order',
+  ))
 }
 
 function validateSurgeRouteOptions(

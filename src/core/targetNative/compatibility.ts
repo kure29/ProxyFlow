@@ -3,6 +3,7 @@ import type { TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
 import type { TargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
 import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from './routeOptions'
+import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
 export function targetNativeUnsupportedIssues(
@@ -50,12 +51,33 @@ export function targetNativeUnsupportedIssues(
     entityId: isTargetNativeRouteOptionsIR(options) ? options.routeId : undefined,
     message: `Surge-specific route options have no proven equivalent for ${target}; change or remove them before export.`,
   }] : [])
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routes.map((route) => ({
-    target,
-    code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
-    severity: 'error' as const,
-    feature: 'target-native-strategy',
-    entityId: route.id,
-    message: `Route “${route.name}” targets a Surge-specific strategy; ${target} has no proven equivalent. Change or remove it before export.`,
-  }))]
+  const routeIssues = routes.flatMap((route) => {
+    if (route.targetNativeSourcePort !== undefined || route.matcher?.kind === 'source-port') {
+      if (!isTargetNativeSourcePortMatcher(route.matcher) || !isTargetNativeSourcePortIR(route.targetNativeSourcePort) || route.targetNativeSourcePort.routeId !== route.id || route.targetNativeSourcePort.port !== route.matcher.port) return [{
+        target,
+        code: 'TARGET_NATIVE_SOURCE_PORT_INVALID',
+        severity: 'error' as const,
+        feature: 'target-native-source-port',
+        entityId: route.id,
+        message: `Surge source-port route “${route.name}” has invalid runtime provenance.`,
+      }]
+      return [{
+        target,
+        code: 'TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED',
+        severity: 'error' as const,
+        feature: 'target-native-source-port',
+        entityId: route.id,
+        message: `Route “${route.name}” uses the Surge-specific SRC-PORT matcher; ${target} has no proven equivalent. Change or remove it before export.`,
+      }]
+    }
+    return [{
+      target,
+      code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
+      severity: 'error' as const,
+      feature: 'target-native-strategy',
+      entityId: route.id,
+      message: `Route “${route.name}” targets a Surge-specific strategy; ${target} has no proven equivalent. Change or remove it before export.`,
+    }]
+  })
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues]
 }
