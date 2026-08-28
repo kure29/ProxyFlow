@@ -203,7 +203,9 @@ Advanced does not mean that these capabilities are removed. It means they must n
 - DNS ownership and Universal DNS intent are separate: an enabled DNS owner can
   explicitly choose `none`, `automatic`, or `custom` Universal intent. `none`
   retains the owner and resolver drafts without producing Universal `DnsIR`;
-  target-native DNS behavior is a future capability, not implemented here.
+  target-native settings are namespaced, capability-driven, retained across
+  target switching, and fail closed on unsupported targets. Surge currently
+  implements the evidence-bounded target-native `always-real-ip` subset.
 - Mihomo, Surge, Loon, and the evidence-bounded Shadowrocket adapter are
   production Export targets. sing-box is paused but retained below the product
   surface. Planned targets must not appear as ready or actionable before a real
