@@ -28,7 +28,7 @@ const docs = {
 export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
   {
     feature: 'General Network / VIF (G1)', status: 'supported',
-    reason: 'Typed Output-owned ipv6, ipv6-vif, and icmp-forwarding values lower to canonical Surge [General] keys while omission preserves Surge defaults.',
+    reason: 'Typed Output-owned ipv6, ipv6-vif, icmp-forwarding, and canonical VIF route lists lower to canonical Surge [General] keys while omission preserves Surge defaults; IPv6 routes require ipv6-vif auto or always.',
     officialReference: docs.general,
   },
   {

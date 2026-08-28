@@ -243,7 +243,7 @@ export const targetCapabilityRegistry: Record<PrimaryTarget, TargetCapabilityPro
     },
     native: {
       'surge-profile': targetNative('Exports a compatibility-checked Surge profile in INI-style syntax.'),
-      'general-network': targetNative('Typed Surge General Network/VIF controls for ipv6, ipv6-vif, and icmp-forwarding.'),
+      'general-network': targetNative('Typed Surge General Network/VIF controls for IPv6, ICMP forwarding, and VIF route lists.'),
       'general-connectivity': targetNative('Typed Surge Output-owned Internet/DIRECT connectivity testing URL.'),
       'group-underlying-proxy': targetNative('Surge iOS 5.22+ or Surge Mac 6.9+ group-level underlying-proxy.'),
       'strategy-smart': targetNative('Surge Smart policy group; members are validated proxy endpoints only.'),

@@ -4,6 +4,9 @@ import {
   isTargetNativeSurgeGeneralNetworkIR,
   selectTargetNativeSurgeGeneralNetwork,
   targetNativeSurgeGeneralNetworkConfigToIR,
+  parseSurgeVifRouteDraft,
+  validateSurgeVifRouteConfig,
+  classifySurgeVifRouteIssue,
 } from './generalNetwork'
 
 const base = {
@@ -93,5 +96,31 @@ describe('target-native Surge General Network runtime boundaries', () => {
     expect(selectTargetNativeSurgeGeneralNetwork([first, first], 'output-a')).toBeUndefined()
     expect(selectTargetNativeSurgeGeneralNetwork([first, { ...second, extendedMatching: true } as never], 'output-a')).toBeUndefined()
     expect(selectTargetNativeSurgeGeneralNetwork([first], undefined)).toBeUndefined()
+  })
+
+  it('accepts route-only configs and validates strict route semantics', () => {
+    expect(isTargetNativeSurgeGeneralNetworkConfig({ ...base, tunExcludedRoutes: ['10.0.0.0/8'] })).toBe(true)
+    expect(isTargetNativeSurgeGeneralNetworkConfig({ ...base, tunIncludedRoutes: ['2001:db8::/32'], ipv6Vif: 'always' })).toBe(true)
+    expect(isTargetNativeSurgeGeneralNetworkConfig({ ...base, tunIncludedRoutes: ['2001:db8::/32'] })).toBe(false)
+    expect(validateSurgeVifRouteConfig({ ...base, tunExcludedRoutes: ['10.0.0.0/8'], tunIncludedRoutes: ['10.1.0.0/16'] })).toEqual({ ok: true })
+    expect(validateSurgeVifRouteConfig({ ...base, tunExcludedRoutes: ['10.0.0.0/8'], tunIncludedRoutes: ['10.0.0.0/8'] })).toEqual({ ok: false, code: 'SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT' })
+    expect(validateSurgeVifRouteConfig({ ...base, tunIncludedRoutes: ['2001:db8::/32'], ipv6Vif: 'auto' })).toEqual({ ok: true })
+  })
+
+  it('canonicalizes authoring drafts, preserves order, and removes blanks', () => {
+    expect(parseSurgeVifRouteDraft(' 192.0.2.123/24\n\n2001:0DB8::/32\n192.0.2.0/24 ')).toEqual({ ok: true, routes: ['192.0.2.0/24', '2001:db8::/32'] })
+    expect(parseSurgeVifRouteDraft('example.com')).toMatchObject({ ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' })
+  })
+
+  it('classifies only recognizable own route intent without invoking accessors', () => {
+    expect(classifySurgeVifRouteIssue(null)).toBeUndefined()
+    expect(classifySurgeVifRouteIssue('bad')).toBeUndefined()
+    expect(classifySurgeVifRouteIssue({ ...base, ipv6: 'yes' })).toBeUndefined()
+    expect(classifySurgeVifRouteIssue({ ...base, tunExcludedRoutes: ['not-a-cidr'] })).toBe('SURGE_GENERAL_VIF_CIDR_INVALID')
+
+    const accessor = { ...base } as Record<string, unknown>
+    Object.defineProperty(accessor, 'tunExcludedRoutes', { enumerable: true, get: () => { throw new Error('must not read') } })
+    expect(() => classifySurgeVifRouteIssue(accessor)).not.toThrow()
+    expect(classifySurgeVifRouteIssue(accessor)).toBeUndefined()
   })
 })

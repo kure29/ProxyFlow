@@ -1,5 +1,6 @@
 import { isSafeSurgeHttpUrl, isSafeSurgeSerializedString } from './safety'
-import { isSupportedSurgeAlwaysRealIpPattern } from '../../core/targetNative'
+import { isSupportedSurgeAlwaysRealIpPattern, SURGE_VIF_ROUTE_MAX_ITEMS, SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES } from '../../core/targetNative'
+import { isCanonicalCidr } from '../../core/network/cidr'
 
 export interface SurgeParameter {
   key: string
@@ -20,6 +21,8 @@ export interface SurgeGeneralValueMap {
   ipv6: boolean
   'ipv6-vif': 'disabled' | 'auto' | 'always'
   'icmp-forwarding': boolean
+  'tun-excluded-routes': SurgeGeneralList<string>
+  'tun-included-routes': SurgeGeneralList<string>
 }
 
 export type SurgeGeneralEntry = {
@@ -29,7 +32,7 @@ export type SurgeGeneralEntry = {
 const GENERAL_ENTRY_KEYS = ['key', 'value'] as const
 const GENERAL_LIST_KEYS = ['kind', 'items'] as const
 const GENERAL_KEYS = new Set<keyof SurgeGeneralValueMap>([
-  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'always-real-ip', 'ipv6', 'ipv6-vif', 'icmp-forwarding',
+  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'always-real-ip', 'ipv6', 'ipv6-vif', 'icmp-forwarding', 'tun-excluded-routes', 'tun-included-routes',
 ])
 
 /** Runtime guard for the exact current Surge [General] entry boundary. */
@@ -41,8 +44,19 @@ export function isSurgeGeneralEntry(value: unknown): value is SurgeGeneralEntry 
   if (key === 'proxy-test-url' || key === 'internet-test-url') return isSafeSurgeHttpUrl(value.value)
   if (key === 'dns-server' || key === 'encrypted-dns-server') return isSurgeGeneralList(value.value)
   if (key === 'always-real-ip') return isSurgeAlwaysRealIpList(value.value)
+  if (key === 'tun-excluded-routes' || key === 'tun-included-routes') return isSurgeVifRouteList(value.value)
   if (key === 'ipv6' || key === 'icmp-forwarding') return typeof value.value === 'boolean'
   return value.value === 'disabled' || value.value === 'auto' || value.value === 'always'
+}
+
+function isSurgeVifRouteList(value: unknown): value is SurgeGeneralList<string> {
+  if (!isSurgeGeneralList(value)) return false
+  let serializedBytes = Number.POSITIVE_INFINITY
+  try { serializedBytes = new TextEncoder().encode(JSON.stringify(value.items)).byteLength } catch { return false }
+  return value.items.length <= SURGE_VIF_ROUTE_MAX_ITEMS
+    && serializedBytes <= SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES
+    && value.items.every((item) => isCanonicalCidr(item))
+    && new Set(value.items).size === value.items.length
 }
 
 function isSurgeAlwaysRealIpList(value: unknown): value is SurgeGeneralList<string> {

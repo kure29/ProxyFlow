@@ -29,7 +29,7 @@ import {
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeMatcherSelectionPatch } from '../../core/routing/routeProductModel'
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
-import { getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
+import { commitSurgeGeneralNetworkRouteDraft, getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, surgeGeneralNetworkRouteDraft, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
 import { commitSurgeGeneralConnectivityDraft, getSurgeGeneralConnectivityUiState, removeSurgeGeneralConnectivityOptions } from '../../core/routing/generalConnectivityProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
@@ -1310,6 +1310,25 @@ export function SurgeGeneralNetworkEditor({ node, primaryTarget }: SurgeGeneralN
   const hasPersistedIntent = config !== undefined
   const state = getSurgeGeneralNetworkUiState({ primaryTarget, hasPersistedIntent })
   const valid = !hasPersistedIntent || isTargetNativeSurgeGeneralNetworkConfig(config)
+  const persistedExcluded = valid ? surgeGeneralNetworkRouteDraft(config, 'tunExcludedRoutes') : ''
+  const persistedIncluded = valid ? surgeGeneralNetworkRouteDraft(config, 'tunIncludedRoutes') : ''
+  const [excludedDraft, setExcludedDraft] = useState(persistedExcluded)
+  const [includedDraft, setIncludedDraft] = useState(persistedIncluded)
+  const [routeDraftError, setRouteDraftError] = useState<string | null>(null)
+  const persistedRouteFingerprint = `${valid ? 'valid' : 'invalid'}:${persistedExcluded}:${persistedIncluded}`
+  const previousRouteFingerprint = useRef(persistedRouteFingerprint)
+  const previousNodeId = useRef(node.id)
+  const previousTarget = useRef(primaryTarget)
+  useEffect(() => {
+    if (previousNodeId.current !== node.id || previousTarget.current !== primaryTarget || previousRouteFingerprint.current !== persistedRouteFingerprint) {
+      setExcludedDraft(persistedExcluded)
+      setIncludedDraft(persistedIncluded)
+      setRouteDraftError(null)
+    }
+    previousNodeId.current = node.id
+    previousTarget.current = primaryTarget
+    previousRouteFingerprint.current = persistedRouteFingerprint
+  }, [node.id, persistedExcluded, persistedIncluded, persistedRouteFingerprint, primaryTarget])
   const setChoice = (field: SurgeGeneralNetworkField, choice: string) => {
     const nextChoice = choice as SurgeGeneralNetworkChoice
     // Retained intent on another target is inspectable/removable, but it is
@@ -1321,6 +1340,17 @@ export function SurgeGeneralNetworkEditor({ node, primaryTarget }: SurgeGeneralN
   }
 
   if (!hasPersistedIntent && primaryTarget !== 'surge') return null
+
+  const commitRouteDraft = (field: 'tunExcludedRoutes' | 'tunIncludedRoutes', draft: string) => {
+    if (primaryTarget !== 'surge') return
+    const patch = commitSurgeGeneralNetworkRouteDraft(config, field, draft)
+    if (!patch) { setRouteDraftError(field); return }
+    setRouteDraftError(null)
+    update(node.id, patch)
+  }
+
+  const routeWarning = valid && isTargetNativeSurgeGeneralNetworkConfig(config)
+    && config.tunIncludedRoutes?.some((route) => ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'].includes(route))
 
   return <section className="target-native-card surge-general-network-editor" data-general-network="surge" aria-label={t('inspector.generalNetwork.title')}>
     <div className="target-native-card-heading">
@@ -1334,6 +1364,12 @@ export function SurgeGeneralNetworkEditor({ node, primaryTarget }: SurgeGeneralN
       <Field label={t('inspector.generalNetwork.icmpForwarding')} hint={t('inspector.generalNetwork.icmpHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.generalNetwork.icmpForwarding')} value={surgeGeneralNetworkFieldChoice(config, 'icmpForwarding')} onChange={(value) => setChoice('icmpForwarding', value)} options={[{ value: 'default', label: t('inspector.generalNetwork.default') }, { value: 'enabled', label: t('inspector.generalNetwork.enabled') }, { value: 'disabled', label: t('inspector.generalNetwork.disabled') }]} /></Field>
       {surgeGeneralNetworkFieldChoice(config, 'ipv6Vif') === 'always' && <div className="validation-banner"><AlertTriangle size={15} /><span>{t('inspector.generalNetwork.alwaysWarning')}</span></div>}
       <div className="mock-note">{t('inspector.generalNetwork.icmpNote')}</div>
+      <div className="target-native-subsection"><strong>{t('inspector.generalNetwork.vifRoutesTitle')}</strong><small>{t('inspector.generalNetwork.vifRoutesHint')}</small></div>
+      <Field label={t('inspector.generalNetwork.excludedRoutes')} hint={t('inspector.generalNetwork.routesHint')}><textarea rows={4} disabled={primaryTarget !== 'surge'} value={excludedDraft} placeholder="10.0.0.0/8\n2001:db8::/32" onChange={(event) => { if (primaryTarget === 'surge') setExcludedDraft(event.target.value) }} onBlur={() => commitRouteDraft('tunExcludedRoutes', excludedDraft)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitRouteDraft('tunExcludedRoutes', excludedDraft) } }} /></Field>
+      <Field label={t('inspector.generalNetwork.includedRoutes')} hint={t('inspector.generalNetwork.routesHint')}><textarea rows={4} disabled={primaryTarget !== 'surge'} value={includedDraft} placeholder="192.168.1.100/32" onChange={(event) => { if (primaryTarget === 'surge') setIncludedDraft(event.target.value) }} onBlur={() => commitRouteDraft('tunIncludedRoutes', includedDraft)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitRouteDraft('tunIncludedRoutes', includedDraft) } }} /></Field>
+      {routeDraftError && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalNetwork.routesInvalid')}</strong><small>{t('inspector.generalNetwork.routesInvalidDetail')}</small></span></div>}
+      {routeWarning && <div className="validation-banner"><AlertTriangle size={15} /><span>{t('inspector.generalNetwork.privateRouteWarning')}</span></div>}
+      {valid && isTargetNativeSurgeGeneralNetworkConfig(config) && config.tunExcludedRoutes?.length ? <div className="mock-note">{t('inspector.generalNetwork.skipProxyHint')}</div> : null}
       {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalNetwork.surgeOnly')}</strong><small>{t('inspector.generalNetwork.targetMismatch')}</small></span></div>}
       {state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralNetworkOptions())}><X size={14} />{t('inspector.generalNetwork.remove')}</button>}
     </>}

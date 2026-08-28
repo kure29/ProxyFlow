@@ -40,6 +40,8 @@ export function compileSurgeGeneralNetwork(
   if (Object.prototype.hasOwnProperty.call(network, 'ipv6')) entries.push({ key: 'ipv6', value: network.ipv6! })
   if (Object.prototype.hasOwnProperty.call(network, 'ipv6Vif')) entries.push({ key: 'ipv6-vif', value: network.ipv6Vif! })
   if (Object.prototype.hasOwnProperty.call(network, 'icmpForwarding')) entries.push({ key: 'icmp-forwarding', value: network.icmpForwarding! })
+  if (Object.prototype.hasOwnProperty.call(network, 'tunExcludedRoutes')) entries.push({ key: 'tun-excluded-routes', value: { kind: 'list', items: [...network.tunExcludedRoutes!] } })
+  if (Object.prototype.hasOwnProperty.call(network, 'tunIncludedRoutes')) entries.push({ key: 'tun-included-routes', value: { kind: 'list', items: [...network.tunIncludedRoutes!] } })
   return entries
 }
 

@@ -108,4 +108,60 @@ describe('Graph Compiler Surge General Network extraction', () => {
       code: 'TARGET_NATIVE_GENERAL_AMBIGUOUS', severity: 'error', nodeId: 'output',
     }))
   })
+
+  it.each([
+    ['null', null],
+    ['string', 'bad'],
+    ['array', []],
+    ['malformed G1 scalar', { target: 'surge', kind: 'general-network', ipv6: 'yes' }],
+  ])('keeps generic malformed %s data on the family diagnostic', (_name, value) => {
+    const project = blank('surge')
+    output(project).data.targetNativeSurgeGeneralNetwork = value as never
+    const result = compileGraph(project, { validationTarget: 'surge' })
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_GENERAL_INVALID', nodeId: 'output' }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }))
+  })
+
+  it.each([
+    ['bad CIDR', { tunExcludedRoutes: ['not-a-cidr'] }, 'SURGE_GENERAL_VIF_CIDR_INVALID'],
+    ['duplicate CIDR', { tunExcludedRoutes: ['10.0.0.0/8', '10.0.0.0/8'] }, 'SURGE_GENERAL_VIF_CIDR_DUPLICATE'],
+    ['missing IPv6 VIF', { tunIncludedRoutes: ['2001:db8::/32'] }, 'SURGE_GENERAL_VIF_IPV6_VIF_REQUIRED'],
+    ['cross-list conflict', { tunExcludedRoutes: ['10.0.0.0/8'], tunIncludedRoutes: ['10.0.0.0/8'] }, 'SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT'],
+  ])('retains the focused diagnostic for %s intent', (_name, fields, code) => {
+    const project = blank('surge')
+    output(project).data.targetNativeSurgeGeneralNetwork = { target: 'surge', kind: 'general-network', ...fields } as never
+    const result = compileGraph(project, { validationTarget: 'surge' })
+    expect(result.issues).toContainEqual(expect.objectContaining({ code, nodeId: 'output' }))
+  })
+
+  it('scans malformed G3-B siblings regardless of graph order', () => {
+    const createProject = (malformedFirst: boolean) => {
+      const project = blank('surge')
+      const valid = output(project)
+      valid.data.targetNativeSurgeGeneralNetwork = {
+        target: 'surge', kind: 'general-network', tunExcludedRoutes: ['10.0.0.0/8'],
+      }
+      const malformed: GraphNode = {
+        ...structuredClone(valid),
+        id: 'malformed-output',
+        data: {
+          ...structuredClone(valid.data),
+          client: 'mihomo',
+          targetNativeSurgeGeneralNetwork: { target: 'surge', kind: 'general-network', tunExcludedRoutes: ['not-a-cidr'] } as never,
+        },
+      }
+      project.graph.nodes = malformedFirst
+        ? [malformed, ...project.graph.nodes]
+        : [...project.graph.nodes, malformed]
+      return project
+    }
+    const first = compileGraph(createProject(true), { validationTarget: 'surge' })
+    const last = compileGraph(createProject(false), { validationTarget: 'surge' })
+    for (const result of [first, last]) {
+      expect(result.success).toBe(false)
+      expect(result.targetNativeSurgeGeneralNetworks).toContainEqual(expect.objectContaining({ outputNodeId: 'output', tunExcludedRoutes: ['10.0.0.0/8'] }))
+      expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_CIDR_INVALID', nodeId: 'malformed-output' }))
+    }
+    expect(new Set(first.issues.map((issue) => issue.code))).toEqual(new Set(last.issues.map((issue) => issue.code)))
+  })
 })

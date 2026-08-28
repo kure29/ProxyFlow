@@ -4,6 +4,7 @@ import {
   removeSurgeGeneralNetworkOptions,
   surgeGeneralNetworkFieldChoice,
   surgeGeneralNetworkOptionsPatch,
+  commitSurgeGeneralNetworkRouteDraft,
 } from './generalNetworkProductModel'
 
 const base = { target: 'surge' as const, kind: 'general-network' as const }
@@ -67,5 +68,16 @@ describe('Surge General Network Product model', () => {
     expect(surgeGeneralNetworkOptionsPatch(config, 'ipv6Vif', 'enabled')).toEqual({
       targetNativeSurgeGeneralNetwork: config,
     })
+  })
+
+  it('clears each VIF route field independently while preserving G1 values', () => {
+    const config = {
+      ...base, ipv6: true, ipv6Vif: 'always' as const, icmpForwarding: false,
+      tunExcludedRoutes: ['10.0.0.0/8'], tunIncludedRoutes: ['192.168.1.100/32'],
+    }
+    const excluded = commitSurgeGeneralNetworkRouteDraft(config, 'tunExcludedRoutes', '')
+    expect(excluded).toEqual({ targetNativeSurgeGeneralNetwork: { ...base, ipv6: true, ipv6Vif: 'always', icmpForwarding: false, tunIncludedRoutes: ['192.168.1.100/32'] } })
+    const both = commitSurgeGeneralNetworkRouteDraft(excluded!.targetNativeSurgeGeneralNetwork, 'tunIncludedRoutes', '')
+    expect(both).toEqual({ targetNativeSurgeGeneralNetwork: { ...base, ipv6: true, ipv6Vif: 'always', icmpForwarding: false } })
   })
 })
