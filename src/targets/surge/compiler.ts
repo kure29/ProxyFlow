@@ -2,7 +2,7 @@ import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
-import { deduplicateAlwaysRealIpPatterns, isTargetNativeFinalRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
@@ -221,7 +221,6 @@ function validateSurgeDnsBehavior(
     ))
     return undefined
   }
-  validated = { ...validated, alwaysRealIp: deduplicateAlwaysRealIpPatterns(validated.alwaysRealIp) }
   if (typeof effectiveDnsNodeId !== 'string' || !effectiveDnsNodeId.trim() || validated.dnsNodeId !== effectiveDnsNodeId) {
     issues.push(surgeIssue(
       'SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH', 'error', 'general',

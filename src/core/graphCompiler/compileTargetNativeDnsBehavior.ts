@@ -12,6 +12,7 @@ export function compileTargetNativeSurgeDnsBehavior(
   context: GraphCompileContext,
   effectiveDnsNode?: GraphNode,
 ): TargetNativeSurgeDnsBehaviorIR | undefined {
+  let selected: TargetNativeSurgeDnsBehaviorIR | undefined
   for (const node of context.project.graph.nodes) {
     if (!Object.prototype.hasOwnProperty.call(node.data, 'targetNativeSurgeDnsBehavior')) continue
     const config = node.data.targetNativeSurgeDnsBehavior
@@ -52,10 +53,11 @@ export function compileTargetNativeSurgeDnsBehavior(
       ))
       continue
     }
-    if (!effectiveDnsNode || effectiveDnsNode.id !== node.id) continue
-    return targetNativeSurgeDnsBehaviorConfigToIR(node.id, snapshot)
+    if (effectiveDnsNode && effectiveDnsNode.id === node.id) {
+      selected = targetNativeSurgeDnsBehaviorConfigToIR(node.id, snapshot)
+    }
   }
-  return undefined
+  return selected
 }
 
 export const compileTargetNativeDnsBehavior = compileTargetNativeSurgeDnsBehavior

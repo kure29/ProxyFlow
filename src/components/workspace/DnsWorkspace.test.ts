@@ -98,6 +98,32 @@ describe('DNS Workspace mobile actions', () => {
     expect(mihomoHtml).toContain('Remove resolver')
   })
 
+  it.each(['example.com', null, {}] as const)('renders malformed retained native state safely (%s)', (alwaysRealIp) => {
+    expect(() => renderToStaticMarkup(createElement(DnsWorkspace, {
+      node: {
+        id: 'dns',
+        targetNativeSurgeDnsBehavior: { target: 'surge', kind: 'dns-behavior', alwaysRealIp } as never,
+      },
+      target: 'surge',
+      copy,
+      onCreateDns: () => undefined,
+      onChange: () => undefined,
+    }))).not.toThrow()
+    const html = renderToStaticMarkup(createElement(DnsWorkspace, {
+      node: {
+        id: 'dns',
+        targetNativeSurgeDnsBehavior: { target: 'surge', kind: 'dns-behavior', alwaysRealIp } as never,
+      },
+      target: 'surge',
+      copy,
+      onCreateDns: () => undefined,
+      onChange: () => undefined,
+    }))
+    expect(html).toContain('Remove resolver')
+    expect(html).toContain('Malformed persisted always-real-ip intent.')
+    expect(html).not.toContain('example.com</textarea>')
+  })
+
   it('passes supported preset state through both production target exports', () => {
     const resolvers = ['cloudflare', 'google', 'quad9', 'alidns']
       .reduce<DnsResolverConfig[]>((current, preset) => appendDnsResolverPreset(current, preset), [])

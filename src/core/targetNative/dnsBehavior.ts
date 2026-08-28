@@ -36,7 +36,7 @@ export function targetNativeSurgeDnsBehaviorConfigToIR(
   config: TargetNativeSurgeDnsBehaviorConfig,
 ): TargetNativeSurgeDnsBehaviorIR {
   const snapshot = structuredClone(config)
-  return { ...snapshot, alwaysRealIp: deduplicateAlwaysRealIpPatterns(snapshot.alwaysRealIp), dnsNodeId }
+  return { ...snapshot, dnsNodeId }
 }
 
 /** Canonicalize authored lines without changing pattern semantics. */
@@ -64,7 +64,7 @@ export function isSupportedSurgeAlwaysRealIpPattern(value: unknown): value is st
   if (labels.length < 2 || labels.some((label) => !label || label.length > 63)) return false
   // Keep this Slice domain-only; IP literals/ranges and CIDRs are outside the
   // proven positive-domain Host List subset.
-  if (labels.every((label) => /^\d+$/.test(label))) return false
+  if (isIpv4LikeWildcardPattern(labels)) return false
   return labels.every((label) => /^[A-Za-z0-9*?-]+$/.test(label)
     && !label.startsWith('-') && !label.endsWith('-'))
 }
@@ -91,6 +91,7 @@ function isDnsBehaviorShape(
       if (!hasOwn(patterns, String(index))) return false
       if (!isSupportedSurgeAlwaysRealIpPattern(patterns[index])) return false
     }
+    if (new Set(patterns).size !== patterns.length) return false
     return true
   } catch {
     return false
@@ -117,6 +118,10 @@ function isArrayIndex(name: string, length: number) {
   if (!/^(?:0|[1-9]\d*)$/.test(name)) return false
   const index = Number(name)
   return Number.isSafeInteger(index) && index >= 0 && index < length
+}
+
+function isIpv4LikeWildcardPattern(labels: readonly string[]) {
+  return labels.length === 4 && labels.every((label) => /^[0-9*?]+$/.test(label))
 }
 
 function hasNonEmptyString(value: unknown): value is string {

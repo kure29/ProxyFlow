@@ -5,7 +5,7 @@ import {
   appendCustomDnsResolver, appendDnsResolverPreset, deleteDnsResolver, DNS_RESOLVER_PRESETS,
   inferUniversalDnsMode, isUniversalDnsMode, normalizeDnsResolvers, patchDnsResolver, resolveDnsResolverRegion,
 } from '../../core/dns/resolverProfiles'
-import { parseSurgeAlwaysRealIpDraft, type TargetNativeSurgeDnsBehaviorConfig } from '../../core/targetNative'
+import { isTargetNativeSurgeDnsBehaviorConfig, parseSurgeAlwaysRealIpDraft, type TargetNativeSurgeDnsBehaviorConfig } from '../../core/targetNative'
 import type { DnsResolverConfig, DnsResolverKind, DnsResolverRole, UniversalDnsMode } from '../../types/project'
 import { WebSelect } from '../ui/WebSelect'
 
@@ -33,6 +33,7 @@ export interface DnsWorkspaceCopy {
   alwaysRealIpPlaceholder?: string
   alwaysRealIpUnsupported?: string
   alwaysRealIpInvalid?: string
+  alwaysRealIpMalformed?: string
   alwaysRealIpRemove?: string
   roles: Record<DnsResolverRole, string>
   regions: Record<'system' | 'global' | 'mainland-china', string>
@@ -59,16 +60,21 @@ export function DnsWorkspace({
   const mode: UniversalDnsMode = isUniversalDnsMode(node?.universalDnsMode)
     ? node!.universalDnsMode
     : inferUniversalDnsMode(node?.dnsResolvers, node?.resolver)
-  const nativePatterns = node?.targetNativeSurgeDnsBehavior?.alwaysRealIp ?? []
+  const rawNativeBehavior = node?.targetNativeSurgeDnsBehavior as unknown
+  const validNativeBehavior = snapshotNativeBehavior(rawNativeBehavior)
+  const hasNativeBehavior = rawNativeBehavior !== undefined
+  const nativePatterns = validNativeBehavior?.alwaysRealIp ?? []
   const initialNativeDraft = nativePatterns.join('\n')
   const [alwaysRealIpDraft, setAlwaysRealIpDraft] = useState(initialNativeDraft)
-  const [alwaysRealIpError, setAlwaysRealIpError] = useState<string | undefined>()
+  const [alwaysRealIpError, setAlwaysRealIpError] = useState<string | undefined>(
+    hasNativeBehavior && !validNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined,
+  )
   const nativeDraftRef = useRef(initialNativeDraft)
   useEffect(() => {
     nativeDraftRef.current = initialNativeDraft
     setAlwaysRealIpDraft(initialNativeDraft)
-    setAlwaysRealIpError(undefined)
-  }, [initialNativeDraft, node?.id])
+    setAlwaysRealIpError(hasNativeBehavior && !validNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined)
+  }, [copy.alwaysRealIpMalformed, hasNativeBehavior, initialNativeDraft, node?.id, validNativeBehavior])
   useEffect(() => {
     if (!adding) return
     const focusFrame = focusMenuOnOpenRef.current
@@ -200,7 +206,7 @@ export function DnsWorkspace({
         }}
       />
       {alwaysRealIpError && <small className="dns-native-behavior-error" role="alert">{alwaysRealIpError}</small>}
-      {node.targetNativeSurgeDnsBehavior && <button type="button" className="secondary-action dns-native-behavior-remove" onClick={() => onChange(resolvers, undefined, null)}>{copy.alwaysRealIpRemove ?? copy.remove}</button>}
+      {hasNativeBehavior && <button type="button" className="secondary-action dns-native-behavior-remove" onClick={() => onChange(resolvers, undefined, null)}>{copy.alwaysRealIpRemove ?? copy.remove}</button>}
     </section>
 
     {resolvers.length === 0
@@ -226,6 +232,16 @@ export function DnsWorkspace({
 
 function dnsResolverCapability(target: PrimaryTarget | null, kind: DnsResolverKind): CapabilityStatus | 'unknown' {
   return target ? getTargetCapabilities(target).dns[kind].status : 'unknown'
+}
+
+function snapshotNativeBehavior(value: unknown): TargetNativeSurgeDnsBehaviorConfig | undefined {
+  if (!isTargetNativeSurgeDnsBehaviorConfig(value)) return undefined
+  try {
+    const snapshot = structuredClone(value)
+    return isTargetNativeSurgeDnsBehaviorConfig(snapshot) ? snapshot : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function dnsRoleCapability(target: PrimaryTarget | null, role: DnsResolverRole): CapabilityStatus | 'unknown' {

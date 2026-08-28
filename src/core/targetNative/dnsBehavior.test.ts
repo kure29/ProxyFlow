@@ -17,7 +17,9 @@ describe('Surge always-real-ip target-native boundary', () => {
   it('separates Config from compiler-owned IR', () => {
     expect(isTargetNativeSurgeDnsBehaviorConfig(config())).toBe(true)
     expect(isTargetNativeSurgeDnsBehaviorConfig(config({ dnsNodeId: 'dns' }))).toBe(false)
+    expect(isTargetNativeSurgeDnsBehaviorConfig(config({ alwaysRealIp: ['example.com', 'example.com'] }))).toBe(false)
     expect(isTargetNativeSurgeDnsBehaviorIR({ ...config(), dnsNodeId: 'dns' })).toBe(true)
+    expect(isTargetNativeSurgeDnsBehaviorIR({ ...config({ alwaysRealIp: ['example.com', 'example.com'] }), dnsNodeId: 'dns' })).toBe(false)
     expect(isTargetNativeSurgeDnsBehaviorIR(config())).toBe(false)
     expect(targetNativeSurgeDnsBehaviorConfigToIR('dns', config())).toEqual({
       target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com'], dnsNodeId: 'dns',
@@ -39,7 +41,7 @@ describe('Surge always-real-ip target-native boundary', () => {
     for (const value of ['example.com', '*.example.com', 'xbox.*.microsoft.com', 'foo?.example.com', '*', '?']) {
       expect(isSupportedSurgeAlwaysRealIpPattern(value), value).toBe(true)
     }
-    for (const value of ['', ' example.com', 'example.com ', 'example', 'a..example.com', '-bad.example.com', 'bad-.example.com', 'foo bar.example.com', 'foo,example.com', 'https://example.com', '-.example.com', 'example.com/path', '192.0.2.1', '192.0.2.0/24']) {
+    for (const value of ['', ' example.com', 'example.com ', 'example', 'a..example.com', '-bad.example.com', 'bad-.example.com', 'foo bar.example.com', 'foo,example.com', 'https://example.com', '-.example.com', 'example.com/path', '192.0.2.1', '192.0.2.0/24', '192.0.2.*', '192.168.*.?', '192.?.2.1', '*.*.*.*']) {
       expect(isSupportedSurgeAlwaysRealIpPattern(value), value).toBe(false)
     }
   })

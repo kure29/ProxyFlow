@@ -3,7 +3,7 @@ import { surgeIssue } from './errors'
 import type { SurgeGeneralEntry } from './model'
 import type { TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 import type { TargetNativeSurgeGeneralConnectivityIR } from '../../core/targetNative'
-import { deduplicateAlwaysRealIpPatterns, type TargetNativeSurgeDnsBehaviorIR } from '../../core/targetNative'
+import type { TargetNativeSurgeDnsBehaviorIR } from '../../core/targetNative'
 
 export function composeSurgeGeneral(
   groups: readonly (readonly SurgeGeneralEntry[])[],
@@ -56,5 +56,5 @@ export function compileSurgeDnsBehavior(
   behavior: TargetNativeSurgeDnsBehaviorIR | undefined,
 ): SurgeGeneralEntry[] {
   if (!behavior) return []
-  return [{ key: 'always-real-ip', value: { kind: 'list', items: deduplicateAlwaysRealIpPatterns(behavior.alwaysRealIp) } }]
+  return [{ key: 'always-real-ip', value: { kind: 'list', items: [...behavior.alwaysRealIp] } }]
 }

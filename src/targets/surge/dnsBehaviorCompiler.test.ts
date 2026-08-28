@@ -23,7 +23,7 @@ function general(content: string) {
 
 describe('Surge always-real-ip compiler boundary', () => {
   it('emits one ordered list entry and composes with Universal DNS independently', () => {
-    const result = compileSurge(baseIR(), { effectiveDnsNodeId: 'dns', targetNativeSurgeDnsBehavior: valid({ alwaysRealIp: ['example.com', '*.example.com', 'example.com'] }) })
+    const result = compileSurge(baseIR(), { effectiveDnsNodeId: 'dns', targetNativeSurgeDnsBehavior: valid() })
     expect(result.success).toBe(true)
     expect(general(result.content)).toEqual(['always-real-ip = example.com, *.example.com'])
   })
@@ -37,6 +37,10 @@ describe('Surge always-real-ip compiler boundary', () => {
     const mismatch = compileSurge(baseIR(), { effectiveDnsNodeId: 'other', targetNativeSurgeDnsBehavior: valid() })
     expect(mismatch.success).toBe(false)
     expect(mismatch.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH', severity: 'error' }))
+
+    const duplicate = compileSurge(baseIR(), { effectiveDnsNodeId: 'dns', targetNativeSurgeDnsBehavior: valid({ alwaysRealIp: ['example.com', '*.example.com', 'example.com'] }) })
+    expect(duplicate.success).toBe(false)
+    expect(duplicate.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_DNS_INVALID', severity: 'error' }))
   })
 
   it('composes with other typed General producers', () => {

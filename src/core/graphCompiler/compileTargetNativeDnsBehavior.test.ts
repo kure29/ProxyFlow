@@ -8,7 +8,7 @@ describe('Graph Compiler Surge DNS-native behavior ownership', () => {
     const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
     dns.data.universalDnsMode = 'none'
     dns.data.targetNativeSurgeDnsBehavior = {
-      target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com', '*.example.com', 'example.com'],
+      target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com', '*.example.com'],
     }
     const result = compileGraph(project)
     expect(result.success).toBe(true)
@@ -34,6 +34,31 @@ describe('Graph Compiler Surge DNS-native behavior ownership', () => {
     const blocked = compileGraph(misplaced)
     expect(blocked.success).toBe(false)
     expect(blocked.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID', nodeId: output.id, severity: 'error' }))
+  })
+
+  it('scans every persisted field regardless of graph order', () => {
+    for (const dnsFirst of [true, false]) {
+      const project = structuredClone(demoProject)
+      const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+      const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+      dns.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com'] }
+      output.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.net'] }
+      const rest = project.graph.nodes.filter((node) => node.id !== dns.id && node.id !== output.id)
+      project.graph.nodes = dnsFirst ? [dns, output, ...rest] : [output, dns, ...rest]
+      const result = compileGraph(project)
+      expect(result.success).toBe(false)
+      expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID', nodeId: output.id, severity: 'error' }))
+    }
+
+    const malformedLater = structuredClone(demoProject)
+    const dns = malformedLater.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    const output = malformedLater.graph.nodes.find((node) => node.data.blockType === 'output')!
+    dns.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com'] }
+    output.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: null } as never
+    malformedLater.graph.nodes = [dns, output, ...malformedLater.graph.nodes.filter((node) => node.id !== dns.id && node.id !== output.id)]
+    const result = compileGraph(malformedLater)
+    expect(result.success).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID', nodeId: output.id, severity: 'error' }))
   })
 
   it('does not invent a parallel owner when multiple DNS nodes are enabled', () => {
