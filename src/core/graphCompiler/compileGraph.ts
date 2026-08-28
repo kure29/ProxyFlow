@@ -1,7 +1,7 @@
 import type { ProxyFlowProject } from '../../types/project'
 import { PROXYFLOW_IR_VERSION, semanticIssue, type ProxyFlowIR, type SemanticIssue } from '../ir'
 import { validateIR } from '../semanticValidation'
-import { compileDns, compileOutputs } from './compileInfrastructure'
+import { compileDns, compileOutputs, resolveEffectiveDnsOwner } from './compileInfrastructure'
 import { compileRouting } from './compileRouting'
 import { compileSources } from './compileSources'
 import { compileStrategies } from './compileStrategies'
@@ -29,6 +29,8 @@ export interface GraphCompileResult {
   nativeFinalRoute?: import('../targetNative').TargetNativeFinalRouteIR
   /** Compiler-owned Project Final node identity used by target adapters. */
   effectiveFinalNodeId?: string
+  /** Compiler-owned enabled DNS node identity, independent of Universal DNS IR presence. */
+  effectiveDnsNodeId?: string
   targetNativeFinalOptions?: import('../targetNative').TargetNativeFinalOptionsIR
   targetNativeRouteOptions?: import('../targetNative').TargetNativeRouteOptionsIR[]
   /** Output-owned Surge General Network/VIF extensions. */
@@ -77,6 +79,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     })
     const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
     const routing = compileRouting(context, validationTarget)
+    const effectiveDnsNode = resolveEffectiveDnsOwner(context)
     const targetNativeFinalOptions = compileTargetNativeFinalOptions(context, routing.effectiveFinalNodeId, validationTarget)
     const targetNativeRouteOptions = compileTargetNativeRouteOptions(context, validationTarget)
     const targetNativeSurgeGeneralNetworks = compileTargetNativeSurgeGeneralNetworks(context)
@@ -129,7 +132,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       })), ...customRuleSourceServices, ...targetNativeRuleSetServices],
       routes: routing.routes,
       finalRoute: routing.finalRoute,
-      dns: compileDns(context),
+      dns: compileDns(context, effectiveDnsNode),
       outputs: compileOutputs(context),
     }
     const issues = deduplicateIssues([
@@ -147,6 +150,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       nativeRoutes: routing.nativeRoutes,
       nativeFinalRoute: routing.nativeFinalRoute,
       effectiveFinalNodeId: routing.effectiveFinalNodeId,
+      effectiveDnsNodeId: effectiveDnsNode?.id,
       targetNativeFinalOptions,
       targetNativeRouteOptions,
       targetNativeSurgeGeneralNetworks,
@@ -168,6 +172,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       targetNativeRuleSetSources: [],
       nativeRoutes: [],
       effectiveFinalNodeId: undefined,
+      effectiveDnsNodeId: undefined,
       targetNativeFinalOptions: undefined,
       targetNativeRouteOptions: [],
       targetNativeSurgeGeneralNetworks: [],

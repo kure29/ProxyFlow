@@ -36,6 +36,40 @@ describe('project schema version', () => {
     expect(result.project?.graph.nodes.find((node) => node.id === 'limit-string')?.data.limit).toBe(20)
   })
 
+  it('normalizes a resolverless V2 DNS node to automatic Universal intent', () => {
+    const project = structuredClone(demoProject)
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    dns.data.dnsResolvers = []
+    delete dns.data.universalDnsMode
+    const result = migrateProject(project)
+    expect(result.success).toBe(true)
+    expect(result.migrated).toBe(true)
+    expect(result.project?.graph.nodes.find((node) => node.id === dns.id)?.data.universalDnsMode).toBe('automatic')
+  })
+
+  it('normalizes an enabled-resolver V2 DNS node to custom Universal intent', () => {
+    const project = structuredClone(demoProject)
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete dns.data.universalDnsMode
+    const result = migrateProject(project)
+    expect(result.project?.graph.nodes.find((node) => node.id === dns.id)?.data.universalDnsMode).toBe('custom')
+  })
+
+  it('preserves explicit DNS modes through current-schema normalization and V1 migration', () => {
+    const current = structuredClone(demoProject)
+    const currentDns = current.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    currentDns.data.universalDnsMode = 'none'
+    currentDns.data.dnsResolvers = [{ id: 'retained', name: 'Retained', kind: 'doh', role: 'default', address: '', enabled: true }]
+    expect(migrateProject(current).project?.graph.nodes.find((node) => node.id === currentDns.id)?.data.universalDnsMode).toBe('none')
+
+    const v1 = structuredClone(current)
+    v1.version = 1
+    const v1Dns = v1.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete v1Dns.data.universalDnsMode
+    v1Dns.data.dnsResolvers = []
+    expect(migrateProject(v1).project?.graph.nodes.find((node) => node.id === v1Dns.id)?.data.universalDnsMode).toBe('automatic')
+  })
+
   it('keeps legacy URL subscriptions materialized while preserving explicit modes', () => {
     const project = structuredClone(demoProject)
     project.graph.nodes.push({

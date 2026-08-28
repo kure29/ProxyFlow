@@ -1,4 +1,4 @@
-import type { DnsResolverConfig, DnsResolverKind, DnsResolverRegion, DnsResolverRole } from '../../types/project'
+import type { DnsResolverConfig, DnsResolverKind, DnsResolverRegion, DnsResolverRole, UniversalDnsMode } from '../../types/project'
 
 export interface DnsResolverPreset {
   id: string
@@ -92,6 +92,18 @@ export function countEnabledDnsResolvers(
   legacyResolver?: string,
 ) {
   return normalizeDnsResolvers(resolvers, legacyResolver).filter((resolver) => resolver.enabled).length
+}
+
+/** Preserve the pre-discriminator interpretation for legacy Project data. */
+export function inferUniversalDnsMode(
+  resolvers: readonly DnsResolverConfig[] | undefined,
+  legacyResolver?: string,
+): Exclude<UniversalDnsMode, 'none'> {
+  return countEnabledDnsResolvers(resolvers, legacyResolver) > 0 ? 'custom' : 'automatic'
+}
+
+export function isUniversalDnsMode(value: unknown): value is UniversalDnsMode {
+  return value === 'none' || value === 'automatic' || value === 'custom'
 }
 
 export function resolveDnsResolverRegion(resolver: DnsResolverConfig): DnsResolverRegion | undefined {

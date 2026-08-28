@@ -111,7 +111,7 @@ const cloneSnapshot = (primaryTarget: PrimaryTarget | null, nodes: GraphNode[], 
 
 const makeId = (prefix: string) => `${prefix}-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now()}`
 
-const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
+const defaultDataFor = (type: BlockType, primaryTarget: PrimaryTarget | null): Partial<BlockNodeData> => {
   if (type === 'subscription') return { subscriptionUrl: '', subscriptionInputKind: 'url', subscriptionRequestProfile: 'auto', subscriptionExportMode: 'auto', enabled: true, nodeCount: 0, updatedAt: translateCurrent('demo.subscription.notParsed') }
   if (type === 'manual-proxy') return { proxyProtocol: 'socks5', proxyServer: '', proxyPort: 1080, proxyTransport: 'tcp' }
   if (type === 'filter') return {
@@ -126,7 +126,9 @@ const defaultDataFor = (type: BlockType): Partial<BlockNodeData> => {
   if (['routing-group', 'service-rule'].includes(type)) return { services: [], routeMatcherKind: 'service', ruleSource: 'ios_rule_script' }
   if (type === 'custom-rule') return { routeMatcherKind: 'domain-suffix', routeMatcherValue: '', ruleSource: 'custom' }
   if (type === 'output') return { client: 'mihomo', compatibility: 'Supported', mihomoProfile: createMihomoStarterProfile() }
-  if (type === 'dns') return { dnsResolvers: createMihomoStarterDnsResolvers() }
+  if (type === 'dns') return primaryTarget === 'mihomo'
+    ? { universalDnsMode: 'custom', dnsResolvers: createMihomoStarterDnsResolvers() }
+    : { universalDnsMode: 'none', dnsResolvers: [] }
   return {}
 }
 
@@ -344,7 +346,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const data: BlockNodeData = {
         blockType: type, category: item.category, title: translateCurrent(blockTitleKey(type)), subtitle: translateCurrent(blockDescriptionKey(type)),
         titleKey: blockTitleKey(type), subtitleKey: blockDescriptionKey(type), icon: item.icon,
-        ...defaultDataFor(type),
+        ...defaultDataFor(type, get().primaryTarget),
         ...dataPatch,
       }
       if (dataPatch?.titleKey) data.title = translateCurrent(dataPatch.titleKey as Parameters<typeof translateCurrent>[0])

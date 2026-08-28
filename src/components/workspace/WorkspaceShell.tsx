@@ -277,11 +277,11 @@ export function WorkspaceShell({
             : fallback}
         />}
         {activeSection === 'dns' && <DnsWorkspace
-          node={projection.dns[0] ? { id: projection.dns[0].node.id, resolver: projection.dns[0].node.data.resolver, dnsResolvers: projection.dns[0].node.data.dnsResolvers } : undefined}
+          node={projection.dns[0] ? { id: projection.dns[0].node.id, resolver: projection.dns[0].node.data.resolver, dnsResolvers: projection.dns[0].node.data.dnsResolvers, universalDnsMode: projection.dns[0].node.data.universalDnsMode } : undefined}
           target={activeProductTarget}
           copy={dnsWorkspaceCopy(t)}
           onCreateDns={() => addNode('dns', undefined, false)}
-          onChange={(resolvers) => projection.dns[0] && updateNodeData(projection.dns[0].node.id, { dnsResolvers: resolvers, resolver: undefined })}
+          onChange={(resolvers, universalDnsMode) => projection.dns[0] && updateNodeData(projection.dns[0].node.id, { dnsResolvers: resolvers, resolver: undefined, ...(universalDnsMode ? { universalDnsMode } : {}) })}
         />}
         {activeSection === 'inspect' && <ProjectHealthWorkspace
           nodes={nodes}
@@ -336,6 +336,7 @@ function dnsWorkspaceCopy(t: ReturnType<typeof useI18n>['t']): DnsWorkspaceCopy 
     emptyTitle: t('workspace.dns.emptyTitle'), emptyDescription: t('workspace.dns.emptyDescription'), addDns: t('workspace.addDns'), resolverDescription: t('workspace.dns.resolverDescription'),
     addResolver: t('workspace.dns.addResolver'), customResolver: t('workspace.dns.customResolver'), name: t('workspace.name'), protocol: t('workspace.protocol'),
     endpoint: t('workspace.dns.endpoint'), role: t('workspace.dns.role'), enabled: t('workspace.dns.enabled'), remove: t('workspace.dns.remove'), unsupported: t('workspace.dns.unsupported'),
+    universalDnsMode: t('workspace.dns.universalMode'), universalDnsModeNone: t('workspace.dns.universalMode.none'), universalDnsModeAutomatic: t('workspace.dns.universalMode.automatic'), universalDnsModeCustom: t('workspace.dns.universalMode.custom'), universalDnsModeDescription: t('workspace.dns.universalModeDescription'),
     roles: { default: t('workspace.dns.role.default'), direct: t('workspace.dns.role.direct'), fallback: t('workspace.dns.role.fallback') },
     regions: { system: t('workspace.dns.region.system'), global: t('workspace.dns.region.global'), 'mainland-china': t('workspace.dns.region.mainlandChina') },
   }

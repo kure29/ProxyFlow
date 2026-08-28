@@ -228,6 +228,80 @@ describe('compileGraph', () => {
     expect(result.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_INVALID', severity: 'error' }))
   })
 
+  it('resolves DNS ownership independently from Universal intent', () => {
+    const noOwner = structuredClone(demoProject)
+    noOwner.graph.nodes.find((node) => node.data.blockType === 'dns')!.data.disabled = true
+    const noOwnerResult = compileGraph(noOwner)
+    expect(noOwnerResult.success).toBe(true)
+    expect(noOwnerResult.effectiveDnsNodeId).toBeUndefined()
+    expect(noOwnerResult.ir?.dns).toBeUndefined()
+
+    const none = structuredClone(demoProject)
+    const noneDns = none.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    noneDns.data.universalDnsMode = 'none'
+    noneDns.data.dnsResolvers = [{ id: 'bad', name: 'Bad', kind: 'doh', role: 'default', address: 42, enabled: true } as never]
+    const noneResult = compileGraph(none)
+    expect(noneResult.success).toBe(true)
+    expect(noneResult.effectiveDnsNodeId).toBe(noneDns.id)
+    expect(noneResult.ir?.dns).toBeUndefined()
+    expect(noneResult.issues.some((issue) => issue.code.startsWith('DNS_'))).toBe(false)
+
+    const automatic = structuredClone(demoProject)
+    const automaticDns = automatic.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    automaticDns.data.universalDnsMode = 'automatic'
+    automaticDns.data.dnsResolvers = []
+    const automaticResult = compileGraph(automatic)
+    expect(automaticResult.success).toBe(true)
+    expect(automaticResult.effectiveDnsNodeId).toBe(automaticDns.id)
+    expect(automaticResult.ir?.dns).toEqual({ enabled: true, mode: 'automatic' })
+    expect(automaticResult.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_MISSING', severity: 'warning' }))
+
+    const custom = structuredClone(demoProject)
+    const customDns = custom.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    customDns.data.universalDnsMode = 'custom'
+    const customResult = compileGraph(custom)
+    expect(customResult.success).toBe(true)
+    expect(customResult.effectiveDnsNodeId).toBe(customDns.id)
+    expect(customResult.ir?.dns?.mode).toBe('custom')
+
+    const customEmpty = structuredClone(custom)
+    customEmpty.graph.nodes.find((node) => node.data.blockType === 'dns')!.data.dnsResolvers = []
+    const customEmptyResult = compileGraph(customEmpty)
+    expect(customEmptyResult.success).toBe(false)
+    expect(customEmptyResult.ir).toBeUndefined()
+    expect(customEmptyResult.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_MISSING', severity: 'error' }))
+  })
+
+  it('infers the legacy mode at the direct compileGraph boundary', () => {
+    const legacyAutomatic = structuredClone(demoProject)
+    const automaticDns = legacyAutomatic.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete automaticDns.data.universalDnsMode
+    automaticDns.data.dnsResolvers = []
+    expect(compileGraph(legacyAutomatic).ir?.dns).toEqual({ enabled: true, mode: 'automatic' })
+
+    const legacyCustom = structuredClone(demoProject)
+    const customDns = legacyCustom.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete customDns.data.universalDnsMode
+    expect(compileGraph(legacyCustom).ir?.dns?.mode).toBe('custom')
+  })
+
+  it('fails closed for malformed DNS modes and multiple enabled owners', () => {
+    const malformed = structuredClone(demoProject)
+    malformed.graph.nodes.find((node) => node.data.blockType === 'dns')!.data.universalDnsMode = 'future' as never
+    const malformedResult = compileGraph(malformed)
+    expect(malformedResult.success).toBe(false)
+    expect(malformedResult.effectiveDnsNodeId).toBe('dns')
+    expect(malformedResult.issues).toContainEqual(expect.objectContaining({ code: 'DNS_MODE_INVALID', severity: 'error' }))
+
+    const multiple = structuredClone(demoProject)
+    const dns = multiple.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    multiple.graph.nodes.push({ ...structuredClone(dns), id: 'dns-second', position: { x: dns.position.x + 20, y: dns.position.y + 20 } })
+    const multipleResult = compileGraph(multiple)
+    expect(multipleResult.success).toBe(false)
+    expect(multipleResult.effectiveDnsNodeId).toBeUndefined()
+    expect(multipleResult.issues).toContainEqual(expect.objectContaining({ code: 'DNS_MULTIPLE', severity: 'error' }))
+  })
+
   it('reports stable codes for invalid graph semantics', () => {
     const cases = [
       [invalidMissingTransformInputFixture, 'TRANSFORM_MISSING_INPUT'],

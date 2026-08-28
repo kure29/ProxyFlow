@@ -1,6 +1,7 @@
 import type { GraphEdge, GraphNode, ProxyFlowProject } from '../../types/project'
 import { withLegacyChinaCompatibility } from '../../data/legacyServices'
 import { isSubscriptionExportMode } from '../subscription'
+import { inferUniversalDnsMode } from '../dns/resolverProfiles'
 
 export const PROJECT_SCHEMA_VERSION = 2 as const
 
@@ -109,6 +110,10 @@ function normalizeCurrentDefaults(project: ProxyFlowProject) {
   const normalized = structuredClone(project)
   let changed = false
   for (const node of normalized.graph.nodes) {
+    if (node.data.blockType === 'dns' && node.data.universalDnsMode === undefined) {
+      node.data.universalDnsMode = inferUniversalDnsMode(node.data.dnsResolvers, node.data.resolver)
+      changed = true
+    }
     if (node.data.blockType === 'subscription' && (node.data.subscriptionInputKind ?? 'url') === 'url'
       && !isSubscriptionExportMode(node.data.subscriptionExportMode)) {
       node.data.subscriptionExportMode = 'materialized'

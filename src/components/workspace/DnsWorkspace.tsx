@@ -3,9 +3,9 @@ import { ChevronDown, Globe2, Plus, Server, Trash2 } from 'lucide-react'
 import { getTargetCapabilities, type CapabilityStatus, type PrimaryTarget } from '../../core/capabilities'
 import {
   appendCustomDnsResolver, appendDnsResolverPreset, deleteDnsResolver, DNS_RESOLVER_PRESETS,
-  normalizeDnsResolvers, patchDnsResolver, resolveDnsResolverRegion,
+  inferUniversalDnsMode, isUniversalDnsMode, normalizeDnsResolvers, patchDnsResolver, resolveDnsResolverRegion,
 } from '../../core/dns/resolverProfiles'
-import type { DnsResolverConfig, DnsResolverKind, DnsResolverRole } from '../../types/project'
+import type { DnsResolverConfig, DnsResolverKind, DnsResolverRole, UniversalDnsMode } from '../../types/project'
 import { WebSelect } from '../ui/WebSelect'
 
 export interface DnsWorkspaceCopy {
@@ -22,6 +22,11 @@ export interface DnsWorkspaceCopy {
   enabled: string
   remove: string
   unsupported: string
+  universalDnsMode?: string
+  universalDnsModeNone?: string
+  universalDnsModeAutomatic?: string
+  universalDnsModeCustom?: string
+  universalDnsModeDescription?: string
   roles: Record<DnsResolverRole, string>
   regions: Record<'system' | 'global' | 'mainland-china', string>
 }
@@ -29,11 +34,11 @@ export interface DnsWorkspaceCopy {
 export function DnsWorkspace({
   node, target, copy, onCreateDns, onChange,
 }: {
-  node?: { id: string; resolver?: string; dnsResolvers?: DnsResolverConfig[] }
+  node?: { id: string; resolver?: string; dnsResolvers?: DnsResolverConfig[]; universalDnsMode?: UniversalDnsMode }
   target: PrimaryTarget | null
   copy: DnsWorkspaceCopy
   onCreateDns: () => void
-  onChange: (resolvers: DnsResolverConfig[]) => void
+  onChange: (resolvers: DnsResolverConfig[], universalDnsMode?: UniversalDnsMode) => void
 }) {
   const [adding, setAdding] = useState(false)
   const addRootRef = useRef<HTMLDivElement>(null)
@@ -44,6 +49,9 @@ export function DnsWorkspace({
     () => normalizeDnsResolvers(node?.dnsResolvers, node?.resolver),
     [node?.dnsResolvers, node?.resolver],
   )
+  const mode: UniversalDnsMode = isUniversalDnsMode(node?.universalDnsMode)
+    ? node!.universalDnsMode
+    : inferUniversalDnsMode(node?.dnsResolvers, node?.resolver)
   useEffect(() => {
     if (!adding) return
     const focusFrame = focusMenuOnOpenRef.current
@@ -97,16 +105,28 @@ export function DnsWorkspace({
     setAdding(true)
   }
   const addPreset = (presetId: string, returnFocus: boolean) => {
-    onChange(appendDnsResolverPreset(resolvers, presetId))
+    onChange(appendDnsResolverPreset(resolvers, presetId), 'custom')
     closeAddMenu(returnFocus)
   }
   const addCustom = (returnFocus: boolean) => {
-    onChange(appendCustomDnsResolver(resolvers))
+    onChange(appendCustomDnsResolver(resolvers), 'custom')
     closeAddMenu(returnFocus)
   }
 
-  return <div className="dns-workspace">
-    <div className="workspace-section-intro"><p>{copy.resolverDescription}</p><div className="dns-add-menu" ref={addRootRef} onBlur={(event) => {
+  return <div className={`dns-workspace${mode !== 'custom' ? ' dns-workspace--inactive' : ''}`}>
+    <div className="workspace-section-intro">
+      <label className="dns-mode-control"><span>{copy.universalDnsMode ?? 'Universal DNS intent'}</span><WebSelect
+        label={copy.universalDnsMode ?? 'Universal DNS intent'}
+        value={mode}
+        onChange={(value) => isUniversalDnsMode(value) && onChange(resolvers, value)}
+        options={[
+          { value: 'none', label: copy.universalDnsModeNone ?? 'No Universal DNS' },
+          { value: 'automatic', label: copy.universalDnsModeAutomatic ?? 'Automatic DNS' },
+          { value: 'custom', label: copy.universalDnsModeCustom ?? 'Custom resolvers' },
+        ]}
+      /></label>
+      <p>{copy.universalDnsModeDescription ?? copy.resolverDescription}</p>
+      <div className="dns-add-menu" ref={addRootRef} onBlur={(event) => {
       if (adding && !event.currentTarget.contains(event.relatedTarget as Node | null)) setAdding(false)
     }}>
       <button ref={addButtonRef} type="button" className="primary-action" aria-haspopup="menu" aria-controls={adding ? 'dns-preset-menu' : undefined} aria-expanded={adding} onKeyDown={(event) => {
@@ -130,7 +150,7 @@ export function DnsWorkspace({
         const roleStatus = dnsRoleCapability(target, resolver.role)
         const unsupported = kindStatus === 'unsupported' || roleStatus === 'unsupported'
         const region = resolveDnsResolverRegion(resolver)
-        return <article className={unsupported ? 'is-unsupported' : ''} key={resolver.id}>
+        return <article className={`${unsupported ? 'is-unsupported ' : ''}${mode !== 'custom' ? 'is-inactive' : ''}`} key={resolver.id}>
           <header><span><Server size={17} /><span><strong>{resolver.name}</strong><small>{resolver.kind.toUpperCase()}{region ? ` · ${copy.regions[region]}` : ''}</small></span></span>{unsupported && <em>{copy.unsupported}</em>}</header>
           <div className="dns-resolver-fields">
             <label><span>{copy.name}</span><input value={resolver.name} onChange={(event) => update(resolver.id, { name: event.target.value })} /></label>
