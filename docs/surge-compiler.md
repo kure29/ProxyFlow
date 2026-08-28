@@ -6,7 +6,12 @@ The Surge backend follows the same target-neutral pipeline as the other compiler
 Graph → Universal IR → Semantic Validation → Surge Compatibility → Surge Model → Serializer
 ```
 
-Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surge is a supported production target within the documented, fail-closed capability subset. Real Surge client import and proxy-traffic acceptance passed; see `docs/surge-acceptance.md`.
+Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surge
+is a supported production target within the documented, fail-closed capability
+subset. Historical real-subscription acceptance generated an importable profile
+and exercised core proxy, group, routing, DNS, and traffic behavior; see
+`docs/surge-acceptance.md`. Focused current Surge 1.4 Mac/iOS acceptance of
+G1/G2/G3-A/G3-B/G3-C remains pending.
 
 ## Current capability matrix
 
@@ -71,7 +76,12 @@ For URL Test and Fallback, `intervalSeconds` maps to Surge `interval`, whose off
 
 The setting is retained on an Output when its client changes. A non-Surge compilation with retained Surge intent fails closed rather than silently dropping or mapping it to another target's health-check field. Switching the same Output back to Surge restores the authored URL. An unset value emits no `internet-test-url` key and does not materialize Surge's documented default.
 
-`test-timeout` remains Deferred and is not implemented. No real-device G2 verification has been performed; the current coverage is typed-boundary, graph/provenance, compatibility, and serializer/compiler tests.
+`test-timeout` and `proxy-test-udp` are Deferred after 1.4 and are not
+implemented. No focused current Surge 1.4 device verification of G1/G2/G3-A,
+G3-B, or G3-C has been performed; the current repository coverage is
+typed-boundary, graph/provenance, compatibility, and serializer/compiler
+evidence. Historical real-subscription evidence is tracked separately in
+`docs/surge-acceptance.md`.
 
 ## VIF route control (G3-B)
 

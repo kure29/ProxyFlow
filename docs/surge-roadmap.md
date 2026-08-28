@@ -1,10 +1,10 @@
 # ProxyFlow — Surge 1.4.0 Scope and Deferred Backlog
 
-Status: implementation baseline (G3-C implemented subset)
+Status: Surge 1.4 feature scope closed; real-client acceptance pending
 
-Baseline `main`: `6713e5c87e766069cc008c27e073dda6f5ec4b1b`
+Baseline `main`: `5b811ce8b57cc8d8e634fa39c550bb61474d99fa`
 
-Branch: `feat/surge-g3c-proxy-bypass`
+Branch: `main`
 
 This document is the authoritative release-scope and backlog record for the
 Surge export target. It is intentionally a finite planning slice: it does not
@@ -77,8 +77,8 @@ The roadmap uses these statuses consistently:
 | Status | Meaning |
 | --- | --- |
 | **Implemented** | Repository code, validation, and serializer evidence exists for the stated subset. |
-| **Planned for 1.4** | Required high-value work in the finite 1.4 implementation scope; ownership is an expected boundary until the slice is audited and implemented. |
-| **Candidate for 1.4** | Valuable follow-up that may be promoted by the closure audit; not an automatic release blocker. |
+| **Planned for 1.4** | Historical planning label; no open 1.4 implementation Slice remains. |
+| **Candidate for 1.4** | Historical audit input; all current Candidates are resolved below. |
 | **Deferred** | Explicitly post-1.4 work; it must not block the first mature Surge release. |
 | **Research Required** | Surge semantics, cross-target intent, or an admission boundary is not proven yet. |
 | **Real-client Verification Required** | Compiler/fixture evidence is insufficient; focused Surge iOS or Mac acceptance is still required. |
@@ -89,10 +89,10 @@ The roadmap uses these statuses consistently:
 | Release lens | Roadmap meaning |
 | --- | --- |
 | **Supported now** | The implemented baseline below, limited to the exact repository-evidenced subsets. |
-| **Required / high-priority for 1.4.0** | G3-B and G3-C, subject to their ownership and admission audits. |
-| **Candidate for 1.4.0** | Connectivity, DNS, and traffic-behavior candidates listed below; promotion is optional. |
+| **Implemented for 1.4.0** | G0, G1, G2, G3-A, G3-B, and G3-C are implemented in their documented subsets. |
+| **Candidates resolved** | All nine remaining Candidates are explicitly deferred or rejected; none was promoted. |
 | **Deferred after 1.4.0** | Security, listeners, HTTP processing, platform controls, and other backlog categories below. |
-| **Research Required** | Any item whose Surge semantics, portable intent, or semantic owner is not yet proven. |
+| **Future admission audits** | Required only if a deferred item is revisited; not a 1.4 release gate. |
 | **Real-client Verification Required** | Focused import and behavior checks on actual Surge iOS/Mac clients before release. |
 | **Explicitly out of scope** | The non-goals in the final section; they are not release blockers. |
 
@@ -186,16 +186,17 @@ No focused real-device verification of G1, G2, or G3-A is claimed by this
 roadmap. Automated typed-boundary, graph/provenance, compatibility, and
 serializer tests are compiler/fixture evidence, not real-client evidence.
 
-## Active implementation scope for 1.4.0
+## Implemented 1.4.0 scope
 
-The active scope is General-first and finite. Items that remain planned or
-candidate still require their own admission and ownership audit before code is
-written; the implemented G3-C subset is recorded below.
+The 1.4.0 implementation scope is complete and intentionally finite. The
+remaining release path is documentation closure followed by focused Surge
+Mac/iOS real-client acceptance. No additional General implementation is
+required before v1.4.0.
 
 ### G3-B — VIF route control (Implemented subset)
 
-`tun-excluded-routes` and `tun-included-routes` are expected to be Surge
-Output-owned controls in the `tun-capture / VIF routing behavior` family.
+`tun-excluded-routes` and `tun-included-routes` are Surge Output-owned controls
+in the `tun-capture / VIF routing behavior` family.
 
 - `tun-excluded-routes` contains IPv4/IPv6 CIDRs that bypass the Surge VIF.
   It applies to VIF traffic, not requests handled by Surge Proxy Server.
@@ -243,56 +244,55 @@ admitted because the Boolean owns the broad all-simple-hostnames intent;
 `skipProxy: ['localhost']` remains valid and distinct. No real-client
 verification is claimed.
 
-## Candidates for 1.4.0
+## Resolved Candidates after the 1.4.0 Closure Audit
 
-Candidates are deliberately not release blockers until the mandatory closure
-audit. They require an ownership/admission audit, typed representation, target
-compatibility decision, and explicit unsupported behavior.
+The Closure Audit resolved every remaining Candidate. No Candidate was
+promoted into 1.4.0. Deferred items may receive a new admission audit only if a
+future product slice explicitly revisits them.
 
 ### Connectivity candidates
 
-- `test-timeout` — Surge's default proxy connectivity-testing timeout in
-  seconds (the DIRECT policy uses its documented separate timeout).
-- `proxy-test-udp` — Surge's default UDP proxy test parameter in
-  `hostname@ipv4` form; the query is sent to that IPv4 address on port 53.
-
-Neither may become an Output-owned duplicate of Universal health-check intent.
-The audit must decide whether each is a Surge-native General default, a
-strategy concern, or not admissible for Universal authoring.
+- `test-timeout` — **Deferred after 1.4.** Surge's default proxy
+  connectivity-test timeout is 5 seconds; DIRECT uses a separate documented
+  10-second timeout. Omission is usable for normal workflows, and adding the
+  control requires careful separation from Universal health semantics.
+- `proxy-test-udp` — **Deferred after 1.4.** This is an optional
+  `hostname@IPv4` UDP probe sent to port 53. It is not required for normal URL
+  Test/Fallback correctness, and ProxyFlow has no proven Universal UDP-health
+  contract. Safe omission is supported; Surge does not document a concrete
+  default endpoint.
 
 ### DNS candidates
 
-- `hijack-dns` — interception of explicitly targeted standard DNS traffic;
-  it is neither `always-real-ip` nor resolver selection.
-- `allow-dns-svcb` — controls SVCB query behavior in Fake-IP context.
-- `encrypted-dns-follow-outbound-mode` — makes encrypted DNS requests follow
-  outbound mode/rules rather than default direct behavior.
-- `use-local-host-item-for-proxy` — allows local DNS mapping results to affect
-  proxy connection setup.
-
-These are distinct semantics. No candidate is presumed to belong in Universal
-`DnsIR`; each needs a DNS ownership/admission audit first.
+- `hijack-dns` — **Deferred after 1.4.** This intercepts explicitly targeted
+  standard DNS traffic and is distinct from resolver selection, Fake-IP, and
+  `always-real-ip`. It has high side-effect and client-verification cost.
+- `allow-dns-svcb` — **Deferred after 1.4.** The documented default is
+  `false`, preserving Fake-IP A-record behavior; enabling it is not required
+  for the supported daily DNS subset.
+- `encrypted-dns-follow-outbound-mode` — **Deferred after 1.4.** The
+  documented default is `false` (DIRECT). Following outbound rules introduces
+  resolver-routing, bootstrap, and leak/loop semantics outside Universal
+  `DnsIR`.
+- `use-local-host-item-for-proxy` — **Rejected / outside current product
+  boundary.** It depends on Surge Local DNS Mapping / `[Host]` semantics, which
+  ProxyFlow does not model as a Project source of truth. This rejection is from
+  the current 1.4 boundary, not a permanent impossibility if that model is
+  added later.
 
 ### Traffic-behavior candidates
 
-- `udp-policy-not-supported-behaviour` — fallback (`REJECT` or `DIRECT`) when
-  UDP matches a policy without UDP relay support.
-- `block-quic` — global override of per-policy QUIC blocking (`per-policy`,
-  `all-proxy`, `all`, or `always-allow`).
-- `loglevel` — Surge logging verbosity.
+- `udp-policy-not-supported-behaviour` — **Deferred after 1.4.** Official
+  default is `REJECT`, which is fail-closed and prevents an unexpected DIRECT
+  fallback for unsupported UDP relay.
+- `block-quic` — **Deferred after 1.4.** The global default is `per-policy`;
+  ProxyFlow does not model the complete related per-policy ownership surface,
+  so a global-only override would create precedence ambiguity.
+- `loglevel` — **Deferred after 1.4.** This is an operational preference with
+  default `notify`; it does not affect configuration correctness.
 
-These are likely Surge-native controls, but that ownership is **unproven**
-until audited. The closure audit may defer any of them if cost, side effects,
-or client evidence outweighs release value.
-
-### Research Required before implementation
-
-Every Planned or Candidate key with an “Expected”, “Needs Audit”, or
-“Unproven” owner has a research prerequisite. The audit must establish the
-official value grammar, platform/version differences, interaction with existing
-Universal intent, one semantic owner, retained-intent behavior when another
-target is selected, and a fail-closed diagnostic. No raw `[General]` field or
-second source of truth may be introduced while that research is open.
+No raw `[General]` field, second source of truth, or new target mapping is
+introduced by these decisions.
 
 ## Deferred after 1.4.0
 
@@ -377,42 +377,67 @@ real endpoints, credentials, subscriptions, or certificates.
 
 ## Mandatory Surge 1.4.0 Closure Audit
 
-After the planned General-first slices, run a closure audit. For every
-Candidate item, the audit must choose exactly one of:
+Completed against audit baseline `5b811ce8b57cc8d8e634fa39c550bb61474d99fa`.
 
-- promoted into 1.4;
-- deferred after 1.4;
-- rejected as low-value or outside the product boundary; or
-- blocked pending real-client verification.
+```text
+Decision: SURGE 1.4 FEATURE SCOPE CLOSED
+Promoted Candidates: None
+New untracked release-critical General omissions: None
+```
 
-The closure audit also verifies that every emitted General key has one owner,
-that retained cross-target intent fails closed, and that unset values remain
-byte-stable. A remaining unsupported Surge key is not a reason to extend the
-scope indefinitely.
+Final decisions:
+
+| Candidate | Closure decision |
+| --- | --- |
+| `test-timeout` | Deferred after 1.4 |
+| `proxy-test-udp` | Deferred after 1.4 |
+| `hijack-dns` | Deferred after 1.4 |
+| `allow-dns-svcb` | Deferred after 1.4 |
+| `encrypted-dns-follow-outbound-mode` | Deferred after 1.4 |
+| `use-local-host-item-for-proxy` | Rejected / outside current product boundary |
+| `udp-policy-not-supported-behaviour` | Deferred after 1.4 |
+| `block-quic` | Deferred after 1.4 |
+| `loglevel` | Deferred after 1.4 |
+
+The audit verified one owner per emitted General key, fail-closed retained
+cross-target intent, and byte-stable omission of unset values. A remaining
+unsupported Surge key is not a reason to extend the scope indefinitely.
 
 ## Release gate
 
-- [ ] Core Surge proxy, policy, and routing workflow is stable.
-- [ ] DNS export is stable for the documented supported subset.
-- [ ] General G0/G1/G2 is stable.
-- [ ] G3-A `always-real-ip` is stable and remains DNS-node-owned.
-- [ ] G3-B is resolved with explicit VIF-route ownership and semantics.
+- [x] Core Surge proxy, policy, and routing workflow is stable at the documented supported subset.
+- [x] DNS export is stable for the documented supported subset.
+- [x] General G0/G1/G2 is stable at the compiler/runtime evidence level.
+- [x] G3-A `always-real-ip` is stable and remains DNS-node-owned at the compiler/runtime evidence level.
+- [x] G3-B is resolved with explicit VIF-route ownership and semantics.
 - [x] G3-C is resolved with explicit system-proxy compatibility ownership for
   the admitted v1.4 subset; deferred Host List grammar remains documented.
-- [ ] Surge 1.4.0 Closure Audit is complete.
-- [ ] Candidate General items are explicitly promoted or deferred.
-- [ ] No known silent-downgrade or silent-stripping path remains.
-- [ ] Cross-target retained intent fails closed.
+- [x] Surge 1.4.0 Closure Audit is complete.
+- [x] Candidate General items are explicitly promoted, deferred, or rejected.
+- [x] No known silent-downgrade or silent-stripping path remains.
+- [x] Cross-target retained intent fails closed.
 - [ ] Important generated Surge profiles receive real-client verification.
-- [ ] Capability and documentation matrices are updated.
+- [x] Capability and documentation matrices are reconciled by this Slice.
 - [ ] Full CI and acceptance checks are green.
 
 “Every Surge option implemented” is intentionally not a release gate.
 
+### Remaining blockers after closure
+
+1. Focused Surge Mac acceptance of the implemented high-impact paths.
+2. Focused Surge iOS acceptance of the implemented high-impact paths.
+3. Any concrete compiler or client defects demonstrated by those acceptance
+   passes.
+4. Final release-engineering, version, and release-note closure.
+
+There is currently no promoted General Candidate, no known compiler/runtime
+blocker, and no known silent-strip blocker.
+
 ## Authoritative backlog
 
-The table below is the scope record. “Expected”, “Needs Audit”, and “Unproven”
-are planning labels, not claims about implemented architecture.
+The table below is the scope record. Candidate rows reflect the completed
+Closure Audit; any future admission work is post-1.4 and does not block this
+release scope.
 
 | Feature | Surge section | Status | Priority | Semantic owner | Universal / Surge-native | Expected output | Why deferred / prerequisite | Risk | Official reference |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -428,15 +453,15 @@ are planning labels, not claims about implemented architecture.
 | `tun-included-routes` | General / VIF route control | Implemented subset | High | Surge Output (existing general-network family) | Surge-native | `[General] tun-included-routes` canonical CIDR list | Specificity overlap preserved; real-client verification remains open | High: capture/loop risk | [General](https://manual.nssurge.com/profile/general.html#tun-included-routes) |
 | `skip-proxy` | General / System Proxy Bypass | Implemented subset | High | Surge Output (`general-proxy-bypass`) | Surge-native | `[General] skip-proxy` typed Host List | Positive v1.4 subset only; negatives, ports, special tokens, IPv6, and broad wildcard grammar deferred; no real-client verification claimed | High: proxy/VIF leakage | [General](https://manual.nssurge.com/profile/general.html#skip-proxy) |
 | `exclude-simple-hostnames` | General / System Proxy Bypass | Implemented | Medium | Surge Output (`general-proxy-bypass`) | Surge-native | `[General] exclude-simple-hostnames` | Tri-state omission/true/explicit false; remains separate from specific `localhost` list entries; no real-client verification claimed | Medium: local-name handling | [General](https://manual.nssurge.com/profile/general.html#exclude-simple-hostnames) |
-| `test-timeout` | General / Connectivity | Candidate for 1.4 | Medium | Needs Audit; likely Surge General owner | Surge-native expected | `[General] test-timeout` seconds | Admission audit; distinguish proxy default from DIRECT timeout | Medium: timeout/user latency | [General](https://manual.nssurge.com/profile/general.html#test-timeout) |
-| `proxy-test-udp` | General / Connectivity | Candidate for 1.4 | Medium | Needs Audit; likely Surge General owner | Surge-native expected | `[General] proxy-test-udp` hostname@IPv4 | Admission audit; no invented Universal UDP health contract | Medium: UDP reachability | [General](https://manual.nssurge.com/profile/general.html#proxy-test-udp) |
-| `hijack-dns` | General / DNS | Candidate for 1.4 | Medium | Needs Audit; DNS owner unproven | Surge-native expected | `[General] hijack-dns` | Separate interception from resolver selection and always-real-ip | High: DNS interception | [General](https://manual.nssurge.com/profile/general.html#hijack-dns) |
-| `allow-dns-svcb` | General / DNS | Candidate for 1.4 | Low | Needs Audit; DNS owner unproven | Surge-native expected | `[General] allow-dns-svcb` | Fake-IP/SVCB semantics and client verification | Medium: address selection | [General](https://manual.nssurge.com/profile/general.html#allow-dns-svcb) |
-| `encrypted-dns-follow-outbound-mode` | General / DNS | Candidate for 1.4 | Medium | Needs Audit; DNS/Output boundary unproven | Surge-native expected | `[General] encrypted-dns-follow-outbound-mode` | Outbound/rules coupling is not in Universal `DnsIR` | High: resolver routing/leaks | [General](https://manual.nssurge.com/profile/general.html#encrypted-dns-follow-outbound-mode) |
-| `use-local-host-item-for-proxy` | General / DNS | Candidate for 1.4 | Low | Needs Audit; DNS/proxy boundary unproven | Surge-native expected | `[General] use-local-host-item-for-proxy` | Local mapping to proxy setup needs explicit model | Medium: endpoint resolution | [General](https://manual.nssurge.com/profile/general.html#use-local-host-item-for-proxy) |
-| `udp-policy-not-supported-behaviour` | General / Traffic | Candidate for 1.4 | Medium | Needs Audit; likely Surge Output owner | Surge-native expected | `[General] udp-policy-not-supported-behaviour` | Must preserve fail-closed default and UDP policy semantics | High: accidental DIRECT leak | [General](https://manual.nssurge.com/profile/general.html#udp-policy-not-supported-behaviour) |
-| `block-quic` | General / Traffic | Candidate for 1.4 | Medium | Needs Audit; likely Surge Output owner | Surge-native expected | `[General] block-quic` | Global/per-policy precedence and client verification | High: protocol reachability | [General](https://manual.nssurge.com/profile/general.html#block-quic) |
-| `loglevel` | General / Logging | Candidate for 1.4 | Low | Needs Audit; likely Surge Output owner | Surge-native expected | `[General] loglevel` | Value vocabulary and product value audit | Low/Medium: diagnostics volume | [General](https://manual.nssurge.com/profile/general.html#loglevel) |
+| `test-timeout` | General / Connectivity | Deferred after 1.4 | Medium | Future Surge Output owner if revisited | Surge-native future option | `[General] test-timeout` seconds | 5-second proxy default and separate 10-second DIRECT timeout are usable; preserve Universal health ownership | Medium: timeout/user latency | [General](https://manual.nssurge.com/profile/general.html#test-timeout) |
+| `proxy-test-udp` | General / Connectivity | Deferred after 1.4 | Medium | Future Surge Output owner if revisited | Surge-native future option | `[General] proxy-test-udp` hostname@IPv4 | Optional UDP probe; no concrete documented endpoint default and no Universal UDP-health contract | Medium: UDP reachability | [General](https://manual.nssurge.com/profile/general.html#proxy-test-udp) |
+| `hijack-dns` | General / DNS | Deferred after 1.4 | Medium | Future Surge DNS interception owner if revisited | Surge-native future option | `[General] hijack-dns` | High-side-effect DNS interception is not required by the supported DNS subset | High: DNS interception | [General](https://manual.nssurge.com/profile/general.html#hijack-dns) |
+| `allow-dns-svcb` | General / DNS | Deferred after 1.4 | Low | Future Surge DNS owner if revisited | Surge-native future option | `[General] allow-dns-svcb` | Default `false` preserves Fake-IP behavior; no release-critical daily value | Medium: address selection | [General](https://manual.nssurge.com/profile/general.html#allow-dns-svcb) |
+| `encrypted-dns-follow-outbound-mode` | General / DNS | Deferred after 1.4 | Medium | Future DNS/Output owner if revisited | Surge-native future option | `[General] encrypted-dns-follow-outbound-mode` | Default DIRECT path is safe; outbound coupling is outside Universal `DnsIR` | High: resolver routing/leaks | [General](https://manual.nssurge.com/profile/general.html#encrypted-dns-follow-outbound-mode) |
+| `use-local-host-item-for-proxy` | General / DNS | Rejected / outside current product boundary | Low | No current ProxyFlow owner | Not admitted | Not emitted | Requires an explicit Local Host Mapping Project source before a toggle could be meaningful | Medium: endpoint resolution | [General](https://manual.nssurge.com/profile/general.html#use-local-host-item-for-proxy) |
+| `udp-policy-not-supported-behaviour` | General / Traffic | Deferred after 1.4 | Medium | Future Surge Output owner if revisited | Surge-native future option | `[General] udp-policy-not-supported-behaviour` | Official default `REJECT` is fail-closed; exposing a global fallback is unnecessary for 1.4 | High: accidental DIRECT leak | [General](https://manual.nssurge.com/profile/general.html#udp-policy-not-supported-behaviour) |
+| `block-quic` | General / Traffic | Deferred after 1.4 | Medium | Future Surge Output owner if revisited | Surge-native future option | `[General] block-quic` | Default `per-policy` is safe; ProxyFlow does not model the complete per-policy ownership surface | High: protocol reachability | [General](https://manual.nssurge.com/profile/general.html#block-quic) |
+| `loglevel` | General / Logging | Deferred after 1.4 | Low | Future Surge Output owner if revisited | Surge-native future option | `[General] loglevel` | Operational preference only; default `notify` is sufficient | Low/Medium: diagnostics volume | [General](https://manual.nssurge.com/profile/general.html#loglevel) |
 | `proxy-restricted-to-lan`, `gateway-restricted-to-lan` | General / Remote access | Deferred | Low | Surge Output; security review required | Surge-native | `[General]` listener restrictions | Security boundary and platform acceptance | High: exposure | [General](https://manual.nssurge.com/profile/general.html#proxy-restricted-to-lan) |
 | `external-controller-access`, `http-api`, `http-api-tls`, `http-api-web-dashboard` | General / Remote access | Deferred | Low | Surge Output; security review required | Surge-native | `[General]` controller/API settings | Secrets, certificates, remote control | Critical: remote takeover | [General](https://manual.nssurge.com/profile/general.html#external-controller-access) |
 | `allow-wifi-access`, `allow-hotspot-access`, `wifi-access-http-port`, `wifi-access-socks5-port`, `wifi-access-http-auth` | General / LAN services | Deferred | Low | Surge Output; platform/security review required | Surge-native | `[General]` LAN listener settings | Listener and authentication semantics | High: LAN exposure | [General](https://manual.nssurge.com/profile/general.html#allow-wifi-access) |
@@ -445,7 +470,7 @@ are planning labels, not claims about implemented architecture.
 | `compatibility-mode`, `wifi-assist`, `all-hybrid`, `hide-vpn-icon` | iOS-only General | Deferred | Low | Surge iOS Output; platform review required | Surge-native | `[General]` iOS controls | Side effects and device verification | High: connectivity/system behavior | [General](https://manual.nssurge.com/profile/general.html#working-mode) |
 | `include-all-networks`, `include-local-networks`, `include-apns`, `include-cellular-services` | iOS-only General | Deferred | Low | Surge iOS Output; platform review required | Surge-native | `[General]` tunnel-scope controls | Required combinations and OS side effects | High: leaks/AirDrop/Xcode impact | [General](https://manual.nssurge.com/profile/general.html#vpn-tunnel-scope) |
 | `http-listen`, `socks5-listen` | Mac-only General | Deferred | Low | Surge Mac Output; listener review required | Surge-native | `[General]` listener settings | Security and platform behavior | High: local/network exposure | [General](https://manual.nssurge.com/profile/general.html#surge-mac-only-parameters) |
-| Debug/low-priority keys (`debug-cpu-usage`, `debug-memory-usage`, `show-error-page`, `show-error-page-for-reject`, `geoip-maxmind-url`, `disable-geoip-db-auto-update`, `udp-priority`) | General / Debug | Deferred | Low | Needs Audit; no current implementation claim | Surge-native | `[General]` key when separately admitted | Not release-critical; repository evidence required | Low/Medium | [General](https://manual.nssurge.com/profile/general.html#traffic-processing) |
+| Debug/low-priority keys (`debug-cpu-usage`, `debug-memory-usage`, `show-error-page`, `show-error-page-for-reject`, `geoip-maxmind-url`, `disable-geoip-db-auto-update`, `udp-priority`) | General / Debug | Deferred | Low | Future admission only; no current implementation claim | Surge-native | `[General]` key when separately admitted | Not release-critical; repository evidence required | Low/Medium | [General](https://manual.nssurge.com/profile/general.html#traffic-processing) |
 | Snell, Naïve, VLESS expansion, Hysteria2/TUIC/AnyTLS expansion | Proxy protocols | Deferred / separate workstream | Non-blocking | Protocol-specific adapters | Surge-native | Protocol sections/policies | Keep protocol breadth outside General gate | High: semantic drift | [Surge policies](https://manual.nssurge.com/policies/overview.html) |
 
 ## Explicit Non-Goals for v1.4.0
@@ -488,3 +513,12 @@ Related repository evidence:
 - [`src/core/targetNative/`](../src/core/targetNative/) and
   [`src/core/graphCompiler/`](../src/core/graphCompiler/) — typed target-native
   boundaries and compiler provenance.
+
+## Next gate
+
+**Next: Surge 1.4 Real-client Acceptance**
+
+The focused Mac/iOS acceptance pass must cover the implemented G0/G1/G2/G3-A,
+G3-B, and G3-C paths, DNS, routing precedence, `FINAL`, representative
+strategies, Proxy Chain, Service Rules, and representative proxy traffic.
+This documentation Slice does not claim that those checks have been performed.

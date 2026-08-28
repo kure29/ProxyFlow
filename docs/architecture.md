@@ -150,9 +150,17 @@ normalized (or inferred at the direct compiler boundary) to `custom` when an
 enabled resolver exists, otherwise `automatic`. Multiple enabled DNS nodes fail
 closed with `DNS_MULTIPLE`, and disabled nodes are runtime-inert but retained.
 
-Target-native DNS behavior is planned for a later slice; this boundary does not
-implement `always-real-ip`, add Surge `[General]` keys, or create placeholder
-target-native DNS records.
+Target-native DNS behavior is namespaced and capability-driven. The effective
+enabled DNS node remains the sole DNS owner and exposes its compiler-owned
+`effectiveDnsNodeId` independently from Universal DNS IR. The current Surge
+target implements the typed `targetNativeSurgeDnsBehavior` subset for
+`always-real-ip`; the behavior is lowered only by the Surge compiler and never
+enters Universal `DnsIR`.
+
+`universalDnsMode = none` plus a DNS-node-owned `always-real-ip` record is a
+valid combination: no Universal `DnsIR` is produced, while the DNS owner and
+its target-native behavior remain available. This does not imply that every
+target-native DNS feature is implemented.
 
 ## Proxy Chain
 
