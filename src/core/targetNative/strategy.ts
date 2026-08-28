@@ -7,6 +7,10 @@
  * universal strategy kind while leaving room for future native adapters.
  */
 
+import type { RouteTargetIR, TrafficMatcherIR } from '../ir'
+import { isExactTrafficMatcherIR } from '../ir'
+import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
+
 export type TargetNativeStrategyTarget = 'surge'
 
 export type BuiltinPolicy = 'DIRECT' | 'REJECT'
@@ -62,13 +66,20 @@ export interface TargetNativeStrategyIRBase {
 export interface TargetNativeRouteIR {
   id: string
   name: string
-  matcher?: import('../ir').TrafficMatcherIR | { kind: 'source-port'; port: number }
-  target: import('../ir').RouteTargetIR
+  matcher: TrafficMatcherIR | { kind: 'source-port'; port: number }
+  target: RouteTargetIR
   priority: number
   /** Compiler-owned rank among all emitted Project routes, including Universal routes. */
-  routingOrder?: number
+  routingOrder: number
   /** Exact typed provenance for a Surge-native source-port matcher. */
   targetNativeSourcePort?: import('./sourcePort').TargetNativeSourcePortIR
+}
+
+/** A native Final is not an ordinary ordered route and has no matcher/order. */
+export interface TargetNativeFinalRouteIR {
+  id: string
+  name: string
+  target: Extract<RouteTargetIR, { kind: 'strategy' }>
 }
 
 export type TargetNativeStrategyIR = TargetNativeStrategyIRBase & SurgeNativeStrategyConfig
@@ -79,6 +90,18 @@ export function isTargetNativeStrategyConfig(value: unknown): value is TargetNat
 
 export function isTargetNativeStrategyIR(value: unknown): value is TargetNativeStrategyIR {
   return isTargetNativeStrategyShape(value, true)
+}
+
+/** Runtime identity proof shared by target adapters for native-strategy-owned records. */
+export function resolvesUniqueTargetNativeStrategy(
+  id: string,
+  strategies: readonly unknown[],
+): boolean {
+  const matches = strategies.filter((strategy) => (
+    strategy && typeof strategy === 'object'
+      && (strategy as Record<string, unknown>).id === id
+  ))
+  return matches.length === 1 && isTargetNativeStrategyIR(matches[0])
 }
 
 export function isPolicyReference(value: unknown): value is PolicyReference {
@@ -181,4 +204,51 @@ function hasOwnKey(value: object, key: string) {
 
 function hasNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && Boolean(value.trim())
+}
+
+export function isTargetNativeRouteTarget(value: unknown): value is RouteTargetIR {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  if (candidate.kind === 'direct' || candidate.kind === 'reject') return hasExactKeys(value, ['kind'])
+  return candidate.kind === 'strategy'
+    && hasExactKeys(value, ['kind', 'id'])
+    && hasNonEmptyString(candidate.id)
+}
+
+/** Exact runtime guard for ordinary target-native ordered routes. */
+export function isTargetNativeRouteIR(value: unknown): value is TargetNativeRouteIR {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  if (!hasNonEmptyString(candidate.id) || typeof candidate.name !== 'string'
+    || !isTargetNativeRouteTarget(candidate.target)
+    || typeof candidate.priority !== 'number' || !Number.isFinite(candidate.priority)
+    || typeof candidate.routingOrder !== 'number' || !Number.isSafeInteger(candidate.routingOrder)
+    || candidate.routingOrder < 0) return false
+
+  const isSourcePort = Boolean(candidate.matcher && typeof candidate.matcher === 'object'
+    && (candidate.matcher as Record<string, unknown>).kind === 'source-port')
+  const allowed = isSourcePort
+    ? ['id', 'name', 'matcher', 'target', 'priority', 'routingOrder', 'targetNativeSourcePort']
+    : ['id', 'name', 'matcher', 'target', 'priority', 'routingOrder']
+  if (!hasExactKeys(value, allowed)) return false
+  if (isSourcePort) {
+    const matcher = candidate.matcher as Record<string, unknown>
+    const provenance = candidate.targetNativeSourcePort
+    return isTargetNativeSourcePortMatcher(matcher)
+      && isTargetNativeSourcePortIR(provenance)
+      && provenance.routeId === candidate.id
+      && provenance.port === matcher.port
+  }
+  return isExactTrafficMatcherIR(candidate.matcher)
+}
+
+/** Exact runtime guard for a target-native Final route. */
+export function isTargetNativeFinalRouteIR(value: unknown): value is TargetNativeFinalRouteIR {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  return hasExactKeys(value, ['id', 'name', 'target'])
+    && hasNonEmptyString(candidate.id)
+    && typeof candidate.name === 'string'
+    && isTargetNativeRouteTarget(candidate.target)
+    && (candidate.target as RouteTargetIR).kind === 'strategy'
 }

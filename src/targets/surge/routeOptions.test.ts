@@ -107,7 +107,10 @@ describe('Surge native no-resolve route option', () => {
 
     const ambiguous = compileSurge(baseIR(), {
       targetNativeRouteOptions: [routeOptions],
-      nativeRoutes: [{ id: 'route', name: 'Native route', matcher: baseIR().routes[0].matcher, target: { kind: 'strategy', id: 'proxy-group' }, priority: 20 }],
+      nativeStrategies: [{
+        id: 'native', name: 'Native', target: 'surge', kind: 'smart', members: [{ kind: 'proxy', id: 'proxy' }],
+      }],
+      nativeRoutes: [{ id: 'route', name: 'Native route', matcher: baseIR().routes[0].matcher, target: { kind: 'strategy', id: 'native' }, priority: 20, routingOrder: 1 }],
     })
     expect(ambiguous.success).toBe(false)
     expect(ambiguous.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_OPTIONS_OWNER_MISMATCH', severity: 'error' }))
@@ -142,7 +145,7 @@ describe('Surge native no-resolve route option', () => {
     expect(graph.success, graph.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
     expect(graph.ir?.routes.some((route) => route.id === 'native-route')).toBe(false)
     expect(graph.nativeRoutes).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'native-route' })]))
-    const result = compileSurge(graph.ir!, { nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute, targetNativeRouteOptions: graph.targetNativeRouteOptions })
+    const result = compileSurge(graph.ir!, { nativeStrategies: graph.nativeStrategies, nativeRoutes: graph.nativeRoutes, nativeFinalRoute: graph.nativeFinalRoute, effectiveFinalNodeId: graph.effectiveFinalNodeId, targetNativeRouteOptions: graph.targetNativeRouteOptions })
     expect(result.success).toBe(true)
     expect(result.content).toContain('IP-CIDR,203.0.113.0/24,Hong Kong Smart,no-resolve')
   })

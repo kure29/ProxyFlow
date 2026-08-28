@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../targetNative'
 
 export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
 
@@ -73,7 +73,7 @@ export interface TargetCompileOptions {
   /** Short alias accepted by headless integrations. */
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
-  nativeFinalRoute?: TargetNativeRouteIR
+  nativeFinalRoute?: TargetNativeFinalRouteIR
   /** Compiler-owned Project Final node identity used to bind Final options. */
   effectiveFinalNodeId?: string
   /** Explicit target-native Final rule options extracted from the Project graph. */

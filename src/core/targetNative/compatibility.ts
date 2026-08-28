@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
-import type { TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
-import { isTargetNativeStrategyIR } from './strategy'
+import type { TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
+import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeStrategyIR, resolvesUniqueTargetNativeStrategy } from './strategy'
 import type { TargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
@@ -15,6 +15,7 @@ export function targetNativeUnsupportedIssues(
   ruleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
   finalOptions?: TargetNativeFinalOptionsIR,
   routeOptions: readonly TargetNativeRouteOptionsIR[] = [],
+  nativeFinalRoute?: TargetNativeFinalRouteIR,
 ): CompatibilityIssue[] {
   const strategyIssues = strategies.flatMap((strategy) => {
     if (!strategy || !isTargetNativeStrategyIR(strategy)) {
@@ -76,7 +77,15 @@ export function targetNativeUnsupportedIssues(
     message: `Surge-specific route options have no proven equivalent for ${target}; change or remove them before export.`,
   }] : [])
   const routeIssues = routes.flatMap((route) => {
-    if (route.targetNativeSourcePort !== undefined || route.matcher?.kind === 'source-port') {
+    if (!route || !isTargetNativeRouteIR(route)) return [{
+      target,
+      code: 'TARGET_NATIVE_ROUTE_INVALID',
+      severity: 'error' as const,
+      feature: 'target-native-route',
+      entityId: typeof (route as { id?: unknown })?.id === 'string' ? (route as { id: string }).id : undefined,
+      message: 'A target-native route contains invalid runtime data.',
+    }]
+    if (route.targetNativeSourcePort !== undefined || route.matcher.kind === 'source-port') {
       if (!isTargetNativeSourcePortMatcher(route.matcher) || !isTargetNativeSourcePortIR(route.targetNativeSourcePort) || route.targetNativeSourcePort.routeId !== route.id || route.targetNativeSourcePort.port !== route.matcher.port) return [{
         target,
         code: 'TARGET_NATIVE_SOURCE_PORT_INVALID',
@@ -94,6 +103,15 @@ export function targetNativeUnsupportedIssues(
         message: `Route “${route.name}” uses the Surge-specific SRC-PORT matcher; ${target} has no proven equivalent. Change or remove it before export.`,
       }]
     }
+    if (route.target.kind !== 'strategy'
+      || !resolvesUniqueTargetNativeStrategy(route.target.id, strategies)) return [{
+      target,
+      code: 'TARGET_NATIVE_ROUTE_INVALID',
+      severity: 'error' as const,
+      feature: 'target-native-route',
+      entityId: route.id,
+      message: 'A non-SRC-PORT target-native route must resolve to exactly one valid target-native strategy.',
+    }]
     return [{
       target,
       code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
@@ -103,5 +121,21 @@ export function targetNativeUnsupportedIssues(
       message: `Route “${route.name}” targets a Surge-specific strategy; ${target} has no proven equivalent. Change or remove it before export.`,
     }]
   })
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues]
+  const finalRouteIssues = nativeFinalRoute === undefined ? [] : !isTargetNativeFinalRouteIR(nativeFinalRoute)
+    || !resolvesUniqueTargetNativeStrategy(nativeFinalRoute.target.id, strategies) ? [{
+    target,
+    code: 'TARGET_NATIVE_FINAL_ROUTE_INVALID',
+    severity: 'error' as const,
+    feature: 'target-native-final-route',
+    entityId: typeof (nativeFinalRoute as { id?: unknown })?.id === 'string' ? (nativeFinalRoute as { id: string }).id : undefined,
+    message: 'A target-native Final route contains invalid runtime data.',
+  }] : [{
+    target,
+    code: 'TARGET_NATIVE_FINAL_ROUTE_UNSUPPORTED',
+    severity: 'error' as const,
+    feature: 'target-native-final-route',
+    entityId: nativeFinalRoute.id,
+    message: `Target-native Final route “${nativeFinalRoute.name}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
+  }]
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues]
 }

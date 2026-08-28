@@ -3,7 +3,7 @@ import { findRuleSourceMatches, normalizeCustomMatcher, semanticIssue } from '..
 import type { GraphCompileContext } from './context'
 import { isStrategyNode } from './helpers'
 import { rankRoutingRules, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isTargetNativeSourcePortConfig, targetNativeSourcePortConfigToIR, type TargetNativeRouteIR } from '../targetNative'
+import { isTargetNativeSourcePortConfig, targetNativeSourcePortConfigToIR, type TargetNativeFinalRouteIR, type TargetNativeRouteIR } from '../targetNative'
 import type { PrimaryTarget } from '../capabilities'
 
 export interface CompiledRouting {
@@ -11,7 +11,7 @@ export interface CompiledRouting {
   nativeRoutes: TargetNativeRouteIR[]
   /** Internal graph identity used to bind target-native Final options. */
   effectiveFinalNodeId?: string
-  nativeFinalRoute?: TargetNativeRouteIR
+  nativeFinalRoute?: TargetNativeFinalRouteIR
   finalRoute?: FinalRouteIR
 }
 
@@ -124,7 +124,7 @@ export function compileRouting(context: GraphCompileContext, validationTarget?: 
     routes,
     nativeRoutes,
     effectiveFinalNodeId,
-    nativeFinalRoute: { id: finalNode.id, name: finalNode.data.title, target: nativeTarget, priority: Number.MAX_SAFE_INTEGER },
+    nativeFinalRoute: { id: finalNode.id, name: finalNode.data.title, target: nativeTarget },
   }
   if (!target) {
     context.addIssue(semanticIssue(

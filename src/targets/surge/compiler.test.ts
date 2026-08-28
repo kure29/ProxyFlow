@@ -123,6 +123,7 @@ describe('SurgeCompiler', () => {
     const result = compileSurge(graph.ir!, {
       nativeStrategies: graph.nativeStrategies,
       nativeFinalRoute: graph.nativeFinalRoute,
+      effectiveFinalNodeId: graph.effectiveFinalNodeId,
     })
     expect(result.success, result.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
     expect(sectionLines(result.content, 'Rule')).toContain('DOMAIN-SUFFIX,example.com,DIRECT Labeled Strategy')

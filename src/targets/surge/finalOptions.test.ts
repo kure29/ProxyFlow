@@ -95,7 +95,7 @@ describe('Surge FINAL dns-failed', () => {
         id: 'native', name: 'Native', target: 'surge', kind: 'smart', members: [{ kind: 'proxy', id: 'proxy' }],
       }],
       nativeFinalRoute: {
-        id: 'native-final', name: 'Native Final', target: { kind: 'strategy', id: 'native' }, priority: Number.MAX_SAFE_INTEGER,
+        id: 'native-final', name: 'Native Final', target: { kind: 'strategy', id: 'native' },
       },
       targetNativeFinalOptions: { ...finalOptions, finalNodeId: 'native-final' },
       effectiveFinalNodeId: 'native-final',

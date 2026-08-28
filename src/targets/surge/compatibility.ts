@@ -13,7 +13,7 @@ import {
 import { resolveSurgeServiceRuleSource } from './serviceRules'
 import { isSafeSurgePolicyName } from './serializer'
 import { validateSurgeNativeStrategies } from './nativeStrategies'
-import type { TargetNativeFinalOptionsIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeStrategyIR } from '../../core/targetNative'
 import { isTargetNativeFinalOptionsIR, isTargetNativeRouteOptionsIR, isTargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from '../../core/targetNative'
 import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
@@ -36,7 +36,7 @@ export function checkSurgeCompatibility(
   nativeStrategies: readonly TargetNativeStrategyIR[] = [],
   nativeRuleSetSources: readonly TargetNativeRuleSetSourceIR[] = [],
   nativeRoutes: readonly TargetNativeRouteIR[] = [],
-  nativeFinalRoute?: TargetNativeRouteIR,
+  nativeFinalRoute?: TargetNativeFinalRouteIR,
   targetNativeFinalOptions?: TargetNativeFinalOptionsIR,
   targetNativeRouteOptions: readonly TargetNativeRouteOptionsIR[] = [],
   effectiveFinalNodeId?: string,
@@ -243,7 +243,7 @@ function validateSurgeRouteOptions(
 
 function validateSurgeFinalOptions(
   ir: ProxyFlowIR,
-  nativeFinalRoute: TargetNativeRouteIR | undefined,
+  nativeFinalRoute: TargetNativeFinalRouteIR | undefined,
   options: TargetNativeFinalOptionsIR | undefined,
   effectiveFinalNodeId: string | undefined,
   issues: CompatibilityIssue[],
