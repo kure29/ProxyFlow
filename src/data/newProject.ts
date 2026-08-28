@@ -33,6 +33,7 @@ const dnsNode: GraphNode = {
   position: { x: 720, y: 620 },
   data: {
     blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: 'Fake-IP · AliDNS / DNSPod', icon: 'globe-2',
+    universalDnsMode: 'custom',
     dnsResolvers: createMihomoStarterDnsResolvers(),
   },
 }

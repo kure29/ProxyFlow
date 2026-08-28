@@ -76,7 +76,7 @@ export const demoNodes: GraphNode[] = [
     services: ['Telegram'], targetId: 'hk-auto', targetLabel: '香港自动选择', targetKind: 'strategy', ruleSource: 'ios_rule_script',
   }),
   node('dns', 1080, 870, {
-    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: 'Fake-IP · AliDNS / DNSPod', icon: 'globe-2', dnsResolvers: createMihomoStarterDnsResolvers(),
+    blockType: 'dns', category: 'dns', title: 'DNS 配置', titleKey: 'block.dns.title', subtitle: 'Fake-IP · AliDNS / DNSPod', icon: 'globe-2', universalDnsMode: 'custom', dnsResolvers: createMihomoStarterDnsResolvers(),
   }),
   node('final-route', 1360, 870, {
     blockType: 'final', category: 'routing', title: 'Final', titleKey: 'block.final.title', subtitle: '其余流量 · Default Proxy', subtitleKey: 'demo.final.subtitle', icon: 'corner-down-right',

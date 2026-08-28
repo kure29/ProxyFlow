@@ -1,26 +1,55 @@
 import type { DnsIR, OutputIR } from '../ir'
 import { semanticIssue } from '../ir'
-import { isDnsResolverConfig, normalizeDnsResolvers } from '../dns/resolverProfiles'
+import { hasMalformedDnsResolverState, inferUniversalDnsMode, isUniversalDnsMode, normalizeDnsResolvers } from '../dns/resolverProfiles'
+import type { GraphNode } from '../../types/project'
 import type { GraphCompileContext } from './context'
 
-export function compileDns(context: GraphCompileContext): DnsIR | undefined {
+/** Resolve the one enabled DNS graph node used by every DNS semantic compiler. */
+export function resolveEffectiveDnsOwner(context: GraphCompileContext): GraphNode | undefined {
   const dnsNodes = context.project.graph.nodes.filter((node) => !node.data.disabled && node.data.blockType === 'dns')
-  if (dnsNodes.length === 0) return undefined
-  if (dnsNodes.length > 1) context.addIssue(semanticIssue(
+  if (dnsNodes.length <= 1) return dnsNodes[0]
+  context.addIssue(semanticIssue(
     'DNS_MULTIPLE', 'error', 'compile', 'Multiple DNS settings nodes cannot be compiled without losing resolver semantics.',
     { nodeId: dnsNodes[0].id, entity: { type: 'dns', id: dnsNodes[0].id } },
   ))
-  const node = dnsNodes[0]
+  return undefined
+}
+
+export function compileDns(context: GraphCompileContext, node = resolveEffectiveDnsOwner(context)): DnsIR | undefined {
+  if (!node) return undefined
   const rawResolvers = node.data.dnsResolvers as unknown
-  const invalidResolverShape = rawResolvers !== undefined && (
-    !Array.isArray(rawResolvers) || rawResolvers.some((resolver) => !isDnsResolverConfig(resolver))
-  )
-  if (invalidResolverShape) context.addIssue(semanticIssue(
+  const rawMode = node.data.universalDnsMode as unknown
+  const inferredMode = rawMode === undefined
+  const mode = inferredMode
+    ? inferUniversalDnsMode(node.data.dnsResolvers, node.data.resolver)
+    : rawMode
+  if (!isUniversalDnsMode(mode)) {
+    context.addIssue(semanticIssue(
+      'DNS_MODE_INVALID', 'error', 'compile', `DNS node "${node.data.title}" has an invalid Universal DNS mode.`,
+      { nodeId: node.id, entity: { type: 'dns', id: node.id } },
+    ))
+    return undefined
+  }
+  // `none` intentionally makes all retained resolver drafts inactive.
+  if (mode === 'none') return undefined
+
+  const invalidResolverShape = hasMalformedDnsResolverState(rawResolvers, node.data.resolver as unknown)
+  // Explicit automatic mode also treats resolver drafts as inactive. Missing
+  // mode uses the legacy path, including its existing shape diagnostics.
+  if (invalidResolverShape && (mode === 'custom' || inferredMode)) context.addIssue(semanticIssue(
     'DNS_RESOLVER_INVALID', 'error', 'compile', `DNS node "${node.data.title}" contains an invalid resolver configuration.`,
     { nodeId: node.id, entity: { type: 'dns', id: node.id } },
   ))
   const configured = normalizeDnsResolvers(node.data.dnsResolvers, node.data.resolver)
   const enabled = configured.filter((resolver) => resolver.enabled)
+  if (mode === 'automatic') {
+    if (enabled.length === 0) context.addIssue(semanticIssue(
+      'DNS_RESOLVER_MISSING', 'warning', 'compile', `DNS node "${node.data.title}" has no explicit resolver.`,
+      { nodeId: node.id, entity: { type: 'dns', id: node.id } },
+    ))
+    return { enabled: true, mode: 'automatic' }
+  }
+
   if (new Set(enabled.map((resolver) => resolver.id)).size !== enabled.length) context.addIssue(semanticIssue(
     'DNS_RESOLVER_ID_DUPLICATE', 'error', 'compile', `DNS node "${node.data.title}" contains duplicate resolver identifiers.`,
     { nodeId: node.id, entity: { type: 'dns', id: node.id } },
@@ -35,10 +64,10 @@ export function compileDns(context: GraphCompileContext): DnsIR | undefined {
   ))
   if (enabled.length === 0) {
     context.addIssue(semanticIssue(
-      'DNS_RESOLVER_MISSING', 'warning', 'compile', `DNS node "${node.data.title}" has no explicit resolver.`,
+      'DNS_RESOLVER_MISSING', 'error', 'compile', `DNS node "${node.data.title}" is in custom mode but has no enabled resolver.`,
       { nodeId: node.id, entity: { type: 'dns', id: node.id } },
     ))
-    return { enabled: true, mode: 'automatic' }
+    return undefined
   }
   return {
     enabled: true,

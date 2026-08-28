@@ -1,4 +1,4 @@
-import type { DnsResolverConfig, DnsResolverKind, DnsResolverRegion, DnsResolverRole } from '../../types/project'
+import type { DnsResolverConfig, DnsResolverKind, DnsResolverRegion, DnsResolverRole, UniversalDnsMode } from '../../types/project'
 
 export interface DnsResolverPreset {
   id: string
@@ -76,7 +76,7 @@ export function normalizeDnsResolvers(
   if (resolvers !== undefined) return Array.isArray(resolvers)
     ? resolvers.filter(isDnsResolverConfig).map((resolver) => ({ ...resolver }))
     : []
-  if (!legacyResolver) return []
+  if (typeof legacyResolver !== 'string' || !legacyResolver) return []
   return [{
     id: 'legacy-default',
     name: inferResolverName(legacyResolver),
@@ -87,11 +87,31 @@ export function normalizeDnsResolvers(
   }]
 }
 
+/** Inspect raw persisted resolver fields without filtering malformed entries. */
+export function hasMalformedDnsResolverState(resolvers: unknown, legacyResolver?: unknown) {
+  if (resolvers !== undefined) {
+    return !Array.isArray(resolvers) || resolvers.some((resolver) => !isDnsResolverConfig(resolver))
+  }
+  return legacyResolver !== undefined && typeof legacyResolver !== 'string'
+}
+
 export function countEnabledDnsResolvers(
   resolvers: readonly DnsResolverConfig[] | undefined,
   legacyResolver?: string,
 ) {
   return normalizeDnsResolvers(resolvers, legacyResolver).filter((resolver) => resolver.enabled).length
+}
+
+/** Preserve the pre-discriminator interpretation for legacy Project data. */
+export function inferUniversalDnsMode(
+  resolvers: readonly DnsResolverConfig[] | undefined,
+  legacyResolver?: string,
+): Exclude<UniversalDnsMode, 'none'> {
+  return countEnabledDnsResolvers(resolvers, legacyResolver) > 0 ? 'custom' : 'automatic'
+}
+
+export function isUniversalDnsMode(value: unknown): value is UniversalDnsMode {
+  return value === 'none' || value === 'automatic' || value === 'custom'
 }
 
 export function resolveDnsResolverRegion(resolver: DnsResolverConfig): DnsResolverRegion | undefined {

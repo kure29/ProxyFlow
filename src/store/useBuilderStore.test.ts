@@ -361,6 +361,36 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().toProject().primaryTarget).toBe('loon')
   })
 
+  it('uses target-aware DNS defaults only when creating a DNS node', () => {
+    for (const target of ['mihomo', 'surge', 'loon', 'shadowrocket'] as const) {
+      useBuilderStore.getState().createNewProject(target)
+      const id = useBuilderStore.getState().addNode('dns', { x: 240, y: 360 })!
+      const data = useBuilderStore.getState().nodes.find((node) => node.id === id)!.data
+      if (target === 'mihomo') {
+        expect(data.universalDnsMode).toBe('custom')
+        expect(data.dnsResolvers).toEqual(expect.arrayContaining([
+          expect.objectContaining({ presetId: 'alidns' }),
+          expect.objectContaining({ presetId: 'dnspod' }),
+        ]))
+      } else {
+        expect(data.universalDnsMode).toBe('none')
+        expect(data.dnsResolvers).toEqual([])
+      }
+    }
+  })
+
+  it('retains DNS intent and resolver drafts across output target switching', () => {
+    useBuilderStore.getState().createNewProject('surge')
+    const dnsId = useBuilderStore.getState().addNode('dns', { x: 240, y: 360 })!
+    const retained = appendDnsResolverPreset([], 'cloudflare')
+    useBuilderStore.getState().updateNodeData(dnsId, { universalDnsMode: 'none', dnsResolvers: retained })
+    useBuilderStore.getState().setPrimaryTarget('mihomo')
+    useBuilderStore.getState().setPrimaryTarget('surge')
+    expect(useBuilderStore.getState().nodes.find((node) => node.id === dnsId)?.data).toEqual(expect.objectContaining({
+      universalDnsMode: 'none', dnsResolvers: retained,
+    }))
+  })
+
   it('renames a new project and preserves the trimmed name through target switches and hydration', () => {
     useBuilderStore.getState().createNewProject('mihomo')
     expect(useBuilderStore.getState().renameProject('  Production routing  ')).toBe(true)
@@ -562,6 +592,7 @@ describe('builder store', () => {
       id: 'exposure-dns', type: 'block', position: { x: 240, y: 360 },
       data: {
         blockType: 'dns', category: 'dns', title: 'DNS', subtitle: 'system', icon: 'globe-2',
+        universalDnsMode: 'custom',
         dnsResolvers: [{ id: 'system', name: 'System', kind: 'system', role: 'default', enabled: true }],
       },
     })

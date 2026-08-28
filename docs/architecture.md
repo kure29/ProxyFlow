@@ -139,6 +139,21 @@ OpenAI → HK Auto
 
 Graph Compiler 不依赖 Canvas position。缺少显式 route priority 时，使用稳定的 Graph node insertion order，确保相同输入始终得到相同输出。
 
+### DNS ownership boundary
+
+An enabled `dns` graph node is the single effective DNS semantic owner. The
+compiler exposes its `effectiveDnsNodeId` independently from Universal DNS IR.
+The owner’s Project-layer `universalDnsMode` is one of `none`, `automatic`, or
+`custom`; `none` intentionally compiles to no `DnsIR`, while the owner identity
+remains available for future target-native DNS semantics. Missing legacy mode is
+normalized (or inferred at the direct compiler boundary) to `custom` when an
+enabled resolver exists, otherwise `automatic`. Multiple enabled DNS nodes fail
+closed with `DNS_MULTIPLE`, and disabled nodes are runtime-inert but retained.
+
+Target-native DNS behavior is planned for a later slice; this boundary does not
+implement `always-real-ip`, add Surge `[General]` keys, or create placeholder
+target-native DNS records.
+
 ## Proxy Chain
 
 `hopIds` 是 Chain 顺序的唯一语义来源：

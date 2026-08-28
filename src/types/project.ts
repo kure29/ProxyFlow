@@ -49,6 +49,7 @@ export type RouteMatcherKind = 'service' | 'domain' | 'domain-suffix' | 'domain-
 export type DnsResolverKind = 'doh' | 'dot' | 'udp' | 'system'
 export type DnsResolverRole = 'default' | 'direct' | 'fallback'
 export type DnsResolverRegion = 'system' | 'global' | 'mainland-china'
+export type UniversalDnsMode = 'none' | 'automatic' | 'custom'
 
 export interface DnsResolverConfig {
   id: string
@@ -134,6 +135,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   client?: TargetClient
   mihomoProfile?: MihomoOutputProfile
   compatibility?: string
+  /** Project-layer Universal DNS intent. Omitted legacy values are normalized at load/compile boundaries. */
+  universalDnsMode?: 'none' | 'automatic' | 'custom'
   dnsResolvers?: DnsResolverConfig[]
   resolver?: string
   renamePattern?: string
