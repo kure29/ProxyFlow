@@ -286,6 +286,13 @@ describe('Surge General internal validation', () => {
         ...differentlyCasedDuplicate,
       ] as SurgeGeneralEntry[],
       proxies: [], proxyGroups: [], rules: [],
+    })).toThrow('Invalid Surge [General] entry')
+    expect(() => serializeSurgeProfile({
+      general: [
+        { key: 'dns-server', value: { kind: 'list', items: ['system'] } },
+        { key: 'dns-server', value: { kind: 'list', items: ['1.1.1.1'] } },
+      ],
+      proxies: [], proxyGroups: [], rules: [],
     })).toThrow('Duplicate Surge [General] key')
   })
 })

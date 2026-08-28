@@ -2,6 +2,7 @@ import type { ProxyFlowIR, ProxySetRef, StrategyIR } from '../../core/ir'
 import type { CompatibilityIssue } from '../../types/project'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
+import { isSafeSurgeHttpUrl } from './safety'
 import {
   createSurgeProjectionContext,
   projectSurgeFixedEndpoint,
@@ -285,7 +286,7 @@ function strategyProxySetRefs(strategy: StrategyIR): ProxySetRef[] {
 function validateStrategy(strategy: StrategyIR, issues: CompatibilityIssue[]) {
   if (strategy.kind === 'auto-select' || strategy.kind === 'fallback') {
     const url = strategy.healthCheck?.url
-    if (url !== undefined && !isSafeHttpUrl(url)) issues.push(surgeIssue(
+    if (url !== undefined && !isSafeSurgeHttpUrl(url)) issues.push(surgeIssue(
       'SURGE_STRATEGY_TEST_URL_INVALID', 'error', 'strategy',
       `Strategy “${strategy.name}” has a test URL that is not a safe absolute HTTP(S) URL.`, strategy.id,
     ))
@@ -423,16 +424,6 @@ function resolvedStrategyProxies(
     const result = projectSurgeProxySet(ir, ref, projection)
     return result.status === 'ready' ? result.proxies : []
   })
-}
-
-function isSafeHttpUrl(value: string) {
-  if (!value || /[\r\n\u0000]/.test(value)) return false
-  try {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password
-  } catch {
-    return false
-  }
 }
 
 function registerPolicyName(
