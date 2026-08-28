@@ -149,3 +149,125 @@ The final private real-subscription Project retest is preserved as historical
 acceptance evidence. Focused current Surge 1.4 Mac/iOS import and behavior
 verification remains pending; the repository fixture checklists remain
 available for those platform-specific regression runs.
+
+## Surge 1.4 real-client acceptance preparation
+
+The repository-side acceptance package is prepared, but no physical Surge
+client result is claimed by this Slice. The package is described by the
+machine-readable [`fixtures/surge/v1.4-acceptance/manifest.json`](../fixtures/surge/v1.4-acceptance/manifest.json)
+and is generated through the production Surge compiler path:
+
+```bash
+npm run surge:acceptance
+```
+
+The command compiles every checked-in Project and verifies its deterministic
+`.conf` golden. `npm run surge:acceptance:update` is an explicit maintainer
+operation for refreshing goldens after a reviewed compiler change; the normal
+command never rewrites fixtures. CI also runs
+`git diff --exit-code -- fixtures/surge/v1.4-acceptance` to prevent silent
+fixture drift.
+
+### Focused public scenarios
+
+The scenarios are split so one failure maps to one semantic area and risky VIF
+or system-proxy behavior is not hidden inside the daily core profile.
+
+| Scenario | Classification | Expected General keys | Import/activation safety |
+| --- | --- | --- | --- |
+| `01-core` | `IMPORT-SAFE` | `encrypted-dns-server` | Import-safe; fake `.invalid` proxies require private replacements for activation. |
+| `02-general-connectivity` | `IMPORT-SAFE` | `proxy-test-url`, `internet-test-url`, `ipv6`, `ipv6-vif`, `icmp-forwarding` | Uses safe `ipv6-vif=auto`; fake endpoint, so no connectivity claim. |
+| `03-dns-behavior` | `IMPORT-SAFE` | `proxy-test-url`, `always-real-ip` | Proves `universalDnsMode=none` plus DNS-node-owned `always-real-ip`; encrypted DNS is in `01-core`. |
+| `04-vif-routes` | `LOCAL-NETWORK-SIDE-EFFECT` | `proxy-test-url`, `ipv6`, `ipv6-vif`, `icmp-forwarding`, `tun-excluded-routes`, `tun-included-routes` | TEST-NET ranges only; activate only in a private network test. |
+| `05-proxy-bypass` | `BEHAVIOR-REQUIRES-PRIVATE-ENDPOINTS` | `proxy-test-url`, `skip-proxy`, `exclude-simple-hostnames` | Positive Host List subset only; use private endpoints for behavior. |
+
+The core profile covers manual and materialized subscription proxies, Select,
+URL Test, Fallback, Fixed, Smart, Subnet, Proxy Chain, Service Rules,
+ordinary routing, precedence, FINAL, and encrypted DNS. `.example.invalid`
+endpoints make all profiles valid for generation, syntax/import, policy/group
+inspection, General-key inspection, and route-order inspection only. They
+cannot prove successful proxy traffic, URL Test success, Fallback success,
+Proxy Chain runtime, or a successful real DNS path.
+
+### Private/local behavior procedure
+
+Copy a generated profile outside tracked repository state before replacing
+fixture values. Substitute only controlled proxy endpoints/credentials and,
+for G3-B, `<LOCAL_TEST_HOST_IP>` or `<LOCAL_TEST_SUBNET>` values appropriate to
+the local network. Never commit those values, private certificates,
+subscription URLs, or credentials; `git status` must remain clean.
+
+For `tun-excluded-routes`, verify the chosen local test IP/subnet is not
+captured by Surge VIF. For `tun-included-routes`, use a physical network with a
+broader route and verify that a deliberately more-specific included VIF route
+wins. Do not use `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16` as public
+defaults.
+
+G3-C paths are operating-system-specific. On iOS, `skip-proxy` bypasses proxy
+takeover for matching connections, but a connection may still be captured by
+VIF. On macOS, `skip-proxy` participates in system-proxy bypass when **Set as
+System Proxy** is enabled. `skip-proxy` is not `DIRECT` routing and is not
+equivalent to `tun-excluded-routes`; testing full IP-range bypass may combine
+the two intentionally in a private copy. An IP/CIDR Host List value matches a
+connection made to that literal IP form; a hostname resolving to that IP does
+not automatically match.
+
+### Focused Surge Mac checklist
+
+Record the exact Surge Mac version, macOS version, scenario, import result, and
+any parser warning/error. For each scenario, use the following separate
+evidence levels:
+
+| Check | Required observation | Initial result |
+| --- | --- | --- |
+| IMPORT | Profile imports with no parser error. | `NOT TESTED` |
+| STRUCTURE | Expected `[General]` keys, `[Proxy]` entries, `[Proxy Group]` groups, and `[Rule]` ordering are present. | `NOT TESTED` |
+| BEHAVIOR | Only after private endpoint substitution: observe the scenario-specific runtime behavior below. | `NOT TESTED` |
+
+Mac behavior matrix:
+
+- `01-core`: system proxy state, URL Test/Fallback/Smart/Subnet/Proxy Chain,
+  custom/encrypted DNS, Service Rules, ordinary routing precedence, and FINAL.
+- `02-general-connectivity`: `proxy-test-url` health checks,
+  `internet-test-url` visibility/behavior, IPv6, `ipv6-vif`, and ICMP
+  forwarding.
+- `03-dns-behavior`: `always-real-ip` with Universal DNS mode `none`, plus the
+  separate custom/encrypted DNS path from `01-core`.
+- `04-vif-routes`: Enhanced Mode/VIF, IPv6/VIF, ICMP forwarding, and the
+  excluded/included route behavior using local substitutions.
+- `05-proxy-bypass`: Set as System Proxy enabled/disabled distinction,
+  `skip-proxy`, and `exclude-simple-hostnames`; do not infer hostname-to-IP
+  Host List matching.
+
+### Focused Surge iOS checklist
+
+Record the exact Surge iOS version, iOS version, scenario, import result, and
+any parser warning/error. iOS uses a separate matrix; do not copy Mac system
+proxy expectations. For every scenario, record IMPORT and STRUCTURE separately
+from BEHAVIOR, initially `NOT TESTED`:
+
+- `01-core`: URL Test, Fallback, Smart, Subnet, Proxy Chain, custom/encrypted
+  DNS, Service Rules, routing precedence, and FINAL.
+- `02-general-connectivity`: VIF takeover, IPv6, `ipv6-vif=auto`, ICMP
+  forwarding, `proxy-test-url`, and `internet-test-url`.
+- `03-dns-behavior`: DNS-node-owned `always-real-ip` with
+  `universalDnsMode=none`, plus the custom/encrypted DNS path from `01-core`.
+- `04-vif-routes`: VIF takeover and local substituted `tun-excluded-routes`
+  and `tun-included-routes` behavior.
+- `05-proxy-bypass`: iOS proxy-takeover bypass for `skip-proxy` and
+  `exclude-simple-hostnames`; matching connections may still be VIF-captured.
+
+### Result vocabulary and release gate
+
+Every physical acceptance row must be one of `PASS`, `FAIL`, `BLOCKED`,
+`NOT APPLICABLE`, or `NOT TESTED`. A `FAIL` records expected behavior, actual
+behavior, exact client/OS versions, scenario, reproduction steps, and whether
+the cause is a compiler defect, documentation mismatch, client/platform
+limitation, or test-environment limitation. A documented platform limitation
+may be acceptable when behavior remains safe and the capability claim is
+corrected; invalid generated configuration, silent downgrade/strip, wrong
+ownership, or traffic leakage contrary to fail-closed behavior blocks release.
+
+Focused Surge 1.4 Mac acceptance: **PENDING**. Focused Surge 1.4 iOS
+acceptance: **PENDING**. Historical real-subscription acceptance above remains
+preserved and is not reset or relabeled by this preparation package.

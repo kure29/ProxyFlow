@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "surge-v1.4-acceptance-proxy-bypass",
+  "name": "Surge 1.4 Acceptance — Proxy Bypass",
+  "primaryTarget": "surge",
+  "graph": {
+    "nodes": [
+      {"id":"proxy","type":"block","position":{"x":80,"y":80},"data":{"blockType":"manual-proxy","category":"source","title":"Bypass Fixture Proxy","subtitle":"Fixture endpoint","icon":"server","proxyProtocol":"http","proxyServer":"bypass-proxy.example.invalid","proxyPort":8080}},
+      {"id":"auto","type":"block","position":{"x":360,"y":80},"data":{"blockType":"auto-select","category":"strategy","title":"Bypass Auto","subtitle":"Universal health check","icon":"gauge","testUrl":"https://health.example.invalid/ping","interval":300,"tolerance":50}},
+      {"id":"final","type":"block","position":{"x":640,"y":80},"data":{"blockType":"final","category":"routing","title":"Final","subtitle":"Bypass Auto","icon":"corner-down-right","targetId":"auto","targetLabel":"Bypass Auto","targetKind":"strategy","protected":true}},
+      {"id":"output","type":"block","position":{"x":940,"y":80},"data":{"blockType":"output","category":"output","title":"Surge Output","subtitle":"G3-C acceptance","icon":"package-check","client":"surge","compatibility":"Supported","protected":true,"targetNativeSurgeGeneralProxyBypass":{"target":"surge","kind":"general-proxy-bypass","skipProxy":["example.com","*.example.org","localhost","192.0.2.10","192.0.2.*","192.0.2.0/24"],"excludeSimpleHostnames":true}}}
+    ],
+    "edges": [
+      {"id":"e-proxy-auto","source":"proxy","target":"auto","type":"smoothstep","data":{"semantic":"data"}},
+      {"id":"e-final-auto","source":"final","target":"auto","type":"smoothstep","data":{"semantic":"route"}},
+      {"id":"e-auto-output","source":"auto","target":"output","type":"smoothstep","data":{"semantic":"output"}}
+    ]
+  },
+  "services": [],
+  "outputs": [{"id":"surge","target":"surge","label":"Surge","status":"supported","icon":"surge.png"}],
+  "updatedAt":"2026-08-29T00:00:00.000Z"
+}

@@ -21,6 +21,8 @@ jobs:
       - run: npm run build
       - run: npm run runtime:build
       - run: npm run test:deployment
+      - run: npm run surge:acceptance
+      - run: git diff --exit-code -- fixtures/surge/v1.4-acceptance
       - run: npm run loon:acceptance
       - run: npm run loon:service-rules:acceptance
       - run: npm run loon:precedence:acceptance

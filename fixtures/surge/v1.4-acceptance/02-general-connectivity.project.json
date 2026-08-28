@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "surge-v1.4-acceptance-general-connectivity",
+  "name": "Surge 1.4 Acceptance — General Connectivity",
+  "primaryTarget": "surge",
+  "graph": {
+    "nodes": [
+      {"id":"proxy-a","type":"block","position":{"x":80,"y":80},"data":{"blockType":"manual-proxy","category":"source","title":"Connectivity A","subtitle":"Fixture endpoint","icon":"server","proxyProtocol":"socks5","proxyServer":"connectivity-a.example.invalid","proxyPort":1080}},
+      {"id":"auto","type":"block","position":{"x":400,"y":160},"data":{"blockType":"auto-select","category":"strategy","title":"Connectivity URL Test","subtitle":"Universal proxy health check","icon":"gauge","testUrl":"https://health.example.invalid/ping","interval":300,"tolerance":50}},
+      {"id":"final","type":"block","position":{"x":700,"y":160},"data":{"blockType":"final","category":"routing","title":"Final","subtitle":"Connectivity Auto","icon":"corner-down-right","targetId":"auto","targetLabel":"Connectivity URL Test","targetKind":"strategy","protected":true}},
+      {"id":"output","type":"block","position":{"x":980,"y":160},"data":{"blockType":"output","category":"output","title":"Surge Output","subtitle":"G1 + G2 acceptance","icon":"package-check","client":"surge","compatibility":"Supported","protected":true,"targetNativeSurgeGeneralNetwork":{"target":"surge","kind":"general-network","ipv6":true,"ipv6Vif":"auto","icmpForwarding":true},"targetNativeSurgeGeneralConnectivity":{"target":"surge","kind":"general-connectivity","internetTestUrl":"https://connectivity.example.invalid/generate_204"}}}
+    ],
+    "edges": [
+      {"id":"e-a-auto","source":"proxy-a","target":"auto","type":"smoothstep","data":{"semantic":"data"}},
+      {"id":"e-final-auto","source":"final","target":"auto","type":"smoothstep","data":{"semantic":"route"}},
+      {"id":"e-auto-output","source":"auto","target":"output","type":"smoothstep","data":{"semantic":"output"}}
+    ]
+  },
+  "services": [],
+  "outputs": [{"id":"surge","target":"surge","label":"Surge","status":"supported","icon":"surge.png"}],
+  "updatedAt":"2026-08-29T00:00:00.000Z"
+}
