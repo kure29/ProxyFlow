@@ -4,7 +4,7 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
-import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig, TargetNativeSurgeGeneralNetworkConfig } from '../core/targetNative'
+import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig, TargetNativeSurgeGeneralConnectivityConfig, TargetNativeSurgeGeneralNetworkConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -162,6 +162,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   targetNativeSourcePort?: TargetNativeSourcePortConfig
   /** Typed Surge-native General Network/VIF intent, kept outside Universal IR. */
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkConfig
+  /** Typed Surge-native Internet/DIRECT connectivity intent, kept outside Universal IR. */
+  targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityConfig
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'
   runtimeInputCount?: number
   runtimeOutputCount?: number

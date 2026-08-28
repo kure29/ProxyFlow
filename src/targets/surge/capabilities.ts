@@ -32,6 +32,11 @@ export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
     officialReference: docs.general,
   },
   {
+    feature: 'General Connectivity (G2)', status: 'supported',
+    reason: 'Typed concrete Output-owned internet-test-url lowers to Surge Internet/DIRECT connectivity testing while omission preserves Surge defaults; strategy health-check URL ownership remains Universal.',
+    officialReference: docs.general,
+  },
+  {
     feature: 'Service Rules', status: 'supported',
     reason: 'The ten branded services lower to first-party Surge RULE-SET assets.',
     officialReference: 'https://manual.nssurge.com/rules/ruleset.html',

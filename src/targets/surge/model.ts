@@ -12,6 +12,7 @@ export interface SurgeGeneralList<Item extends string | number | boolean = strin
 
 export interface SurgeGeneralValueMap {
   'proxy-test-url': string
+  'internet-test-url': string
   'dns-server': SurgeGeneralList<string>
   'encrypted-dns-server': SurgeGeneralList<string>
   ipv6: boolean
@@ -26,7 +27,7 @@ export type SurgeGeneralEntry = {
 const GENERAL_ENTRY_KEYS = ['key', 'value'] as const
 const GENERAL_LIST_KEYS = ['kind', 'items'] as const
 const GENERAL_KEYS = new Set<keyof SurgeGeneralValueMap>([
-  'proxy-test-url', 'dns-server', 'encrypted-dns-server', 'ipv6', 'ipv6-vif', 'icmp-forwarding',
+  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'ipv6', 'ipv6-vif', 'icmp-forwarding',
 ])
 
 /** Runtime guard for the exact current Surge [General] entry boundary. */
@@ -35,7 +36,7 @@ export function isSurgeGeneralEntry(value: unknown): value is SurgeGeneralEntry 
   const key = value.key
   if (typeof key !== 'string') return false
   if (!GENERAL_KEYS.has(key as keyof SurgeGeneralValueMap)) return false
-  if (key === 'proxy-test-url') return isSafeSurgeHttpUrl(value.value)
+  if (key === 'proxy-test-url' || key === 'internet-test-url') return isSafeSurgeHttpUrl(value.value)
   if (key === 'dns-server' || key === 'encrypted-dns-server') return isSurgeGeneralList(value.value)
   if (key === 'ipv6' || key === 'icmp-forwarding') return typeof value.value === 'boolean'
   return value.value === 'disabled' || value.value === 'auto' || value.value === 'always'

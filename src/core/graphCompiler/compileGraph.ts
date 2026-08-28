@@ -10,6 +10,7 @@ import { compileTargetNativeRuleSetSources } from './compileTargetNativeRuleSets
 import { compileTargetNativeFinalOptions } from './compileTargetNativeFinalOptions'
 import { compileTargetNativeRouteOptions } from './compileTargetNativeRouteOptions'
 import { compileTargetNativeSurgeGeneralNetworks, validateTargetNativeSurgeGeneralNetworkOutputSelection } from './compileTargetNativeGeneralNetwork'
+import { compileTargetNativeSurgeGeneralConnectivity, validateTargetNativeSurgeGeneralConnectivityOutputSelection } from './compileTargetNativeGeneralConnectivity'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
@@ -34,6 +35,9 @@ export interface GraphCompileResult {
   targetNativeSurgeGeneralNetworks?: import('../targetNative').TargetNativeSurgeGeneralNetworkIR[]
   /** Singular convenience value when exactly one effective record exists. */
   targetNativeSurgeGeneralNetwork?: import('../targetNative').TargetNativeSurgeGeneralNetworkIR
+  /** Output-owned Surge Internet/DIRECT connectivity extensions. */
+  targetNativeSurgeGeneralConnectivityRecords?: import('../targetNative').TargetNativeSurgeGeneralConnectivityIR[]
+  targetNativeSurgeGeneralConnectivity?: import('../targetNative').TargetNativeSurgeGeneralConnectivityIR
   issues: SemanticIssue[]
   success: boolean
 }
@@ -77,6 +81,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     const targetNativeRouteOptions = compileTargetNativeRouteOptions(context, validationTarget)
     const targetNativeSurgeGeneralNetworks = compileTargetNativeSurgeGeneralNetworks(context)
     validateTargetNativeSurgeGeneralNetworkOutputSelection(context, targetNativeSurgeGeneralNetworks, validationTarget)
+    const targetNativeSurgeGeneralConnectivityRecords = compileTargetNativeSurgeGeneralConnectivity(context)
+    validateTargetNativeSurgeGeneralConnectivityOutputSelection(context, targetNativeSurgeGeneralConnectivityRecords, validationTarget)
     const nativeStrategies = compileTargetNativeStrategies(context, validationTarget)
     const nativeRuleSetSources = compileTargetNativeRuleSetSources(context, validationTarget)
     const targetNativeRuleSetServices: ProxyFlowIR['services'] = []
@@ -147,6 +153,10 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       ...(targetNativeSurgeGeneralNetworks.length === 1
         ? { targetNativeSurgeGeneralNetwork: targetNativeSurgeGeneralNetworks[0] }
         : {}),
+      targetNativeSurgeGeneralConnectivityRecords,
+      ...(targetNativeSurgeGeneralConnectivityRecords.length === 1
+        ? { targetNativeSurgeGeneralConnectivity: targetNativeSurgeGeneralConnectivityRecords[0] }
+        : {}),
       ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
     }
   } catch (error) {
@@ -162,6 +172,8 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       targetNativeRouteOptions: [],
       targetNativeSurgeGeneralNetworks: [],
       targetNativeSurgeGeneralNetwork: undefined,
+      targetNativeSurgeGeneralConnectivityRecords: [],
+      targetNativeSurgeGeneralConnectivity: undefined,
       issues: [semanticIssue(
         'GRAPH_COMPILE_INTERNAL_ERROR',
         'error',
