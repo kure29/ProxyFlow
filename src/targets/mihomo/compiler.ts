@@ -13,7 +13,7 @@ import { compileMihomoProviders } from './providers'
 import { compileMihomoRules } from './rules'
 import { serializeMihomoConfig } from './serializer'
 import { compileMihomoStrategies } from './strategies'
-import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeSurgeDnsBehaviorIR, type TargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 
 export interface MihomoCompileOptions {
   now?: () => Date
@@ -30,6 +30,8 @@ export interface MihomoCompileOptions {
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
+  targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR
+  effectiveDnsNodeId?: string
 }
 
 export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {}): CompileResult {
@@ -44,7 +46,7 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs, options.targetNativeSurgeGeneralConnectivity))
+  issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs, options.targetNativeSurgeGeneralConnectivity, options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId))
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
   const compatibility = checkMihomoCompatibility(ir)
@@ -97,7 +99,7 @@ export class MihomoCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: TargetCompileOptions) {
-    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity })
+    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity, targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior, effectiveDnsNodeId: options?.effectiveDnsNodeId })
   }
 }
 

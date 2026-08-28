@@ -69,24 +69,28 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
     effectiveFinalNodeId: graphResult.effectiveFinalNodeId,
+    effectiveDnsNodeId: graphResult.effectiveDnsNodeId,
     targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRouteOptions: graphResult.targetNativeRouteOptions ?? [],
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
     targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, mihomoOutput?.id),
     targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, mihomoOutput?.id),
-  }), [g1Records, g2Records, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
+    targetNativeSurgeDnsBehavior: graphResult.targetNativeSurgeDnsBehavior,
+  }), [g1Records, g2Records, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
   const targetNativeOptions = useMemo(() => ({
     outputNodeId: surgeOutput?.id,
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
     effectiveFinalNodeId: graphResult.effectiveFinalNodeId,
+    effectiveDnsNodeId: graphResult.effectiveDnsNodeId,
     targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRouteOptions: graphResult.targetNativeRouteOptions ?? [],
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
     targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, surgeOutput?.id),
     targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, surgeOutput?.id),
-  }), [g1Records, g2Records, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, surgeOutput])
+    targetNativeSurgeDnsBehavior: graphResult.targetNativeSurgeDnsBehavior,
+  }), [g1Records, g2Records, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, surgeOutput])
   const singBoxOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: singBoxOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, singBoxOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, singBoxOutput?.id) }), [g1Records, g2Records, singBoxOutput, targetNativeOptions])
   const loonOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: loonOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, loonOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, loonOutput?.id) }), [g1Records, g2Records, loonOutput, targetNativeOptions])
   const shadowrocketOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: shadowrocketOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, shadowrocketOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, shadowrocketOutput?.id) }), [g1Records, g2Records, shadowrocketOutput, targetNativeOptions])

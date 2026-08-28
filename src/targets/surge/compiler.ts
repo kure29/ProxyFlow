@@ -1,14 +1,14 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
-import { isTargetNativeFinalRouteIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
-import { compileSurgeGeneralConnectivity, compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
+import { compileSurgeDnsBehavior, compileSurgeGeneralConnectivity, compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
 import { createSurgeProjectionContext, createSurgeTargetProjectionSummary, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
@@ -34,6 +34,10 @@ export interface SurgeCompileOptions {
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
+  /** DNS-node-owned Surge-native DNS behavior. */
+  targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR
+  /** Compiler-owned effective DNS graph owner identity. */
+  effectiveDnsNodeId?: string
 }
 
 export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {}): CompileResult {
@@ -45,6 +49,9 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   )
   const targetNativeSurgeGeneralConnectivity = validateSurgeGeneralConnectivity(
     options.targetNativeSurgeGeneralConnectivity, options.outputNodeId, ir, inputIssues,
+  )
+  const targetNativeSurgeDnsBehavior = validateSurgeDnsBehavior(
+    options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId, inputIssues,
   )
   const nativeRoutes = validateNativeRoutes(options.nativeRoutes, nativeStrategies, inputIssues)
   const nativeFinalRoute = validateNativeFinalRoute(
@@ -86,6 +93,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     compileSurgeGeneralConnectivity(targetNativeSurgeGeneralConnectivity),
     compileSurgeGeneralNetwork(targetNativeSurgeGeneralNetwork),
     planSurgeDns(ir.dns).general,
+    compileSurgeDnsBehavior(targetNativeSurgeDnsBehavior),
   ], issues)
   if (issues.some((issue) => issue.severity === 'error')) return failed(
     ir, issues, generatedAt, projection,
@@ -174,8 +182,54 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeRuleSetSources: options?.nativeRuleSetSources,
       targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork,
       targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity,
+      targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior,
+      effectiveDnsNodeId: options?.effectiveDnsNodeId,
     })
   }
+}
+
+function validateSurgeDnsBehavior(
+  raw: unknown,
+  effectiveDnsNodeId: unknown,
+  issues: CompileResult['issues'],
+): TargetNativeSurgeDnsBehaviorIR | undefined {
+  if (raw === undefined) return undefined
+  if (!isTargetNativeSurgeDnsBehaviorIR(raw)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_DNS_INVALID', 'error', 'general',
+      'Target-native Surge DNS behavior contains invalid runtime data.',
+      readRuntimeDnsNodeId(raw) ?? 'dns-behavior',
+    ))
+    return undefined
+  }
+  let validated: TargetNativeSurgeDnsBehaviorIR
+  try {
+    validated = structuredClone(raw)
+  } catch {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_DNS_INVALID', 'error', 'general',
+      'Target-native Surge DNS behavior contains unserialisable runtime data.',
+      raw.dnsNodeId,
+    ))
+    return undefined
+  }
+  if (!isTargetNativeSurgeDnsBehaviorIR(validated)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_DNS_INVALID', 'error', 'general',
+      'Target-native Surge DNS behavior changed during runtime validation.',
+      raw.dnsNodeId,
+    ))
+    return undefined
+  }
+  if (typeof effectiveDnsNodeId !== 'string' || !effectiveDnsNodeId.trim() || validated.dnsNodeId !== effectiveDnsNodeId) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH', 'error', 'general',
+      'Target-native Surge DNS behavior does not belong to the compiler-selected DNS owner.',
+      validated.dnsNodeId,
+    ))
+    return undefined
+  }
+  return validated
 }
 
 function validateSurgeGeneralConnectivity(
@@ -290,6 +344,16 @@ function readRuntimeOutputNodeId(value: unknown): string | undefined {
     if (!value || typeof value !== 'object') return undefined
     const outputNodeId = (value as { outputNodeId?: unknown }).outputNodeId
     return typeof outputNodeId === 'string' ? outputNodeId : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function readRuntimeDnsNodeId(value: unknown): string | undefined {
+  try {
+    if (!value || typeof value !== 'object') return undefined
+    const dnsNodeId = (value as { dnsNodeId?: unknown }).dnsNodeId
+    return typeof dnsNodeId === 'string' ? dnsNodeId : undefined
   } catch {
     return undefined
   }

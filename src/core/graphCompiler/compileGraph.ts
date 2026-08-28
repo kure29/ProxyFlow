@@ -11,6 +11,7 @@ import { compileTargetNativeFinalOptions } from './compileTargetNativeFinalOptio
 import { compileTargetNativeRouteOptions } from './compileTargetNativeRouteOptions'
 import { compileTargetNativeSurgeGeneralNetworks, validateTargetNativeSurgeGeneralNetworkOutputSelection } from './compileTargetNativeGeneralNetwork'
 import { compileTargetNativeSurgeGeneralConnectivity, validateTargetNativeSurgeGeneralConnectivityOutputSelection } from './compileTargetNativeGeneralConnectivity'
+import { compileTargetNativeSurgeDnsBehavior } from './compileTargetNativeDnsBehavior'
 import { compileTransforms } from './compileTransforms'
 import { createGraphCompileContext } from './context'
 import type { GraphCompileOptions } from './context'
@@ -40,6 +41,8 @@ export interface GraphCompileResult {
   /** Output-owned Surge Internet/DIRECT connectivity extensions. */
   targetNativeSurgeGeneralConnectivityRecords?: import('../targetNative').TargetNativeSurgeGeneralConnectivityIR[]
   targetNativeSurgeGeneralConnectivity?: import('../targetNative').TargetNativeSurgeGeneralConnectivityIR
+  /** DNS-owner Surge native DNS behavior extension. */
+  targetNativeSurgeDnsBehavior?: import('../targetNative').TargetNativeSurgeDnsBehaviorIR
   issues: SemanticIssue[]
   success: boolean
 }
@@ -80,6 +83,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
     const validationTarget = options.validationTarget === undefined ? project.primaryTarget : options.validationTarget
     const routing = compileRouting(context, validationTarget)
     const effectiveDnsNode = resolveEffectiveDnsOwner(context)
+    const targetNativeSurgeDnsBehavior = compileTargetNativeSurgeDnsBehavior(context, effectiveDnsNode)
     const targetNativeFinalOptions = compileTargetNativeFinalOptions(context, routing.effectiveFinalNodeId, validationTarget)
     const targetNativeRouteOptions = compileTargetNativeRouteOptions(context, validationTarget)
     const targetNativeSurgeGeneralNetworks = compileTargetNativeSurgeGeneralNetworks(context)
@@ -161,6 +165,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       ...(targetNativeSurgeGeneralConnectivityRecords.length === 1
         ? { targetNativeSurgeGeneralConnectivity: targetNativeSurgeGeneralConnectivityRecords[0] }
         : {}),
+      targetNativeSurgeDnsBehavior,
       ir: success || options.retainDraftOnErrorForDiagnostics ? draft : undefined,
     }
   } catch (error) {
@@ -179,6 +184,7 @@ export function compileGraph(project: ProxyFlowProject, options: GraphCompileOpt
       targetNativeSurgeGeneralNetwork: undefined,
       targetNativeSurgeGeneralConnectivityRecords: [],
       targetNativeSurgeGeneralConnectivity: undefined,
+      targetNativeSurgeDnsBehavior: undefined,
       issues: [semanticIssue(
         'GRAPH_COMPILE_INTERNAL_ERROR',
         'error',
