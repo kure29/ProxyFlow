@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createBlankProject } from '../../data/newProject'
 import { compileGraph } from '../../core/graphCompiler'
-import { resolveMihomoProfileOutput, resolveProjectCompileSelection, summarizePrimaryTargetHealth, type ProjectCompiles } from './useProjectCompiles'
+import { resolveMihomoProfileOutput, resolveOutputForTarget, resolveProjectCompileSelection, resolveTargetNativeSurgeGeneralNetworkForOutput, summarizePrimaryTargetHealth, type ProjectCompiles } from './useProjectCompiles'
 import type { CompileResult } from '../../core/compiler'
+import { targetNativeSurgeGeneralNetworkConfigToIR } from '../../core/targetNative'
 
 describe('Project target compile selection', () => {
   it('keeps using a preserved Mihomo profile after Primary Target changes', () => {
@@ -11,6 +12,29 @@ describe('Project target compile selection', () => {
     output.data.client = 'sing-box'
 
     expect(resolveMihomoProfileOutput(project.graph.nodes, null)?.data.mihomoProfile).toBeDefined()
+  })
+
+  it('selects G1 by exact Output identity and does not cross-wire separate targets', () => {
+    const project = createBlankProject('surge')
+    const surge = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    surge.data.targetNativeSurgeGeneralNetwork = { target: 'surge', kind: 'general-network', ipv6: true }
+    const mihomo = {
+      ...structuredClone(surge),
+      id: 'mihomo-output',
+      data: { ...structuredClone(surge.data), client: 'mihomo' as const, targetNativeSurgeGeneralNetwork: undefined },
+    } as typeof surge
+    project.graph.nodes.push(mihomo)
+    const graph = compileGraph(project)
+    const records = graph.targetNativeSurgeGeneralNetworks
+    expect(resolveOutputForTarget(project.graph.nodes, 'surge')?.id).toBe('output')
+    expect(resolveOutputForTarget(project.graph.nodes, 'mihomo')?.id).toBe('mihomo-output')
+    expect(resolveTargetNativeSurgeGeneralNetworkForOutput(records, 'output')).toEqual(targetNativeSurgeGeneralNetworkConfigToIR('output', surge.data.targetNativeSurgeGeneralNetwork!))
+    expect(resolveTargetNativeSurgeGeneralNetworkForOutput(records, 'mihomo-output')).toBeUndefined()
+  })
+
+  it('fails closed in the selector when multiple records claim the same Output', () => {
+    const first = targetNativeSurgeGeneralNetworkConfigToIR('output', { target: 'surge', kind: 'general-network', ipv6: true })
+    expect(resolveTargetNativeSurgeGeneralNetworkForOutput([first, first], 'output')).toBeUndefined()
   })
 
   it('selects the graph-ordered Mihomo profile independently of Inspector selection', () => {

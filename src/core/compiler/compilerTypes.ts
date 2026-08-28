@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR } from '../targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR, TargetNativeSurgeGeneralNetworkIR } from '../targetNative'
 
 export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
 
@@ -86,6 +86,8 @@ export interface TargetCompileOptions {
   targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   /** Short alias accepted by headless integrations. */
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
+  /** Exact Output-owned Surge General Network/VIF extension. */
+  targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
 }
 
 export interface ConfigCompiler {

@@ -10,6 +10,17 @@ describe('project schema version', () => {
     expect(migrateProject(demoProject)).toEqual(expect.objectContaining({ success: true, migrated: false, project: demoProject }))
   })
 
+  it('preserves optional Surge G1 intent at the V2 migration boundary', () => {
+    const project = structuredClone(demoProject)
+    const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    output.data.targetNativeSurgeGeneralNetwork = {
+      target: 'surge', kind: 'general-network', ipv6: false, ipv6Vif: 'always', icmpForwarding: true,
+    }
+    const result = migrateProject(project)
+    expect(result.success).toBe(true)
+    expect(result.project?.graph.nodes.find((node) => node.id === output.id)?.data.targetNativeSurgeGeneralNetwork).toEqual(output.data.targetNativeSurgeGeneralNetwork)
+  })
+
   it('normalizes missing and numeric-string Limit defaults in legacy V2 project data', () => {
     const project = structuredClone(demoProject)
     project.graph.nodes.push({

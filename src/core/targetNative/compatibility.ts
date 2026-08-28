@@ -6,6 +6,7 @@ import { isTargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
 import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from './routeOptions'
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
+import { isTargetNativeSurgeGeneralNetworkIR, type TargetNativeSurgeGeneralNetworkIR } from './generalNetwork'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
 export function targetNativeUnsupportedIssues(
@@ -16,6 +17,12 @@ export function targetNativeUnsupportedIssues(
   finalOptions?: TargetNativeFinalOptionsIR,
   routeOptions: readonly TargetNativeRouteOptionsIR[] = [],
   nativeFinalRoute?: TargetNativeFinalRouteIR,
+  targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR,
+  outputNodeId?: string,
+  /** Optional runtime Universal output list used to independently verify the
+   * compiler-selected owner.  Omitted for backwards-compatible direct
+   * callers; target adapters pass it at their runtime boundary. */
+  outputs?: unknown,
 ): CompatibilityIssue[] {
   const strategyIssues = strategies.flatMap((strategy) => {
     if (!strategy || !isTargetNativeStrategyIR(strategy)) {
@@ -137,5 +144,83 @@ export function targetNativeUnsupportedIssues(
     entityId: nativeFinalRoute.id,
     message: `Target-native Final route “${nativeFinalRoute.name}” is Surge-specific; ${target} has no proven equivalent. Change or remove it before export.`,
   }]
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues]
+  const generalRuntime = validateGeneralRuntime(targetNativeSurgeGeneralNetwork)
+  const generalIssues = targetNativeSurgeGeneralNetwork === undefined
+    ? []
+    : !generalRuntime
+      ? [{
+        target,
+        code: 'TARGET_NATIVE_GENERAL_INVALID',
+        severity: 'error' as const,
+        feature: 'target-native-general-network',
+        entityId: readRuntimeOutputNodeId(targetNativeSurgeGeneralNetwork),
+        message: 'A target-native Surge General Network record contains invalid runtime data.',
+      }]
+      : typeof outputNodeId !== 'string' || !outputNodeId.trim() || generalRuntime.outputNodeId !== outputNodeId || outputs !== undefined && !hasUniqueEnabledTargetOutput(outputs, target, outputNodeId)
+        ? [{
+          target,
+          code: 'TARGET_NATIVE_GENERAL_OWNER_MISMATCH',
+          severity: 'error' as const,
+          feature: 'target-native-general-network',
+          entityId: generalRuntime.outputNodeId,
+          message: 'Target-native Surge General Network settings do not belong to the compiler-selected Output.',
+        }]
+        : target === 'surge' ? [] : [{
+          target,
+          code: 'TARGET_NATIVE_GENERAL_UNSUPPORTED',
+          severity: 'error' as const,
+          feature: 'target-native-general-network',
+          entityId: generalRuntime.outputNodeId,
+          message: `Surge General Network settings have no proven equivalent for ${target}; change or remove them before export.`,
+        }]
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues]
+}
+
+function readRuntimeOutputNodeId(value: unknown): string | undefined {
+  try {
+    if (!value || typeof value !== 'object') return undefined
+    const outputNodeId = (value as { outputNodeId?: unknown }).outputNodeId
+    return typeof outputNodeId === 'string' ? outputNodeId : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function validateGeneralRuntime(value: unknown): TargetNativeSurgeGeneralNetworkIR | undefined {
+  if (!isTargetNativeSurgeGeneralNetworkIR(value)) return undefined
+  try {
+    const clone = structuredClone(value)
+    return isTargetNativeSurgeGeneralNetworkIR(clone) ? clone : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function hasUniqueEnabledTargetOutput(value: unknown, target: TargetClient, outputNodeId: string): boolean {
+  try {
+    if (!Array.isArray(value)) return false
+    const owners = value.filter((output) => isEnabledTargetOutput(output, target, outputNodeId))
+    const targetOutputs = value.filter((output) => isTargetOutputCandidate(output, target))
+    const sameId = value.filter((output) => {
+      if (!output || typeof output !== 'object') return false
+      return (output as { id?: unknown }).id === outputNodeId
+    })
+    return owners.length === 1 && sameId.length === 1 && targetOutputs.length === 1
+  } catch {
+    return false
+  }
+}
+
+function isEnabledTargetOutput(value: unknown, target: TargetClient, outputNodeId: string): boolean {
+  if (!value || typeof value !== 'object') return false
+  const output = value as { id?: unknown; target?: unknown; enabled?: unknown }
+  return output.id === outputNodeId
+    && output.target === target
+    && output.enabled === true
+}
+
+function isTargetOutputCandidate(value: unknown, target: TargetClient): boolean {
+  if (!value || typeof value !== 'object') return false
+  const output = value as { target?: unknown; enabled?: unknown }
+  return output.target === target && output.enabled !== false
 }

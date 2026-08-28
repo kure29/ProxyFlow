@@ -10,9 +10,9 @@ import { compileShadowrocketRouting } from './routing'
 import { serializeShadowrocketProfile } from './serializer'
 import { compileShadowrocketStrategies } from './strategies'
 import { createShadowrocketProjectionContext, shadowrocketProjectionStats } from './projection'
-import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR } from '../../core/targetNative'
+import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR, type TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 
-export interface ShadowrocketCompileOptions { now?: () => Date; targetNativeStrategies?: TargetNativeStrategyIR[]; nativeStrategies?: TargetNativeStrategyIR[]; nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]; nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR; targetNativeFinalOptions?: TargetNativeFinalOptionsIR; targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]; nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[] }
+export interface ShadowrocketCompileOptions { now?: () => Date; outputNodeId?: string; targetNativeStrategies?: TargetNativeStrategyIR[]; nativeStrategies?: TargetNativeStrategyIR[]; nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]; nativeFinalRoute?: import('../../core/targetNative').TargetNativeFinalRouteIR; targetNativeFinalOptions?: TargetNativeFinalOptionsIR; targetNativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; nativeRouteOptions?: import('../../core/targetNative').TargetNativeRouteOptionsIR[]; targetNativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]; nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]; targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR }
 
 export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompileOptions = {}): CompileResult {
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
@@ -29,7 +29,7 @@ export function compileShadowrocket(ir: ProxyFlowIR, options: ShadowrocketCompil
     issues.push(...irIssues.map((issue) => shadowrocketIssue(`IR_${issue.code}`, issue.severity, 'ir', issue.message, issue.entity?.id ?? issue.nodeId)))
     const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
     const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-    issues.push(...targetNativeUnsupportedIssues('shadowrocket', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute))
+    issues.push(...targetNativeUnsupportedIssues('shadowrocket', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs))
     let compatibility
     try {
       compatibility = checkShadowrocketCompatibility(ir, projection)
@@ -62,5 +62,5 @@ function compileStats(projection: ReturnType<typeof createShadowrocketProjection
 export class ShadowrocketCompiler implements ConfigCompiler {
   readonly target = 'shadowrocket' as const
   constructor(private readonly now: () => Date = () => new Date()) {}
-  async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) { return compileShadowrocket(ir, { now: this.now, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources }) }
+  async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) { return compileShadowrocket(ir, { now: this.now, outputNodeId: options?.outputNodeId, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork }) }
 }

@@ -29,6 +29,7 @@ import {
 import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resolveRouteMatcherKind, routeMatcherSelectionPatch } from '../../core/routing/routeProductModel'
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
+import { getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -46,8 +47,10 @@ import {
 import {
   isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isValidSourcePort, surgeBuiltinRuleSetSourceConfig,
   surgeBuiltinRuleSetSourceId,
+  isTargetNativeSurgeGeneralNetworkConfig,
   type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
 } from '../../core/targetNative'
+import { resolveTargetNativeSurgeGeneralNetworkForOutput } from '../compiler/useProjectCompiles'
 import {
   parseCustomRuleSource, validateCustomRuleSourceForTarget, type CustomRuleSourceIssue,
   type CustomRuleSourceRequestedFormat,
@@ -1210,10 +1213,16 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
   const registeredTarget = isPrimaryTarget(node.data.client) ? node.data.client : undefined
   const supported = Boolean(registeredTarget && isProductTarget(registeredTarget))
   const paused = Boolean(registeredTarget && getTargetCapabilities(registeredTarget).productStatus === 'paused')
-  const targetOptions = useMemo(() => node.data.client === 'mihomo' ? {
-    outputNodeId: node.id,
-    targetProfile: node.data.mihomoProfile,
-  } : undefined, [node.data.client, node.data.mihomoProfile, node.id])
+  const targetOptions = useMemo(() => {
+    if (!registeredTarget) return undefined
+    const records = graph.targetNativeSurgeGeneralNetworks
+      ?? (graph.targetNativeSurgeGeneralNetwork ? [graph.targetNativeSurgeGeneralNetwork] : [])
+    return {
+      outputNodeId: node.id,
+      ...(node.data.client === 'mihomo' ? { targetProfile: node.data.mihomoProfile } : {}),
+      targetNativeSurgeGeneralNetwork: resolveTargetNativeSurgeGeneralNetworkForOutput(records, node.id),
+    }
+  }, [graph.targetNativeSurgeGeneralNetwork, graph.targetNativeSurgeGeneralNetworks, node.data.client, node.data.mihomoProfile, node.id, registeredTarget])
   const target = useTargetCompile(graph.ir, supported ? registeredTarget : undefined, graph.success, targetOptions)
   const errors = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
   const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
@@ -1222,11 +1231,55 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
   return <>
     {paused && registeredTarget && <div className="validation-banner"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(registeredTarget).label })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
     <Field label={t('inspector.targetClient')}><div className="client-grid">{productionOutputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{t('node.compatibility.supported')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
+    <SurgeGeneralNetworkEditor node={node} primaryTarget={registeredTarget} />
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
     {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('export')}><FileOutput size={15} /> {t('workspace.open')} {t('workspace.export')}</button>}
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
     <div className="mock-note">{t('inspector.realCompilerNote')}</div>
   </>
+}
+
+export interface SurgeGeneralNetworkEditorProps {
+  node: GraphNode
+  primaryTarget?: PrimaryTarget | null
+}
+
+/** Output-local Product editor for the typed Surge IPv6/VIF General family. */
+export function SurgeGeneralNetworkEditor({ node, primaryTarget }: SurgeGeneralNetworkEditorProps) {
+  const { t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const config = node.data.targetNativeSurgeGeneralNetwork
+  const hasPersistedIntent = config !== undefined
+  const state = getSurgeGeneralNetworkUiState({ primaryTarget, hasPersistedIntent })
+  const valid = !hasPersistedIntent || isTargetNativeSurgeGeneralNetworkConfig(config)
+  const setChoice = (field: SurgeGeneralNetworkField, choice: string) => {
+    const nextChoice = choice as SurgeGeneralNetworkChoice
+    // Retained intent on another target is inspectable/removable, but it is
+    // not editable there.  Otherwise selecting a second field would create
+    // new Surge semantics while the Product state explicitly denies creation.
+    if (primaryTarget !== 'surge') return
+    if (nextChoice !== 'default' && !state.canCreate) return
+    update(node.id, surgeGeneralNetworkOptionsPatch(config, field, nextChoice))
+  }
+
+  if (!hasPersistedIntent && primaryTarget !== 'surge') return null
+
+  return <section className="target-native-card surge-general-network-editor" data-general-network="surge" aria-label={t('inspector.generalNetwork.title')}>
+    <div className="target-native-card-heading">
+      <span><strong>{t('inspector.generalNetwork.title')}</strong><small>{primaryTarget === 'surge' ? t('inspector.generalNetwork.hint') : t('inspector.generalNetwork.retainedHint')}</small></span>
+      <em className="node-native-badge">{t('inspector.generalNetwork.surgeOnlyLabel')}</em>
+    </div>
+    {!valid && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalNetwork.invalid')}</strong><small>{t('inspector.generalNetwork.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralNetworkOptions())}>{t('inspector.generalNetwork.remove')}</button></div>}
+    {valid && <>
+      <Field label={t('inspector.generalNetwork.ipv6')} hint={t('inspector.generalNetwork.ipv6Hint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.generalNetwork.ipv6')} value={surgeGeneralNetworkFieldChoice(config, 'ipv6')} onChange={(value) => setChoice('ipv6', value)} options={[{ value: 'default', label: t('inspector.generalNetwork.default') }, { value: 'enabled', label: t('inspector.generalNetwork.enabled') }, { value: 'disabled', label: t('inspector.generalNetwork.disabled') }]} /></Field>
+      <Field label={t('inspector.generalNetwork.ipv6Vif')} hint={t('inspector.generalNetwork.ipv6VifHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.generalNetwork.ipv6Vif')} value={surgeGeneralNetworkFieldChoice(config, 'ipv6Vif')} onChange={(value) => setChoice('ipv6Vif', value)} options={[{ value: 'default', label: t('inspector.generalNetwork.default') }, { value: 'disabled', label: t('inspector.generalNetwork.disabled') }, { value: 'auto', label: t('inspector.generalNetwork.auto') }, { value: 'always', label: t('inspector.generalNetwork.always') }]} /></Field>
+      <Field label={t('inspector.generalNetwork.icmpForwarding')} hint={t('inspector.generalNetwork.icmpHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.generalNetwork.icmpForwarding')} value={surgeGeneralNetworkFieldChoice(config, 'icmpForwarding')} onChange={(value) => setChoice('icmpForwarding', value)} options={[{ value: 'default', label: t('inspector.generalNetwork.default') }, { value: 'enabled', label: t('inspector.generalNetwork.enabled') }, { value: 'disabled', label: t('inspector.generalNetwork.disabled') }]} /></Field>
+      {surgeGeneralNetworkFieldChoice(config, 'ipv6Vif') === 'always' && <div className="validation-banner"><AlertTriangle size={15} /><span>{t('inspector.generalNetwork.alwaysWarning')}</span></div>}
+      <div className="mock-note">{t('inspector.generalNetwork.icmpNote')}</div>
+      {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalNetwork.surgeOnly')}</strong><small>{t('inspector.generalNetwork.targetMismatch')}</small></span></div>}
+      {state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralNetworkOptions())}><X size={14} />{t('inspector.generalNetwork.remove')}</button>}
+    </>}
+  </section>
 }
 
 function DnsInspector({ node, onOpenWorkspaceSection }: InspectorProps) {

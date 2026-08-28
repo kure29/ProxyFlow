@@ -1,14 +1,14 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
-import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeSurgeGeneralNetworkIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
-import { composeSurgeGeneral } from './general'
+import { compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
 import { createSurgeProjectionContext, createSurgeTargetProjectionSummary, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
@@ -19,6 +19,8 @@ import type { TargetNativeStrategyIR } from '../../core/targetNative'
 
 export interface SurgeCompileOptions {
   now?: () => Date
+  /** Compiler-selected Output owner for output-scoped target-native state. */
+  outputNodeId?: string
   targetNativeStrategies?: TargetNativeStrategyIR[]
   nativeStrategies?: TargetNativeStrategyIR[]
   nativeRoutes?: TargetNativeRouteIR[]
@@ -30,17 +32,32 @@ export interface SurgeCompileOptions {
   nativeRouteOptions?: TargetNativeRouteOptionsIR[]
   targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
+  targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
 }
 
 export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {}): CompileResult {
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
   const inputIssues: CompileResult['issues'] = []
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
+  const targetNativeSurgeGeneralNetwork = validateSurgeGeneralNetwork(
+    options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir, inputIssues,
+  )
   const nativeRoutes = validateNativeRoutes(options.nativeRoutes, nativeStrategies, inputIssues)
   const nativeFinalRoute = validateNativeFinalRoute(
     options.nativeFinalRoute, nativeStrategies, options.effectiveFinalNodeId, inputIssues,
   )
-  const irIssues = validateIR(ir).filter((issue) => !(issue.code === 'FINAL_MISSING' && nativeFinalRoute))
+  let irIssues
+  try {
+    irIssues = validateIR(ir).filter((issue) => !(issue.code === 'FINAL_MISSING' && nativeFinalRoute))
+  } catch {
+    return failed(ir, [
+      ...inputIssues,
+      surgeIssue(
+        'SURGE_IR_VALIDATION_EXCEPTION', 'error', 'ir',
+        'Universal IR validation failed closed because the runtime IR is malformed.', 'ir',
+      ),
+    ], generatedAt, createSurgeProjectionContext())
+  }
   const issues = [
     ...inputIssues,
     ...irIssues.map((issue) => surgeIssue(
@@ -52,7 +69,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const routeOptions = options.targetNativeRouteOptions ?? options.nativeRouteOptions ?? []
   const compatibility = checkSurgeCompatibility(ir, projection, nativeStrategies, nativeRuleSetSources, nativeRoutes, nativeFinalRoute, options.targetNativeFinalOptions, routeOptions, options.effectiveFinalNodeId)
   issues.push(...compatibility.issues)
-  if (!compatibility.supported || irIssues.some((issue) => issue.severity === 'error')) return failed(
+  if (!compatibility.supported || issues.some((issue) => issue.severity === 'error') || irIssues.some((issue) => issue.severity === 'error')) return failed(
     ir, issues, generatedAt, projection,
   )
 
@@ -62,6 +79,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const rules = compileSurgeRules(context)
   const general = composeSurgeGeneral([
     compileSurgeGeneral(ir),
+    compileSurgeGeneralNetwork(targetNativeSurgeGeneralNetwork),
     planSurgeDns(ir.dns).general,
   ], issues)
   if (issues.some((issue) => issue.severity === 'error')) return failed(
@@ -94,7 +112,14 @@ function failed(
   projection: SurgeProjectionContext,
 ): CompileResult {
   const finalIssues = deduplicateDiagnostics(issues)
-  const targetProjection = createSurgeTargetProjectionSummary(ir, projection, finalIssues)
+  let targetProjection: ReturnType<typeof createSurgeTargetProjectionSummary> | undefined
+  try {
+    targetProjection = createSurgeTargetProjectionSummary(ir, projection, finalIssues)
+  } catch {
+    // A malformed runtime IR must still produce the stable empty-content
+    // failure contract even when projection diagnostics cannot be derived.
+    targetProjection = undefined
+  }
   return {
     success: false,
     content: '',
@@ -131,6 +156,7 @@ export class SurgeCompiler implements ConfigCompiler {
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
     return compileSurge(ir, {
       now: this.now,
+      outputNodeId: options?.outputNodeId,
       targetNativeStrategies: options?.targetNativeStrategies,
       nativeStrategies: options?.nativeStrategies,
       nativeRoutes: options?.nativeRoutes,
@@ -141,7 +167,120 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeRouteOptions: options?.nativeRouteOptions,
       targetNativeRuleSetSources: options?.targetNativeRuleSetSources,
       nativeRuleSetSources: options?.nativeRuleSetSources,
+      targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork,
     })
+  }
+}
+
+function validateSurgeGeneralNetwork(
+  raw: unknown,
+  outputNodeId: unknown,
+  ir: ProxyFlowIR,
+  issues: CompileResult['issues'],
+): TargetNativeSurgeGeneralNetworkIR | undefined {
+  if (raw === undefined) return undefined
+  if (!isTargetNativeSurgeGeneralNetworkIR(raw)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general',
+      'Target-native Surge General Network settings contain invalid runtime data.',
+      readRuntimeOutputNodeId(raw) ?? 'general-network',
+    ))
+    return undefined
+  }
+  let validated: TargetNativeSurgeGeneralNetworkIR
+  try {
+    // Snapshot the untrusted runtime value before using it for lowering.  A
+    // getter/proxy must not be able to change semantic fields between guard
+    // validation and serialization.
+    validated = structuredClone(raw)
+  } catch {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general',
+      'Target-native Surge General Network settings contain unserialisable runtime data.',
+      readRuntimeOutputNodeId(raw) ?? 'general-network',
+    ))
+    return undefined
+  }
+  if (!isTargetNativeSurgeGeneralNetworkIR(validated)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general',
+      'Target-native Surge General Network settings changed during runtime validation.',
+      readRuntimeOutputNodeId(raw) ?? 'general-network',
+    ))
+    return undefined
+  }
+  if (typeof outputNodeId !== 'string' || !outputNodeId.trim() || validated.outputNodeId !== outputNodeId) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH', 'error', 'general',
+      'Target-native Surge General Network settings do not belong to the compiler-selected Output.',
+      validated.outputNodeId,
+    ))
+    return undefined
+  }
+  const outputs = readRuntimeOutputs(ir)
+  let owners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  let surgeOwners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  try {
+    owners = outputs?.filter((output) => output.id === outputNodeId) ?? []
+    // Every non-disabled Surge Output participates in the owner decision. A
+    // malformed `enabled` value is treated as active/unsafe instead of being
+    // silently ignored as a second owner.
+    surgeOwners = outputs?.filter((output) => isSurgeOutputCandidate(output)) ?? []
+  } catch {
+    owners = []
+    surgeOwners = []
+  }
+  if (!outputs || owners.length !== 1 || surgeOwners.length !== 1 || !isEnabledSurgeOutput(owners[0])) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH', 'error', 'general',
+      'Target-native Surge General Network settings do not resolve to one enabled Surge Output.',
+      outputNodeId,
+    ))
+    return undefined
+  }
+  return validated
+}
+
+function readRuntimeOutputNodeId(value: unknown): string | undefined {
+  try {
+    if (!value || typeof value !== 'object') return undefined
+    const outputNodeId = (value as { outputNodeId?: unknown }).outputNodeId
+    return typeof outputNodeId === 'string' ? outputNodeId : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function readRuntimeOutputs(ir: unknown): Array<{ id?: unknown; enabled?: unknown; target?: unknown }> | undefined {
+  try {
+    const outputs = (ir as { outputs?: unknown } | null | undefined)?.outputs
+    if (!Array.isArray(outputs)) return undefined
+    const snapshot = structuredClone(outputs)
+    return Array.isArray(snapshot) ? snapshot as Array<{ id?: unknown; enabled?: unknown; target?: unknown }> : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function isEnabledSurgeOutput(value: unknown): value is { id: string; enabled: true; target: 'surge' } {
+  try {
+    return Boolean(value && typeof value === 'object'
+      && typeof (value as { id?: unknown }).id === 'string'
+      && Boolean((value as { id: string }).id.trim())
+      && (value as { enabled?: unknown }).enabled === true
+      && (value as { target?: unknown }).target === 'surge')
+  } catch {
+    return false
+  }
+}
+
+function isSurgeOutputCandidate(value: unknown): boolean {
+  try {
+    if (!value || typeof value !== 'object') return false
+    const output = value as { target?: unknown; enabled?: unknown }
+    return output.target === 'surge' && output.enabled !== false
+  } catch {
+    return false
   }
 }
 

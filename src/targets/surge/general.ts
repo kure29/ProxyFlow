@@ -1,6 +1,7 @@
 import type { CompatibilityIssue } from '../../types/project'
 import { surgeIssue } from './errors'
 import type { SurgeGeneralEntry } from './model'
+import type { TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 
 export function composeSurgeGeneral(
   groups: readonly (readonly SurgeGeneralEntry[])[],
@@ -23,5 +24,19 @@ export function composeSurgeGeneral(
       entries.push(entry)
     }
   }
+  return entries
+}
+
+/** Lower the typed G1 Network/VIF family into canonical Surge [General]
+ * entries.  Property presence, rather than client defaults, controls output.
+ */
+export function compileSurgeGeneralNetwork(
+  network: TargetNativeSurgeGeneralNetworkIR | undefined,
+): SurgeGeneralEntry[] {
+  if (!network) return []
+  const entries: SurgeGeneralEntry[] = []
+  if (Object.prototype.hasOwnProperty.call(network, 'ipv6')) entries.push({ key: 'ipv6', value: network.ipv6! })
+  if (Object.prototype.hasOwnProperty.call(network, 'ipv6Vif')) entries.push({ key: 'ipv6-vif', value: network.ipv6Vif! })
+  if (Object.prototype.hasOwnProperty.call(network, 'icmpForwarding')) entries.push({ key: 'icmp-forwarding', value: network.icmpForwarding! })
   return entries
 }
