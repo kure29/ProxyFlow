@@ -8,6 +8,7 @@ import {
   getTargetCapabilities, resolveActiveProductTarget, type PrimaryTarget,
 } from '../../core/capabilities'
 import { useTargetCompile, type TargetCompileState } from './useTargetCompile'
+import { selectTargetNativeSurgeGeneralNetwork, type TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 
 export interface ProjectCompileSelection {
   mihomo?: boolean
@@ -52,6 +53,13 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     validationTarget,
   }), [edges, locale, nodes, projectId, projectName, subscriptionSnapshots, toProject, validationTarget])
   const mihomoOutput = useMemo(() => resolveMihomoProfileOutput(nodes), [nodes])
+  const outputForTarget = (target: PrimaryTarget) => resolveOutputForTarget(nodes, target)
+  const surgeOutput = useMemo(() => outputForTarget('surge'), [nodes])
+  const loonOutput = useMemo(() => outputForTarget('loon'), [nodes])
+  const shadowrocketOutput = useMemo(() => outputForTarget('shadowrocket'), [nodes])
+  const singBoxOutput = useMemo(() => outputForTarget('sing-box'), [nodes])
+  const g1Records = graphResult.targetNativeSurgeGeneralNetworks
+    ?? (graphResult.targetNativeSurgeGeneralNetwork ? [graphResult.targetNativeSurgeGeneralNetwork] : [])
   const mihomoOptions = useMemo(() => ({
     outputNodeId: mihomoOutput?.id,
     targetProfile: mihomoOutput?.data.mihomoProfile,
@@ -62,8 +70,10 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRouteOptions: graphResult.targetNativeRouteOptions ?? [],
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
-  }), [graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
+    targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, mihomoOutput?.id),
+  }), [g1Records, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
   const targetNativeOptions = useMemo(() => ({
+    outputNodeId: surgeOutput?.id,
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
@@ -71,13 +81,17 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     targetNativeFinalOptions: graphResult.targetNativeFinalOptions,
     targetNativeRouteOptions: graphResult.targetNativeRouteOptions ?? [],
     targetNativeRuleSetSources: graphResult.targetNativeRuleSetSources ?? [],
-  }), [graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources])
+    targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, surgeOutput?.id),
+  }), [g1Records, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, surgeOutput])
+  const singBoxOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: singBoxOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, singBoxOutput?.id) }), [g1Records, singBoxOutput, targetNativeOptions])
+  const loonOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: loonOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, loonOutput?.id) }), [g1Records, loonOutput, targetNativeOptions])
+  const shadowrocketOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: shadowrocketOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, shadowrocketOutput?.id) }), [g1Records, shadowrocketOutput, targetNativeOptions])
   const compileEnabled = enabled && graphResult.success
   const mihomoState = useTargetCompile(graphResult.ir, 'mihomo', compileEnabled && resolvedSelection.mihomo, mihomoOptions)
   const surgeState = useTargetCompile(graphResult.ir, 'surge', compileEnabled && resolvedSelection.surge, targetNativeOptions)
-  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox, targetNativeOptions)
-  const loonState = useTargetCompile(graphResult.ir, 'loon', compileEnabled && resolvedSelection.loon, targetNativeOptions)
-  const shadowrocketState = useTargetCompile(graphResult.ir, 'shadowrocket', compileEnabled && resolvedSelection.shadowrocket, targetNativeOptions)
+  const singBoxState = useTargetCompile(graphResult.ir, 'sing-box', compileEnabled && resolvedSelection.singBox, singBoxOptions)
+  const loonState = useTargetCompile(graphResult.ir, 'loon', compileEnabled && resolvedSelection.loon, loonOptions)
+  const shadowrocketState = useTargetCompile(graphResult.ir, 'shadowrocket', compileEnabled && resolvedSelection.shadowrocket, shadowrocketOptions)
   return { graphResult, mihomoState, surgeState, singBoxState, loonState, shadowrocketState }
 }
 
@@ -142,4 +156,35 @@ function targetCompilerUnavailableDiagnostic(state: TargetCompileState): Structu
 export function resolveMihomoProfileOutput(nodes: GraphNode[], _selectedNodeId?: string | null) {
   return nodes.find((node) => node.data.blockType === 'output' && node.data.client === 'mihomo' && !node.data.disabled)
     ?? nodes.find((node) => node.data.blockType === 'output' && node.data.mihomoProfile && !node.data.disabled)
+}
+
+/** Resolve the effective Output owner for a target without using another
+ * target's profile or a target-native record's self-declared owner. */
+export function resolveOutputForTarget(
+  nodes: GraphNode[],
+  target: PrimaryTarget,
+  selectedNodeId?: string | null,
+) {
+  const candidates = nodes.filter((node) => node.data.blockType === 'output'
+    && !node.data.disabled && node.data.client === target)
+  if (selectedNodeId) {
+    const selected = candidates.find((node) => node.id === selectedNodeId)
+    if (selected) return selected
+  }
+  if (target === 'mihomo') {
+    const profile = resolveMihomoProfileOutput(nodes, selectedNodeId)
+    if (profile && candidates.includes(profile)) return profile
+  }
+  return candidates.length === 1 ? candidates[0] : undefined
+}
+
+/** Select the exact G1 record for a selected Output.  Kept exported for
+ * Output Inspector and headless integrations that compile one Output at a
+ * time.
+ */
+export function resolveTargetNativeSurgeGeneralNetworkForOutput(
+  records: readonly TargetNativeSurgeGeneralNetworkIR[] | undefined,
+  outputNodeId?: string | null,
+) {
+  return selectTargetNativeSurgeGeneralNetwork(records, outputNodeId ?? undefined)
 }

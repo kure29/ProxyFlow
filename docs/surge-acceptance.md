@@ -4,6 +4,20 @@
 
 The ProxyFlow compiler, compatibility checks, deterministic `.conf` export, and release-candidate fixtures are covered by automated tests.
 
+## General Network / VIF (G1)
+
+Automated compiler and Product coverage is in place for the typed,
+Output-owned Surge `ipv6`, `ipv6-vif`, and `icmp-forwarding` settings. The
+implementation preserves unset values, emits canonical keys in deterministic
+order, and fails closed when retained intent is malformed or selected for a
+different target.
+
+**REAL SURGE DEVICE VERIFICATION (G1): NOT YET PERFORMED**
+
+The historical real-client acceptance below covers the previously implemented
+release-candidate profile. It is not evidence that the G1 General settings
+have been imported or exercised on a physical Surge client.
+
 **REAL SURGE IMPORT: PASSED**
 
 The first real-world Project acceptance attempt was blocked. The failure is part of the acceptance record below and must not be reclassified as passed: a roughly 142-endpoint mixed subscription produced roughly 224 blocking diagnostics and could not be exported. The identified causes were source-wide compatibility over-validation and missing target lowering for Shadowsocks `simple-obfs`.

@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isTargetNativeSurgeGeneralNetworkConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -101,6 +101,11 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     }
     if (node.data.targetNativeSourcePort !== undefined && node.data.routeMatcherKind !== 'source-port') {
       add('TARGET_NATIVE_SOURCE_PORT_INVALID', 'Target-native source-port intent may only be attached to a source-port routing rule.', 'error')
+    }
+    if (node.data.targetNativeSurgeGeneralNetwork !== undefined) {
+      if (node.data.blockType !== 'output' || !isTargetNativeSurgeGeneralNetworkConfig(node.data.targetNativeSurgeGeneralNetwork)) {
+        add('TARGET_NATIVE_GENERAL_INVALID', 'Target-native Surge General Network settings must be valid and attached to an Output node.', 'error')
+      }
     }
   }
   return issues

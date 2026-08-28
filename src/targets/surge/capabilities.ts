@@ -10,6 +10,7 @@ export interface SurgeCapabilityDecision {
 
 const docs = {
   including: 'https://manual.nssurge.com/policy-groups/policy-including.html',
+  general: 'https://manual.nssurge.com/profile/general.html',
   groups: 'https://manual.nssurge.com/policy-groups/parameters.html',
   urlTest: 'https://manual.nssurge.com/policy-groups/url-test.html',
   fallback: 'https://manual.nssurge.com/policy-groups/fallback.html',
@@ -25,6 +26,11 @@ const docs = {
 
 /** Target-backend audit data. This is deliberately separate from the product target registry. */
 export const SURGE_CAPABILITY_MATRIX: readonly SurgeCapabilityDecision[] = [
+  {
+    feature: 'General Network / VIF (G1)', status: 'supported',
+    reason: 'Typed Output-owned ipv6, ipv6-vif, and icmp-forwarding values lower to canonical Surge [General] keys while omission preserves Surge defaults.',
+    officialReference: docs.general,
+  },
   {
     feature: 'Service Rules', status: 'supported',
     reason: 'The ten branded services lower to first-party Surge RULE-SET assets.',

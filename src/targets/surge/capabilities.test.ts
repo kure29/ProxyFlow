@@ -5,6 +5,7 @@ import { getTargetCapabilities } from '../../core/capabilities'
 describe('Surge capability matrix', () => {
   it('records every Phase 3 decision with an official reference and stable fail-closed diagnostic', () => {
     expect(SURGE_CAPABILITY_MATRIX.map((item) => item.feature)).toEqual([
+      'General Network / VIF (G1)',
       'Service Rules',
       'SRC-PORT',
       'Remote Proxy Source',
@@ -40,5 +41,11 @@ describe('Surge capability matrix', () => {
     expect(SURGE_CAPABILITY_MATRIX.some((entry) => entry.feature === 'Target-native Smart')).toBe(true)
     expect(getTargetCapabilities('surge').native['strategy-smart'].status).toBe('target-native')
     expect(getTargetCapabilities('surge').native['strategy-subnet'].status).toBe('target-native')
+    expect(getTargetCapabilities('surge').native['general-network']).toEqual(expect.objectContaining({
+      status: 'target-native',
+    }))
+    expect(SURGE_CAPABILITY_MATRIX.find((entry) => entry.feature === 'General Network / VIF (G1)')).toEqual(expect.objectContaining({
+      status: 'supported', officialReference: 'https://manual.nssurge.com/profile/general.html',
+    }))
   })
 })

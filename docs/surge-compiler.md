@@ -12,6 +12,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 
 | Feature | Status | Exact subset or reason | Diagnostic |
 | --- | --- | --- | --- |
+| General Network / VIF (G1) | Supported | Output-owned typed `ipv6`, `ipv6-vif` (`disabled` / `auto` / `always`), and `icmp-forwarding` values are emitted only when explicitly authored; unset values preserve Surge defaults. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
 | SRC-PORT | Target-native | Exact single source-port matcher is emitted as `SRC-PORT,<port>,<policy>` for the documented Surge baseline (iOS 5.22+ / Mac 6.9+). Ranges and comparison expressions remain deferred; other targets fail closed because no equivalent is proven. | `TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED` |
 | Remote Proxy Source | Unsupported natively | `policy-path` accepts Surge policy lines or a Surge profile. Universal IR does not retain a contract proving either format. Auto materializes a validated snapshot; Remote fails. | `SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN` |
