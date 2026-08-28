@@ -3,7 +3,7 @@
   "scenarios": [
     {
       "id": "01-core",
-      "purpose": "Mature daily profile shape: materialized subscription, manual proxy, URL Test, Fallback, Fixed, Smart, Subnet, Proxy Chain, Service Rules, routing precedence, FINAL, and encrypted DNS.",
+      "purpose": "Mature daily profile shape: materialized subscription, manual proxy, URL Test, genuine Manual Select distinct from Fixed, Fallback, Smart, Subnet, Proxy Chain, Service Rules, routing precedence, FINAL, and encrypted DNS.",
       "project": "01-core.project.json",
       "expected": "01-core.conf",
       "classification": "IMPORT-SAFE",

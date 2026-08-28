@@ -175,27 +175,80 @@ or system-proxy behavior is not hidden inside the daily core profile.
 
 | Scenario | Classification | Expected General keys | Import/activation safety |
 | --- | --- | --- | --- |
-| `01-core` | `IMPORT-SAFE` | `encrypted-dns-server` | Import-safe; fake `.invalid` proxies require private replacements for activation. |
+| `01-core` | `IMPORT-SAFE` | `encrypted-dns-server` | Import-safe; fake `.example.invalid` proxies require private replacements for activation. |
 | `02-general-connectivity` | `IMPORT-SAFE` | `proxy-test-url`, `internet-test-url`, `ipv6`, `ipv6-vif`, `icmp-forwarding` | Uses safe `ipv6-vif=auto`; fake endpoint, so no connectivity claim. |
-| `03-dns-behavior` | `IMPORT-SAFE` | `proxy-test-url`, `always-real-ip` | Proves `universalDnsMode=none` plus DNS-node-owned `always-real-ip`; encrypted DNS is in `01-core`. |
+| `03-dns-behavior` | `IMPORT-SAFE` | `proxy-test-url`, `always-real-ip` | Structures `universalDnsMode=none` plus DNS-node-owned `always-real-ip`; encrypted DNS is in `01-core`. |
 | `04-vif-routes` | `LOCAL-NETWORK-SIDE-EFFECT` | `proxy-test-url`, `ipv6`, `ipv6-vif`, `icmp-forwarding`, `tun-excluded-routes`, `tun-included-routes` | TEST-NET ranges only; activate only in a private network test. |
 | `05-proxy-bypass` | `BEHAVIOR-REQUIRES-PRIVATE-ENDPOINTS` | `proxy-test-url`, `skip-proxy`, `exclude-simple-hostnames` | Positive Host List subset only; use private endpoints for behavior. |
 
-The core profile covers manual and materialized subscription proxies, Select,
-URL Test, Fallback, Fixed, Smart, Subnet, Proxy Chain, Service Rules,
+The core profile covers manual and materialized subscription proxies, genuine
+Manual Select, URL Test, Fallback, Fixed, Smart, Subnet, Proxy Chain, Service Rules,
 ordinary routing, precedence, FINAL, and encrypted DNS. `.example.invalid`
 endpoints make all profiles valid for generation, syntax/import, policy/group
 inspection, General-key inspection, and route-order inspection only. They
 cannot prove successful proxy traffic, URL Test success, Fallback success,
-Proxy Chain runtime, or a successful real DNS path.
+or Proxy Chain runtime. The public fixture does not by itself constitute
+evidence that the intended real DNS behavior has been successfully verified
+on the target platform. `Manual Fixed` remains a separate Fixed semantic and
+is not counted as Manual Select acceptance even though Surge serializes both
+groups with `select` syntax.
 
 ### Private/local behavior procedure
 
 Copy a generated profile outside tracked repository state before replacing
-fixture values. Substitute only controlled proxy endpoints/credentials and,
-for G3-B, `<LOCAL_TEST_HOST_IP>` or `<LOCAL_TEST_SUBNET>` values appropriate to
-the local network. Never commit those values, private certificates,
-subscription URLs, or credentials; `git status` must remain clean.
+fixture values. Substitute only controlled values. Checked-in acceptance proxy
+hosts must end in `.example.invalid`, and every proxy username, password,
+UUID, and nested obfs password must match the explicit
+`fixture-[a-z0-9-]+` convention. Never commit private endpoints, real SSIDs,
+certificates, subscription URLs, credentials, or tokens; `git status` must
+remain clean.
+
+#### G2 connectivity URLs
+
+In a private copy of `02-general-connectivity.conf`:
+
+1. Replace `https://health.example.invalid/ping` with `<PROXY_TEST_URL>`, a
+   controlled reachable URL suitable for proxy health-check testing.
+2. Replace `https://connectivity.example.invalid/generate_204` with
+   `<INTERNET_TEST_URL>`, a controlled reachable URL suitable for Surge
+   Internet / DIRECT connectivity testing.
+3. Exercise the proxy health check and DIRECT/Internet check separately and
+   record their observed results. Keep the inert public URLs checked in.
+
+#### G3-A real-IP DNS behavior
+
+In a private copy of `03-dns-behavior.conf`, replace a checked-in
+`always-real-ip` hostname such as `api.example.invalid` with a controlled,
+resolvable `<REAL_IP_TEST_HOST>`. Query or connect to that matching hostname
+and observe that Surge performs real upstream resolution rather than returning
+the Fake-IP behavior applicable when the hostname is not covered by
+`always-real-ip`. Compare against an otherwise equivalent hostname outside the
+list when needed. The presence of `always-real-ip` in `[General]` proves
+STRUCTURE only and must not be recorded as a behavior PASS.
+
+#### Core strategy behavior
+
+After replacing the core proxy fixtures with controlled private candidates:
+
+1. Fallback: make candidate 1 intentionally unavailable or failing and
+   candidate 2 controlled and working. Record whether Surge advances to the
+   usable candidate according to observed client behavior.
+2. Manual Select: confirm both `Manual Select` members are visible, change the
+   selection, and verify the selected member is honored. Record this separately
+   from the one-member `Manual Fixed`; Fixed is not Select acceptance.
+3. Smart: confirm the profile accepts `Native Smart`, all expected members are
+   present, and the policy operates with the usable private candidates. Do not
+   overclaim detailed adaptive-selection algorithm correctness unless it was
+   actually observed.
+4. Subnet: replace `Home-WiFi` only in the private copy with the controlled
+   `<LOCAL_SSID>` and verify the SSID branch. The default branch and, where the
+   platform permits, the `CELLULAR` network-type branch may be tested
+   independently. Never commit the real SSID.
+
+#### G3-B and G3-C network behavior
+
+For G3-B, substitute `<LOCAL_TEST_HOST_IP>` or `<LOCAL_TEST_SUBNET>` values
+appropriate to the local network in the private copy.
 
 For `tun-excluded-routes`, verify the chosen local test IP/subnet is not
 captured by Surge VIF. For `tun-included-routes`, use a physical network with a
@@ -226,8 +279,9 @@ evidence levels:
 
 Mac behavior matrix:
 
-- `01-core`: system proxy state, URL Test/Fallback/Smart/Subnet/Proxy Chain,
-  custom/encrypted DNS, Service Rules, ordinary routing precedence, and FINAL.
+- `01-core`: system proxy state, URL Test, genuine Manual Select separately
+  from Fixed, Fallback, Smart, Subnet, Proxy Chain, custom/encrypted DNS,
+  Service Rules, ordinary routing precedence, and FINAL.
 - `02-general-connectivity`: `proxy-test-url` health checks,
   `internet-test-url` visibility/behavior, IPv6, `ipv6-vif`, and ICMP
   forwarding.
@@ -246,8 +300,9 @@ any parser warning/error. iOS uses a separate matrix; do not copy Mac system
 proxy expectations. For every scenario, record IMPORT and STRUCTURE separately
 from BEHAVIOR, initially `NOT TESTED`:
 
-- `01-core`: URL Test, Fallback, Smart, Subnet, Proxy Chain, custom/encrypted
-  DNS, Service Rules, routing precedence, and FINAL.
+- `01-core`: URL Test, genuine Manual Select separately from Fixed, Fallback,
+  Smart, Subnet, Proxy Chain, custom/encrypted DNS, Service Rules, routing
+  precedence, and FINAL.
 - `02-general-connectivity`: VIF takeover, IPv6, `ipv6-vif=auto`, ICMP
   forwarding, `proxy-test-url`, and `internet-test-url`.
 - `03-dns-behavior`: DNS-node-owned `always-real-ip` with

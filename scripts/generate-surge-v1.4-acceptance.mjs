@@ -20,6 +20,16 @@ const deferredGeneralKeys = [
   'block-quic',
   'loglevel',
 ]
+const fixtureCredentialPattern = /^fixture-[a-z0-9-]+$/
+const coreStrategyGroups = new Map([
+  ['Snapshot Auto', 'url-test, HK Snapshot A, HK Snapshot B, interval=300, tolerance=50'],
+  ['Manual Select', 'select, Manual HTTPS Egress, Fallback Egress'],
+  ['Fallback', 'fallback, Fallback Egress, Manual HTTPS Egress, interval=300'],
+  ['Manual Fixed', 'select, Manual HTTPS Egress'],
+  ['Release Chain', 'select, Manual HTTPS Egress, underlying-proxy=Snapshot Auto'],
+  ['Native Smart', 'smart, Manual HTTPS Egress, Fallback Egress'],
+  ['Native Subnet', 'subnet, default = Native Smart, SSID:Home-WiFi = DIRECT, TYPE:CELLULAR = Native Smart'],
+])
 
 const update = process.argv.includes('--update')
 
@@ -80,6 +90,7 @@ function compileProject(project, modules) {
   if (!graph.success || !graph.ir) {
     throw new Error(`SURGE_ACCEPTANCE_GRAPH_BLOCKED ${project.id} ${formatIssues(graph.issues)}`)
   }
+  assertMaterializedProxySafety(graph.ir.sources, project.id)
   const result = modules.surge.compileSurge(graph.ir, {
     now: fixedNow,
     outputNodeId: output.id,
@@ -111,6 +122,69 @@ function generalKeys(content) {
 
 function sectionNames(content) {
   return [...content.matchAll(/^\[([^\]]+)\]$/gm)].map((match) => match[1])
+}
+
+function sectionLines(content, name, nextName) {
+  const start = `[${name}]\n`
+  const end = nextName ? `\n\n[${nextName}]` : undefined
+  const block = content.split(start)[1]?.split(end)[0] ?? ''
+  return block.split('\n').filter(Boolean)
+}
+
+function proxyGroups(content) {
+  return new Map(sectionLines(content, 'Proxy Group', 'Rule').map((line) => {
+    const separator = line.indexOf(' = ')
+    return separator === -1 ? [line, ''] : [line.slice(0, separator), line.slice(separator + 3)]
+  }))
+}
+
+export function assertCoreStrategySurface(content) {
+  const actual = proxyGroups(content)
+  if (actual.size !== coreStrategyGroups.size) throw new Error('SURGE_ACCEPTANCE_CORE_STRATEGY_SURFACE_INVALID')
+  for (const [name, definition] of coreStrategyGroups) {
+    if (actual.get(name) !== definition) throw new Error('SURGE_ACCEPTANCE_CORE_STRATEGY_SURFACE_INVALID')
+  }
+}
+
+function assertCoreProjectSemantics(project) {
+  const blockTypeByTitle = new Map(project.graph.nodes.map((node) => [node.data.title, node.data.blockType]))
+  if (blockTypeByTitle.get('Manual Select') !== 'manual-select'
+    || blockTypeByTitle.get('Manual Fixed') !== 'fixed-proxy') {
+    throw new Error('SURGE_ACCEPTANCE_CORE_STRATEGY_SEMANTICS_INVALID')
+  }
+}
+
+function isFixtureProxyHost(server) {
+  return typeof server === 'string' && server.endsWith('.example.invalid')
+}
+
+export function assertMaterializedProxySafety(sources, scenarioId = 'unknown') {
+  for (const source of sources) {
+    if (source.kind !== 'manual-proxy' && source.kind !== 'subscription') continue
+    for (const proxy of source.proxies ?? []) {
+      if (proxy.protocol === 'unmodeled') continue
+      if (!isFixtureProxyHost(proxy.server)) {
+        throw new Error(`SURGE_ACCEPTANCE_PROXY_HOST_NOT_FIXTURE ${scenarioId}`)
+      }
+      const credentials = [proxy.username, proxy.password, proxy.uuid, proxy.obfs?.password]
+      if (credentials.some((credential) => (
+        credential !== undefined
+        && (typeof credential !== 'string' || !fixtureCredentialPattern.test(credential))
+      ))) {
+        throw new Error(`SURGE_ACCEPTANCE_PROXY_CREDENTIAL_NOT_FIXTURE ${scenarioId}`)
+      }
+    }
+  }
+}
+
+export function assertGeneratedProxyHostSafety(content, scenarioId = 'unknown') {
+  for (const line of sectionLines(content, 'Proxy', 'Proxy Group')) {
+    const separator = line.indexOf(' = ')
+    const fields = separator === -1 ? [] : line.slice(separator + 3).split(',').map((field) => field.trim())
+    if (fields.length < 3 || !isFixtureProxyHost(fields[1])) {
+      throw new Error(`SURGE_ACCEPTANCE_GENERATED_PROXY_HOST_NOT_FIXTURE ${scenarioId}`)
+    }
+  }
 }
 
 function assertProfile(project, scenario, content) {
@@ -146,19 +220,17 @@ function assertProfile(project, scenario, content) {
     && actualKeys.filter((key) => key === 'proxy-test-url').length !== 1) {
     throw new Error(`SURGE_ACCEPTANCE_PROXY_TEST_URL_MISSING ${scenario.id}`)
   }
+  assertGeneratedProxyHostSafety(content, scenario.id)
+  if (scenario.id === '01-core') {
+    assertCoreProjectSemantics(project)
+    assertCoreStrategySurface(content)
+  }
 }
 
 function assertPublicFixtureSafety(project, scenario) {
   const serialized = JSON.stringify(project)
-  if (/https?:\/\/[^\s"']+@/.test(serialized)) throw new Error(`SURGE_ACCEPTANCE_PRIVATE_CREDENTIAL_URL ${scenario.id}`)
   if (/\b(?:10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)\b/.test(serialized)) {
     throw new Error(`SURGE_ACCEPTANCE_PRIVATE_LAN_ADDRESS ${scenario.id}`)
-  }
-  for (const node of project.graph.nodes) {
-    const server = node.data.proxyServer
-    if (server !== undefined && !String(server).endsWith('.example.invalid')) {
-      throw new Error(`SURGE_ACCEPTANCE_PROXY_HOST_NOT_PUBLIC_FIXTURE ${scenario.id}`)
-    }
   }
   if (scenario.classification === 'LOCAL-NETWORK-SIDE-EFFECT'
     && !serialized.includes('192.0.2.0/24')) throw new Error(`SURGE_ACCEPTANCE_TEST_NET_MISSING ${scenario.id}`)
@@ -201,7 +273,12 @@ async function main() {
   process.stdout.write(`fixtureDir=${path.relative(root, fixtureRoot)}\n`)
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : 'SURGE_ACCEPTANCE_FAILED'}\n`)
-  process.exitCode = 1
-})
+const invokedDirectly = process.argv[1] !== undefined
+  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+
+if (invokedDirectly) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : 'SURGE_ACCEPTANCE_FAILED'}\n`)
+    process.exitCode = 1
+  })
+}
