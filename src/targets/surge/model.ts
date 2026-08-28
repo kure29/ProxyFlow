@@ -31,9 +31,8 @@ export function isSurgeGeneralEntry(value: unknown): value is SurgeGeneralEntry 
   if (!isExactRecord(value, GENERAL_ENTRY_KEYS)) return false
   const key = value.key
   if (typeof key !== 'string') return false
-  const normalizedKey = key.toLowerCase() as keyof SurgeGeneralValueMap
-  if (!GENERAL_KEYS.has(normalizedKey)) return false
-  if (normalizedKey === 'proxy-test-url') return isSafeSurgeHttpUrl(value.value)
+  if (!GENERAL_KEYS.has(key as keyof SurgeGeneralValueMap)) return false
+  if (key === 'proxy-test-url') return isSafeSurgeHttpUrl(value.value)
   return isSurgeGeneralList(value.value)
 }
 

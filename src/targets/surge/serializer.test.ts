@@ -15,7 +15,16 @@ describe('Surge General runtime boundary', () => {
     expect(isSurgeGeneralEntry({ key: 'proxy-test-url', value: 'https://example.com/ping' })).toBe(true)
     expect(isSurgeGeneralEntry({ key: 'dns-server', value: { kind: 'list', items: ['system', '1.1.1.1'] } })).toBe(true)
     expect(isSurgeGeneralEntry({ key: 'encrypted-dns-server', value: { kind: 'list', items: ['https://dns.example/dns-query'] } })).toBe(true)
-    expect(isSurgeGeneralEntry({ key: 'PROXY-TEST-URL', value: 'https://example.com/ping' })).toBe(true)
+  })
+
+  it.each([
+    'PROXY-TEST-URL',
+    'Dns-Server',
+    'encrypted-DNS-server',
+  ])('rejects non-canonical General key casing: %s', (key) => {
+    const entry = { key, value: key.toLowerCase() === 'proxy-test-url' ? 'https://example.com/ping' : { kind: 'list', items: ['system'] } }
+    expect(isSurgeGeneralEntry(entry)).toBe(false)
+    expect(() => serialize([entry])).toThrow(/Invalid Surge \[General\] entry/)
   })
 
   it.each([
@@ -67,7 +76,7 @@ describe('Surge General runtime boundary', () => {
   it('preserves case-insensitive duplicate-key rejection', () => {
     expect(() => serialize([
       { key: 'proxy-test-url', value: 'https://example.com/ping' },
-      { key: 'PROXY-TEST-URL', value: 'https://example.com/ping' },
+      { key: 'proxy-test-url', value: 'https://example.com/ping' },
     ])).toThrow('Duplicate Surge [General] key')
   })
 
