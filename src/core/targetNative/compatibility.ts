@@ -8,6 +8,7 @@ import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from '.
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
 import { isTargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralConnectivityIR } from './generalConnectivity'
 import { isTargetNativeSurgeGeneralNetworkIR, type TargetNativeSurgeGeneralNetworkIR } from './generalNetwork'
+import { isTargetNativeSurgeDnsBehaviorIR, type TargetNativeSurgeDnsBehaviorIR } from './dnsBehavior'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
 export function targetNativeUnsupportedIssues(
@@ -25,6 +26,8 @@ export function targetNativeUnsupportedIssues(
    * callers; target adapters pass it at their runtime boundary. */
   outputs?: unknown,
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR,
+  targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR,
+  effectiveDnsNodeId?: string,
 ): CompatibilityIssue[] {
   const strategyIssues = strategies.flatMap((strategy) => {
     if (!strategy || !isTargetNativeStrategyIR(strategy)) {
@@ -184,7 +187,18 @@ export function targetNativeUnsupportedIssues(
         ? [{ target, code: 'TARGET_NATIVE_GENERAL_OWNER_MISMATCH', severity: 'error' as const, feature: 'target-native-general-connectivity', entityId: connectivityRuntime.outputNodeId, message: 'Target-native Surge General Connectivity settings do not belong to the compiler-selected Output.' }]
         : target === 'surge' ? []
         : [{ target, code: 'TARGET_NATIVE_GENERAL_UNSUPPORTED', severity: 'error' as const, feature: 'target-native-general-connectivity', entityId: connectivityRuntime.outputNodeId, message: `Surge General Connectivity settings have no proven equivalent for ${target}; change or remove them before export.` }]
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues, ...connectivityIssues]
+  const dnsBehaviorRuntime = targetNativeSurgeDnsBehavior === undefined
+    ? undefined
+    : validateDnsBehaviorRuntime(targetNativeSurgeDnsBehavior)
+  const dnsBehaviorIssues = targetNativeSurgeDnsBehavior === undefined
+    ? []
+    : !dnsBehaviorRuntime
+      ? [{ target, code: 'TARGET_NATIVE_DNS_INVALID', severity: 'error' as const, feature: 'target-native-dns-behavior', entityId: readRuntimeDnsNodeId(targetNativeSurgeDnsBehavior), message: 'A target-native Surge DNS behavior record contains invalid runtime data.' }]
+      : typeof effectiveDnsNodeId !== 'string' || !effectiveDnsNodeId.trim() || dnsBehaviorRuntime.dnsNodeId !== effectiveDnsNodeId
+        ? [{ target, code: 'TARGET_NATIVE_DNS_OWNER_MISMATCH', severity: 'error' as const, feature: 'target-native-dns-behavior', entityId: dnsBehaviorRuntime.dnsNodeId, message: 'Target-native Surge DNS behavior does not belong to the compiler-selected DNS owner.' }]
+        : target === 'surge' ? []
+          : [{ target, code: 'TARGET_NATIVE_DNS_UNSUPPORTED', severity: 'error' as const, feature: 'target-native-dns-behavior', entityId: dnsBehaviorRuntime.dnsNodeId, message: `Surge-native DNS behavior has no proven equivalent for ${target}; change or remove it before export.` }]
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues, ...connectivityIssues, ...dnsBehaviorIssues]
 }
 
 function readRuntimeOutputNodeId(value: unknown): string | undefined {
@@ -192,6 +206,16 @@ function readRuntimeOutputNodeId(value: unknown): string | undefined {
     if (!value || typeof value !== 'object') return undefined
     const outputNodeId = (value as { outputNodeId?: unknown }).outputNodeId
     return typeof outputNodeId === 'string' ? outputNodeId : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function readRuntimeDnsNodeId(value: unknown): string | undefined {
+  try {
+    if (!value || typeof value !== 'object') return undefined
+    const dnsNodeId = (value as { dnsNodeId?: unknown }).dnsNodeId
+    return typeof dnsNodeId === 'string' ? dnsNodeId : undefined
   } catch {
     return undefined
   }
@@ -212,6 +236,16 @@ function validateConnectivityRuntime(value: unknown): TargetNativeSurgeGeneralCo
   try {
     const clone = structuredClone(value)
     return isTargetNativeSurgeGeneralConnectivityIR(clone) ? clone : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function validateDnsBehaviorRuntime(value: unknown): TargetNativeSurgeDnsBehaviorIR | undefined {
+  if (!isTargetNativeSurgeDnsBehaviorIR(value)) return undefined
+  try {
+    const clone = structuredClone(value)
+    return isTargetNativeSurgeDnsBehaviorIR(clone) ? clone : undefined
   } catch {
     return undefined
   }

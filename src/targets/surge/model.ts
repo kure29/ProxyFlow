@@ -1,4 +1,5 @@
 import { isSafeSurgeHttpUrl, isSafeSurgeSerializedString } from './safety'
+import { isSupportedSurgeAlwaysRealIpPattern } from '../../core/targetNative'
 
 export interface SurgeParameter {
   key: string
@@ -15,6 +16,7 @@ export interface SurgeGeneralValueMap {
   'internet-test-url': string
   'dns-server': SurgeGeneralList<string>
   'encrypted-dns-server': SurgeGeneralList<string>
+  'always-real-ip': SurgeGeneralList<string>
   ipv6: boolean
   'ipv6-vif': 'disabled' | 'auto' | 'always'
   'icmp-forwarding': boolean
@@ -27,7 +29,7 @@ export type SurgeGeneralEntry = {
 const GENERAL_ENTRY_KEYS = ['key', 'value'] as const
 const GENERAL_LIST_KEYS = ['kind', 'items'] as const
 const GENERAL_KEYS = new Set<keyof SurgeGeneralValueMap>([
-  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'ipv6', 'ipv6-vif', 'icmp-forwarding',
+  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'always-real-ip', 'ipv6', 'ipv6-vif', 'icmp-forwarding',
 ])
 
 /** Runtime guard for the exact current Surge [General] entry boundary. */
@@ -38,8 +40,14 @@ export function isSurgeGeneralEntry(value: unknown): value is SurgeGeneralEntry 
   if (!GENERAL_KEYS.has(key as keyof SurgeGeneralValueMap)) return false
   if (key === 'proxy-test-url' || key === 'internet-test-url') return isSafeSurgeHttpUrl(value.value)
   if (key === 'dns-server' || key === 'encrypted-dns-server') return isSurgeGeneralList(value.value)
+  if (key === 'always-real-ip') return isSurgeAlwaysRealIpList(value.value)
   if (key === 'ipv6' || key === 'icmp-forwarding') return typeof value.value === 'boolean'
   return value.value === 'disabled' || value.value === 'auto' || value.value === 'always'
+}
+
+function isSurgeAlwaysRealIpList(value: unknown): value is SurgeGeneralList<string> {
+  if (!isSurgeGeneralList(value)) return false
+  return value.items.every((item) => isSupportedSurgeAlwaysRealIpPattern(item))
 }
 
 function isSurgeGeneralList(value: unknown): value is SurgeGeneralList<string> {

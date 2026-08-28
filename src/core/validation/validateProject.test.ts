@@ -112,6 +112,21 @@ describe('validateGraph', () => {
     expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_GENERAL_INVALID', nodeId: final.id, severity: 'error' }))
   })
 
+  it('validates typed Surge DNS behavior only on DNS nodes', () => {
+    const nodes = structuredClone(demoNodes)
+    const dns = nodes.find((node) => node.data.blockType === 'dns')!
+    dns.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com'] }
+    expect(validateGraph(nodes, demoEdges)).not.toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID' }))
+
+    dns.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: [] } as never
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID', nodeId: dns.id, severity: 'error' }))
+
+    dns.data.targetNativeSurgeDnsBehavior = undefined
+    const output = nodes.find((node) => node.data.blockType === 'output')!
+    output.data.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['example.com'] }
+    expect(validateGraph(nodes, demoEdges)).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_DNS_INVALID', nodeId: output.id, severity: 'error' }))
+  })
+
   it('reports an invalid filter regular expression as an error', () => {
     const nodes = demoNodes.map((node) => node.id === 'hk-filter' ? {
       ...node,

@@ -3,6 +3,7 @@ import { surgeIssue } from './errors'
 import type { SurgeGeneralEntry } from './model'
 import type { TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 import type { TargetNativeSurgeGeneralConnectivityIR } from '../../core/targetNative'
+import { deduplicateAlwaysRealIpPatterns, type TargetNativeSurgeDnsBehaviorIR } from '../../core/targetNative'
 
 export function composeSurgeGeneral(
   groups: readonly (readonly SurgeGeneralEntry[])[],
@@ -48,4 +49,12 @@ export function compileSurgeGeneralConnectivity(
 ): SurgeGeneralEntry[] {
   if (!connectivity) return []
   return [{ key: 'internet-test-url', value: connectivity.internetTestUrl }]
+}
+
+/** Lower DNS-node-owned Surge always-real-ip intent into one typed General entry. */
+export function compileSurgeDnsBehavior(
+  behavior: TargetNativeSurgeDnsBehaviorIR | undefined,
+): SurgeGeneralEntry[] {
+  if (!behavior) return []
+  return [{ key: 'always-real-ip', value: { kind: 'list', items: deduplicateAlwaysRealIpPatterns(behavior.alwaysRealIp) } }]
 }

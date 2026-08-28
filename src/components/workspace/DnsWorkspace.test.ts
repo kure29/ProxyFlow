@@ -72,6 +72,32 @@ describe('DNS Workspace mobile actions', () => {
     expect(html).toMatch(/<button[^>]*aria-label="Role"[^>]*aria-invalid="true"/)
   })
 
+  it('shows retained Surge always-real-ip intent in DNS Workspace across target switches', () => {
+    const node = {
+      id: 'dns',
+      targetNativeSurgeDnsBehavior: { target: 'surge' as const, kind: 'dns-behavior' as const, alwaysRealIp: ['example.com', '*.example.com'] },
+    }
+    const surgeHtml = renderToStaticMarkup(createElement(DnsWorkspace, {
+      node,
+      target: 'surge',
+      copy,
+      onCreateDns: () => undefined,
+      onChange: () => undefined,
+    }))
+    expect(surgeHtml).toContain('example.com\n*.example.com')
+    expect(surgeHtml).not.toMatch(/id="dns-always-real-ip"[^>]*disabled/)
+
+    const mihomoHtml = renderToStaticMarkup(createElement(DnsWorkspace, {
+      node,
+      target: 'mihomo',
+      copy,
+      onCreateDns: () => undefined,
+      onChange: () => undefined,
+    }))
+    expect(mihomoHtml).toMatch(/id="dns-always-real-ip"[^>]*disabled/)
+    expect(mihomoHtml).toContain('Remove resolver')
+  })
+
   it('passes supported preset state through both production target exports', () => {
     const resolvers = ['cloudflare', 'google', 'quad9', 'alidns']
       .reduce<DnsResolverConfig[]>((current, preset) => appendDnsResolverPreset(current, preset), [])

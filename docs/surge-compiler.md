@@ -14,6 +14,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 | --- | --- | --- | --- |
 | General Network / VIF (G1) | Supported | Output-owned typed `ipv6`, `ipv6-vif` (`disabled` / `auto` / `always`), and `icmp-forwarding` values are emitted only when explicitly authored; unset values preserve Surge defaults. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
 | General Connectivity (G2) | Supported | Output-owned typed `internet-test-url` controls Surge Internet/DIRECT connectivity testing. It is Surge-native and omitted values preserve Surge defaults; it is separate from strategy health-check URLs. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
+| DNS-native `always-real-ip` (G3-A) | Supported subset | DNS-node-owned typed positive-domain Host List patterns are emitted as one `[General] always-real-ip` list. The compiler binds the record to the effective enabled DNS node; non-Surge targets fail closed. | `SURGE_TARGET_NATIVE_DNS_INVALID` / `SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH` / `TARGET_NATIVE_DNS_UNSUPPORTED` |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
 | SRC-PORT | Target-native | Exact single source-port matcher is emitted as `SRC-PORT,<port>,<policy>` for the documented Surge baseline (iOS 5.22+ / Mac 6.9+). Ranges and comparison expressions remain deferred; other targets fail closed because no equivalent is proven. | `TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED` |
 | Remote Proxy Source | Unsupported natively | `policy-path` accepts Surge policy lines or a Surge profile. Universal IR does not retain a contract proving either format. Auto materializes a validated snapshot; Remote fails. | `SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN` |
@@ -71,6 +72,16 @@ The setting is retained on an Output when its client changes. A non-Surge compil
 
 `test-timeout` remains Deferred and is not implemented. No real-device G2 verification has been performed; the current coverage is typed-boundary, graph/provenance, compatibility, and serializer/compiler tests.
 
+## DNS-native `always-real-ip` (G3-A)
+
+Surge's `[General] always-real-ip` Host List controls Fake-IP DNS behavior: matching query domains are forwarded to upstream DNS for a real routable answer. It does not select a resolver, change routing, bypass a proxy, or alter Universal `DnsIR`. The intent is therefore stored on the DNS graph node and lowered only by the Surge compiler.
+
+Persisted Project Config is the exact record `{ target: 'surge', kind: 'dns-behavior', alwaysRealIp: string[] }`; compiler IR adds the compiler-owned `dnsNodeId`. Config cannot self-authorize an owner and empty records are rejected. Graph extraction first resolves the canonical effective enabled DNS owner, validates only that node's field, and injects its ID. `universalDnsMode = none`, `automatic`, and `custom` are independent of this extension; a DNS owner may produce native behavior while `ir.dns` is undefined. Disabled DNS nodes retain intent but are inert, and misplaced fields fail closed.
+
+The supported positive-domain subset is deliberately narrow: `*` and `?` wildcards, ordinary dot-separated labels, and labels containing ASCII letters, digits, `-`, `*`, or `?` (maximum 63 characters per label and 253 characters overall). Blank items, controls, commas, whitespace, empty labels, leading/trailing hyphens, IP literals, negative entries, ports, CIDRs, IP ranges, and other generic Host List tokens are rejected. Surrounding whitespace is trimmed at draft parsing; authored pattern spelling and wildcard semantics are otherwise preserved. Exact duplicates are removed while preserving first occurrence order.
+
+Surge lowering emits exactly one typed `always-real-ip` General entry when intent exists. General-key collision detection remains authoritative, so no last-wins duplicate can be serialized. Retained intent is visible in the DNS Workspace when another target is selected, where it is read-only with an explicit remove action; switching back to Surge restores it. Invalid multiline drafts never overwrite the last valid Project value, while a blank committed draft removes the field. No real-device Surge verification is claimed; tests cover the typed boundaries, graph ownership, target compatibility, UI draft behavior, General model, and serializer output.
+
 ## DNS semantic audit and lowering
 
 Universal `automatic` DNS means that no explicit Universal upstream resolver set is selected and the target adapter owns its automatic/default behavior. Mihomo and sing-box already choose different target defaults. For Surge, omitting both DNS keys is exact: Surge then uses its operating-system DNS behavior. Undefined DNS and `enabled: false` also emit no DNS key, but remain distinct IR states from an explicitly enabled custom System resolver.
@@ -100,7 +111,7 @@ Surge drops IPv6 entries from `dns-server` while `ipv6=false`; `ipv6` defaults t
 
 The typed General model distinguishes scalar `proxy-test-url` from token-list `dns-server` and `encrypted-dns-server`. Health is composed before DNS in deterministic order, and both the composer and serializer prevent duplicate case-insensitive General keys. List items are serialized individually, so a DNS list is not accidentally quoted as one scalar value.
 
-The phase intentionally does not emit `hijack-dns`, `always-real-ip`, `allow-dns-svcb`, `[Host]`, per-domain/SSID DNS, scripts, DoH3, DoQ, DNS-over-TCP, outbound-following, or certificate-verification overrides. Fake-IP and `MihomoDnsMode` remain target-specific and do not enter the Surge compiler.
+The phase intentionally does not emit `hijack-dns`, `allow-dns-svcb`, `[Host]`, per-domain/SSID DNS, scripts, DoH3, DoQ, DNS-over-TCP, outbound-following, or certificate-verification overrides. Fake-IP and `MihomoDnsMode` remain target-specific and do not enter the Surge compiler.
 
 Stable DNS diagnostics include:
 

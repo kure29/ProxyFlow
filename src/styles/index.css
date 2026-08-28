@@ -2207,6 +2207,26 @@
     opacity: .62;
   }
 
+  .dns-native-behavior {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-5);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-subtle);
+  }
+
+  .dns-native-behavior.is-unsupported { opacity: .72; }
+  .dns-native-behavior-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+  .dns-native-behavior-heading span { color: var(--color-text-muted); font-size: var(--text-meta-size); }
+  .dns-native-behavior > p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-meta-size); line-height: var(--text-meta-line); }
+  .dns-native-behavior textarea { width: 100%; min-height: 108px; resize: vertical; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text-primary); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .dns-native-behavior textarea:focus { border-color: var(--brand-border); box-shadow: 0 0 0 3px var(--brand-focus); outline: 0; }
+  .dns-native-behavior textarea.is-invalid { border-color: #d98c83; background: #fffafa; }
+  .dns-native-behavior-error { color: var(--color-danger); }
+  .dns-native-behavior-remove { justify-self: start; }
+
   .routing-add,
   .dns-add-menu {
     position: relative;
