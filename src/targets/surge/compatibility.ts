@@ -20,6 +20,7 @@ import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from '../
 import type { TargetNativeRuleSetSourceIR } from '../../core/targetNative'
 import { SURGE_NO_RESOLVE_MATCHERS } from '../../core/routing/routeOptionsProductModel'
 import { resolveSurgeBuiltinRuleSetName } from './ruleSets'
+import { unsafeSurgeNativeProxyTestingStrategies } from './health'
 
 export interface SurgeCompatibilityResult {
   supported: boolean
@@ -100,7 +101,7 @@ export function checkSurgeCompatibility(
   }
   validateSurgeNativeStrategies(ir, nativeStrategies, issues)
   validateChainStrategies(ir, projection, issues)
-  validateHealthCheckScope(ir.strategies, issues)
+  validateHealthCheckScope(ir.strategies, nativeStrategies, issues)
   validateStrategyCycles(ir.strategies, issues)
   validateSurgeRouteOrdering(ir, nativeRoutes, issues)
 
@@ -347,7 +348,11 @@ function validateStrategyCycles(strategies: StrategyIR[], issues: CompatibilityI
   for (const strategy of strategies) visit(strategy.id, [])
 }
 
-function validateHealthCheckScope(strategies: StrategyIR[], issues: CompatibilityIssue[]) {
+function validateHealthCheckScope(
+  strategies: StrategyIR[],
+  nativeStrategies: readonly TargetNativeStrategyIR[],
+  issues: CompatibilityIssue[],
+) {
   const testing = strategies.filter((strategy) => strategy.kind === 'auto-select' || strategy.kind === 'fallback')
   const explicit = testing.filter((strategy) => strategy.healthCheck?.url !== undefined)
   if (explicit.length === 0) return
@@ -368,6 +373,11 @@ function validateHealthCheckScope(strategies: StrategyIR[], issues: Compatibilit
   if (otherTestingSurface) issues.push(surgeIssue(
     'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', 'error', 'strategy',
     `Strategy “${otherTestingSurface.name}” exposes policies outside URL Test/Fallback; a global proxy-test-url could change that testing surface.`, otherTestingSurface.id,
+  ))
+
+  for (const strategy of unsafeSurgeNativeProxyTestingStrategies(nativeStrategies)) issues.push(surgeIssue(
+    'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', 'error', 'strategy',
+    `Target-native ${strategy.kind === 'smart' ? 'Smart' : 'Subnet'} strategy “${strategy.name}” exposes proxy testing semantics outside the covered Universal URL intent; a global proxy-test-url could change that testing surface.`, strategy.id,
   ))
 }
 
