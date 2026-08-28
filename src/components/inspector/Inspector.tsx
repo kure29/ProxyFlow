@@ -30,7 +30,7 @@ import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resol
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
 import { getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
-import { getSurgeGeneralConnectivityUiState, removeSurgeGeneralConnectivityOptions, surgeGeneralConnectivityOptionsPatch } from '../../core/routing/generalConnectivityProductModel'
+import { commitSurgeGeneralConnectivityDraft, getSurgeGeneralConnectivityUiState, removeSurgeGeneralConnectivityOptions } from '../../core/routing/generalConnectivityProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -1258,14 +1258,39 @@ export function SurgeGeneralConnectivityEditor({ node, primaryTarget }: SurgeGen
   const config = node.data.targetNativeSurgeGeneralConnectivity
   const hasPersistedIntent = config !== undefined
   const state = getSurgeGeneralConnectivityUiState({ primaryTarget, hasPersistedIntent })
-  const valid = !hasPersistedIntent || isTargetNativeSurgeGeneralConnectivityConfig(config)
+  const validPersisted = !hasPersistedIntent || isTargetNativeSurgeGeneralConnectivityConfig(config)
+  const persistedUrl = validPersisted && isTargetNativeSurgeGeneralConnectivityConfig(config) ? config.internetTestUrl ?? '' : ''
+  const [draft, setDraft] = useState(persistedUrl)
+  const previousNodeId = useRef(node.id)
+  const previousTarget = useRef(primaryTarget)
+  const previousPersistedFingerprint = useRef(`${validPersisted ? 'valid' : 'invalid'}:${persistedUrl}`)
+  const persistedFingerprint = `${validPersisted ? 'valid' : 'invalid'}:${persistedUrl}`
+  useEffect(() => {
+    const nodeChanged = previousNodeId.current !== node.id
+    const targetChanged = previousTarget.current !== primaryTarget
+    const persistedChanged = previousPersistedFingerprint.current !== persistedFingerprint
+    if (nodeChanged || targetChanged || persistedChanged) setDraft(persistedUrl)
+    previousNodeId.current = node.id
+    previousTarget.current = primaryTarget
+    previousPersistedFingerprint.current = persistedFingerprint
+  }, [node.id, persistedFingerprint, persistedUrl, primaryTarget])
   if (!hasPersistedIntent && primaryTarget !== 'surge') return null
-  const value = valid && isTargetNativeSurgeGeneralConnectivityConfig(config) ? config.internetTestUrl : ''
+  const draftCommit = commitSurgeGeneralConnectivityDraft(draft)
+  const draftIsInvalid = Boolean(draft.trim()) && draftCommit === undefined
+  const commitDraft = () => {
+    if (primaryTarget !== 'surge') return
+    const patch = commitSurgeGeneralConnectivityDraft(draft)
+    if (!patch) return
+    const next = patch.targetNativeSurgeGeneralConnectivity
+    if ((next?.internetTestUrl ?? '') === persistedUrl && validPersisted) return
+    update(node.id, patch)
+  }
   return <section className="target-native-card surge-general-connectivity-editor" data-general-connectivity="surge" aria-label={t('inspector.generalConnectivity.title')}>
     <div className="target-native-card-heading"><span><strong>{t('inspector.generalConnectivity.title')}</strong><small>{primaryTarget === 'surge' ? t('inspector.generalConnectivity.hint') : t('inspector.generalConnectivity.retainedHint')}</small></span><em className="node-native-badge">{t('inspector.generalConnectivity.surgeOnlyLabel')}</em></div>
-    {!valid && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.invalid')}</strong><small>{t('inspector.generalConnectivity.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}>{t('inspector.generalConnectivity.remove')}</button></div>}
-    {valid && <>
-      <Field label={t('inspector.generalConnectivity.url')} hint={t('inspector.generalConnectivity.urlHint')}><input type="url" disabled={primaryTarget !== 'surge'} value={value} placeholder={t('inspector.generalConnectivity.default')} onChange={(event) => { if (primaryTarget === 'surge') update(node.id, surgeGeneralConnectivityOptionsPatch(config, event.target.value)) }} /></Field>
+    {!validPersisted && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.invalid')}</strong><small>{t('inspector.generalConnectivity.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}>{t('inspector.generalConnectivity.remove')}</button></div>}
+    <Field label={t('inspector.generalConnectivity.url')} hint={t('inspector.generalConnectivity.urlHint')}><input type="url" disabled={primaryTarget !== 'surge'} value={draft} placeholder={t('inspector.generalConnectivity.default')} onChange={(event) => { if (primaryTarget === 'surge') setDraft(event.target.value) }} onBlur={commitDraft} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDraft() } }} /></Field>
+      {draftIsInvalid && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.draftInvalid')}</strong><small>{t('inspector.generalConnectivity.draftInvalidDetail')}</small></span></div>}
+    {validPersisted && <>
       {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.surgeOnly')}</strong><small>{t('inspector.generalConnectivity.targetMismatch')}</small></span></div>}
       {state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}><X size={14} />{t('inspector.generalConnectivity.remove')}</button>}
     </>}

@@ -24,14 +24,26 @@ export function getSurgeGeneralConnectivityUiState({
 }
 
 export function surgeGeneralConnectivityOptionsPatch(
-  config: unknown,
+  _config: unknown,
   url: string,
 ): { targetNativeSurgeGeneralConnectivity: TargetNativeSurgeGeneralConnectivityConfig | undefined } {
-  if (!url.trim()) return { targetNativeSurgeGeneralConnectivity: undefined }
-  if (isTargetNativeSurgeGeneralConnectivityConfig(config)) {
-    return { targetNativeSurgeGeneralConnectivity: { ...structuredClone(config), internetTestUrl: url } }
-  }
-  return { targetNativeSurgeGeneralConnectivity: { target: 'surge', kind: 'general-connectivity', internetTestUrl: url } }
+  return commitSurgeGeneralConnectivityDraft(url) ?? { targetNativeSurgeGeneralConnectivity: undefined }
+}
+
+/**
+ * Commit a transient editor draft without allowing partial or invalid text to
+ * cross the typed Project Config boundary. `undefined` means "keep the
+ * existing persisted value and show feedback"; an explicit patch removing the
+ * field represents a deliberate blank/default commit.
+ */
+export function commitSurgeGeneralConnectivityDraft(
+  draft: string,
+): { targetNativeSurgeGeneralConnectivity: TargetNativeSurgeGeneralConnectivityConfig | undefined } | undefined {
+  if (!draft.trim()) return { targetNativeSurgeGeneralConnectivity: undefined }
+  const candidate = { target: 'surge' as const, kind: 'general-connectivity' as const, internetTestUrl: draft }
+  return isTargetNativeSurgeGeneralConnectivityConfig(candidate)
+    ? { targetNativeSurgeGeneralConnectivity: candidate }
+    : undefined
 }
 
 export function removeSurgeGeneralConnectivityOptions() {
