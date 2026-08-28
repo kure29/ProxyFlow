@@ -1,6 +1,7 @@
-import type { SurgeGeneralEntry, SurgePolicyEntry, SurgeProfile, SurgeSmartPolicyEntry, SurgeSubnetPolicyEntry } from './model'
+import { isSurgeGeneralEntry, type SurgeGeneralEntry, type SurgePolicyEntry, type SurgeProfile, type SurgeSmartPolicyEntry, type SurgeSubnetPolicyEntry } from './model'
 
 export function serializeSurgeProfile(profile: SurgeProfile) {
+  assertValidGeneralEntries((profile as { general?: unknown } | null | undefined)?.general)
   assertUniqueGeneralKeys(profile.general)
   return [
     serializeSection('General', profile.general.map(serializeGeneralEntry)),
@@ -8,6 +9,13 @@ export function serializeSurgeProfile(profile: SurgeProfile) {
     serializeSection('Proxy Group', profile.proxyGroups.map(serializePolicyEntry)),
     serializeSection('Rule', profile.rules),
   ].join('\n\n') + '\n'
+}
+
+function assertValidGeneralEntries(value: unknown): asserts value is SurgeGeneralEntry[] {
+  if (!Array.isArray(value)) throw new Error('Surge [General] entries must be an array.')
+  for (const [index, entry] of value.entries()) {
+    if (!isSurgeGeneralEntry(entry)) throw new Error(`Invalid Surge [General] entry at index ${index}.`)
+  }
 }
 
 function serializeGeneralEntry({ key, value }: SurgeGeneralEntry) {
