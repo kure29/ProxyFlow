@@ -31,6 +31,7 @@ import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConf
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
 import { commitSurgeGeneralNetworkRouteDraft, getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, surgeGeneralNetworkRouteDraft, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
 import { commitSurgeGeneralConnectivityDraft, getSurgeGeneralConnectivityUiState, removeSurgeGeneralConnectivityOptions } from '../../core/routing/generalConnectivityProductModel'
+import { commitSurgeGeneralProxyBypassDraft, excludeSimpleHostnamesChoice, getSurgeGeneralProxyBypassUiState, removeSurgeGeneralProxyBypassOptions, surgeGeneralProxyBypassBooleanPatch, surgeGeneralProxyBypassDraft } from '../../core/routing/generalProxyBypassProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -50,7 +51,9 @@ import {
   surgeBuiltinRuleSetSourceId,
   isTargetNativeSurgeGeneralConnectivityConfig,
   isTargetNativeSurgeGeneralNetworkConfig,
+  isTargetNativeSurgeGeneralProxyBypassConfig,
   selectTargetNativeSurgeGeneralConnectivity,
+  selectTargetNativeSurgeGeneralProxyBypass,
   type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
 } from '../../core/targetNative'
 import { resolveTargetNativeSurgeGeneralNetworkForOutput } from '../compiler/useProjectCompiles'
@@ -1222,13 +1225,16 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
       ?? (graph.targetNativeSurgeGeneralNetwork ? [graph.targetNativeSurgeGeneralNetwork] : [])
     const connectivityRecords = graph.targetNativeSurgeGeneralConnectivityRecords
       ?? (graph.targetNativeSurgeGeneralConnectivity ? [graph.targetNativeSurgeGeneralConnectivity] : [])
+    const proxyBypassRecords = graph.targetNativeSurgeGeneralProxyBypasses
+      ?? (graph.targetNativeSurgeGeneralProxyBypass ? [graph.targetNativeSurgeGeneralProxyBypass] : [])
     return {
       outputNodeId: node.id,
       ...(node.data.client === 'mihomo' ? { targetProfile: node.data.mihomoProfile } : {}),
       targetNativeSurgeGeneralNetwork: resolveTargetNativeSurgeGeneralNetworkForOutput(records, node.id),
       targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(connectivityRecords, node.id),
+      targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(proxyBypassRecords, node.id),
     }
-  }, [graph.targetNativeSurgeGeneralConnectivity, graph.targetNativeSurgeGeneralConnectivityRecords, graph.targetNativeSurgeGeneralNetwork, graph.targetNativeSurgeGeneralNetworks, node.data.client, node.data.mihomoProfile, node.id, registeredTarget])
+  }, [graph.targetNativeSurgeGeneralConnectivity, graph.targetNativeSurgeGeneralConnectivityRecords, graph.targetNativeSurgeGeneralNetwork, graph.targetNativeSurgeGeneralNetworks, graph.targetNativeSurgeGeneralProxyBypass, graph.targetNativeSurgeGeneralProxyBypasses, node.data.client, node.data.mihomoProfile, node.id, registeredTarget])
   const target = useTargetCompile(graph.ir, supported ? registeredTarget : undefined, graph.success, targetOptions)
   const errors = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
   const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
@@ -1239,6 +1245,7 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
     <Field label={t('inspector.targetClient')}><div className="client-grid">{productionOutputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{t('node.compatibility.supported')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
     <SurgeGeneralNetworkEditor node={node} primaryTarget={registeredTarget} />
     <SurgeGeneralConnectivityEditor node={node} primaryTarget={registeredTarget} />
+    <SurgeGeneralProxyBypassEditor node={node} primaryTarget={registeredTarget} />
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
     {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('export')}><FileOutput size={15} /> {t('workspace.open')} {t('workspace.export')}</button>}
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
@@ -1294,6 +1301,71 @@ export function SurgeGeneralConnectivityEditor({ node, primaryTarget }: SurgeGen
       {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.surgeOnly')}</strong><small>{t('inspector.generalConnectivity.targetMismatch')}</small></span></div>}
       {state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}><X size={14} />{t('inspector.generalConnectivity.remove')}</button>}
     </>}
+  </section>
+}
+
+export interface SurgeGeneralProxyBypassEditorProps {
+  node: GraphNode
+  primaryTarget?: PrimaryTarget | null
+}
+
+/** Output-local Product editor for Surge system proxy/takeover compatibility. */
+export function SurgeGeneralProxyBypassEditor({ node, primaryTarget }: SurgeGeneralProxyBypassEditorProps) {
+  const { t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const config = node.data.targetNativeSurgeGeneralProxyBypass
+  const hasPersistedIntent = config !== undefined
+  const state = getSurgeGeneralProxyBypassUiState({ primaryTarget, hasPersistedIntent })
+  const validPersisted = !hasPersistedIntent || isTargetNativeSurgeGeneralProxyBypassConfig(config)
+  const persistedDraft = validPersisted ? surgeGeneralProxyBypassDraft(config) : ''
+  // The textarea snapshot is independent from the Boolean sibling.  A
+  // persisted exclude-simple-hostnames change must not invalidate an
+  // uncommitted skip-proxy draft.
+  const persistedSkipProxyFingerprint = `${validPersisted ? 'valid' : 'invalid'}:${persistedDraft}`
+  const [draft, setDraft] = useState(persistedDraft)
+  const [draftError, setDraftError] = useState(false)
+  const previousNodeId = useRef(node.id)
+  const previousTarget = useRef(primaryTarget)
+  const previousFingerprint = useRef(persistedSkipProxyFingerprint)
+  useEffect(() => {
+    if (previousNodeId.current !== node.id || previousTarget.current !== primaryTarget || previousFingerprint.current !== persistedSkipProxyFingerprint) {
+      setDraft(persistedDraft)
+      setDraftError(false)
+    }
+    previousNodeId.current = node.id
+    previousTarget.current = primaryTarget
+    previousFingerprint.current = persistedSkipProxyFingerprint
+  }, [node.id, persistedDraft, persistedSkipProxyFingerprint, primaryTarget])
+
+  if (!hasPersistedIntent && primaryTarget !== 'surge') return null
+
+  const commitDraft = () => {
+    if (primaryTarget !== 'surge' || !validPersisted) return
+    const patch = commitSurgeGeneralProxyBypassDraft(config, draft)
+    if (!patch) { setDraftError(true); return }
+    setDraftError(false)
+    update(node.id, patch)
+  }
+  const setBooleanChoice = (choice: 'default' | 'enabled' | 'disabled') => {
+    if (primaryTarget !== 'surge' || !validPersisted) return
+    update(node.id, surgeGeneralProxyBypassBooleanPatch(config, choice))
+  }
+  const booleanChoice = validPersisted && isTargetNativeSurgeGeneralProxyBypassConfig(config)
+    ? excludeSimpleHostnamesChoice(config)
+    : 'default'
+
+  return <section className="target-native-card surge-general-proxy-bypass-editor" data-proxy-bypass="surge" aria-label={t('inspector.proxyBypass.title')}>
+    <div className="target-native-card-heading"><span><strong>{t('inspector.proxyBypass.title')}</strong><small>{primaryTarget === 'surge' ? t('inspector.proxyBypass.hint') : t('inspector.proxyBypass.retainedHint')}</small></span><em className="node-native-badge">{t('inspector.proxyBypass.surgeOnlyLabel')}</em></div>
+    {!validPersisted
+      ? <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.invalid')}</strong><small>{t('inspector.proxyBypass.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralProxyBypassOptions())}>{t('inspector.proxyBypass.remove')}</button></div>
+      : <>
+        <Field label={t('inspector.proxyBypass.skipProxy')} hint={t('inspector.proxyBypass.skipProxyHint')}><textarea rows={5} disabled={primaryTarget !== 'surge'} value={draft} placeholder="apple.com\nlocalhost\n192.168.2.0/24" onChange={(event) => { if (primaryTarget === 'surge') { setDraft(event.target.value); setDraftError(false) } }} onBlur={commitDraft} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitDraft() } }} /></Field>
+        {draftError && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.draftInvalid')}</strong><small>{t('inspector.proxyBypass.draftInvalidDetail')}</small></span></div>}
+        <Field label={t('inspector.proxyBypass.excludeSimpleHostnames')} hint={t('inspector.proxyBypass.excludeSimpleHostnamesHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.proxyBypass.excludeSimpleHostnames')} value={booleanChoice} onChange={(value) => setBooleanChoice(value as 'default' | 'enabled' | 'disabled')} options={[{ value: 'default', label: t('inspector.proxyBypass.default') }, { value: 'enabled', label: t('inspector.proxyBypass.enabled') }, { value: 'disabled', label: t('inspector.proxyBypass.disabled') }]} /></Field>
+        <div className="mock-note">{t('inspector.proxyBypass.ipMatchHint')}</div>
+      </>}
+    {validPersisted && state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.surgeOnly')}</strong><small>{t('inspector.proxyBypass.targetMismatch')}</small></span></div>}
+    {validPersisted && state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralProxyBypassOptions())}><X size={14} />{t('inspector.proxyBypass.remove')}</button>}
   </section>
 }
 

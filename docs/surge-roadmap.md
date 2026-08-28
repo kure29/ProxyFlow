@@ -1,10 +1,10 @@
 # ProxyFlow — Surge 1.4.0 Scope and Deferred Backlog
 
-Status: implementation baseline (G3-B implemented)
+Status: implementation baseline (G3-C implemented subset)
 
-Baseline `main`: `127a786ec48b980e7fe8a7a032a98becfdeea126`
+Baseline `main`: `6713e5c87e766069cc008c27e073dda6f5ec4b1b`
 
-Branch: `docs/surge-v1.4-roadmap`
+Branch: `feat/surge-g3c-proxy-bypass`
 
 This document is the authoritative release-scope and backlog record for the
 Surge export target. It is intentionally a finite planning slice: it does not
@@ -188,8 +188,9 @@ serializer tests are compiler/fixture evidence, not real-client evidence.
 
 ## Active implementation scope for 1.4.0
 
-The active scope is General-first and finite. Each item still needs its own
-admission and ownership audit before code is written.
+The active scope is General-first and finite. Items that remain planned or
+candidate still require their own admission and ownership audit before code is
+written; the implemented G3-C subset is recorded below.
 
 ### G3-B — VIF route control (Implemented subset)
 
@@ -213,13 +214,17 @@ runtime values must already be canonical and unique. IPv6 routes require
 `ipv6-vif=auto` or `always`, proper more-specific overlap is allowed, and an
 exact same-prefix cross-list conflict is rejected. Non-Surge targets retain
 intent but fail closed rather than translating it. Broad RFC1918 included
-ranges receive a warning. `skip-proxy` remains separate G3-C work. No focused
+ranges receive a warning. `skip-proxy` remains a separate G3-C family and is
+never created or modified by G3-B. No focused
 real-device verification is claimed.
 
-### G3-C — System proxy bypass (Planned for 1.4)
+### G3-C — System proxy bypass (Implemented subset)
 
-`skip-proxy` and `exclude-simple-hostnames` are expected to be Surge Output-
-owned controls in the `proxy-bypass / system-proxy compatibility` family.
+`skip-proxy` and `exclude-simple-hostnames` are Surge Output-owned controls in
+the `proxy-bypass / system-proxy compatibility` family. The independent typed
+`targetNativeSurgeGeneralProxyBypass` family emits only explicitly authored
+values and is retained (read-only) when an Output changes to another target;
+that target fails closed rather than silently stripping the intent.
 
 - `skip-proxy` controls whether matching traffic is handled by Surge VIF
   instead of Surge proxy (and, on macOS, the system-proxy settings). It is a
@@ -227,9 +232,16 @@ owned controls in the `proxy-bypass / system-proxy compatibility` family.
 - `exclude-simple-hostnames` applies the same VIF-over-proxy compatibility
   behavior to hostnames without a dot. It is **not DNS exclusion**.
 
-These keys must not be represented as Universal route matchers or DNS filters.
-Ownership, platform differences, interaction with G3-B, and fail-closed
-retention across targets remain prerequisites.
+These keys are not represented as Universal route matchers or DNS filters.
+`skip-proxy` preserves authored order and admits exact dotted ASCII domains,
+specific literal simple hostnames (for example `localhost`), one leading
+wildcard domain form, exact IPv4, `a.b.c.*` trailing-octet IPv4 wildcards, and
+IPv4 CIDR (host bits are normalized only while authoring). Negative entries,
+`?`, ports, special angle tokens, IPv6, arbitrary interior wildcards, numeric
+ranges, and broad catch-alls remain deferred. `<simple-hostname>` is not
+admitted because the Boolean owns the broad all-simple-hostnames intent;
+`skipProxy: ['localhost']` remains valid and distinct. No real-client
+verification is claimed.
 
 ## Candidates for 1.4.0
 
@@ -385,7 +397,8 @@ scope indefinitely.
 - [ ] General G0/G1/G2 is stable.
 - [ ] G3-A `always-real-ip` is stable and remains DNS-node-owned.
 - [ ] G3-B is resolved with explicit VIF-route ownership and semantics.
-- [ ] G3-C is resolved with explicit system-proxy compatibility ownership.
+- [x] G3-C is resolved with explicit system-proxy compatibility ownership for
+  the admitted v1.4 subset; deferred Host List grammar remains documented.
 - [ ] Surge 1.4.0 Closure Audit is complete.
 - [ ] Candidate General items are explicitly promoted or deferred.
 - [ ] No known silent-downgrade or silent-stripping path remains.
@@ -413,8 +426,8 @@ are planning labels, not claims about implemented architecture.
 | `always-real-ip` | General / DNS behavior | Implemented | High | Effective DNS node (implemented) | Surge-native | `[General] always-real-ip` Host List | Must remain outside `DnsIR`; `none` coexistence required | High: Fake-IP answer behavior | [General](https://manual.nssurge.com/profile/general.html#always-real-ip) |
 | `tun-excluded-routes` | General / VIF route control | Implemented subset | High | Surge Output (existing general-network family) | Surge-native | `[General] tun-excluded-routes` canonical CIDR list | Real-client verification remains open; skip-proxy is separate G3-C | High: traffic bypass/leakage | [General](https://manual.nssurge.com/profile/general.html#tun-excluded-routes) |
 | `tun-included-routes` | General / VIF route control | Implemented subset | High | Surge Output (existing general-network family) | Surge-native | `[General] tun-included-routes` canonical CIDR list | Specificity overlap preserved; real-client verification remains open | High: capture/loop risk | [General](https://manual.nssurge.com/profile/general.html#tun-included-routes) |
-| `skip-proxy` | General / System Proxy Bypass | Planned for 1.4 | High | Expected Surge Output; Needs Audit | Surge-native expected | `[General] skip-proxy` Host List | Must remain compatibility bypass, not routing/DNS exclusion | High: proxy/VIF leakage | [General](https://manual.nssurge.com/profile/general.html#skip-proxy) |
-| `exclude-simple-hostnames` | General / System Proxy Bypass | Planned for 1.4 | Medium | Expected Surge Output; Needs Audit | Surge-native expected | `[General] exclude-simple-hostnames` | Must remain VIF compatibility behavior, not DNS exclusion | Medium: local-name handling | [General](https://manual.nssurge.com/profile/general.html#exclude-simple-hostnames) |
+| `skip-proxy` | General / System Proxy Bypass | Implemented subset | High | Surge Output (`general-proxy-bypass`) | Surge-native | `[General] skip-proxy` typed Host List | Positive v1.4 subset only; negatives, ports, special tokens, IPv6, and broad wildcard grammar deferred; no real-client verification claimed | High: proxy/VIF leakage | [General](https://manual.nssurge.com/profile/general.html#skip-proxy) |
+| `exclude-simple-hostnames` | General / System Proxy Bypass | Implemented | Medium | Surge Output (`general-proxy-bypass`) | Surge-native | `[General] exclude-simple-hostnames` | Tri-state omission/true/explicit false; remains separate from specific `localhost` list entries; no real-client verification claimed | Medium: local-name handling | [General](https://manual.nssurge.com/profile/general.html#exclude-simple-hostnames) |
 | `test-timeout` | General / Connectivity | Candidate for 1.4 | Medium | Needs Audit; likely Surge General owner | Surge-native expected | `[General] test-timeout` seconds | Admission audit; distinguish proxy default from DIRECT timeout | Medium: timeout/user latency | [General](https://manual.nssurge.com/profile/general.html#test-timeout) |
 | `proxy-test-udp` | General / Connectivity | Candidate for 1.4 | Medium | Needs Audit; likely Surge General owner | Surge-native expected | `[General] proxy-test-udp` hostname@IPv4 | Admission audit; no invented Universal UDP health contract | Medium: UDP reachability | [General](https://manual.nssurge.com/profile/general.html#proxy-test-udp) |
 | `hijack-dns` | General / DNS | Candidate for 1.4 | Medium | Needs Audit; DNS owner unproven | Surge-native expected | `[General] hijack-dns` | Separate interception from resolver selection and always-real-ip | High: DNS interception | [General](https://manual.nssurge.com/profile/general.html#hijack-dns) |

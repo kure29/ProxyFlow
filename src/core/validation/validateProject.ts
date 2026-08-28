@@ -2,7 +2,7 @@ import type { GraphEdge, GraphNode, ValidationIssue } from '../../types/project'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import { findRuleSourceMatches, normalizeCustomMatcher } from '../ir'
 import { isRoutingRuleType, resolveRouteMatcherKind } from '../routing/routeProductModel'
-import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isTargetNativeSurgeDnsBehaviorConfig, isTargetNativeSurgeGeneralConnectivityConfig, isTargetNativeSurgeGeneralNetworkConfig, isValidSurgeMccmnc } from '../targetNative'
+import { isPolicyReference, isTargetNativeFinalOptionsConfig, isTargetNativeRouteOptionsConfig, isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isTargetNativeSurgeDnsBehaviorConfig, isTargetNativeSurgeGeneralConnectivityConfig, isTargetNativeSurgeGeneralNetworkConfig, isTargetNativeSurgeGeneralProxyBypassConfig, isValidSurgeMccmnc } from '../targetNative'
 
 export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services = serviceCatalog): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -110,6 +110,11 @@ export function validateGraph(nodes: GraphNode[], edges: GraphEdge[], services =
     if (node.data.targetNativeSurgeGeneralConnectivity !== undefined) {
       if (node.data.blockType !== 'output' || !isTargetNativeSurgeGeneralConnectivityConfig(node.data.targetNativeSurgeGeneralConnectivity)) {
         add('TARGET_NATIVE_GENERAL_INVALID', 'Target-native Surge General Connectivity settings must be valid and attached to an Output node.', 'error')
+      }
+    }
+    if (node.data.targetNativeSurgeGeneralProxyBypass !== undefined) {
+      if (node.data.blockType !== 'output' || !isTargetNativeSurgeGeneralProxyBypassConfig(node.data.targetNativeSurgeGeneralProxyBypass)) {
+        add('TARGET_NATIVE_PROXY_BYPASS_INVALID', 'Target-native Surge Proxy Bypass settings must be valid and attached to an Output node.', 'error')
       }
     }
     if (node.data.targetNativeSurgeDnsBehavior !== undefined) {

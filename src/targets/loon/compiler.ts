@@ -10,7 +10,7 @@ import { compileLoonRouting } from './routing'
 import { serializeLoonProfile } from './serializer'
 import { compileLoonStrategies } from './strategies'
 import { createLoonProjectionContext, loonProjectionStats, type LoonProjectionContext } from './projection'
-import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR, type TargetNativeSurgeDnsBehaviorIR, type TargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import { targetNativeUnsupportedIssues, type TargetNativeFinalOptionsIR, type TargetNativeStrategyIR, type TargetNativeSurgeDnsBehaviorIR, type TargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralNetworkIR, type TargetNativeSurgeGeneralProxyBypassIR } from '../../core/targetNative'
 
 export interface LoonCompileOptions {
   now?: () => Date
@@ -26,6 +26,7 @@ export interface LoonCompileOptions {
   nativeRuleSetSources?: import('../../core/targetNative').TargetNativeRuleSetSourceIR[]
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
+  targetNativeSurgeGeneralProxyBypass?: TargetNativeSurgeGeneralProxyBypassIR
   targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR
   effectiveDnsNodeId?: string
 }
@@ -38,7 +39,7 @@ export function compileLoon(ir: ProxyFlowIR, options: LoonCompileOptions = {}): 
   ))
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs, options.targetNativeSurgeGeneralConnectivity, options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId))
+  issues.push(...targetNativeUnsupportedIssues('loon', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs, options.targetNativeSurgeGeneralConnectivity, options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId, options.targetNativeSurgeGeneralProxyBypass))
   const projection = createLoonProjectionContext()
   const compatibility = checkLoonCompatibility(ir, projection)
   issues.push(...compatibility.issues)
@@ -114,6 +115,6 @@ export class LoonCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: import('../../core/compiler').TargetCompileOptions) {
-    return compileLoon(ir, { now: this.now, outputNodeId: options?.outputNodeId, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity, targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior, effectiveDnsNodeId: options?.effectiveDnsNodeId })
+    return compileLoon(ir, { now: this.now, outputNodeId: options?.outputNodeId, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity, targetNativeSurgeGeneralProxyBypass: options?.targetNativeSurgeGeneralProxyBypass, targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior, effectiveDnsNodeId: options?.effectiveDnsNodeId })
   }
 }

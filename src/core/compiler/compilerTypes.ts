@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR, TargetNativeSurgeGeneralProxyBypassIR } from '../targetNative'
 
 export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
 
@@ -91,6 +91,7 @@ export interface TargetCompileOptions {
   /** Exact Output-owned Surge General Network/VIF extension. */
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
+  targetNativeSurgeGeneralProxyBypass?: TargetNativeSurgeGeneralProxyBypassIR
   targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR
 }
 

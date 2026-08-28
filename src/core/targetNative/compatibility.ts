@@ -8,6 +8,7 @@ import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from '.
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
 import { isTargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralConnectivityIR } from './generalConnectivity'
 import { isTargetNativeSurgeGeneralNetworkIR, type TargetNativeSurgeGeneralNetworkIR } from './generalNetwork'
+import { isTargetNativeSurgeGeneralProxyBypassIR, type TargetNativeSurgeGeneralProxyBypassIR } from './generalProxyBypass'
 import { isTargetNativeSurgeDnsBehaviorIR, type TargetNativeSurgeDnsBehaviorIR } from './dnsBehavior'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
@@ -28,6 +29,7 @@ export function targetNativeUnsupportedIssues(
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR,
   targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR,
   effectiveDnsNodeId?: string,
+  targetNativeSurgeGeneralProxyBypass?: TargetNativeSurgeGeneralProxyBypassIR,
 ): CompatibilityIssue[] {
   const strategyIssues = strategies.flatMap((strategy) => {
     if (!strategy || !isTargetNativeStrategyIR(strategy)) {
@@ -198,7 +200,18 @@ export function targetNativeUnsupportedIssues(
         ? [{ target, code: 'TARGET_NATIVE_DNS_OWNER_MISMATCH', severity: 'error' as const, feature: 'target-native-dns-behavior', entityId: dnsBehaviorRuntime.dnsNodeId, message: 'Target-native Surge DNS behavior does not belong to the compiler-selected DNS owner.' }]
         : target === 'surge' ? []
           : [{ target, code: 'TARGET_NATIVE_DNS_UNSUPPORTED', severity: 'error' as const, feature: 'target-native-dns-behavior', entityId: dnsBehaviorRuntime.dnsNodeId, message: `Surge-native DNS behavior has no proven equivalent for ${target}; change or remove it before export.` }]
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues, ...connectivityIssues, ...dnsBehaviorIssues]
+  const proxyBypassRuntime = targetNativeSurgeGeneralProxyBypass === undefined
+    ? undefined
+    : validateProxyBypassRuntime(targetNativeSurgeGeneralProxyBypass)
+  const proxyBypassIssues = targetNativeSurgeGeneralProxyBypass === undefined
+    ? []
+    : !proxyBypassRuntime
+      ? [{ target, code: 'TARGET_NATIVE_PROXY_BYPASS_INVALID', severity: 'error' as const, feature: 'target-native-proxy-bypass', entityId: readRuntimeOutputNodeId(targetNativeSurgeGeneralProxyBypass), message: 'A target-native Surge Proxy Bypass record contains invalid runtime data.' }]
+      : typeof outputNodeId !== 'string' || !outputNodeId.trim() || proxyBypassRuntime.outputNodeId !== outputNodeId || outputs !== undefined && !hasUniqueEnabledTargetOutput(outputs, target, outputNodeId)
+        ? [{ target, code: 'SURGE_TARGET_NATIVE_PROXY_BYPASS_OWNER_MISMATCH', severity: 'error' as const, feature: 'target-native-proxy-bypass', entityId: proxyBypassRuntime.outputNodeId, message: 'Target-native Surge Proxy Bypass settings do not belong to the compiler-selected Output.' }]
+        : target === 'surge' ? []
+          : [{ target, code: 'TARGET_NATIVE_PROXY_BYPASS_UNSUPPORTED', severity: 'error' as const, feature: 'target-native-proxy-bypass', entityId: proxyBypassRuntime.outputNodeId, message: `Surge system proxy compatibility settings have no proven equivalent for ${target}; change or remove them before export.` }]
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues, ...connectivityIssues, ...dnsBehaviorIssues, ...proxyBypassIssues]
 }
 
 function readRuntimeOutputNodeId(value: unknown): string | undefined {
@@ -246,6 +259,16 @@ function validateDnsBehaviorRuntime(value: unknown): TargetNativeSurgeDnsBehavio
   try {
     const clone = structuredClone(value)
     return isTargetNativeSurgeDnsBehaviorIR(clone) ? clone : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function validateProxyBypassRuntime(value: unknown): TargetNativeSurgeGeneralProxyBypassIR | undefined {
+  if (!isTargetNativeSurgeGeneralProxyBypassIR(value)) return undefined
+  try {
+    const clone = structuredClone(value)
+    return isTargetNativeSurgeGeneralProxyBypassIR(clone) ? clone : undefined
   } catch {
     return undefined
   }
