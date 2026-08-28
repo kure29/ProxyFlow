@@ -63,18 +63,19 @@ export function DnsWorkspace({
   const rawNativeBehavior = node?.targetNativeSurgeDnsBehavior as unknown
   const validNativeBehavior = snapshotNativeBehavior(rawNativeBehavior)
   const hasNativeBehavior = rawNativeBehavior !== undefined
+  const malformedNativeBehavior = hasNativeBehavior && !validNativeBehavior
   const nativePatterns = validNativeBehavior?.alwaysRealIp ?? []
   const initialNativeDraft = nativePatterns.join('\n')
   const [alwaysRealIpDraft, setAlwaysRealIpDraft] = useState(initialNativeDraft)
   const [alwaysRealIpError, setAlwaysRealIpError] = useState<string | undefined>(
-    hasNativeBehavior && !validNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined,
+    malformedNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined,
   )
   const nativeDraftRef = useRef(initialNativeDraft)
   useEffect(() => {
     nativeDraftRef.current = initialNativeDraft
     setAlwaysRealIpDraft(initialNativeDraft)
-    setAlwaysRealIpError(hasNativeBehavior && !validNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined)
-  }, [copy.alwaysRealIpMalformed, hasNativeBehavior, initialNativeDraft, node?.id, validNativeBehavior])
+    setAlwaysRealIpError(malformedNativeBehavior ? (copy.alwaysRealIpMalformed ?? 'Malformed persisted always-real-ip intent.') : undefined)
+  }, [copy.alwaysRealIpMalformed, initialNativeDraft, malformedNativeBehavior, node?.id])
   useEffect(() => {
     if (!adding) return
     const focusFrame = focusMenuOnOpenRef.current
