@@ -164,6 +164,34 @@ export function validateSurgeVifRouteConfig(value: unknown): { ok: true } | { ok
   }
 }
 
+/** Classify a failed General Network boundary only when the untrusted value
+ * carries recognizable own G3-B route intent. Generic malformed G1 data must
+ * remain a family-level diagnostic.
+ */
+export function classifySurgeVifRouteIssue(value: unknown): SurgeVifRouteValidationCode | undefined {
+  try {
+    if (!isPlainRecord(value)) return undefined
+    const target = Object.getOwnPropertyDescriptor(value, 'target')
+    const kind = Object.getOwnPropertyDescriptor(value, 'kind')
+    if (!target || !('value' in target) || target.value !== 'surge'
+      || !kind || !('value' in kind) || kind.value !== 'general-network') return undefined
+    const excluded = Object.getOwnPropertyDescriptor(value, 'tunExcludedRoutes')
+    const included = Object.getOwnPropertyDescriptor(value, 'tunIncludedRoutes')
+    if (!excluded && !included) return undefined
+    if ((excluded && !('value' in excluded)) || (included && !('value' in included))) return undefined
+    const ipv6Vif = Object.getOwnPropertyDescriptor(value, 'ipv6Vif')
+    if (ipv6Vif && !('value' in ipv6Vif)) return undefined
+    const routeCandidate: Record<string, unknown> = { target: 'surge', kind: 'general-network' }
+    if (excluded && 'value' in excluded) routeCandidate.tunExcludedRoutes = excluded.value
+    if (included && 'value' in included) routeCandidate.tunIncludedRoutes = included.value
+    if (ipv6Vif && 'value' in ipv6Vif) routeCandidate.ipv6Vif = ipv6Vif.value
+    const validation = validateSurgeVifRouteConfig(routeCandidate)
+    return validation.ok ? undefined : validation.code
+  } catch {
+    return undefined
+  }
+}
+
 /** Parse a multiline authoring draft; blanks are removed and first duplicates win. */
 export function parseSurgeVifRouteDraft(value: unknown): { ok: true; routes: string[] } | { ok: false; invalid?: string; code: SurgeVifRouteValidationCode } {
   if (typeof value !== 'string') return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }

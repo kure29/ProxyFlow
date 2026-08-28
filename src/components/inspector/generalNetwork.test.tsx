@@ -70,6 +70,21 @@ describe('Surge General Network Product UI', () => {
     expect(html).toContain('Remove retained settings')
   })
 
+  it.each([
+    ['route string', { target: 'surge', kind: 'general-network', tunExcludedRoutes: '10.0.0.0/8' }],
+    ['numeric route array', { target: 'surge', kind: 'general-network', tunExcludedRoutes: [123] }],
+    ['null included routes', { target: 'surge', kind: 'general-network', tunIncludedRoutes: null }],
+    ['object included routes', { target: 'surge', kind: 'general-network', tunIncludedRoutes: {} }],
+  ])('renders malformed G3-B %s safely and only offers explicit removal', (_name, malformed) => {
+    const project = createBlankProject('surge')
+    const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    output.data.targetNativeSurgeGeneralNetwork = malformed as never
+    const html = markup(project)
+    expect(html).toContain('Invalid Surge General settings')
+    expect(html).toContain('Remove retained settings')
+    expect(html).not.toContain('value="10.0.0.0/8"')
+  })
+
   it('keeps exact values through Surge ↔ Mihomo target switching', () => {
     const project = createBlankProject('surge')
     const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!

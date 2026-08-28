@@ -2,7 +2,7 @@ import { semanticIssue } from '../ir'
 import type { PrimaryTarget } from '../capabilities'
 import {
   isTargetNativeSurgeGeneralNetworkConfig,
-  validateSurgeVifRouteConfig,
+  classifySurgeVifRouteIssue,
   targetNativeSurgeGeneralNetworkConfigToIR,
   type TargetNativeSurgeGeneralNetworkIR,
 } from '../targetNative'
@@ -43,9 +43,9 @@ export function compileTargetNativeSurgeGeneralNetworks(
     }
 
     if (!isTargetNativeSurgeGeneralNetworkConfig(config)) {
-      const routeValidation = validateSurgeVifRouteConfig(config)
+      const routeIssue = classifySurgeVifRouteIssue(config)
       context.addIssue(semanticIssue(
-        routeValidation.ok ? 'TARGET_NATIVE_GENERAL_INVALID' : routeValidation.code, 'error', 'compile',
+        routeIssue ?? 'TARGET_NATIVE_GENERAL_INVALID', 'error', 'compile',
         `Target-native Surge General Network settings on "${node.data.title}" have invalid typed configuration.`,
         { nodeId: node.id, entity: { type: 'output', id: node.id } },
       ))
