@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { surgeNativeAcceptanceProject } from '../../core/__fixtures__/surgeNativeStrategies'
+import { compileGraph } from '../../core/graphCompiler'
 import { PROXYFLOW_IR_VERSION, type ProxyFlowIR } from '../../core/ir'
 import {
   isTargetNativeFinalRouteIR,
@@ -30,6 +32,11 @@ function baseIR(): ProxyFlowIR {
 
 const nativeStrategy: TargetNativeStrategyIR = {
   id: 'native', name: 'Native', target: 'surge', kind: 'smart', members: [{ kind: 'proxy', id: 'proxy' }],
+}
+
+const nativeSubnetStrategy: TargetNativeStrategyIR = {
+  id: 'native-subnet', name: 'Native Subnet', target: 'surge', kind: 'subnet', conditions: [],
+  defaultPolicy: { kind: 'builtin', id: 'DIRECT' },
 }
 
 function nativeRoute(overrides: Partial<TargetNativeRouteIR> = {}): TargetNativeRouteIR {
@@ -65,6 +72,57 @@ describe('target-native route runtime boundary', () => {
     const result = compileSurge(baseIR(), { nativeStrategies: [nativeStrategy], nativeRoutes: [ordinary] })
     expect(result.success, result.issues.map((issue) => issue.code).join(',')).toBe(true)
     expect(result.content).toContain('IP-CIDR,203.0.113.0/24,Native')
+  })
+
+  it.each([
+    [nativeStrategy, 'Native'],
+    [nativeSubnetStrategy, 'Native Subnet'],
+  ] as const)('admits an ordinary matcher only when it targets native strategy %s', (strategy, policyName) => {
+    const route = nativeRoute({ target: { kind: 'strategy', id: strategy.id } })
+    const result = compileSurge(baseIR(), { nativeStrategies: [strategy], nativeRoutes: [route] })
+    expect(result.success, result.issues.map((issue) => issue.code).join(',')).toBe(true)
+    expect(result.content).toContain(`IP-CIDR,203.0.113.0/24,${policyName}`)
+  })
+
+  it.each([
+    ['DIRECT', { kind: 'direct' }],
+    ['REJECT', { kind: 'reject' }],
+    ['Universal strategy', { kind: 'strategy', id: 'universal' }],
+    ['missing strategy', { kind: 'strategy', id: 'missing' }],
+  ] as const)('rejects ordinary matcher → %s smuggled through nativeRoutes', (_label, target) => {
+    const result = compileSurge(baseIR(), { nativeStrategies: [nativeStrategy], nativeRoutes: [nativeRoute({ target })] })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_INVALID', severity: 'error' }))
+  })
+
+  it.each([
+    ['ambiguous native strategy', [nativeStrategy, { ...nativeStrategy }]],
+    ['invalid native strategy', [{ ...nativeStrategy, extendedMatching: true }]],
+  ] as const)('rejects an ordinary route with %s ownership', (_label, nativeStrategies) => {
+    const result = compileSurge(baseIR(), {
+      nativeStrategies: nativeStrategies as never,
+      nativeRoutes: [nativeRoute({ target: { kind: 'strategy', id: 'native' } })],
+    })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_ROUTE_INVALID', severity: 'error' }))
+  })
+
+  it.each([
+    ['DIRECT', { kind: 'direct' }],
+    ['REJECT', { kind: 'reject' }],
+    ['Universal strategy', { kind: 'strategy', id: 'universal' }],
+    ['native strategy', { kind: 'strategy', id: 'native' }],
+  ] as const)('preserves SRC-PORT → %s target semantics', (_label, target) => {
+    const route = nativeRoute({
+      matcher: { kind: 'source-port', port: 443 },
+      target,
+      targetNativeSourcePort: { routeId: 'route', target: 'surge', kind: 'source-port', port: 443 },
+    })
+    const result = compileSurge(baseIR(), { nativeStrategies: [nativeStrategy], nativeRoutes: [route] })
+    expect(result.success, result.issues.map((issue) => issue.code).join(',')).toBe(true)
+    expect(result.content).toContain('SRC-PORT,443,')
   })
 
   it.each([
@@ -168,7 +226,40 @@ describe('target-native Final runtime boundary', () => {
       targetNativeFinalOptions: { finalNodeId: 'other-final', target: 'surge', kind: 'final-options', dnsFailed: true },
     })
     expect(mismatch.success).toBe(false)
-    expect(mismatch.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_OPTIONS_OWNER_MISMATCH', severity: 'error' }))
+    expect(mismatch.content).toBe('')
+    expect(mismatch.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_FINAL_ROUTE_INVALID', severity: 'error' }))
+  })
+
+  it('requires compiler-owned Final provenance even without Final options', () => {
+    const ir = baseIR()
+    ir.finalRoute = undefined
+    for (const effectiveFinalNodeId of [undefined, '', '  ', 'other-final']) {
+      const result = compileSurge(ir, {
+        nativeStrategies: [nativeStrategy],
+        nativeFinalRoute: nativeFinal(),
+        effectiveFinalNodeId,
+      })
+      expect(result.success).toBe(false)
+      expect(result.content).toBe('')
+      expect(result.issues).toContainEqual(expect.objectContaining({
+        code: 'SURGE_TARGET_NATIVE_FINAL_ROUTE_INVALID', severity: 'error',
+      }))
+    }
+  })
+
+  it.each(['hk-smart', 'hk-subnet'] as const)('keeps Graph → Surge native Final ownership valid for %s', (targetId) => {
+    const project = structuredClone(surgeNativeAcceptanceProject)
+    const final = project.graph.nodes.find((node) => node.id === 'final-route')!
+    final.data.targetId = targetId
+    const graph = compileGraph(project, { validationTarget: 'surge' })
+    const result = compileSurge(graph.ir!, {
+      nativeStrategies: graph.nativeStrategies,
+      nativeRoutes: graph.nativeRoutes,
+      nativeFinalRoute: graph.nativeFinalRoute,
+      effectiveFinalNodeId: graph.effectiveFinalNodeId,
+    })
+    expect(result.success, result.issues.map((issue) => issue.code).join(',')).toBe(true)
+    expect(result.content).toContain('FINAL,')
   })
 
   it('rejects malformed native Final before dns-failed can bypass DIRECT safety', () => {
@@ -194,5 +285,20 @@ describe('target-native Final runtime boundary', () => {
     const valid = compileMihomo(baseIR(), { nativeFinalRoute: nativeFinal(), nativeStrategies: [nativeStrategy] })
     expect(valid.success).toBe(false)
     expect(valid.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_FINAL_ROUTE_UNSUPPORTED', severity: 'error' }))
+  })
+
+  it('distinguishes invalid native-route roles from valid cross-target native routes', () => {
+    const malformed = compileMihomo(baseIR(), {
+      nativeStrategies: [nativeStrategy], nativeRoutes: [nativeRoute({ target: { kind: 'direct' } })],
+    })
+    expect(malformed.success).toBe(false)
+    expect(malformed.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_ROUTE_INVALID', severity: 'error' }))
+
+    const valid = compileMihomo(baseIR(), {
+      nativeStrategies: [nativeStrategy],
+      nativeRoutes: [nativeRoute({ target: { kind: 'strategy', id: 'native' } })],
+    })
+    expect(valid.success).toBe(false)
+    expect(valid.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED', severity: 'error' }))
   })
 })

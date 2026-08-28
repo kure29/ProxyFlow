@@ -92,6 +92,18 @@ export function isTargetNativeStrategyIR(value: unknown): value is TargetNativeS
   return isTargetNativeStrategyShape(value, true)
 }
 
+/** Runtime identity proof shared by target adapters for native-strategy-owned records. */
+export function resolvesUniqueTargetNativeStrategy(
+  id: string,
+  strategies: readonly unknown[],
+): boolean {
+  const matches = strategies.filter((strategy) => (
+    strategy && typeof strategy === 'object'
+      && (strategy as Record<string, unknown>).id === id
+  ))
+  return matches.length === 1 && isTargetNativeStrategyIR(matches[0])
+}
+
 export function isPolicyReference(value: unknown): value is PolicyReference {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>

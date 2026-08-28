@@ -1,6 +1,6 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeStrategyIR } from './strategy'
-import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeStrategyIR } from './strategy'
+import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeStrategyIR, resolvesUniqueTargetNativeStrategy } from './strategy'
 import type { TargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
@@ -103,6 +103,15 @@ export function targetNativeUnsupportedIssues(
         message: `Route “${route.name}” uses the Surge-specific SRC-PORT matcher; ${target} has no proven equivalent. Change or remove it before export.`,
       }]
     }
+    if (route.target.kind !== 'strategy'
+      || !resolvesUniqueTargetNativeStrategy(route.target.id, strategies)) return [{
+      target,
+      code: 'TARGET_NATIVE_ROUTE_INVALID',
+      severity: 'error' as const,
+      feature: 'target-native-route',
+      entityId: route.id,
+      message: 'A non-SRC-PORT target-native route must resolve to exactly one valid target-native strategy.',
+    }]
     return [{
       target,
       code: 'TARGET_NATIVE_STRATEGY_UNSUPPORTED',
@@ -113,12 +122,7 @@ export function targetNativeUnsupportedIssues(
     }]
   })
   const finalRouteIssues = nativeFinalRoute === undefined ? [] : !isTargetNativeFinalRouteIR(nativeFinalRoute)
-    || (() => {
-      const id = nativeFinalRoute.target.id
-      const matching = strategies.filter((strategy) => strategy && typeof strategy === 'object'
-        && (strategy as unknown as Record<string, unknown>).id === id)
-      return matching.length !== 1 || !isTargetNativeStrategyIR(matching[0])
-    })() ? [{
+    || !resolvesUniqueTargetNativeStrategy(nativeFinalRoute.target.id, strategies) ? [{
     target,
     code: 'TARGET_NATIVE_FINAL_ROUTE_INVALID',
     severity: 'error' as const,

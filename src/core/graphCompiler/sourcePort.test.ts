@@ -53,6 +53,7 @@ function compileProjectRules(project: ProxyFlowProject) {
     nativeStrategies: graph.nativeStrategies,
     nativeRoutes: graph.nativeRoutes,
     nativeFinalRoute: graph.nativeFinalRoute,
+    effectiveFinalNodeId: graph.effectiveFinalNodeId,
     targetNativeFinalOptions: graph.targetNativeFinalOptions,
     targetNativeRouteOptions: graph.targetNativeRouteOptions,
     nativeRuleSetSources: graph.nativeRuleSetSources,

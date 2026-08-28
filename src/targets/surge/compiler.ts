@@ -2,7 +2,7 @@ import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR } from '../../core/targetNative'
-import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeStrategyIR } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
@@ -36,8 +36,10 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const generatedAt = (options.now ?? (() => new Date()))().toISOString()
   const inputIssues: CompileResult['issues'] = []
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
-  const nativeRoutes = validateNativeRoutes(options.nativeRoutes, inputIssues)
-  const nativeFinalRoute = validateNativeFinalRoute(options.nativeFinalRoute, nativeStrategies, inputIssues)
+  const nativeRoutes = validateNativeRoutes(options.nativeRoutes, nativeStrategies, inputIssues)
+  const nativeFinalRoute = validateNativeFinalRoute(
+    options.nativeFinalRoute, nativeStrategies, options.effectiveFinalNodeId, inputIssues,
+  )
   const irIssues = validateIR(ir).filter((issue) => !(issue.code === 'FINAL_MISSING' && nativeFinalRoute))
   const issues = [
     ...inputIssues,
@@ -143,7 +145,11 @@ export class SurgeCompiler implements ConfigCompiler {
   }
 }
 
-function validateNativeRoutes(raw: unknown, issues: CompileResult['issues']) {
+function validateNativeRoutes(
+  raw: unknown,
+  nativeStrategies: readonly TargetNativeStrategyIR[],
+  issues: CompileResult['issues'],
+) {
   if (raw === undefined) return [] as TargetNativeRouteIR[]
   if (!Array.isArray(raw)) {
     issues.push(surgeIssue(
@@ -153,7 +159,10 @@ function validateNativeRoutes(raw: unknown, issues: CompileResult['issues']) {
     return [] as TargetNativeRouteIR[]
   }
   return raw.flatMap((route, index) => {
-    if (isTargetNativeRouteIR(route)) return [route]
+    if (isTargetNativeRouteIR(route) && (
+      route.matcher.kind === 'source-port'
+      || route.target.kind === 'strategy' && resolvesUniqueTargetNativeStrategy(route.target.id, nativeStrategies)
+    )) return [route]
     reportNativeRouteBoundaryHints(route, issues)
     issues.push(surgeIssue(
       'SURGE_TARGET_NATIVE_ROUTE_INVALID', 'error', 'route',
@@ -166,17 +175,14 @@ function validateNativeRoutes(raw: unknown, issues: CompileResult['issues']) {
 function validateNativeFinalRoute(
   raw: unknown,
   nativeStrategies: readonly TargetNativeStrategyIR[],
+  effectiveFinalNodeId: unknown,
   issues: CompileResult['issues'],
 ): TargetNativeFinalRouteIR | undefined {
   if (raw === undefined) return undefined
-  if (isTargetNativeFinalRouteIR(raw)) {
-    const id = raw.target.id
-    const matchingEntries = nativeStrategies.filter((strategy) => (
-      strategy && typeof strategy === 'object' && (strategy as unknown as Record<string, unknown>).id === id
-    ))
-    const validMatches = matchingEntries.filter((strategy) => isTargetNativeStrategyIR(strategy))
-    if (matchingEntries.length === 1 && validMatches.length === 1) return raw
-  }
+  if (isTargetNativeFinalRouteIR(raw)
+    && typeof effectiveFinalNodeId === 'string' && Boolean(effectiveFinalNodeId.trim())
+    && raw.id === effectiveFinalNodeId
+    && resolvesUniqueTargetNativeStrategy(raw.target.id, nativeStrategies)) return raw
   issues.push(surgeIssue(
     'SURGE_TARGET_NATIVE_FINAL_ROUTE_INVALID', 'error', 'final',
     'Target-native Final route has invalid runtime data.', 'native-final',
