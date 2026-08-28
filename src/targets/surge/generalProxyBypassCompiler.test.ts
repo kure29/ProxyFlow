@@ -30,4 +30,29 @@ describe('Surge G3-C compiler boundary', () => {
     expect(ambiguous.success).toBe(false)
     expect(ambiguous.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_PROXY_BYPASS_OWNER_MISMATCH', severity: 'error' }))
   })
+
+  it.each([null, 'bad', [], 42])('keeps generic malformed runtime values at the family-level diagnostic (%j)', (malformed) => {
+    const result = compileSurge(baseIR(), {
+      outputNodeId: 'output',
+      targetNativeSurgeGeneralProxyBypass: malformed as never,
+    })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_TARGET_NATIVE_PROXY_BYPASS_INVALID', severity: 'error' }))
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_PROXY_BYPASS_HOST_INVALID' }))
+  })
+
+  it('retains focused runtime diagnostics for recognizable Host List failures', () => {
+    const cases = [
+      [{ ...valid(), skipProxy: ['bad value'] }, 'SURGE_PROXY_BYPASS_HOST_INVALID'],
+      [{ ...valid(), skipProxy: ['<simple-hostname>'] }, 'SURGE_PROXY_BYPASS_HOST_UNSUPPORTED'],
+      [{ ...valid(), skipProxy: ['apple.com', 'apple.com'] }, 'SURGE_PROXY_BYPASS_DUPLICATE'],
+      [{ ...valid(), skipProxy: Array.from({ length: 513 }, (_, index) => `host-${index}.example.com`) }, 'SURGE_PROXY_BYPASS_LIST_TOO_LARGE'],
+    ] as const
+    for (const [runtimeValue, code] of cases) {
+      const result = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralProxyBypass: runtimeValue as never })
+      expect(result.success).toBe(false)
+      expect(result.issues).toContainEqual(expect.objectContaining({ code, severity: 'error' }))
+    }
+  })
 })

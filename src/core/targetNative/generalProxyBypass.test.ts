@@ -55,4 +55,14 @@ describe('Surge G3-C target-native boundaries', () => {
     expect(classifySurgeProxyBypassIssue({ ...base, skipProxy: ['bad value'] })).toBe('SURGE_PROXY_BYPASS_HOST_INVALID')
     expect(classifySurgeProxyBypassIssue({ ...base, skipProxy: ['<simple-hostname>'] })).toBe('SURGE_PROXY_BYPASS_HOST_UNSUPPORTED')
   })
+
+  it('classifies hostile accessor values without executing accessors', () => {
+    const value: Record<string, unknown> = { ...base }
+    Object.defineProperty(value, 'skipProxy', {
+      enumerable: true,
+      get() { throw new Error('must not execute') },
+    })
+    expect(() => classifySurgeProxyBypassIssue(value)).not.toThrow()
+    expect(classifySurgeProxyBypassIssue(value)).toBeUndefined()
+  })
 })

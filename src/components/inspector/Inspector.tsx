@@ -1318,33 +1318,36 @@ export function SurgeGeneralProxyBypassEditor({ node, primaryTarget }: SurgeGene
   const state = getSurgeGeneralProxyBypassUiState({ primaryTarget, hasPersistedIntent })
   const validPersisted = !hasPersistedIntent || isTargetNativeSurgeGeneralProxyBypassConfig(config)
   const persistedDraft = validPersisted ? surgeGeneralProxyBypassDraft(config) : ''
-  const persistedFingerprint = `${validPersisted ? 'valid' : 'invalid'}:${persistedDraft}:${validPersisted && isTargetNativeSurgeGeneralProxyBypassConfig(config) ? excludeSimpleHostnamesChoice(config) : 'invalid'}`
+  // The textarea snapshot is independent from the Boolean sibling.  A
+  // persisted exclude-simple-hostnames change must not invalidate an
+  // uncommitted skip-proxy draft.
+  const persistedSkipProxyFingerprint = `${validPersisted ? 'valid' : 'invalid'}:${persistedDraft}`
   const [draft, setDraft] = useState(persistedDraft)
   const [draftError, setDraftError] = useState(false)
   const previousNodeId = useRef(node.id)
   const previousTarget = useRef(primaryTarget)
-  const previousFingerprint = useRef(persistedFingerprint)
+  const previousFingerprint = useRef(persistedSkipProxyFingerprint)
   useEffect(() => {
-    if (previousNodeId.current !== node.id || previousTarget.current !== primaryTarget || previousFingerprint.current !== persistedFingerprint) {
+    if (previousNodeId.current !== node.id || previousTarget.current !== primaryTarget || previousFingerprint.current !== persistedSkipProxyFingerprint) {
       setDraft(persistedDraft)
       setDraftError(false)
     }
     previousNodeId.current = node.id
     previousTarget.current = primaryTarget
-    previousFingerprint.current = persistedFingerprint
-  }, [node.id, persistedDraft, persistedFingerprint, primaryTarget])
+    previousFingerprint.current = persistedSkipProxyFingerprint
+  }, [node.id, persistedDraft, persistedSkipProxyFingerprint, primaryTarget])
 
   if (!hasPersistedIntent && primaryTarget !== 'surge') return null
 
   const commitDraft = () => {
-    if (primaryTarget !== 'surge') return
+    if (primaryTarget !== 'surge' || !validPersisted) return
     const patch = commitSurgeGeneralProxyBypassDraft(config, draft)
     if (!patch) { setDraftError(true); return }
     setDraftError(false)
     update(node.id, patch)
   }
   const setBooleanChoice = (choice: 'default' | 'enabled' | 'disabled') => {
-    if (primaryTarget !== 'surge') return
+    if (primaryTarget !== 'surge' || !validPersisted) return
     update(node.id, surgeGeneralProxyBypassBooleanPatch(config, choice))
   }
   const booleanChoice = validPersisted && isTargetNativeSurgeGeneralProxyBypassConfig(config)
@@ -1353,11 +1356,14 @@ export function SurgeGeneralProxyBypassEditor({ node, primaryTarget }: SurgeGene
 
   return <section className="target-native-card surge-general-proxy-bypass-editor" data-proxy-bypass="surge" aria-label={t('inspector.proxyBypass.title')}>
     <div className="target-native-card-heading"><span><strong>{t('inspector.proxyBypass.title')}</strong><small>{primaryTarget === 'surge' ? t('inspector.proxyBypass.hint') : t('inspector.proxyBypass.retainedHint')}</small></span><em className="node-native-badge">{t('inspector.proxyBypass.surgeOnlyLabel')}</em></div>
-    {!validPersisted && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.invalid')}</strong><small>{t('inspector.proxyBypass.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralProxyBypassOptions())}>{t('inspector.proxyBypass.remove')}</button></div>}
-    <Field label={t('inspector.proxyBypass.skipProxy')} hint={t('inspector.proxyBypass.skipProxyHint')}><textarea rows={5} disabled={primaryTarget !== 'surge'} value={draft} placeholder="apple.com\nlocalhost\n192.168.2.0/24" onChange={(event) => { if (primaryTarget === 'surge') { setDraft(event.target.value); setDraftError(false) } }} onBlur={commitDraft} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitDraft() } }} /></Field>
-    {draftError && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.draftInvalid')}</strong><small>{t('inspector.proxyBypass.draftInvalidDetail')}</small></span></div>}
-    <Field label={t('inspector.proxyBypass.excludeSimpleHostnames')} hint={t('inspector.proxyBypass.excludeSimpleHostnamesHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.proxyBypass.excludeSimpleHostnames')} value={booleanChoice} onChange={(value) => setBooleanChoice(value as 'default' | 'enabled' | 'disabled')} options={[{ value: 'default', label: t('inspector.proxyBypass.default') }, { value: 'enabled', label: t('inspector.proxyBypass.enabled') }, { value: 'disabled', label: t('inspector.proxyBypass.disabled') }]} /></Field>
-    <div className="mock-note">{t('inspector.proxyBypass.ipMatchHint')}</div>
+    {!validPersisted
+      ? <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.invalid')}</strong><small>{t('inspector.proxyBypass.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralProxyBypassOptions())}>{t('inspector.proxyBypass.remove')}</button></div>
+      : <>
+        <Field label={t('inspector.proxyBypass.skipProxy')} hint={t('inspector.proxyBypass.skipProxyHint')}><textarea rows={5} disabled={primaryTarget !== 'surge'} value={draft} placeholder="apple.com\nlocalhost\n192.168.2.0/24" onChange={(event) => { if (primaryTarget === 'surge') { setDraft(event.target.value); setDraftError(false) } }} onBlur={commitDraft} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); commitDraft() } }} /></Field>
+        {draftError && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.draftInvalid')}</strong><small>{t('inspector.proxyBypass.draftInvalidDetail')}</small></span></div>}
+        <Field label={t('inspector.proxyBypass.excludeSimpleHostnames')} hint={t('inspector.proxyBypass.excludeSimpleHostnamesHint')}><WebSelect disabled={primaryTarget !== 'surge'} label={t('inspector.proxyBypass.excludeSimpleHostnames')} value={booleanChoice} onChange={(value) => setBooleanChoice(value as 'default' | 'enabled' | 'disabled')} options={[{ value: 'default', label: t('inspector.proxyBypass.default') }, { value: 'enabled', label: t('inspector.proxyBypass.enabled') }, { value: 'disabled', label: t('inspector.proxyBypass.disabled') }]} /></Field>
+        <div className="mock-note">{t('inspector.proxyBypass.ipMatchHint')}</div>
+      </>}
     {validPersisted && state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.proxyBypass.surgeOnly')}</strong><small>{t('inspector.proxyBypass.targetMismatch')}</small></span></div>}
     {validPersisted && state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralProxyBypassOptions())}><X size={14} />{t('inspector.proxyBypass.remove')}</button>}
   </section>
