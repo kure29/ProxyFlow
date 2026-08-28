@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "surge-v1.4-acceptance-vif-routes",
+  "name": "Surge 1.4 Acceptance — VIF Routes",
+  "primaryTarget": "surge",
+  "graph": {
+    "nodes": [
+      {"id":"proxy","type":"block","position":{"x":80,"y":80},"data":{"blockType":"manual-proxy","category":"source","title":"VIF Fixture Proxy","subtitle":"Fixture endpoint","icon":"server","proxyProtocol":"socks5","proxyServer":"vif-proxy.example.invalid","proxyPort":1080}},
+      {"id":"auto","type":"block","position":{"x":360,"y":80},"data":{"blockType":"auto-select","category":"strategy","title":"VIF Auto","subtitle":"Universal health check","icon":"gauge","testUrl":"https://health.example.invalid/ping","interval":300,"tolerance":50}},
+      {"id":"final","type":"block","position":{"x":640,"y":80},"data":{"blockType":"final","category":"routing","title":"Final","subtitle":"VIF Auto","icon":"corner-down-right","targetId":"auto","targetLabel":"VIF Auto","targetKind":"strategy","protected":true}},
+      {"id":"output","type":"block","position":{"x":940,"y":80},"data":{"blockType":"output","category":"output","title":"Surge Output","subtitle":"G3-B acceptance","icon":"package-check","client":"surge","compatibility":"Supported","protected":true,"targetNativeSurgeGeneralNetwork":{"target":"surge","kind":"general-network","ipv6":true,"ipv6Vif":"auto","icmpForwarding":false,"tunExcludedRoutes":["192.0.2.0/24","198.51.100.0/24"],"tunIncludedRoutes":["203.0.113.0/24"]}}}
+    ],
+    "edges": [
+      {"id":"e-proxy-auto","source":"proxy","target":"auto","type":"smoothstep","data":{"semantic":"data"}},
+      {"id":"e-final-auto","source":"final","target":"auto","type":"smoothstep","data":{"semantic":"route"}},
+      {"id":"e-auto-output","source":"auto","target":"output","type":"smoothstep","data":{"semantic":"output"}}
+    ]
+  },
+  "services": [],
+  "outputs": [{"id":"surge","target":"surge","label":"Surge","status":"supported","icon":"surge.png"}],
+  "updatedAt":"2026-08-29T00:00:00.000Z"
+}

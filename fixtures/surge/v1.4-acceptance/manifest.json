@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "01-core",
+      "purpose": "Mature daily profile shape: materialized subscription, manual proxy, URL Test, genuine Manual Select distinct from Fixed, Fallback, Smart, Subnet, Proxy Chain, Service Rules, routing precedence, FINAL, and encrypted DNS.",
+      "project": "01-core.project.json",
+      "expected": "01-core.conf",
+      "classification": "IMPORT-SAFE",
+      "platforms": ["macos", "ios"],
+      "safeToImport": true,
+      "safeToActivateWithFakeEndpoints": false,
+      "requiresPrivateEndpoints": true,
+      "requiresLocalNetwork": false,
+      "highSideEffect": false,
+      "expectedGeneralKeys": ["encrypted-dns-server"],
+      "expectedSections": ["General", "Proxy", "Proxy Group", "Rule"]
+    },
+    {
+      "id": "02-general-connectivity",
+      "purpose": "G1 network controls plus Universal proxy-test-url and independent Surge internet-test-url.",
+      "project": "02-general-connectivity.project.json",
+      "expected": "02-general-connectivity.conf",
+      "classification": "IMPORT-SAFE",
+      "platforms": ["macos", "ios"],
+      "safeToImport": true,
+      "safeToActivateWithFakeEndpoints": false,
+      "requiresPrivateEndpoints": true,
+      "requiresLocalNetwork": false,
+      "highSideEffect": false,
+      "expectedGeneralKeys": ["proxy-test-url", "internet-test-url", "ipv6", "ipv6-vif", "icmp-forwarding"],
+      "expectedSections": ["General", "Proxy", "Proxy Group", "Rule"]
+    },
+    {
+      "id": "03-dns-behavior",
+      "purpose": "DNS-node-owned always-real-ip with Universal DNS mode none; custom/encrypted DNS is covered by 01-core.",
+      "project": "03-dns-behavior.project.json",
+      "expected": "03-dns-behavior.conf",
+      "classification": "IMPORT-SAFE",
+      "platforms": ["macos", "ios"],
+      "safeToImport": true,
+      "safeToActivateWithFakeEndpoints": false,
+      "requiresPrivateEndpoints": true,
+      "requiresLocalNetwork": false,
+      "highSideEffect": false,
+      "expectedGeneralKeys": ["proxy-test-url", "always-real-ip"],
+      "expectedSections": ["General", "Proxy", "Proxy Group", "Rule"]
+    },
+    {
+      "id": "04-vif-routes",
+      "purpose": "G3-B VIF route ownership using documentation-only TEST-NET ranges.",
+      "project": "04-vif-routes.project.json",
+      "expected": "04-vif-routes.conf",
+      "classification": "LOCAL-NETWORK-SIDE-EFFECT",
+      "platforms": ["macos", "ios"],
+      "safeToImport": true,
+      "safeToActivateWithFakeEndpoints": false,
+      "requiresPrivateEndpoints": true,
+      "requiresLocalNetwork": true,
+      "highSideEffect": true,
+      "expectedGeneralKeys": ["proxy-test-url", "ipv6", "ipv6-vif", "icmp-forwarding", "tun-excluded-routes", "tun-included-routes"],
+      "expectedSections": ["General", "Proxy", "Proxy Group", "Rule"]
+    },
+    {
+      "id": "05-proxy-bypass",
+      "purpose": "G3-C system-proxy compatibility controls with the admitted positive Host List grammar.",
+      "project": "05-proxy-bypass.project.json",
+      "expected": "05-proxy-bypass.conf",
+      "classification": "BEHAVIOR-REQUIRES-PRIVATE-ENDPOINTS",
+      "platforms": ["macos", "ios"],
+      "safeToImport": true,
+      "safeToActivateWithFakeEndpoints": false,
+      "requiresPrivateEndpoints": true,
+      "requiresLocalNetwork": false,
+      "highSideEffect": true,
+      "expectedGeneralKeys": ["proxy-test-url", "skip-proxy", "exclude-simple-hostnames"],
+      "expectedSections": ["General", "Proxy", "Proxy Group", "Rule"]
+    }
+  ]
+}
