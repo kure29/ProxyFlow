@@ -14,6 +14,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 | --- | --- | --- | --- |
 | General Network / VIF (G1 + G3-B) | Supported subset | One Output-owned `general-network` family emits explicitly authored `ipv6`, `ipv6-vif`, `icmp-forwarding`, `tun-excluded-routes`, and `tun-included-routes`; route drafts canonicalize host bits at authoring, while persisted/runtime boundaries require strict canonical CIDRs. IPv6 routes require `ipv6-vif=auto` or `always`; proper specificity overlap is retained and exact same-prefix cross-list conflicts fail closed. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` / `SURGE_GENERAL_VIF_CIDR_INVALID` / `SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT` |
 | General Connectivity (G2) | Supported | Output-owned typed `internet-test-url` controls Surge Internet/DIRECT connectivity testing. It is Surge-native and omitted values preserve Surge defaults; it is separate from strategy health-check URLs. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
+| System Proxy Compatibility (G3-C) | Supported subset | Independent Output-owned typed `general-proxy-bypass` family. `skip-proxy` admits exact dotted ASCII domains, literal simple hostnames (including `localhost`), one leading wildcard domain form, exact IPv4, `a.b.c.*` trailing-octet IPv4 wildcard, and IPv4 CIDR; authored order is preserved and IPv4 CIDR host bits are normalized only at authoring. `exclude-simple-hostnames` is tri-state (omitted, true, explicit false). Negative entries, `?`, ports, special tokens, IPv6, arbitrary interior wildcards, numeric ranges, and broad catch-alls are deferred. Retained intent blocks non-Surge targets rather than being mapped. No real-client verification is claimed. | `SURGE_PROXY_BYPASS_HOST_INVALID` / `SURGE_PROXY_BYPASS_HOST_UNSUPPORTED` / `SURGE_PROXY_BYPASS_DUPLICATE` / `SURGE_PROXY_BYPASS_LIST_TOO_LARGE` / `SURGE_TARGET_NATIVE_PROXY_BYPASS_INVALID` / `SURGE_TARGET_NATIVE_PROXY_BYPASS_OWNER_MISMATCH` / `TARGET_NATIVE_PROXY_BYPASS_UNSUPPORTED` |
 | DNS-native `always-real-ip` (G3-A) | Supported subset | DNS-node-owned typed positive-domain Host List patterns are emitted as one `[General] always-real-ip` list. The compiler binds the record to the effective enabled DNS node; non-Surge targets fail closed. | `SURGE_TARGET_NATIVE_DNS_INVALID` / `SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH` / `TARGET_NATIVE_DNS_UNSUPPORTED` |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
 | SRC-PORT | Target-native | Exact single source-port matcher is emitted as `SRC-PORT,<port>,<policy>` for the documented Surge baseline (iOS 5.22+ / Mac 6.9+). Ranges and comparison expressions remain deferred; other targets fail closed because no equivalent is proven. | `TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED` |
@@ -91,8 +92,42 @@ require `ipv6-vif=auto` or `always`; `ipv6=true` is not required. More-specific
 included routes may intentionally overlap broader excluded routes, while an
 exact same canonical prefix in both lists is rejected. Included broad RFC1918
 ranges receive a non-blocking warning; narrower private routes do not. Surge's
-recommended `skip-proxy` pairing remains future G3-C work and is not created or
-modified here.
+recommended `skip-proxy` pairing is exposed by the separate G3-C family and is
+never created or modified automatically by G3-B.
+
+## System proxy compatibility (G3-C)
+
+`skip-proxy` and `exclude-simple-hostnames` are owned by the independent
+Output-local `targetNativeSurgeGeneralProxyBypass` family. This keeps
+proxy-takeover/system-proxy compatibility separate from G3-B VIF route capture:
+G3-C never creates, copies, deletes, or rewrites `tun-excluded-routes`,
+`tun-included-routes`, or the other network fields. It is also separate from
+the Universal health owner of `proxy-test-url` and the G2 owner of
+`internet-test-url`.
+
+The admitted positive `skip-proxy` subset is intentionally finite: exact
+dotted ASCII domains, specific literal simple hostnames (`localhost`,
+`printer`, `nas`, `router`, and equivalent safe labels), one leading `*`
+wildcard domain form, exact IPv4, one trailing complete-octet IPv4 wildcard
+(`192.168.2.*`), and IPv4 CIDR. Authoring trims lines, drops blanks,
+canonicalizes IPv4 CIDR host bits, and exact-deduplicates first occurrence;
+persisted Config and runtime IR require canonical unique strings and preserve
+their authored order. No sorting or overlap collapsing occurs. `<simple-hostname>`
+is deferred because it would create a second broad owner; a specific
+`skip-proxy: localhost` entry remains valid. Negative entries, `?`, ports,
+special angle tokens, IPv6, arbitrary interior wildcards, numeric dash ranges,
+bare wildcards, and other future Host List grammar are deferred. Bounds are 512
+items, 256 UTF-8 bytes per item, and 32 KiB for the serialized list.
+
+`exclude-simple-hostnames` has tri-state lifecycle: omission emits no key and
+keeps Surge's default, `true` emits `exclude-simple-hostnames = true`, and
+explicit `false` emits `exclude-simple-hostnames = false`. Clearing the
+multiline list removes only `skip-proxy`; an explicit Boolean remains. Invalid
+retained values are shown and removable in the Output inspector, while typing
+stays local until blur or Cmd/Ctrl+Enter. A malformed or ambiguous runtime
+record fails closed with an empty export. Non-Surge targets retain the exact
+Project intent and fail closed; no DIRECT, Universal RouteIR, DNS, or strategy
+mapping is attempted. No real-client verification is claimed.
 
 ## DNS-native `always-real-ip` (G3-A)
 
@@ -176,6 +211,8 @@ Unconsumed parser Partial metadata, client fingerprints, Reality, unsupported tr
 - [Encrypted DNS](https://manual.nssurge.com/dns/encrypted-dns.html)
 - [Advanced DNS Topics](https://manual.nssurge.com/dns/advanced.html)
 - [General Section](https://manual.nssurge.com/profile/general.html)
+- [Host List Parameter Type](https://manual.nssurge.com/profile/host-list.html)
+- [Enhanced Mode (VIF)](https://manual.nssurge.com/features/enhanced-mode.html)
 - [Policy Including](https://manual.nssurge.com/policy-groups/policy-including.html)
 - [Common Group Parameters](https://manual.nssurge.com/policy-groups/parameters.html)
 - [Common Policy Parameters](https://manual.nssurge.com/policies/parameters.html)

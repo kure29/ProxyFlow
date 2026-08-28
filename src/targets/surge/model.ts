@@ -1,5 +1,5 @@
 import { isSafeSurgeHttpUrl, isSafeSurgeSerializedString } from './safety'
-import { isSupportedSurgeAlwaysRealIpPattern, SURGE_VIF_ROUTE_MAX_ITEMS, SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES } from '../../core/targetNative'
+import { isSupportedSurgeAlwaysRealIpPattern, isSurgeProxyBypassHostListValue, SURGE_VIF_ROUTE_MAX_ITEMS, SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES } from '../../core/targetNative'
 import { isCanonicalCidr } from '../../core/network/cidr'
 
 export interface SurgeParameter {
@@ -12,12 +12,19 @@ export interface SurgeGeneralList<Item extends string | number | boolean = strin
   items: Item[]
 }
 
+export interface SurgeProxyBypassHostList {
+  kind: 'host-list'
+  items: string[]
+}
+
 export interface SurgeGeneralValueMap {
   'proxy-test-url': string
   'internet-test-url': string
   'dns-server': SurgeGeneralList<string>
   'encrypted-dns-server': SurgeGeneralList<string>
   'always-real-ip': SurgeGeneralList<string>
+  'skip-proxy': SurgeProxyBypassHostList
+  'exclude-simple-hostnames': boolean
   ipv6: boolean
   'ipv6-vif': 'disabled' | 'auto' | 'always'
   'icmp-forwarding': boolean
@@ -32,7 +39,7 @@ export type SurgeGeneralEntry = {
 const GENERAL_ENTRY_KEYS = ['key', 'value'] as const
 const GENERAL_LIST_KEYS = ['kind', 'items'] as const
 const GENERAL_KEYS = new Set<keyof SurgeGeneralValueMap>([
-  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'always-real-ip', 'ipv6', 'ipv6-vif', 'icmp-forwarding', 'tun-excluded-routes', 'tun-included-routes',
+  'proxy-test-url', 'internet-test-url', 'dns-server', 'encrypted-dns-server', 'always-real-ip', 'skip-proxy', 'exclude-simple-hostnames', 'ipv6', 'ipv6-vif', 'icmp-forwarding', 'tun-excluded-routes', 'tun-included-routes',
 ])
 
 /** Runtime guard for the exact current Surge [General] entry boundary. */
@@ -44,6 +51,8 @@ export function isSurgeGeneralEntry(value: unknown): value is SurgeGeneralEntry 
   if (key === 'proxy-test-url' || key === 'internet-test-url') return isSafeSurgeHttpUrl(value.value)
   if (key === 'dns-server' || key === 'encrypted-dns-server') return isSurgeGeneralList(value.value)
   if (key === 'always-real-ip') return isSurgeAlwaysRealIpList(value.value)
+  if (key === 'skip-proxy') return isSurgeProxyBypassHostList(value.value)
+  if (key === 'exclude-simple-hostnames') return typeof value.value === 'boolean'
   if (key === 'tun-excluded-routes' || key === 'tun-included-routes') return isSurgeVifRouteList(value.value)
   if (key === 'ipv6' || key === 'icmp-forwarding') return typeof value.value === 'boolean'
   return value.value === 'disabled' || value.value === 'auto' || value.value === 'always'
@@ -76,6 +85,10 @@ function isSurgeGeneralList(value: unknown): value is SurgeGeneralList<string> {
     if (!isSafeSurgeSerializedString(items[index])) return false
   }
   return true
+}
+
+function isSurgeProxyBypassHostList(value: unknown): value is SurgeProxyBypassHostList {
+  return isSurgeProxyBypassHostListValue(value)
 }
 
 function isArrayIndex(name: string, length: number) {

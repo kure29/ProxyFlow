@@ -4,7 +4,7 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
-import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig, TargetNativeSurgeDnsBehaviorConfig, TargetNativeSurgeGeneralConnectivityConfig, TargetNativeSurgeGeneralNetworkConfig } from '../core/targetNative'
+import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig, TargetNativeSurgeDnsBehaviorConfig, TargetNativeSurgeGeneralConnectivityConfig, TargetNativeSurgeGeneralNetworkConfig, TargetNativeSurgeGeneralProxyBypassConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
@@ -167,6 +167,8 @@ export interface BlockNodeData extends Record<string, unknown> {
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkConfig
   /** Typed Surge-native Internet/DIRECT connectivity intent, kept outside Universal IR. */
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityConfig
+  /** Typed Surge-native system proxy/takeover compatibility intent. */
+  targetNativeSurgeGeneralProxyBypass?: TargetNativeSurgeGeneralProxyBypassConfig
   /** Typed Surge-native DNS Host List behavior, owned by this DNS node. */
   targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorConfig
   runtimeStatus?: 'ready' | 'stale' | 'error' | 'unavailable'

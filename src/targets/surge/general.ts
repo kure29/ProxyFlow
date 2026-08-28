@@ -4,6 +4,7 @@ import type { SurgeGeneralEntry } from './model'
 import type { TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
 import type { TargetNativeSurgeGeneralConnectivityIR } from '../../core/targetNative'
 import type { TargetNativeSurgeDnsBehaviorIR } from '../../core/targetNative'
+import { isTargetNativeSurgeGeneralProxyBypassIR, type TargetNativeSurgeGeneralProxyBypassIR } from '../../core/targetNative'
 
 export function composeSurgeGeneral(
   groups: readonly (readonly SurgeGeneralEntry[])[],
@@ -52,6 +53,23 @@ export function compileSurgeGeneralConnectivity(
   if (!connectivity) return []
   return [{ key: 'internet-test-url', value: connectivity.internetTestUrl }]
 }
+
+/** Lower the Output-owned G3-C system-proxy compatibility family. */
+export function compileSurgeGeneralProxyBypass(
+  bypass: TargetNativeSurgeGeneralProxyBypassIR | undefined,
+): SurgeGeneralEntry[] {
+  if (!bypass || !isTargetNativeSurgeGeneralProxyBypassIR(bypass)) return []
+  const entries: SurgeGeneralEntry[] = []
+  if (Object.prototype.hasOwnProperty.call(bypass, 'skipProxy')) {
+    entries.push({ key: 'skip-proxy', value: { kind: 'host-list', items: [...bypass.skipProxy!] } })
+  }
+  if (Object.prototype.hasOwnProperty.call(bypass, 'excludeSimpleHostnames')) {
+    entries.push({ key: 'exclude-simple-hostnames', value: bypass.excludeSimpleHostnames! })
+  }
+  return entries
+}
+
+export const compileSurgeGeneralProxyBypasses = compileSurgeGeneralProxyBypass
 
 /** Lower DNS-node-owned Surge always-real-ip intent into one typed General entry. */
 export function compileSurgeDnsBehavior(

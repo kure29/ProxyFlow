@@ -1,15 +1,15 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
-import { classifySurgeVifRouteIssue, isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR, TargetNativeSurgeGeneralProxyBypassIR } from '../../core/targetNative'
+import { classifySurgeProxyBypassIssue, classifySurgeVifRouteIssue, isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeSurgeGeneralProxyBypassIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { parseCidr } from '../../core/network/cidr'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
-import { compileSurgeDnsBehavior, compileSurgeGeneralConnectivity, compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
+import { compileSurgeDnsBehavior, compileSurgeGeneralConnectivity, compileSurgeGeneralNetwork, compileSurgeGeneralProxyBypass, composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
 import { createSurgeProjectionContext, createSurgeTargetProjectionSummary, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
@@ -35,6 +35,7 @@ export interface SurgeCompileOptions {
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
   targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
+  targetNativeSurgeGeneralProxyBypass?: TargetNativeSurgeGeneralProxyBypassIR
   /** DNS-node-owned Surge-native DNS behavior. */
   targetNativeSurgeDnsBehavior?: TargetNativeSurgeDnsBehaviorIR
   /** Compiler-owned effective DNS graph owner identity. */
@@ -50,6 +51,9 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   )
   const targetNativeSurgeGeneralConnectivity = validateSurgeGeneralConnectivity(
     options.targetNativeSurgeGeneralConnectivity, options.outputNodeId, ir, inputIssues,
+  )
+  const targetNativeSurgeGeneralProxyBypass = validateSurgeGeneralProxyBypass(
+    options.targetNativeSurgeGeneralProxyBypass, options.outputNodeId, ir, inputIssues,
   )
   const targetNativeSurgeDnsBehavior = validateSurgeDnsBehavior(
     options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId, inputIssues,
@@ -93,6 +97,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
     compileSurgeGeneral(ir, nativeStrategies),
     compileSurgeGeneralConnectivity(targetNativeSurgeGeneralConnectivity),
     compileSurgeGeneralNetwork(targetNativeSurgeGeneralNetwork),
+    compileSurgeGeneralProxyBypass(targetNativeSurgeGeneralProxyBypass),
     planSurgeDns(ir.dns).general,
     compileSurgeDnsBehavior(targetNativeSurgeDnsBehavior),
   ], issues)
@@ -183,6 +188,7 @@ export class SurgeCompiler implements ConfigCompiler {
       nativeRuleSetSources: options?.nativeRuleSetSources,
       targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork,
       targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity,
+      targetNativeSurgeGeneralProxyBypass: options?.targetNativeSurgeGeneralProxyBypass,
       targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior,
       effectiveDnsNodeId: options?.effectiveDnsNodeId,
     })
@@ -266,6 +272,72 @@ function validateSurgeGeneralConnectivity(
   } catch { owners = []; surgeOwners = [] }
   if (!outputs || owners.length !== 1 || surgeOwners.length !== 1 || !isEnabledSurgeOutput(owners[0])) {
     issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH', 'error', 'general', 'Target-native Surge General Connectivity settings do not resolve to one enabled Surge Output.', outputNodeId))
+    return undefined
+  }
+  return validated
+}
+
+function validateSurgeGeneralProxyBypass(
+  raw: unknown,
+  outputNodeId: unknown,
+  ir: ProxyFlowIR,
+  issues: CompileResult['issues'],
+): TargetNativeSurgeGeneralProxyBypassIR | undefined {
+  if (raw === undefined) return undefined
+  if (!isTargetNativeSurgeGeneralProxyBypassIR(raw)) {
+    const focused = classifySurgeProxyBypassIssue(raw)
+    issues.push(surgeIssue(
+      focused ?? 'SURGE_TARGET_NATIVE_PROXY_BYPASS_INVALID', 'error', 'general',
+      'Target-native Surge Proxy Bypass settings contain invalid runtime data.',
+      readRuntimeOutputNodeId(raw) ?? 'general-proxy-bypass',
+    ))
+    return undefined
+  }
+  let validated: TargetNativeSurgeGeneralProxyBypassIR
+  try {
+    validated = structuredClone(raw)
+  } catch {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_PROXY_BYPASS_INVALID', 'error', 'general',
+      'Target-native Surge Proxy Bypass settings contain unserialisable runtime data.',
+      readRuntimeOutputNodeId(raw) ?? 'general-proxy-bypass',
+    ))
+    return undefined
+  }
+  if (!isTargetNativeSurgeGeneralProxyBypassIR(validated)) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_PROXY_BYPASS_INVALID', 'error', 'general',
+      'Target-native Surge Proxy Bypass settings changed during runtime validation.',
+      typeof (validated as { outputNodeId?: unknown }).outputNodeId === 'string'
+        ? (validated as { outputNodeId: string }).outputNodeId
+        : undefined,
+    ))
+    return undefined
+  }
+  if (typeof outputNodeId !== 'string' || !outputNodeId.trim() || validated.outputNodeId !== outputNodeId) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_PROXY_BYPASS_OWNER_MISMATCH', 'error', 'general',
+      'Target-native Surge Proxy Bypass settings do not belong to the compiler-selected Output.',
+      validated.outputNodeId,
+    ))
+    return undefined
+  }
+  const outputs = readRuntimeOutputs(ir)
+  let owners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  let surgeOwners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  try {
+    owners = outputs?.filter((output) => output.id === outputNodeId) ?? []
+    surgeOwners = outputs?.filter((output) => isSurgeOutputCandidate(output)) ?? []
+  } catch {
+    owners = []
+    surgeOwners = []
+  }
+  if (!outputs || owners.length !== 1 || surgeOwners.length !== 1 || !isEnabledSurgeOutput(owners[0])) {
+    issues.push(surgeIssue(
+      'SURGE_TARGET_NATIVE_PROXY_BYPASS_OWNER_MISMATCH', 'error', 'general',
+      'Target-native Surge Proxy Bypass settings do not resolve to one enabled Surge Output.',
+      outputNodeId,
+    ))
     return undefined
   }
   return validated
