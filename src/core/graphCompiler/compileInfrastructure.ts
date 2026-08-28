@@ -1,6 +1,6 @@
 import type { DnsIR, OutputIR } from '../ir'
 import { semanticIssue } from '../ir'
-import { inferUniversalDnsMode, isDnsResolverConfig, isUniversalDnsMode, normalizeDnsResolvers } from '../dns/resolverProfiles'
+import { hasMalformedDnsResolverState, inferUniversalDnsMode, isUniversalDnsMode, normalizeDnsResolvers } from '../dns/resolverProfiles'
 import type { GraphNode } from '../../types/project'
 import type { GraphCompileContext } from './context'
 
@@ -33,9 +33,7 @@ export function compileDns(context: GraphCompileContext, node = resolveEffective
   // `none` intentionally makes all retained resolver drafts inactive.
   if (mode === 'none') return undefined
 
-  const invalidResolverShape = rawResolvers !== undefined && (
-    !Array.isArray(rawResolvers) || rawResolvers.some((resolver) => !isDnsResolverConfig(resolver))
-  )
+  const invalidResolverShape = hasMalformedDnsResolverState(rawResolvers, node.data.resolver as unknown)
   // Explicit automatic mode also treats resolver drafts as inactive. Missing
   // mode uses the legacy path, including its existing shape diagnostics.
   if (invalidResolverShape && (mode === 'custom' || inferredMode)) context.addIssue(semanticIssue(

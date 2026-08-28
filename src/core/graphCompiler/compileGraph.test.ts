@@ -270,6 +270,15 @@ describe('compileGraph', () => {
     expect(customEmptyResult.success).toBe(false)
     expect(customEmptyResult.ir).toBeUndefined()
     expect(customEmptyResult.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_MISSING', severity: 'error' }))
+
+    const automaticMalformed = structuredClone(demoProject)
+    const automaticMalformedDns = automaticMalformed.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    automaticMalformedDns.data.universalDnsMode = 'automatic'
+    automaticMalformedDns.data.dnsResolvers = [{ id: 'bad', name: 'Bad', kind: 'doh', role: 'default', address: 42, enabled: true } as never]
+    const automaticMalformedResult = compileGraph(automaticMalformed)
+    expect(automaticMalformedResult.success).toBe(true)
+    expect(automaticMalformedResult.ir?.dns).toEqual({ enabled: true, mode: 'automatic' })
+    expect(automaticMalformedResult.issues.some((issue) => issue.code === 'DNS_RESOLVER_INVALID')).toBe(false)
   })
 
   it('infers the legacy mode at the direct compileGraph boundary', () => {

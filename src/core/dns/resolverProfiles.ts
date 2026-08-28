@@ -76,7 +76,7 @@ export function normalizeDnsResolvers(
   if (resolvers !== undefined) return Array.isArray(resolvers)
     ? resolvers.filter(isDnsResolverConfig).map((resolver) => ({ ...resolver }))
     : []
-  if (!legacyResolver) return []
+  if (typeof legacyResolver !== 'string' || !legacyResolver) return []
   return [{
     id: 'legacy-default',
     name: inferResolverName(legacyResolver),
@@ -85,6 +85,14 @@ export function normalizeDnsResolvers(
     address: legacyResolver,
     enabled: true,
   }]
+}
+
+/** Inspect raw persisted resolver fields without filtering malformed entries. */
+export function hasMalformedDnsResolverState(resolvers: unknown, legacyResolver?: unknown) {
+  if (resolvers !== undefined) {
+    return !Array.isArray(resolvers) || resolvers.some((resolver) => !isDnsResolverConfig(resolver))
+  }
+  return legacyResolver !== undefined && typeof legacyResolver !== 'string'
 }
 
 export function countEnabledDnsResolvers(

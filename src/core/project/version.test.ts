@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
 import { legacyChinaServiceDefinition } from '../../data/legacyServices'
 import { chinaDirectFixture } from '../__fixtures__/graphFixtures'
+import { compileGraph } from '../graphCompiler/compileGraph'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from './version'
 
 describe('project schema version', () => {
@@ -68,6 +69,43 @@ describe('project schema version', () => {
     delete v1Dns.data.universalDnsMode
     v1Dns.data.dnsResolvers = []
     expect(migrateProject(v1).project?.graph.nodes.find((node) => node.id === v1Dns.id)?.data.universalDnsMode).toBe('automatic')
+  })
+
+  it.each([
+    ['malformed array element', [{ id: 'bad', name: 'Bad', kind: 'doh', role: 'default', address: 42, enabled: true } as never]],
+    ['malformed non-array', { invalid: true } as never],
+    ['mixed valid and malformed entries', [
+      { id: 'valid', name: 'Valid', kind: 'doh', role: 'default', address: 'https://dns.example/dns-query', enabled: true },
+      { id: 'bad', name: 'Bad', kind: 'doh', role: 'default', address: 42, enabled: true } as never,
+    ]],
+  ] as const)('preserves fail-closed semantics for current V2 %s DNS data', (_label, rawResolvers) => {
+    const project = structuredClone(demoProject)
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete dns.data.universalDnsMode
+    dns.data.dnsResolvers = rawResolvers as never
+    const migrated = migrateProject(project)
+    expect(migrated.success).toBe(true)
+    expect(migrated.project?.graph.nodes.find((node) => node.id === dns.id)?.data.universalDnsMode).toBeUndefined()
+    const direct = compileGraph(project)
+    const hydrated = compileGraph(migrated.project!)
+    for (const result of [direct, hydrated]) {
+      expect(result.success).toBe(false)
+      expect(result.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_INVALID', severity: 'error' }))
+    }
+  })
+
+  it('preserves fail-closed malformed resolver semantics through V1 migration', () => {
+    const project = structuredClone(demoProject)
+    project.version = 1
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete dns.data.universalDnsMode
+    dns.data.dnsResolvers = { invalid: true } as never
+    const migrated = migrateProject(project)
+    expect(migrated.success).toBe(true)
+    expect(migrated.project?.graph.nodes.find((node) => node.id === dns.id)?.data.universalDnsMode).toBeUndefined()
+    const result = compileGraph(migrated.project!)
+    expect(result.success).toBe(false)
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'DNS_RESOLVER_INVALID', severity: 'error' }))
   })
 
   it('keeps legacy URL subscriptions materialized while preserving explicit modes', () => {
