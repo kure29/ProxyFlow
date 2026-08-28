@@ -1,3 +1,5 @@
+import { parseCidr, parseCidrAuthoring } from '../network/cidr'
+
 /**
  * Typed Surge General Network / VIF intent.
  *
@@ -16,6 +18,8 @@ export interface TargetNativeSurgeGeneralNetworkConfig {
   ipv6?: boolean
   ipv6Vif?: TargetNativeSurgeIpv6Vif
   icmpForwarding?: boolean
+  tunExcludedRoutes?: string[]
+  tunIncludedRoutes?: string[]
 }
 
 export interface TargetNativeSurgeGeneralNetworkIR extends TargetNativeSurgeGeneralNetworkConfig {
@@ -24,7 +28,7 @@ export interface TargetNativeSurgeGeneralNetworkIR extends TargetNativeSurgeGene
 }
 
 const CONFIG_REQUIRED_KEYS = ['target', 'kind'] as const
-const CONFIG_OPTIONAL_KEYS = ['ipv6', 'ipv6Vif', 'icmpForwarding'] as const
+const CONFIG_OPTIONAL_KEYS = ['ipv6', 'ipv6Vif', 'icmpForwarding', 'tunExcludedRoutes', 'tunIncludedRoutes'] as const
 const IR_REQUIRED_KEYS = ['outputNodeId', 'target', 'kind'] as const
 
 /** Runtime guard for persisted Project data. */
@@ -78,10 +82,12 @@ export function hasTargetNativeSurgeGeneralNetworkValue(value: unknown): value i
   ipv6?: boolean
   ipv6Vif?: TargetNativeSurgeIpv6Vif
   icmpForwarding?: boolean
+  tunExcludedRoutes?: string[]
+  tunIncludedRoutes?: string[]
 } {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
-  return hasOwn(candidate, 'ipv6') || hasOwn(candidate, 'ipv6Vif') || hasOwn(candidate, 'icmpForwarding')
+  return CONFIG_OPTIONAL_KEYS.some((key) => hasOwn(candidate, key))
 }
 
 function isGeneralNetworkShape(value: unknown, ir: boolean): value is TargetNativeSurgeGeneralNetworkConfig | TargetNativeSurgeGeneralNetworkIR {
@@ -104,12 +110,120 @@ function isGeneralNetworkShape(value: unknown, ir: boolean): value is TargetNati
       && candidate.ipv6Vif !== 'auto'
       && candidate.ipv6Vif !== 'always') return false
     if (hasOwn(candidate, 'icmpForwarding') && typeof candidate.icmpForwarding !== 'boolean') return false
+    if (hasOwn(candidate, 'tunExcludedRoutes') && !isStrictRouteList(candidate.tunExcludedRoutes)) return false
+    if (hasOwn(candidate, 'tunIncludedRoutes') && !isStrictRouteList(candidate.tunIncludedRoutes)) return false
+    if (hasOwn(candidate, 'tunExcludedRoutes') && hasOwn(candidate, 'tunIncludedRoutes')
+      && hasExactCrossListConflict(candidate.tunExcludedRoutes, candidate.tunIncludedRoutes)) return false
+    if (hasOwn(candidate, 'tunExcludedRoutes') && hasOwn(candidate, 'tunIncludedRoutes')
+      && serializedBytes([candidate.tunExcludedRoutes, candidate.tunIncludedRoutes]) > SURGE_VIF_ROUTE_MAX_COMBINED_BYTES) return false
+    if (hasIpv6Route(candidate) && (candidate.ipv6Vif === undefined || candidate.ipv6Vif === 'disabled')) return false
     return true
   } catch {
     // Deserialized/headless values can be proxies or otherwise hostile
     // objects.  Runtime validation must fail closed, never escape an accessor.
     return false
   }
+}
+
+export const SURGE_VIF_ROUTE_MAX_ITEMS = 512
+export const SURGE_VIF_ROUTE_MAX_ITEM_BYTES = 64
+export const SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES = 32 * 1024
+export const SURGE_VIF_ROUTE_MAX_COMBINED_BYTES = 64 * 1024
+
+export type SurgeVifRouteField = 'tunExcludedRoutes' | 'tunIncludedRoutes'
+export type SurgeVifRouteValidationCode =
+  | 'SURGE_GENERAL_VIF_CIDR_INVALID'
+  | 'SURGE_GENERAL_VIF_CIDR_DUPLICATE'
+  | 'SURGE_GENERAL_VIF_LIST_TOO_LARGE'
+  | 'SURGE_GENERAL_VIF_IPV6_VIF_REQUIRED'
+  | 'SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT'
+
+/** Strict semantic validation shared by Config, IR, and compiler diagnostics. */
+export function validateSurgeVifRouteConfig(value: unknown): { ok: true } | { ok: false; code: SurgeVifRouteValidationCode } {
+  try {
+    if (!isPlainRecord(value)) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+    const candidate = value as Record<string, unknown>
+    for (const field of ['tunExcludedRoutes', 'tunIncludedRoutes'] as const) {
+      if (!hasOwn(candidate, field)) continue
+      const result = validateRouteList(candidate[field])
+      if (!result.ok) return result
+    }
+    if (hasExactCrossListConflict(candidate.tunExcludedRoutes, candidate.tunIncludedRoutes)) {
+      return { ok: false, code: 'SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT' }
+    }
+    if (hasOwn(candidate, 'tunExcludedRoutes') && hasOwn(candidate, 'tunIncludedRoutes')
+      && serializedBytes([candidate.tunExcludedRoutes, candidate.tunIncludedRoutes]) > SURGE_VIF_ROUTE_MAX_COMBINED_BYTES) {
+      return { ok: false, code: 'SURGE_GENERAL_VIF_LIST_TOO_LARGE' }
+    }
+    if (hasIpv6Route(candidate) && (candidate.ipv6Vif === undefined || candidate.ipv6Vif === 'disabled')) {
+      return { ok: false, code: 'SURGE_GENERAL_VIF_IPV6_VIF_REQUIRED' }
+    }
+    return { ok: true }
+  } catch {
+    return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+  }
+}
+
+/** Parse a multiline authoring draft; blanks are removed and first duplicates win. */
+export function parseSurgeVifRouteDraft(value: unknown): { ok: true; routes: string[] } | { ok: false; invalid?: string; code: SurgeVifRouteValidationCode } {
+  if (typeof value !== 'string') return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+  const routes: string[] = []
+  const seen = new Set<string>()
+  for (const raw of value.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const parsed = parseCidrAuthoring(line)
+    if (!parsed.ok) return { ok: false, invalid: line, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+    if (!seen.has(parsed.cidr.value)) { seen.add(parsed.cidr.value); routes.push(parsed.cidr.value) }
+  }
+  if (routes.length > SURGE_VIF_ROUTE_MAX_ITEMS || serializedBytes(routes) > SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES) {
+    return { ok: false, code: 'SURGE_GENERAL_VIF_LIST_TOO_LARGE' }
+  }
+  return { ok: true, routes }
+}
+
+function validateRouteList(value: unknown): { ok: true } | { ok: false; code: SurgeVifRouteValidationCode } {
+  if (!Array.isArray(value) || value.length === 0) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+  try {
+    if (Object.getPrototypeOf(value) !== Array.prototype || Object.getOwnPropertySymbols(value).length > 0) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+    const ownNames = Object.getOwnPropertyNames(value)
+    if (ownNames.some((name) => name !== 'length' && !isArrayIndex(name, value.length))) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+    if (value.length > SURGE_VIF_ROUTE_MAX_ITEMS || serializedBytes(value) > SURGE_VIF_ROUTE_MAX_SERIALIZED_BYTES) return { ok: false, code: 'SURGE_GENERAL_VIF_LIST_TOO_LARGE' }
+    const seen = new Set<string>()
+    for (let index = 0; index < value.length; index += 1) {
+      if (!hasOwn(value, String(index)) || typeof value[index] !== 'string') return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+      if (!parseCidr(value[index], 'strict').ok) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+      if (seen.has(value[index])) return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_DUPLICATE' }
+      seen.add(value[index])
+    }
+    return { ok: true }
+  } catch {
+    return { ok: false, code: 'SURGE_GENERAL_VIF_CIDR_INVALID' }
+  }
+}
+
+function isStrictRouteList(value: unknown) { return validateRouteList(value).ok }
+
+function hasExactCrossListConflict(excluded: unknown, included: unknown) {
+  if (!Array.isArray(excluded) || !Array.isArray(included)) return false
+  const includedSet = new Set(included.filter((item): item is string => typeof item === 'string'))
+  return excluded.some((item) => typeof item === 'string' && includedSet.has(item))
+}
+
+function hasIpv6Route(candidate: Record<string, unknown>) {
+  return ['tunExcludedRoutes', 'tunIncludedRoutes'].some((field) => {
+    const list = candidate[field]
+    if (!Array.isArray(list)) return false
+    return list.some((item) => {
+      const parsed = parseCidr(item, 'strict')
+      return parsed.ok && parsed.cidr.family === 'ipv6'
+    })
+  })
+}
+
+function serializedBytes(value: unknown) {
+  const serialized = JSON.stringify(value)
+  return typeof serialized === 'string' ? new TextEncoder().encode(serialized).byteLength : Number.POSITIVE_INFINITY
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -127,6 +241,12 @@ function hasExactKeys(value: object, allowed: readonly string[]) {
 
 function hasOwn(value: object, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key)
+}
+
+function isArrayIndex(name: string, length: number) {
+  if (!/^(?:0|[1-9]\d*)$/.test(name)) return false
+  const index = Number(name)
+  return Number.isSafeInteger(index) && index >= 0 && index < length
 }
 
 function hasNonEmptyString(value: unknown): value is string {

@@ -58,5 +58,7 @@ describe('Surge General Network lowering', () => {
     expect(isSurgeGeneralEntry({ key: 'ipv6-vif', value: 'AUTO' })).toBe(false)
     expect(isSurgeGeneralEntry({ key: 'always-real-ip', value: { kind: 'list', items: ['example.com', '*.example.com'] } })).toBe(true)
     expect(isSurgeGeneralEntry({ key: 'always-real-ip', value: { kind: 'list', items: ['example.com\n[Proxy]'] } })).toBe(false)
+    expect(isSurgeGeneralEntry({ key: 'tun-excluded-routes', value: { kind: 'list', items: ['10.0.0.0/8'] } })).toBe(true)
+    expect(isSurgeGeneralEntry({ key: 'tun-included-routes', value: { kind: 'list', items: ['192.0.2.123/24'] } })).toBe(false)
   })
 })

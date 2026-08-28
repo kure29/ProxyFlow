@@ -1,6 +1,8 @@
 import type { PrimaryTarget } from '../capabilities'
 import {
   isTargetNativeSurgeGeneralNetworkConfig,
+  parseSurgeVifRouteDraft,
+  type SurgeVifRouteField,
   type TargetNativeSurgeGeneralNetworkConfig,
   type TargetNativeSurgeIpv6Vif,
 } from '../targetNative'
@@ -75,9 +77,10 @@ export function surgeGeneralNetworkOptionsPatch(
     else if (choice === 'disabled') current.icmpForwarding = false
   }
 
-  return hasSemanticValue(current)
+  if (!hasSemanticValue(current)) return { targetNativeSurgeGeneralNetwork: undefined }
+  return isTargetNativeSurgeGeneralNetworkConfig(current)
     ? { targetNativeSurgeGeneralNetwork: current }
-    : { targetNativeSurgeGeneralNetwork: undefined }
+    : currentPatch(config)
 }
 
 /** Convenience patch for clearing the whole retained family explicitly. */
@@ -95,11 +98,36 @@ export function hasSurgeGeneralNetworkSemanticValue(value: unknown): value is {
   ipv6?: boolean
   ipv6Vif?: TargetNativeSurgeIpv6Vif
   icmpForwarding?: boolean
+  tunExcludedRoutes?: string[]
+  tunIncludedRoutes?: string[]
 } {
   return Boolean(value && typeof value === 'object'
-    && (Object.prototype.hasOwnProperty.call(value, 'ipv6')
-      || Object.prototype.hasOwnProperty.call(value, 'ipv6Vif')
-      || Object.prototype.hasOwnProperty.call(value, 'icmpForwarding')))
+    && ['ipv6', 'ipv6Vif', 'icmpForwarding', 'tunExcludedRoutes', 'tunIncludedRoutes']
+      .some((key) => Object.prototype.hasOwnProperty.call(value, key)))
+}
+
+export function surgeGeneralNetworkRouteDraft(config: unknown, field: SurgeVifRouteField) {
+  if (!isTargetNativeSurgeGeneralNetworkConfig(config)) return ''
+  return Array.isArray(config[field]) ? config[field]!.join('\n') : ''
+}
+
+/** Commit a transient multiline route draft without persisting partial input. */
+export function commitSurgeGeneralNetworkRouteDraft(
+  config: unknown,
+  field: SurgeVifRouteField,
+  draft: string,
+): { targetNativeSurgeGeneralNetwork: TargetNativeSurgeGeneralNetworkConfig | undefined } | undefined {
+  const parsed = parseSurgeVifRouteDraft(draft)
+  if (!parsed.ok) return undefined
+  const current = isTargetNativeSurgeGeneralNetworkConfig(config)
+    ? structuredClone(config)
+    : { target: 'surge' as const, kind: 'general-network' as const }
+  if (parsed.routes.length === 0) delete current[field]
+  else current[field] = parsed.routes
+  if (!hasSemanticValue(current)) return { targetNativeSurgeGeneralNetwork: undefined }
+  return isTargetNativeSurgeGeneralNetworkConfig(current)
+    ? { targetNativeSurgeGeneralNetwork: current }
+    : undefined
 }
 
 function hasSemanticValue(value: unknown): value is TargetNativeSurgeGeneralNetworkConfig {

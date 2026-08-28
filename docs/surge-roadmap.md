@@ -1,6 +1,6 @@
 # ProxyFlow — Surge 1.4.0 Scope and Deferred Backlog
 
-Status: planning baseline
+Status: implementation baseline (G3-B implemented)
 
 Baseline `main`: `127a786ec48b980e7fe8a7a032a98becfdeea126`
 
@@ -191,7 +191,7 @@ serializer tests are compiler/fixture evidence, not real-client evidence.
 The active scope is General-first and finite. Each item still needs its own
 admission and ownership audit before code is written.
 
-### G3-B — VIF route control (Planned for 1.4)
+### G3-B — VIF route control (Implemented subset)
 
 `tun-excluded-routes` and `tun-included-routes` are expected to be Surge
 Output-owned controls in the `tun-capture / VIF routing behavior` family.
@@ -207,9 +207,14 @@ Output-owned controls in the `tun-capture / VIF routing behavior` family.
   must preserve that distinction and must not lower either key into a
   Universal routing or DNS exclusion.
 
-The expected owner is a planning hypothesis until the G3-B ownership audit,
-typed boundary, cross-target retention behavior, and real-client verification
-are complete.
+The existing Output-owned `general-network` family is the sole owner. The
+shared CIDR parser canonicalizes host bits only while authoring; persisted and
+runtime values must already be canonical and unique. IPv6 routes require
+`ipv6-vif=auto` or `always`, proper more-specific overlap is allowed, and an
+exact same-prefix cross-list conflict is rejected. Non-Surge targets retain
+intent but fail closed rather than translating it. Broad RFC1918 included
+ranges receive a warning. `skip-proxy` remains separate G3-C work. No focused
+real-device verification is claimed.
 
 ### G3-C — System proxy bypass (Planned for 1.4)
 
@@ -406,8 +411,8 @@ are planning labels, not claims about implemented architecture.
 | `dns-server` | General / DNS | Implemented subset | High | Universal DNS adapter (implemented) | Universal semantic lowered to Surge | `[General] dns-server` list | Roles, mixed transport, and unsupported IPv6 upstreams fail closed | High: resolver semantics | [General](https://manual.nssurge.com/profile/general.html#dns-server) |
 | `encrypted-dns-server` | General / DNS | Implemented subset | High | Universal DNS adapter (implemented) | Universal semantic lowered to Surge | `[General] encrypted-dns-server` list | Pure DoH/DoT only; no mixed traditional family | High: bootstrap and transport differences | [General](https://manual.nssurge.com/profile/general.html#encrypted-dns-server) |
 | `always-real-ip` | General / DNS behavior | Implemented | High | Effective DNS node (implemented) | Surge-native | `[General] always-real-ip` Host List | Must remain outside `DnsIR`; `none` coexistence required | High: Fake-IP answer behavior | [General](https://manual.nssurge.com/profile/general.html#always-real-ip) |
-| `tun-excluded-routes` | General / VIF route control | Planned for 1.4 | High | Expected Surge Output; Needs Audit | Surge-native expected | `[General] tun-excluded-routes` CIDR list | Ownership audit; VIF-only and skip-proxy interaction; client verification | High: traffic bypass/leakage | [General](https://manual.nssurge.com/profile/general.html#tun-excluded-routes) |
-| `tun-included-routes` | General / VIF route control | Planned for 1.4 | High | Expected Surge Output; Needs Audit | Surge-native expected | `[General] tun-included-routes` CIDR list | Not inverse allowlist; route specificity and VIF behavior audit | High: capture/loop risk | [General](https://manual.nssurge.com/profile/general.html#tun-included-routes) |
+| `tun-excluded-routes` | General / VIF route control | Implemented subset | High | Surge Output (existing general-network family) | Surge-native | `[General] tun-excluded-routes` canonical CIDR list | Real-client verification remains open; skip-proxy is separate G3-C | High: traffic bypass/leakage | [General](https://manual.nssurge.com/profile/general.html#tun-excluded-routes) |
+| `tun-included-routes` | General / VIF route control | Implemented subset | High | Surge Output (existing general-network family) | Surge-native | `[General] tun-included-routes` canonical CIDR list | Specificity overlap preserved; real-client verification remains open | High: capture/loop risk | [General](https://manual.nssurge.com/profile/general.html#tun-included-routes) |
 | `skip-proxy` | General / System Proxy Bypass | Planned for 1.4 | High | Expected Surge Output; Needs Audit | Surge-native expected | `[General] skip-proxy` Host List | Must remain compatibility bypass, not routing/DNS exclusion | High: proxy/VIF leakage | [General](https://manual.nssurge.com/profile/general.html#skip-proxy) |
 | `exclude-simple-hostnames` | General / System Proxy Bypass | Planned for 1.4 | Medium | Expected Surge Output; Needs Audit | Surge-native expected | `[General] exclude-simple-hostnames` | Must remain VIF compatibility behavior, not DNS exclusion | Medium: local-name handling | [General](https://manual.nssurge.com/profile/general.html#exclude-simple-hostnames) |
 | `test-timeout` | General / Connectivity | Candidate for 1.4 | Medium | Needs Audit; likely Surge General owner | Surge-native expected | `[General] test-timeout` seconds | Admission audit; distinguish proxy default from DIRECT timeout | Medium: timeout/user latency | [General](https://manual.nssurge.com/profile/general.html#test-timeout) |

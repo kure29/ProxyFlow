@@ -78,6 +78,46 @@ describe('Surge General Network runtime/compiler boundary', () => {
     ])
   })
 
+  it('lowers VIF route controls after G1 fields and preserves specificity overlap', () => {
+    const result = compileSurge(baseIR(), {
+      outputNodeId: 'output',
+      targetNativeSurgeGeneralNetwork: network({
+        ipv6: false,
+        ipv6Vif: 'auto',
+        tunExcludedRoutes: ['10.0.0.0/8'],
+        tunIncludedRoutes: ['10.1.0.0/16'],
+      }),
+    })
+    expect(result.success).toBe(true)
+    expect(generalLines(result.content)).toEqual([
+      'ipv6 = false', 'ipv6-vif = auto', 'tun-excluded-routes = 10.0.0.0/8', 'tun-included-routes = 10.1.0.0/16',
+    ])
+  })
+
+  it('rejects equal-prefix conflicts and enforces IPv6 VIF dependency', () => {
+    const conflict = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: network({ tunExcludedRoutes: ['10.0.0.0/8'], tunIncludedRoutes: ['10.0.0.0/8'] }) })
+    expect(conflict.success).toBe(false)
+    expect(conflict.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT' }))
+    const missing = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: network({ tunIncludedRoutes: ['2001:db8::/32'] }) })
+    expect(missing.success).toBe(false)
+    expect(missing.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_IPV6_VIF_REQUIRED' }))
+    const conditional = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: network({ ipv6: false, ipv6Vif: 'auto', tunIncludedRoutes: ['2001:db8::/32'] }) })
+    expect(conditional.success).toBe(true)
+    expect(conditional.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_IPV6_VIF_CONDITIONAL', severity: 'warning' }))
+  })
+
+  it('warns only for broad RFC1918 included ranges', () => {
+    for (const route of ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']) {
+      const result = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: network({ tunIncludedRoutes: [route] }) })
+      expect(result.success).toBe(true)
+      expect(result.issues).toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_PRIVATE_RANGE', severity: 'warning' }))
+    }
+    for (const route of ['192.168.1.0/24', '192.168.1.100/32']) {
+      const result = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: network({ tunIncludedRoutes: [route] }) })
+      expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_GENERAL_VIF_PRIVATE_RANGE' }))
+    }
+  })
+
   it('fails closed for malformed runtime values, legacy off, and owner mismatch', () => {
     const malformed = network({ ipv6: true, extendedMatching: true } as never)
     const malformedResult = compileSurge(baseIR(), { outputNodeId: 'output', targetNativeSurgeGeneralNetwork: malformed })

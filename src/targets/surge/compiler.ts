@@ -2,8 +2,9 @@ import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
-import { isTargetNativeFinalRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeSurgeDnsBehaviorIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, validateSurgeVifRouteConfig, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
+import { parseCidr } from '../../core/network/cidr'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { planSurgeDns } from './dns'
@@ -277,6 +278,11 @@ function validateSurgeGeneralNetwork(
   issues: CompileResult['issues'],
 ): TargetNativeSurgeGeneralNetworkIR | undefined {
   if (raw === undefined) return undefined
+  const routeValidation = validateSurgeVifRouteConfig(raw)
+  if (!routeValidation.ok) {
+    issues.push(surgeIssue(routeValidation.code, 'error', 'general', 'Surge VIF route controls contain invalid or unsafe CIDR semantics.', readRuntimeOutputNodeId(raw) ?? 'general-network'))
+    return undefined
+  }
   if (!isTargetNativeSurgeGeneralNetworkIR(raw)) {
     issues.push(surgeIssue(
       'SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general',
@@ -336,7 +342,25 @@ function validateSurgeGeneralNetwork(
     ))
     return undefined
   }
+  addSurgeVifWarnings(validated, issues)
   return validated
+}
+
+function addSurgeVifWarnings(network: TargetNativeSurgeGeneralNetworkIR, issues: CompileResult['issues']) {
+  const routes = [...(network.tunExcludedRoutes ?? []), ...(network.tunIncludedRoutes ?? [])]
+  const hasIpv6 = routes.some((route) => {
+    const parsed = parseCidr(route, 'strict')
+    return parsed.ok && parsed.cidr.family === 'ipv6'
+  })
+  if (hasIpv6 && network.ipv6Vif === 'auto') issues.push(surgeIssue(
+    'SURGE_GENERAL_VIF_IPV6_VIF_CONDITIONAL', 'warning', 'general',
+    'IPv6 VIF routes are conditional because ipv6-vif is set to auto.', network.outputNodeId,
+  ))
+  const broadPrivate = new Set(['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'])
+  if ((network.tunIncludedRoutes ?? []).some((route) => broadPrivate.has(route))) issues.push(surgeIssue(
+    'SURGE_GENERAL_VIF_PRIVATE_RANGE', 'warning', 'general',
+    'Included VIF routes contain a broad RFC1918 range; ensure this is intentional and consider Surge skip-proxy plus tun-excluded-routes for complete bypass behavior.', network.outputNodeId,
+  ))
 }
 
 function readRuntimeOutputNodeId(value: unknown): string | undefined {

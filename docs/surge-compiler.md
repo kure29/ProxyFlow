@@ -12,7 +12,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 
 | Feature | Status | Exact subset or reason | Diagnostic |
 | --- | --- | --- | --- |
-| General Network / VIF (G1) | Supported | Output-owned typed `ipv6`, `ipv6-vif` (`disabled` / `auto` / `always`), and `icmp-forwarding` values are emitted only when explicitly authored; unset values preserve Surge defaults. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
+| General Network / VIF (G1 + G3-B) | Supported subset | One Output-owned `general-network` family emits explicitly authored `ipv6`, `ipv6-vif`, `icmp-forwarding`, `tun-excluded-routes`, and `tun-included-routes`; route drafts canonicalize host bits at authoring, while persisted/runtime boundaries require strict canonical CIDRs. IPv6 routes require `ipv6-vif=auto` or `always`; proper specificity overlap is retained and exact same-prefix cross-list conflicts fail closed. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` / `SURGE_GENERAL_VIF_CIDR_INVALID` / `SURGE_GENERAL_VIF_CROSS_LIST_CONFLICT` |
 | General Connectivity (G2) | Supported | Output-owned typed `internet-test-url` controls Surge Internet/DIRECT connectivity testing. It is Surge-native and omitted values preserve Surge defaults; it is separate from strategy health-check URLs. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
 | DNS-native `always-real-ip` (G3-A) | Supported subset | DNS-node-owned typed positive-domain Host List patterns are emitted as one `[General] always-real-ip` list. The compiler binds the record to the effective enabled DNS node; non-Surge targets fail closed. | `SURGE_TARGET_NATIVE_DNS_INVALID` / `SURGE_TARGET_NATIVE_DNS_OWNER_MISMATCH` / `TARGET_NATIVE_DNS_UNSUPPORTED` |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
@@ -71,6 +71,28 @@ For URL Test and Fallback, `intervalSeconds` maps to Surge `interval`, whose off
 The setting is retained on an Output when its client changes. A non-Surge compilation with retained Surge intent fails closed rather than silently dropping or mapping it to another target's health-check field. Switching the same Output back to Surge restores the authored URL. An unset value emits no `internet-test-url` key and does not materialize Surge's documented default.
 
 `test-timeout` remains Deferred and is not implemented. No real-device G2 verification has been performed; the current coverage is typed-boundary, graph/provenance, compatibility, and serializer/compiler tests.
+
+## VIF route control (G3-B)
+
+`tun-excluded-routes` and `tun-included-routes` extend the existing
+Output-owned `targetNativeSurgeGeneralNetwork` family. They are Surge VIF
+controls, not Universal routing or DNS state, and are never mapped to Mihomo,
+sing-box, Loon, or Shadowrocket. Retained intent therefore remains visible and
+read-only on another Output target and blocks that target's export until it is
+removed or the Output returns to Surge.
+
+The shared browser-safe CIDR helper performs authoring normalization (including
+host-bit masking and lowercase IPv6 spelling), order-preserving first-occurrence
+deduplication, and safety bounds (512 items, 64 bytes per item, 32 KiB per
+list, 64 KiB combined). Persisted Config and runtime IR require canonical
+network-prefix spelling and uniqueness; ConfigToIR only clones and binds the
+compiler-owned Output id and performs no normalization or repair. IPv6 routes
+require `ipv6-vif=auto` or `always`; `ipv6=true` is not required. More-specific
+included routes may intentionally overlap broader excluded routes, while an
+exact same canonical prefix in both lists is rejected. Included broad RFC1918
+ranges receive a non-blocking warning; narrower private routes do not. Surge's
+recommended `skip-proxy` pairing remains future G3-C work and is not created or
+modified here.
 
 ## DNS-native `always-real-ip` (G3-A)
 

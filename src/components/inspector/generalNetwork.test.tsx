@@ -30,6 +30,8 @@ describe('Surge General Network Product UI', () => {
     expect(markup(project)).toContain('Surge Default')
     expect(markup(project)).toContain('IPv6 VIF')
     expect(markup(project)).toContain('ICMP forwarding')
+    expect(markup(project)).toContain('VIF Route Control')
+    expect(markup(project)).toContain('Excluded VIF routes')
   })
 
   it('preserves explicit values and removes the family only after the last Default choice', () => {
@@ -55,7 +57,7 @@ describe('Surge General Network Product UI', () => {
     const html = markup(project)
     expect(html).toContain('Surge General settings are retained')
     expect(html).toContain('These General Network settings are Surge-specific.')
-    expect((html.match(/disabled=""/g) ?? []).length).toBe(3)
+    expect((html.match(/disabled=""/g) ?? []).length).toBe(5)
     expect(output.data.targetNativeSurgeGeneralNetwork).toEqual(retained)
   })
 
@@ -87,5 +89,17 @@ describe('Surge General Network Product UI', () => {
     const serialized = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
     useBuilderStore.getState().hydrate(serialized)
     expect(useBuilderStore.getState().nodes.find((node) => node.data.blockType === 'output')?.data.targetNativeSurgeGeneralNetwork).toEqual(retained)
+  })
+
+  it('renders persisted VIF routes as editable Surge-native multiline controls', () => {
+    const project = createBlankProject('surge')
+    const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    output.data.targetNativeSurgeGeneralNetwork = {
+      target: 'surge', kind: 'general-network', ipv6Vif: 'always',
+      tunExcludedRoutes: ['10.0.0.0/8', '2001:db8::/32'], tunIncludedRoutes: ['192.168.1.100/32'],
+    }
+    const html = markup(project)
+    expect(html).toContain('10.0.0.0/8\n2001:db8::/32')
+    expect(html).toContain('192.168.1.100/32')
   })
 })
