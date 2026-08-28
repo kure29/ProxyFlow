@@ -2,6 +2,7 @@ import type { CompatibilityIssue } from '../../types/project'
 import { surgeIssue } from './errors'
 import type { SurgeGeneralEntry } from './model'
 import type { TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import type { TargetNativeSurgeGeneralConnectivityIR } from '../../core/targetNative'
 
 export function composeSurgeGeneral(
   groups: readonly (readonly SurgeGeneralEntry[])[],
@@ -39,4 +40,12 @@ export function compileSurgeGeneralNetwork(
   if (Object.prototype.hasOwnProperty.call(network, 'ipv6Vif')) entries.push({ key: 'ipv6-vif', value: network.ipv6Vif! })
   if (Object.prototype.hasOwnProperty.call(network, 'icmpForwarding')) entries.push({ key: 'icmp-forwarding', value: network.icmpForwarding! })
   return entries
+}
+
+/** Lower the typed G2 Internet/DIRECT connectivity family. */
+export function compileSurgeGeneralConnectivity(
+  connectivity: TargetNativeSurgeGeneralConnectivityIR | undefined,
+): SurgeGeneralEntry[] {
+  if (!connectivity) return []
+  return [{ key: 'internet-test-url', value: connectivity.internetTestUrl }]
 }

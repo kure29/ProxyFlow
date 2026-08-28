@@ -30,6 +30,7 @@ import { ADVANCED_ROUTE_MATCHERS, BASIC_ROUTE_MATCHERS, isRoutingRuleType, resol
 import { finalDnsFailedOptionsPatch, getFinalDnsFailedUiState, isFinalTargetConfigured } from '../../core/routing/finalOptionsProductModel'
 import { getRouteNoResolveUiState, routeNoResolveOptionsPatch, isRouteMatcherConfigured } from '../../core/routing/routeOptionsProductModel'
 import { getSurgeGeneralNetworkUiState, removeSurgeGeneralNetworkOptions, surgeGeneralNetworkFieldChoice, surgeGeneralNetworkOptionsPatch, type SurgeGeneralNetworkChoice, type SurgeGeneralNetworkField } from '../../core/routing/generalNetworkProductModel'
+import { commitSurgeGeneralConnectivityDraft, getSurgeGeneralConnectivityUiState, removeSurgeGeneralConnectivityOptions } from '../../core/routing/generalConnectivityProductModel'
 import { inspectRoute, type RouteInspectionResult, type RouteQuery } from '../../core/routing/routeInspector'
 import { ServerRuntimeProvider, type RuntimeHistoryEntry, type RuntimeSchedule } from '../../core/runtime'
 import { createMaterializationContext, deriveProjectRuntime, explainProcessing, materializeProxySet, parseLimitDraft, planRemoteProxySource, planRemoteSourceUsage, type ProcessingExplanation, type RemoteSourceLoweringPlan } from '../../core/proxySet'
@@ -47,7 +48,9 @@ import {
 import {
   isTargetNativeRuleSetSourceConfig, isTargetNativeSourcePortConfig, isTargetNativeStrategyConfig, isValidSourcePort, surgeBuiltinRuleSetSourceConfig,
   surgeBuiltinRuleSetSourceId,
+  isTargetNativeSurgeGeneralConnectivityConfig,
   isTargetNativeSurgeGeneralNetworkConfig,
+  selectTargetNativeSurgeGeneralConnectivity,
   type PolicyReference, type SurgeBuiltinRuleSetName, type SurgeNativeStrategyConfig, type SurgeSubnetMatcher,
 } from '../../core/targetNative'
 import { resolveTargetNativeSurgeGeneralNetworkForOutput } from '../compiler/useProjectCompiles'
@@ -1217,12 +1220,15 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
     if (!registeredTarget) return undefined
     const records = graph.targetNativeSurgeGeneralNetworks
       ?? (graph.targetNativeSurgeGeneralNetwork ? [graph.targetNativeSurgeGeneralNetwork] : [])
+    const connectivityRecords = graph.targetNativeSurgeGeneralConnectivityRecords
+      ?? (graph.targetNativeSurgeGeneralConnectivity ? [graph.targetNativeSurgeGeneralConnectivity] : [])
     return {
       outputNodeId: node.id,
       ...(node.data.client === 'mihomo' ? { targetProfile: node.data.mihomoProfile } : {}),
       targetNativeSurgeGeneralNetwork: resolveTargetNativeSurgeGeneralNetworkForOutput(records, node.id),
+      targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(connectivityRecords, node.id),
     }
-  }, [graph.targetNativeSurgeGeneralNetwork, graph.targetNativeSurgeGeneralNetworks, node.data.client, node.data.mihomoProfile, node.id, registeredTarget])
+  }, [graph.targetNativeSurgeGeneralConnectivity, graph.targetNativeSurgeGeneralConnectivityRecords, graph.targetNativeSurgeGeneralNetwork, graph.targetNativeSurgeGeneralNetworks, node.data.client, node.data.mihomoProfile, node.id, registeredTarget])
   const target = useTargetCompile(graph.ir, supported ? registeredTarget : undefined, graph.success, targetOptions)
   const errors = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'error').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'error').length
   const warnings = graph.success ? target.result?.issues.filter((issue) => issue.severity === 'warning').length ?? 0 : graph.issues.filter((issue) => issue.severity === 'warning').length
@@ -1232,11 +1238,63 @@ function OutputInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
     {paused && registeredTarget && <div className="validation-banner"><AlertTriangle size={15} /><span><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(registeredTarget).label })}</strong>{t('workspace.targetPausedDescription')}</span></div>}
     <Field label={t('inspector.targetClient')}><div className="client-grid">{productionOutputDefinitions.map((output) => <button className={node.data.client === output.target ? 'is-selected' : ''} key={output.id} onClick={() => setOutputClient(node.id, output.target)}><AssetIcon className="client-icon" src={output.icon} darkSrc={output.iconDark} fallback={output.label.slice(0, 1)} /><strong>{output.label}</strong><small>{t('node.compatibility.supported')}</small>{node.data.client === output.target && <Check className="client-check" size={15} />}</button>)}</div></Field>
     <SurgeGeneralNetworkEditor node={node} primaryTarget={registeredTarget} />
+    <SurgeGeneralConnectivityEditor node={node} primaryTarget={registeredTarget} />
     <div className="compat-card"><ShieldCheck size={18} /><div><strong>{t('inspector.compatibility')}</strong><span>{!supported ? t('inspector.clientUnavailable') : target.status === 'loading' ? t('inspector.loadingCompiler') : compiled ? t('inspector.warningInfo', { warnings, info }) : t('inspector.errorNoOutput', { errors })}</span></div><b>{!supported ? t('inspector.unsupported') : target.status === 'loading' ? t('preview.loading') : compiled ? t('preview.compiled') : t('inspector.blocked')}</b></div>
     {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('export')}><FileOutput size={15} /> {t('workspace.open')} {t('workspace.export')}</button>}
     <button className="inspector-primary-button" onClick={() => setPreviewOpen(true)}><Eye size={15} /> {t('inspector.previewConfig')}</button>
     <div className="mock-note">{t('inspector.realCompilerNote')}</div>
   </>
+}
+
+export interface SurgeGeneralConnectivityEditorProps {
+  node: GraphNode
+  primaryTarget?: PrimaryTarget | null
+}
+
+/** Output-local Product editor for Surge Internet/DIRECT connectivity URL. */
+export function SurgeGeneralConnectivityEditor({ node, primaryTarget }: SurgeGeneralConnectivityEditorProps) {
+  const { t } = useI18n()
+  const update = useBuilderStore((state) => state.updateNodeData)
+  const config = node.data.targetNativeSurgeGeneralConnectivity
+  const hasPersistedIntent = config !== undefined
+  const state = getSurgeGeneralConnectivityUiState({ primaryTarget, hasPersistedIntent })
+  const validPersisted = !hasPersistedIntent || isTargetNativeSurgeGeneralConnectivityConfig(config)
+  const persistedUrl = validPersisted && isTargetNativeSurgeGeneralConnectivityConfig(config) ? config.internetTestUrl ?? '' : ''
+  const [draft, setDraft] = useState(persistedUrl)
+  const previousNodeId = useRef(node.id)
+  const previousTarget = useRef(primaryTarget)
+  const previousPersistedFingerprint = useRef(`${validPersisted ? 'valid' : 'invalid'}:${persistedUrl}`)
+  const persistedFingerprint = `${validPersisted ? 'valid' : 'invalid'}:${persistedUrl}`
+  useEffect(() => {
+    const nodeChanged = previousNodeId.current !== node.id
+    const targetChanged = previousTarget.current !== primaryTarget
+    const persistedChanged = previousPersistedFingerprint.current !== persistedFingerprint
+    if (nodeChanged || targetChanged || persistedChanged) setDraft(persistedUrl)
+    previousNodeId.current = node.id
+    previousTarget.current = primaryTarget
+    previousPersistedFingerprint.current = persistedFingerprint
+  }, [node.id, persistedFingerprint, persistedUrl, primaryTarget])
+  if (!hasPersistedIntent && primaryTarget !== 'surge') return null
+  const draftCommit = commitSurgeGeneralConnectivityDraft(draft)
+  const draftIsInvalid = Boolean(draft.trim()) && draftCommit === undefined
+  const commitDraft = () => {
+    if (primaryTarget !== 'surge') return
+    const patch = commitSurgeGeneralConnectivityDraft(draft)
+    if (!patch) return
+    const next = patch.targetNativeSurgeGeneralConnectivity
+    if ((next?.internetTestUrl ?? '') === persistedUrl && validPersisted) return
+    update(node.id, patch)
+  }
+  return <section className="target-native-card surge-general-connectivity-editor" data-general-connectivity="surge" aria-label={t('inspector.generalConnectivity.title')}>
+    <div className="target-native-card-heading"><span><strong>{t('inspector.generalConnectivity.title')}</strong><small>{primaryTarget === 'surge' ? t('inspector.generalConnectivity.hint') : t('inspector.generalConnectivity.retainedHint')}</small></span><em className="node-native-badge">{t('inspector.generalConnectivity.surgeOnlyLabel')}</em></div>
+    {!validPersisted && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.invalid')}</strong><small>{t('inspector.generalConnectivity.invalidDetail')}</small></span><button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}>{t('inspector.generalConnectivity.remove')}</button></div>}
+    <Field label={t('inspector.generalConnectivity.url')} hint={t('inspector.generalConnectivity.urlHint')}><input type="url" disabled={primaryTarget !== 'surge'} value={draft} placeholder={t('inspector.generalConnectivity.default')} onChange={(event) => { if (primaryTarget === 'surge') setDraft(event.target.value) }} onBlur={commitDraft} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDraft() } }} /></Field>
+      {draftIsInvalid && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.draftInvalid')}</strong><small>{t('inspector.generalConnectivity.draftInvalidDetail')}</small></span></div>}
+    {validPersisted && <>
+      {state.isTargetMismatch && <div className="validation-banner validation-banner--error"><AlertTriangle size={15} /><span><strong>{t('inspector.generalConnectivity.surgeOnly')}</strong><small>{t('inspector.generalConnectivity.targetMismatch')}</small></span></div>}
+      {state.hasPersistedIntent && primaryTarget !== 'surge' && <button type="button" className="inspector-secondary-button" onClick={() => update(node.id, removeSurgeGeneralConnectivityOptions())}><X size={14} />{t('inspector.generalConnectivity.remove')}</button>}
+    </>}
+  </section>
 }
 
 export interface SurgeGeneralNetworkEditorProps {

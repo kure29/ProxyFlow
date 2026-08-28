@@ -1,14 +1,14 @@
 import { deduplicateDiagnostics } from '../../core/compiler/diagnostics'
 import type { CompileResult, ConfigCompiler } from '../../core/compiler/compilerTypes'
 import type { ProxyFlowIR } from '../../core/ir'
-import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
-import { isTargetNativeFinalRouteIR, isTargetNativeRouteIR, isTargetNativeSurgeGeneralNetworkIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
+import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR } from '../../core/targetNative'
+import { isTargetNativeFinalRouteIR, isTargetNativeSurgeGeneralConnectivityIR, isTargetNativeSurgeGeneralNetworkIR, isTargetNativeRouteIR, resolvesUniqueTargetNativeStrategy } from '../../core/targetNative'
 import { validateIR } from '../../core/semanticValidation'
 import { checkSurgeCompatibility } from './compatibility'
 import { createSurgeContext } from './context'
 import { planSurgeDns } from './dns'
 import { surgeIssue } from './errors'
-import { compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
+import { compileSurgeGeneralConnectivity, compileSurgeGeneralNetwork, composeSurgeGeneral } from './general'
 import { compileSurgeGeneral } from './health'
 import { createSurgeProjectionContext, createSurgeTargetProjectionSummary, surgeProjectionStats, type SurgeProjectionContext } from './projection'
 import { compileSurgeRules } from './rules'
@@ -33,6 +33,7 @@ export interface SurgeCompileOptions {
   targetNativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   nativeRuleSetSources?: TargetNativeRuleSetSourceIR[]
   targetNativeSurgeGeneralNetwork?: TargetNativeSurgeGeneralNetworkIR
+  targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR
 }
 
 export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {}): CompileResult {
@@ -41,6 +42,9 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const targetNativeSurgeGeneralNetwork = validateSurgeGeneralNetwork(
     options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir, inputIssues,
+  )
+  const targetNativeSurgeGeneralConnectivity = validateSurgeGeneralConnectivity(
+    options.targetNativeSurgeGeneralConnectivity, options.outputNodeId, ir, inputIssues,
   )
   const nativeRoutes = validateNativeRoutes(options.nativeRoutes, nativeStrategies, inputIssues)
   const nativeFinalRoute = validateNativeFinalRoute(
@@ -79,6 +83,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   const rules = compileSurgeRules(context)
   const general = composeSurgeGeneral([
     compileSurgeGeneral(ir, nativeStrategies),
+    compileSurgeGeneralConnectivity(targetNativeSurgeGeneralConnectivity),
     compileSurgeGeneralNetwork(targetNativeSurgeGeneralNetwork),
     planSurgeDns(ir.dns).general,
   ], issues)
@@ -168,8 +173,47 @@ export class SurgeCompiler implements ConfigCompiler {
       targetNativeRuleSetSources: options?.targetNativeRuleSetSources,
       nativeRuleSetSources: options?.nativeRuleSetSources,
       targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork,
+      targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity,
     })
   }
+}
+
+function validateSurgeGeneralConnectivity(
+  raw: unknown,
+  outputNodeId: unknown,
+  ir: ProxyFlowIR,
+  issues: CompileResult['issues'],
+): TargetNativeSurgeGeneralConnectivityIR | undefined {
+  if (raw === undefined) return undefined
+  if (!isTargetNativeSurgeGeneralConnectivityIR(raw)) {
+    issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general', 'Target-native Surge General Connectivity settings contain invalid runtime data.', readRuntimeOutputNodeId(raw) ?? 'general-connectivity'))
+    return undefined
+  }
+  let validated: TargetNativeSurgeGeneralConnectivityIR
+  try { validated = structuredClone(raw) } catch {
+    issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general', 'Target-native Surge General Connectivity settings contain unserialisable runtime data.', raw.outputNodeId))
+    return undefined
+  }
+  if (!isTargetNativeSurgeGeneralConnectivityIR(validated)) {
+    issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_INVALID', 'error', 'general', 'Target-native Surge General Connectivity settings changed during runtime validation.', raw.outputNodeId))
+    return undefined
+  }
+  if (typeof outputNodeId !== 'string' || !outputNodeId.trim() || validated.outputNodeId !== outputNodeId) {
+    issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH', 'error', 'general', 'Target-native Surge General Connectivity settings do not belong to the compiler-selected Output.', validated.outputNodeId))
+    return undefined
+  }
+  const outputs = readRuntimeOutputs(ir)
+  let owners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  let surgeOwners: Array<{ id?: unknown; enabled?: unknown; target?: unknown }> = []
+  try {
+    owners = outputs?.filter((output) => output.id === outputNodeId) ?? []
+    surgeOwners = outputs?.filter((output) => isSurgeOutputCandidate(output)) ?? []
+  } catch { owners = []; surgeOwners = [] }
+  if (!outputs || owners.length !== 1 || surgeOwners.length !== 1 || !isEnabledSurgeOutput(owners[0])) {
+    issues.push(surgeIssue('SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH', 'error', 'general', 'Target-native Surge General Connectivity settings do not resolve to one enabled Surge Output.', outputNodeId))
+    return undefined
+  }
+  return validated
 }
 
 function validateSurgeGeneralNetwork(

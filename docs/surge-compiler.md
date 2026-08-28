@@ -13,6 +13,7 @@ Surge-specific syntax and capability decisions stay in `src/targets/surge`. Surg
 | Feature | Status | Exact subset or reason | Diagnostic |
 | --- | --- | --- | --- |
 | General Network / VIF (G1) | Supported | Output-owned typed `ipv6`, `ipv6-vif` (`disabled` / `auto` / `always`), and `icmp-forwarding` values are emitted only when explicitly authored; unset values preserve Surge defaults. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
+| General Connectivity (G2) | Supported | Output-owned typed `internet-test-url` controls Surge Internet/DIRECT connectivity testing. It is Surge-native and omitted values preserve Surge defaults; it is separate from strategy health-check URLs. | `SURGE_TARGET_NATIVE_GENERAL_INVALID` / `SURGE_TARGET_NATIVE_GENERAL_OWNER_MISMATCH` |
 | Service Rules | Supported | Ten branded services use their first-party Surge `.list` assets through `RULE-SET`. | — |
 | SRC-PORT | Target-native | Exact single source-port matcher is emitted as `SRC-PORT,<port>,<policy>` for the documented Surge baseline (iOS 5.22+ / Mac 6.9+). Ranges and comparison expressions remain deferred; other targets fail closed because no equivalent is proven. | `TARGET_NATIVE_SOURCE_PORT_UNSUPPORTED` |
 | Remote Proxy Source | Unsupported natively | `policy-path` accepts Surge policy lines or a Surge profile. Universal IR does not retain a contract proving either format. Auto materializes a validated snapshot; Remote fails. | `SURGE_REMOTE_PROXY_SOURCE_FORMAT_UNPROVEN` |
@@ -61,6 +62,14 @@ The compiler never emits the obsolete group-level `url=` field. Surge selects a 
 ProxyFlow's health URL is group-scoped. It is lowered to global `proxy-test-url` only when every URL Test/Fallback strategy has the same explicit URL and the profile has no Select/Fixed testing surface, target-native Smart group, or Subnet group with direct proxy references that the global value could also affect. Conflicting URLs, missing URLs in another testing group, or another testing surface fail closed. A target-native Subnet reference to a covered Universal URL Test/Fallback strategy is not itself a new surface. The compiler does not clone shared proxies to inject per-policy URLs.
 
 For URL Test and Fallback, `intervalSeconds` maps to Surge `interval`, whose official meaning is test-result validity/lazy retest rather than a guaranteed background timer. URL Test `toleranceMs` maps to millisecond `tolerance`, including zero. Fallback has no equivalent tolerance field and remains fail-closed.
+
+## Internet/DIRECT connectivity testing (G2)
+
+`internet-test-url` (documented in Surge's [General section](https://manual.nssurge.com/profile/general.html)) is a Surge-native, concrete Output-owned setting. It is used by Surge's Internet connectivity checks and as the testing URL for DIRECT. It is not a strategy health-check URL and it is not Universal `HealthCheckIR.url`; the latter remains the sole owner of `proxy-test-url` lowering. The two keys may therefore appear together in `[General]` with independent values.
+
+The setting is retained on an Output when its client changes. A non-Surge compilation with retained Surge intent fails closed rather than silently dropping or mapping it to another target's health-check field. Switching the same Output back to Surge restores the authored URL. An unset value emits no `internet-test-url` key and does not materialize Surge's documented default.
+
+`test-timeout` remains Deferred and is not implemented. No real-device G2 verification has been performed; the current coverage is typed-boundary, graph/provenance, compatibility, and serializer/compiler tests.
 
 ## DNS semantic audit and lowering
 

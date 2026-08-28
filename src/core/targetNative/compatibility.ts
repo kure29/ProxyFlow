@@ -6,6 +6,7 @@ import { isTargetNativeRuleSetSourceIR } from './ruleSet'
 import { isTargetNativeFinalOptionsIR, type TargetNativeFinalOptionsIR } from './final'
 import { isTargetNativeRouteOptionsIR, type TargetNativeRouteOptionsIR } from './routeOptions'
 import { isTargetNativeSourcePortIR, isTargetNativeSourcePortMatcher } from './sourcePort'
+import { isTargetNativeSurgeGeneralConnectivityIR, type TargetNativeSurgeGeneralConnectivityIR } from './generalConnectivity'
 import { isTargetNativeSurgeGeneralNetworkIR, type TargetNativeSurgeGeneralNetworkIR } from './generalNetwork'
 
 /** Every non-Surge adapter rejects a Surge-native extension rather than silently flattening it. */
@@ -23,6 +24,7 @@ export function targetNativeUnsupportedIssues(
    * compiler-selected owner.  Omitted for backwards-compatible direct
    * callers; target adapters pass it at their runtime boundary. */
   outputs?: unknown,
+  targetNativeSurgeGeneralConnectivity?: TargetNativeSurgeGeneralConnectivityIR,
 ): CompatibilityIssue[] {
   const strategyIssues = strategies.flatMap((strategy) => {
     if (!strategy || !isTargetNativeStrategyIR(strategy)) {
@@ -173,7 +175,16 @@ export function targetNativeUnsupportedIssues(
           entityId: generalRuntime.outputNodeId,
           message: `Surge General Network settings have no proven equivalent for ${target}; change or remove them before export.`,
         }]
-  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues]
+  const connectivityRuntime = validateConnectivityRuntime(targetNativeSurgeGeneralConnectivity)
+  const connectivityIssues = targetNativeSurgeGeneralConnectivity === undefined
+    ? []
+    : !connectivityRuntime
+      ? [{ target, code: 'TARGET_NATIVE_GENERAL_INVALID', severity: 'error' as const, feature: 'target-native-general-connectivity', entityId: readRuntimeOutputNodeId(targetNativeSurgeGeneralConnectivity), message: 'A target-native Surge General Connectivity record contains invalid runtime data.' }]
+      : typeof outputNodeId !== 'string' || !outputNodeId.trim() || connectivityRuntime.outputNodeId !== outputNodeId || outputs !== undefined && !hasUniqueEnabledTargetOutput(outputs, target, outputNodeId)
+        ? [{ target, code: 'TARGET_NATIVE_GENERAL_OWNER_MISMATCH', severity: 'error' as const, feature: 'target-native-general-connectivity', entityId: connectivityRuntime.outputNodeId, message: 'Target-native Surge General Connectivity settings do not belong to the compiler-selected Output.' }]
+        : target === 'surge' ? []
+        : [{ target, code: 'TARGET_NATIVE_GENERAL_UNSUPPORTED', severity: 'error' as const, feature: 'target-native-general-connectivity', entityId: connectivityRuntime.outputNodeId, message: `Surge General Connectivity settings have no proven equivalent for ${target}; change or remove them before export.` }]
+  return [...strategyIssues, ...ruleSetIssues, ...finalOptionsIssues, ...routeOptionsIssues, ...routeIssues, ...finalRouteIssues, ...generalIssues, ...connectivityIssues]
 }
 
 function readRuntimeOutputNodeId(value: unknown): string | undefined {
@@ -191,6 +202,16 @@ function validateGeneralRuntime(value: unknown): TargetNativeSurgeGeneralNetwork
   try {
     const clone = structuredClone(value)
     return isTargetNativeSurgeGeneralNetworkIR(clone) ? clone : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function validateConnectivityRuntime(value: unknown): TargetNativeSurgeGeneralConnectivityIR | undefined {
+  if (!isTargetNativeSurgeGeneralConnectivityIR(value)) return undefined
+  try {
+    const clone = structuredClone(value)
+    return isTargetNativeSurgeGeneralConnectivityIR(clone) ? clone : undefined
   } catch {
     return undefined
   }
