@@ -58,7 +58,7 @@ Group-level `underlying-proxy` applies to direct policy members, but not to nest
 
 The compiler never emits the obsolete group-level `url=` field. Surge selects a policy test URL from policy-level `test-url`, then global `proxy-test-url`, then its default.
 
-ProxyFlow's health URL is group-scoped. It is lowered to global `proxy-test-url` only when every URL Test/Fallback strategy has the same explicit URL and the profile has no Select/Fixed testing surface that the global value could also affect. Conflicting URLs, missing URLs in another testing group, or another testing surface fail closed. The compiler does not clone shared proxies to inject per-policy URLs.
+ProxyFlow's health URL is group-scoped. It is lowered to global `proxy-test-url` only when every URL Test/Fallback strategy has the same explicit URL and the profile has no Select/Fixed testing surface, target-native Smart group, or Subnet group with direct proxy references that the global value could also affect. Conflicting URLs, missing URLs in another testing group, or another testing surface fail closed. A target-native Subnet reference to a covered Universal URL Test/Fallback strategy is not itself a new surface. The compiler does not clone shared proxies to inject per-policy URLs.
 
 For URL Test and Fallback, `intervalSeconds` maps to Surge `interval`, whose official meaning is test-result validity/lazy retest rather than a guaranteed background timer. URL Test `toleranceMs` maps to millisecond `tolerance`, including zero. Fallback has no equivalent tolerance field and remains fail-closed.
 

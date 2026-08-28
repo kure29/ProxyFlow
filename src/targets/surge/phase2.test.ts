@@ -10,10 +10,12 @@ import { subscriptionSnapshotFixture } from '../../core/__fixtures__/subscriptio
 import { openAiRouteFixture, subscriptionFilterAutoFixture } from '../../core/__fixtures__/graphFixtures'
 import { compileGraph } from '../../core/graphCompiler'
 import { PROXYFLOW_IR_VERSION, type ProxyFlowIR, type ResolvedProxyEndpointIR } from '../../core/ir'
+import type { PolicyReference, TargetNativeStrategyIR } from '../../core/targetNative'
 import { parseSubscription } from '../../core/subscription'
 import { serviceCatalog } from '../../data/serviceCatalog'
 import type { GraphEdge, GraphNode } from '../../types/project'
 import { compileSurge } from './compiler'
+import { compileSurgeGeneral } from './health'
 
 const fixedNow = () => new Date('2026-08-23T00:00:00.000Z')
 
@@ -49,6 +51,42 @@ function failure(ir: ProxyFlowIR, code: string) {
   expect(result.success).toBe(false)
   expect(result.content).toBe('')
   expect(result.issues).toContainEqual(expect.objectContaining({ code, target: 'surge', severity: 'error' }))
+  return result
+}
+
+function nativeSmart(
+  memberIds: string[] = ['proxy-a'],
+  id = 'native-smart',
+  name = 'Native Smart',
+): TargetNativeStrategyIR {
+  return {
+    id, name, target: 'surge', kind: 'smart',
+    members: memberIds.map((id) => ({ kind: 'proxy', id })),
+  }
+}
+
+function nativeSubnet(defaultPolicy: PolicyReference, conditions: Array<{ policy: PolicyReference }> = []): TargetNativeStrategyIR {
+  return {
+    id: 'native-subnet', name: 'Native Subnet', target: 'surge', kind: 'subnet',
+    defaultPolicy,
+    conditions: conditions.map((condition, index) => ({
+      matcher: { kind: 'ssid', value: `network-${index}` },
+      policy: condition.policy,
+    })),
+  }
+}
+
+function compileWithNative(ir: ProxyFlowIR, nativeStrategies: TargetNativeStrategyIR[]) {
+  return compileSurge(ir, { now: fixedNow, nativeStrategies })
+}
+
+function expectGlobalScopeFailure(ir: ProxyFlowIR, nativeStrategies: TargetNativeStrategyIR[]) {
+  const result = compileWithNative(ir, nativeStrategies)
+  expect(result.success).toBe(false)
+  expect(result.content).toBe('')
+  expect(result.issues).toContainEqual(expect.objectContaining({
+    code: 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED', target: 'surge', severity: 'error',
+  }))
   return result
 }
 
@@ -237,6 +275,162 @@ describe('Surge Health Check exactness', () => {
     ]
     ir.finalRoute = { target: { kind: 'strategy', id: 'fallback' } }
     expect(section(success(ir).content, 'General')).toEqual(['proxy-test-url = https://example.com/ping'])
+  })
+
+  it('keeps the existing Auto Select lowering byte-stable without native strategies', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expect(section(success(ir).content, 'General')).toEqual(['proxy-test-url = https://example.com/ping'])
+  })
+
+  it('blocks Auto Select plus target-native Smart even when members are shared', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [nativeSmart(['proxy-a', 'proxy-b'])])
+    expect(compileSurgeGeneral(ir, [nativeSmart(['proxy-a', 'proxy-b'])])).toEqual([])
+  })
+
+  it('blocks Fallback plus target-native Smart', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'fallback', id: 'fallback', name: 'Fallback', candidates: [{ kind: 'source', id: 'source' }],
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'fallback' } }
+    expectGlobalScopeFailure(ir, [nativeSmart(['proxy-a'])])
+  })
+
+  it('blocks a Subnet with a direct proxy default policy', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [nativeSubnet({ kind: 'proxy', id: 'proxy-a' })])
+  })
+
+  it('blocks a Subnet with a direct proxy condition policy', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [nativeSubnet(
+      { kind: 'builtin', id: 'DIRECT' },
+      [{ policy: { kind: 'proxy', id: 'proxy-b' } }],
+    )])
+  })
+
+  it('does not block a Subnet whose policies are only DIRECT and REJECT', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const result = compileWithNative(ir, [nativeSubnet(
+      { kind: 'builtin', id: 'DIRECT' },
+      [{ policy: { kind: 'builtin', id: 'REJECT' } }],
+    )])
+    expect(result.success).toBe(true)
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED' }))
+  })
+
+  it('blocks mixed Subnet DIRECT / REJECT / proxy references', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [nativeSubnet(
+      { kind: 'builtin', id: 'DIRECT' },
+      [{ policy: { kind: 'builtin', id: 'REJECT' } }, { policy: { kind: 'proxy', id: 'proxy-a' } }],
+    )])
+  })
+
+  it('does not treat a Subnet reference to a covered Universal Auto Select as a new surface', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const result = compileWithNative(ir, [nativeSubnet({ kind: 'strategy', id: 'auto' })])
+    expect(result.success).toBe(true)
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED' }))
+  })
+
+  it('blocks a Subnet that references a target-native Smart strategy with proxy members', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [
+      nativeSmart(['proxy-a'], 'native-smart', 'Native Smart'),
+      nativeSubnet({ kind: 'strategy', id: 'native-smart' }),
+    ])
+  })
+
+  it('keeps the existing Universal Select protection when Subnet references it', () => {
+    const ir = irWith()
+    ir.strategies = [
+      {
+        kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+        healthCheck: { url: 'https://example.com/ping' },
+      },
+      { kind: 'select', id: 'select', name: 'Select', candidates: [{ kind: 'source', id: 'source' }] },
+    ]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    expectGlobalScopeFailure(ir, [nativeSubnet({ kind: 'strategy', id: 'select' })])
+  })
+
+  it('does not derive a global URL merely because native Smart exists', () => {
+    const ir = irWith()
+    const result = compileWithNative(ir, [nativeSmart(['proxy-a', 'proxy-b'])])
+    expect(result.success).toBe(true)
+    expect(section(result.content, 'General')).toEqual([])
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ code: 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED' }))
+  })
+
+  it('rejects malformed native strategy data without allowing the lowerer to emit', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const malformed = { ...nativeSmart(), futureField: true } as never
+    const result = compileSurge(ir, { now: fixedNow, nativeStrategies: [malformed] })
+    expect(result.success).toBe(false)
+    expect(result.content).toBe('')
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'TARGET_NATIVE_STRATEGY_INVALID', severity: 'error' }))
+    expect(compileSurgeGeneral(ir, [malformed])).toEqual([])
+  })
+
+  it('keeps native-surface analysis deterministic across strategy array order', () => {
+    const ir = irWith()
+    ir.strategies = [{
+      kind: 'auto-select', id: 'auto', name: 'Auto', source: { kind: 'source', id: 'source' },
+      healthCheck: { url: 'https://example.com/ping' },
+    }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'auto' } }
+    const first = expectGlobalScopeFailure(ir, [nativeSmart(['proxy-a'], 'smart-a', 'Smart A'), nativeSmart(['proxy-b'], 'smart-b', 'Smart B')])
+    const second = expectGlobalScopeFailure(ir, [nativeSmart(['proxy-b'], 'smart-b', 'Smart B'), nativeSmart(['proxy-a'], 'smart-a', 'Smart A')])
+    expect(first.issues.filter((issue) => issue.code === 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED')).toHaveLength(2)
+    expect(second.issues.filter((issue) => issue.code === 'SURGE_STRATEGY_TEST_URL_GLOBAL_SCOPE_UNSUPPORTED')).toHaveLength(2)
   })
 
   it('fails for conflicting, missing, unsafe, or globally widened URL intent', () => {

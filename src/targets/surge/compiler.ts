@@ -78,7 +78,7 @@ export function compileSurge(ir: ProxyFlowIR, options: SurgeCompileOptions = {})
   compileSurgeNativeStrategies(nativeStrategies, context)
   const rules = compileSurgeRules(context)
   const general = composeSurgeGeneral([
-    compileSurgeGeneral(ir),
+    compileSurgeGeneral(ir, nativeStrategies),
     compileSurgeGeneralNetwork(targetNativeSurgeGeneralNetwork),
     planSurgeDns(ir.dns).general,
   ], issues)
