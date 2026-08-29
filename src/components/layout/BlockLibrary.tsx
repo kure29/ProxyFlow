@@ -45,7 +45,7 @@ export function BlockLibrary() {
               {!isCollapsed && <div className="library-items">
                 {group.items.map((item) => (
                   <button
-                    className={`library-item library-item--${item.category}`}
+                    className={`library-item library-item--${group.category}`}
                     key={item.type}
                     draggable
                     onDragStart={(event) => {

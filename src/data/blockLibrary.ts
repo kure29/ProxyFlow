@@ -55,10 +55,9 @@ export const blockLibrary: BlockLibraryGroup[] = [
   {
     category: 'strategy', label: '高级策略', advanced: true, items: [
       { type: 'load-balance', category: 'strategy', title: '负载均衡', description: '在节点间分配连接', icon: 'scale' },
-    ],
-  },
-  {
-    category: 'chain', label: '高级路由', advanced: true, items: [
+      // Proxy Chain is still serialized as its dedicated `chain` block type;
+      // the library places it with strategies so the product language matches
+      // the traffic-intent model without changing graph semantics.
       { type: 'proxy-chain', category: 'chain', title: '代理链', description: '串联多个策略形成链路', icon: 'route' },
     ],
   },

@@ -33,6 +33,8 @@ import {
 } from './WorkspacePages'
 import type { ProjectListItem } from '../../storage/projectStorage'
 import { shouldDismissWorkspaceEditor } from './workspaceEditorLifecycle'
+import { isNodeSection, resolveNodeSection } from './mobileWorkspaceNavigationModel'
+import { productNavigationGroups, productNavigationGroupFor } from './productNavigationModel'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
@@ -46,16 +48,18 @@ interface WorkspaceShellProps extends WorkspaceNavigationState {
 }
 
 const navigation = [
-  { id: 'overview', icon: Home, label: 'workspace.overview', description: 'workspace.description.overview' },
+  { id: 'overview', icon: Home, label: 'workspace.home', description: 'workspace.description.overview' },
   { id: 'sources', icon: Radio, label: 'workspace.sources', description: 'workspace.description.sources' },
   { id: 'proxies', icon: Boxes, label: 'workspace.proxies', description: 'workspace.description.proxies' },
   { id: 'processing', icon: ListFilter, label: 'workspace.processing', description: 'workspace.description.processing' },
   { id: 'strategies', icon: GitBranch, label: 'workspace.strategies', description: 'workspace.description.strategies' },
   { id: 'routing', icon: Route, label: 'workspace.routing', description: 'workspace.description.routing' },
-  { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced', description: 'workspace.description.dns' },
   { id: 'inspect', icon: SearchCheck, label: 'workspace.inspect', description: 'workspace.description.inspect' },
-  { id: 'export', icon: FileOutput, label: 'workspace.export', description: 'workspace.description.export' },
+  { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced', description: 'workspace.description.dns' },
+  { id: 'export', icon: FileOutput, label: 'workspace.output', description: 'workspace.description.output' },
 ] as const
+
+const navigationItemById = new Map(navigation.map((item) => [item.id, item]))
 
 export function WorkspaceShell({
   activeSection, onSectionChange, onViewChange, primaryHealth, lastNodeSection, projects,
@@ -129,6 +133,28 @@ export function WorkspaceShell({
   }
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
   const activeNavigation = navigation.find((item) => item.id === activeSection)!
+  const groupedNavigation = productNavigationGroups.map((group) => ({
+    ...group,
+    items: group.sections.map((section) => navigationItemById.get(section)!).filter(Boolean),
+  }))
+  const renderNavigationItem = (item: typeof navigation[number], nested = false) => {
+    const active = activeSection === item.id
+    const group = productNavigationGroupFor(item.id)
+    const Icon = item.icon
+    return <button
+      type="button"
+      className={`${nested ? 'workspace-navigation-child ' : ''}${active ? 'is-active' : ''}`}
+      key={item.id}
+      data-navigation-group={group ?? undefined}
+      onClick={() => onSectionChange(item.id)}
+      aria-current={active ? 'page' : undefined}
+    >
+      <Icon size={17} /><span>{t(item.label)}</span>{counts[item.id] !== undefined && <small>{counts[item.id]}</small>}
+    </button>
+  }
+  const nodeNavigation = groupedNavigation[0]
+  const nodeEntries = nodeNavigation.items.filter(({ id }) => isNodeSection(id))
+  const policyEntries = nodeNavigation.items.filter(({ id }) => !isNodeSection(id))
 
   const editInWorkspace = (item: WorkspaceNodeItem) => {
     selectNode(item.node.id)
@@ -172,9 +198,27 @@ export function WorkspaceShell({
     <nav className="workspace-navigation" aria-label={t('workspace.navigation')}>
       <button type="button" className="workspace-target-summary" onClick={() => setTargetDialogOpen(true)}><ShieldCheck size={17} /><span><small>{t('workspace.primaryTarget')}</small><strong>{targetLabel}</strong></span><ChevronDown size={14} /></button>
       <div className="workspace-navigation-items">
-        {navigation.map(({ id, icon: Icon, label }) => <button type="button" className={activeSection === id ? 'is-active' : ''} key={id} onClick={() => onSectionChange(id)} aria-current={activeSection === id ? 'page' : undefined}>
-          <Icon size={17} /><span>{t(label)}</span>{counts[id] !== undefined && <small>{counts[id]}</small>}
-        </button>)}
+        {renderNavigationItem(navigation[0])}
+        <section className="workspace-navigation-group" aria-labelledby="workspace-navigation-shared-policy">
+          <h2 id="workspace-navigation-shared-policy">{t('workspace.sharedPolicy')}</h2>
+          <button
+            type="button"
+            className={`workspace-navigation-group-link${isNodeSection(activeSection) ? ' is-active' : ''}`}
+            onClick={() => onSectionChange(resolveNodeSection(activeSection, lastNodeSection))}
+            aria-label={t('workspace.openNodes')}
+            aria-expanded={isNodeSection(activeSection)}
+          >
+            <Boxes size={17} /><span>{t('workspace.nodes')}</span><small>{projection.sources.length + projection.proxies.length}</small>
+          </button>
+          <div className="workspace-navigation-children">
+            {nodeEntries.map((item) => renderNavigationItem(item, true))}
+          </div>
+          {policyEntries.map((item) => renderNavigationItem(item))}
+        </section>
+        {groupedNavigation.slice(1).map((group) => <section className={`workspace-navigation-group workspace-navigation-group--${group.id}`} aria-labelledby={`workspace-navigation-${group.id}`} key={group.id}>
+          <h2 id={`workspace-navigation-${group.id}`}>{t(group.id === 'client-output' ? 'workspace.clientOutput' : 'workspace.reviewAdvanced')}</h2>
+          {group.items.map((item) => renderNavigationItem(item))}
+        </section>)}
       </div>
       <MobileWorkspaceNavigation
         activeSection={activeSection}
