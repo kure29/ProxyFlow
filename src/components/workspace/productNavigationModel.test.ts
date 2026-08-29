@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { initialProductNavigationState, productNavigationGroupFor, productNavigationGroups, productNavigationReducer } from './productNavigationModel'
+import { initialProductNavigationState, productNavigationGroupFor, productNavigationGroups, productNavigationReducer, productNodeTabs } from './productNavigationModel'
 
 describe('product navigation model', () => {
+  it('starts a project in the source-first Nodes workflow', () => {
+    expect(initialProductNavigationState).toMatchObject({
+      workspaceSection: 'sources',
+      lastNodeSection: 'sources',
+    })
+  })
+
   it('preserves the configuration section across Blueprint mode', () => {
     const configured = productNavigationReducer(initialProductNavigationState, { type: 'open-section', section: 'routing' })
     const blueprint = productNavigationReducer(configured, { type: 'set-view', view: 'visual-flow' })
@@ -28,5 +35,13 @@ describe('product navigation model', () => {
     expect(productNavigationGroupFor('strategies')).toBe('strategies')
     expect(productNavigationGroupFor('export')).toBe('output')
     expect(productNavigationGroupFor('overview')).toBeNull()
+  })
+
+  it('keeps the Nodes tabs source-first while retaining existing section ids', () => {
+    expect(productNodeTabs).toEqual([
+      { section: 'sources', label: 'workspace.subscriptionSources' },
+      { section: 'proxies', label: 'workspace.nodeList' },
+      { section: 'processing', label: 'workspace.processing' },
+    ])
   })
 })

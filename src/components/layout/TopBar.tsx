@@ -32,6 +32,7 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
   const [renameDraft, setRenameDraft] = useState('')
   const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
   const projectMenuRef = useRef<HTMLDivElement>(null)
+  const projectTriggerRef = useRef<HTMLButtonElement>(null)
   const { locale, setLocale, t } = useI18n()
   const projectName = useBuilderStore((state) => state.projectName)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
@@ -57,11 +58,15 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
 
   useEffect(() => {
     if (!projectMenuOpen) return
+    const close = () => {
+      setProjectMenuOpen(false)
+      projectTriggerRef.current?.focus()
+    }
     const closeOutside = (event: PointerEvent) => {
-      if (!projectMenuRef.current?.contains(event.target as Node)) setProjectMenuOpen(false)
+      if (!projectMenuRef.current?.contains(event.target as Node)) close()
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setProjectMenuOpen(false)
+      if (event.key === 'Escape') close()
     }
     window.addEventListener('pointerdown', closeOutside)
     window.addEventListener('keydown', closeOnEscape)
@@ -84,22 +89,26 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
     await onDeleteProject(projectId)
     setDeleteProjectId(null)
   }
+  const closeProjectMenu = () => {
+    setProjectMenuOpen(false)
+    projectTriggerRef.current?.focus()
+  }
 
   return <header className="topbar" data-view={view}>
-    <button className="brand" type="button" aria-label={t('workspace.nodes')} onClick={() => onOpenWorkspaceSection('proxies')}>
+    <button className="brand" type="button" aria-label={t('workspace.nodes')} onClick={() => onOpenWorkspaceSection('sources')}>
       <img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" />
       <strong>ProxyFlow</strong>
       <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>
     </button>
 
     <div className="topbar-project-selector" ref={projectMenuRef}>
-      <button type="button" className="topbar-project-trigger" aria-haspopup="menu" aria-expanded={projectMenuOpen} onClick={() => setProjectMenuOpen((open) => !open)}>
+      <button ref={projectTriggerRef} type="button" className="topbar-project-trigger" aria-haspopup="dialog" aria-controls={projectMenuOpen ? 'topbar-project-menu' : undefined} aria-expanded={projectMenuOpen} onClick={() => projectMenuOpen ? closeProjectMenu() : setProjectMenuOpen(true)}>
         <FolderTree size={18} aria-hidden="true" />
-        <span><small>{t('top.currentProject')}</small><strong title={visibleProjectName}>{visibleProjectName}</strong></span>
+        <strong title={visibleProjectName}>{visibleProjectName}</strong>
         <ChevronDown size={17} aria-hidden="true" />
       </button>
-      {projectMenuOpen && <div className="topbar-project-menu" role="menu" aria-label={t('top.projectMenu')}>
-        <header><span>{t('top.recentProjects')}</span><button type="button" aria-label={t('newProject.close')} onClick={() => { setProjectMenuOpen(false); onNewProject() }}><Plus size={15} /></button></header>
+      {projectMenuOpen && <div id="topbar-project-menu" className="topbar-project-menu" role="dialog" aria-label={t('top.projectMenu')}>
+        <header><span>{t('top.recentProjects')}</span><button type="button" aria-label={t('newProject.close')} onClick={() => { closeProjectMenu(); onNewProject() }}><Plus size={15} /></button></header>
         <div className="topbar-project-list">
           {projects.map((project) => {
             const active = project.active
@@ -114,12 +123,12 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
                 </form>
                 : deleteProjectId === project.id
                   ? <div className="topbar-project-delete-confirm"><span>{t('project.deleteConfirmation', { name: visibleName })}</span><div><button type="button" onClick={() => setDeleteProjectId(null)}>{t('workspace.cancel')}</button><button type="button" className="danger" onClick={() => void submitDelete(project.id)}><Trash2 size={13} />{t('project.delete')}</button></div></div>
-                  : <><button type="button" role="menuitem" className="topbar-project-select" disabled={active} onClick={() => { setProjectMenuOpen(false); void onSwitchProject(project.id) }}><span className="topbar-project-check">{active && <Check size={14} />}</span><span><strong>{visibleName}</strong><small>{itemTarget}{active ? ` · ${t('project.current')}` : ''}</small></span></button><div className="topbar-project-actions"><button type="button" aria-label={t('project.rename')} onClick={() => openRename(project)}><Pencil size={13} /></button><button type="button" aria-label={t('project.delete')} onClick={() => { setRenameProjectId(null); setDeleteProjectId(project.id) }}><Trash2 size={13} /></button></div></>
+                  : <><button type="button" className="topbar-project-select" disabled={active} onClick={() => { closeProjectMenu(); void onSwitchProject(project.id) }}><span className="topbar-project-check">{active && <Check size={14} />}</span><span><strong>{visibleName}</strong><small>{itemTarget}{active ? ` · ${t('project.current')}` : ''}</small></span></button><div className="topbar-project-actions"><button type="button" aria-label={t('project.rename')} onClick={() => openRename(project)}><Pencil size={13} /></button><button type="button" aria-label={t('project.delete')} onClick={() => { setRenameProjectId(null); setDeleteProjectId(project.id) }}><Trash2 size={13} /></button></div></>
               }
             </article>
           })}
         </div>
-        <button type="button" className="topbar-project-new" onClick={() => { setProjectMenuOpen(false); onNewProject() }}><Plus size={15} />{t('top.newProject')}</button>
+        <button type="button" className="topbar-project-new" onClick={() => { closeProjectMenu(); onNewProject() }}><Plus size={15} />{t('top.newProject')}</button>
       </div>}
     </div>
 

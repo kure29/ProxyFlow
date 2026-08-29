@@ -175,6 +175,8 @@ describe('Workspace page presentation helpers', () => {
 
     expect(html).toContain('Healthy')
     expect(html).toContain('Surge incompatible')
+    expect(html).toContain('Source availability')
+    expect(html).not.toContain('Not loaded')
     expect(html).not.toContain('<b class="is-partial">Partial</b>')
   })
 

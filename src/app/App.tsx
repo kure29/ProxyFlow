@@ -195,7 +195,7 @@ export function App() {
     hydrate(null)
     setProjectCreationRequired(true)
     setNewProjectOpen(true)
-    dispatchNavigation({ type: 'open-section', section: 'proxies' })
+    dispatchNavigation({ type: 'open-section', section: 'sources' })
   }
 
   const completeProjectFlow = () => {
@@ -203,7 +203,7 @@ export function App() {
     setNewProjectOpen(false)
     setProjectCreationRequired(false)
     pauseStorage(false)
-    dispatchNavigation({ type: 'open-section', section: 'proxies' })
+    dispatchNavigation({ type: 'open-section', section: 'sources' })
     void persistProject(project).then(() => setSaveStatus('saved'))
   }
 

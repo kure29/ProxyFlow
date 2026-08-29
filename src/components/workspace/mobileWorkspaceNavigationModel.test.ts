@@ -16,9 +16,10 @@ describe('mobile workspace navigation model', () => {
     expect(resolveMobilePrimarySection('export')).toBe('more')
   })
 
-  it('uses the last node section and falls back to proxies', () => {
+  it('uses the last node section and falls back to sources', () => {
     expect(resolveNodeSection('routing', 'sources')).toBe('sources')
-    expect(resolveNodeSection('routing', 'invalid' as never)).toBe('proxies')
+    expect(resolveNodeSection('routing', 'invalid' as never)).toBe('sources')
+    expect(resolveNodeSection('routing')).toBe('sources')
     expect(isNodeSection('processing')).toBe(true)
     expect(isMoreSection('export')).toBe(true)
   })

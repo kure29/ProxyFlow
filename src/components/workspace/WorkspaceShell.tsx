@@ -31,6 +31,7 @@ import {
   ProcessingWorkspace, ProjectHealthWorkspace, ProxiesWorkspace, SourcesWorkspace,
   StrategiesWorkspace,
 } from './WorkspacePages'
+import { productNodeTabs } from './productNavigationModel'
 import type { ProjectListItem } from '../../storage/projectStorage'
 import { shouldDismissWorkspaceEditor } from './workspaceEditorLifecycle'
 import { isNodeSection, resolveNodeSection } from './mobileWorkspaceNavigationModel'
@@ -132,7 +133,7 @@ export function WorkspaceShell({
   const isNodesActive = isNodeSection(activeSection)
   const nodeCount = projection.proxies.length
   const primaryNavigation = [
-    { id: 'nodes', section: 'proxies', icon: Server, label: 'workspace.nodes', count: nodeCount },
+    { id: 'nodes', section: 'sources', icon: Server, label: 'workspace.nodes', count: nodeCount },
     { id: 'strategies', section: 'strategies', icon: GitBranch, label: 'workspace.strategies', count: counts.strategies },
     { id: 'routing', section: 'routing', icon: Route, label: 'workspace.routing', count: counts.routing },
     { id: 'output', section: 'export', icon: FileOutput, label: 'workspace.output', count: undefined },
@@ -195,7 +196,10 @@ export function WorkspaceShell({
       <MobileWorkspaceNavigation
         activeSection={activeSection}
         lastNodeSection={lastNodeSection}
-        items={navigation.map(({ id, icon, label }) => ({ id, icon, label: t(label), count: counts[id] }))}
+        items={navigation.map(({ id, icon, label }) => {
+          const nodeTab = productNodeTabs.find((tab) => tab.section === id)
+          return { id, icon, label: t(nodeTab?.label ?? label), count: counts[id] }
+        })}
         labels={{
           title: t('workspace.mobileNavigation.title'),
           home: t('workspace.mobileNavigation.home'),
@@ -217,7 +221,7 @@ export function WorkspaceShell({
       </header>
 
       {isNodesActive && <nav className="workspace-node-tabs" aria-label={t('workspace.nodes')} role="tablist">
-        {(['proxies', 'sources', 'processing'] as const).map((section) => <button
+        {productNodeTabs.map(({ section, label }) => <button
           type="button"
           role="tab"
           aria-selected={activeSection === section}
@@ -226,7 +230,7 @@ export function WorkspaceShell({
           key={section}
           onClick={() => onSectionChange(section)}
         >
-          <span>{t(`workspace.${section}`)}</span>
+          <span>{t(label)}</span>
           <small>{counts[section]}</small>
         </button>)}
       </nav>}

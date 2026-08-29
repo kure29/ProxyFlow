@@ -16,6 +16,12 @@ export const productNavigationGroups = [
   { id: 'advanced', sections: ['dns'] as const },
 ] as const
 
+export const productNodeTabs = [
+  { section: 'sources', label: 'workspace.subscriptionSources' },
+  { section: 'proxies', label: 'workspace.nodeList' },
+  { section: 'processing', label: 'workspace.processing' },
+] as const
+
 export type ProductNavigationGroupId = typeof productNavigationGroups[number]['id']
 
 export function productNavigationGroupFor(section: WorkspaceSectionId): ProductNavigationGroupId | null {
@@ -34,10 +40,10 @@ export type ProductNavigationAction =
 
 export const initialProductNavigationState: ProductNavigationState = {
   view: 'workspace',
-  // A project opens in its existing Nodes context. Overview remains a
-  // compatibility route, but is no longer a primary product entry point.
-  workspaceSection: 'proxies',
-  lastNodeSection: 'proxies',
+  // New projects start with the source-first Nodes workflow. Overview remains
+  // a compatibility route, but is no longer a primary product entry point.
+  workspaceSection: 'sources',
+  lastNodeSection: 'sources',
 }
 
 export function productNavigationReducer(

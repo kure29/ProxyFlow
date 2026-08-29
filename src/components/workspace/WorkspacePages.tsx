@@ -126,23 +126,31 @@ export function ProxiesWorkspace({ proxies, target, targetProjection }: {
 
   if (!proxies.length) return <WorkspaceEmpty icon={<Boxes size={22} />} title={t('workspace.empty.proxies')} />
   return <div className="workspace-proxies-page">
-    <div className="workspace-proxy-chip-filters">
-      <ProxyChipFilter label={t('workspace.proxy.allRegions')} value={region} options={options.regions} proxies={proxies} facet="region" onChange={setRegion} />
-      <ProxyChipFilter label={t('workspace.proxy.allProtocols')} value={protocol} options={options.protocols} proxies={proxies} facet="protocol" onChange={setProtocol} />
-    </div>
-    <div className="workspace-proxy-filters" role="search">
-      <label className="workspace-search-field"><span className="visually-hidden">{t('workspace.proxy.search')}</span><Search size={16} /><input type="search" value={search} placeholder={t('workspace.proxy.search')} onChange={(event) => setSearch(event.target.value)} />{search && <button type="button" aria-label={t('workspace.proxy.clearSearch')} onClick={() => setSearch('')}><X size={14} /></button>}</label>
-      <FilterSelect label={t('workspace.proxy.sourceFilter')} value={sourceId} onChange={setSourceId} options={options.sources} />
-      <FilterSelect label={t('workspace.proxy.availabilityFilter')} value={sourceAvailability} onChange={setSourceAvailability} options={options.sourceAvailabilities.map((value) => ({ value, label: t(sourceStatusMessages[value]) }))} />
-      <FilterSelect label={t('workspace.proxy.compatibilityFilter')} value={compatibility} onChange={setCompatibility} options={options.compatibilities.map((value) => ({ value, label: t(compatibilityMessages[value]) }))} />
-      {filteredState && <button type="button" className="workspace-clear-filters" onClick={() => { setSearch(''); setSourceId(''); setRegion(''); setProtocol(''); setSourceAvailability(''); setCompatibility('') }}>{t('workspace.proxy.clearFilters')}</button>}
+    <div className="workspace-proxy-filter-groups">
+      <section className="workspace-proxy-filter-group workspace-proxy-filter-group--quick" aria-labelledby="workspace-proxy-quick-filters">
+        <h2 id="workspace-proxy-quick-filters">{t('workspace.proxy.quickFilters')}</h2>
+        <div className="workspace-proxy-chip-filters">
+          <ProxyChipFilter label={t('workspace.proxy.allRegions')} value={region} options={options.regions} proxies={proxies} facet="region" onChange={setRegion} />
+          <ProxyChipFilter label={t('workspace.proxy.allProtocols')} value={protocol} options={options.protocols} proxies={proxies} facet="protocol" onChange={setProtocol} />
+        </div>
+      </section>
+      <section className="workspace-proxy-filter-group workspace-proxy-filter-group--detailed" aria-labelledby="workspace-proxy-detailed-filters">
+        <h2 id="workspace-proxy-detailed-filters">{t('workspace.proxy.detailedFilters')}</h2>
+        <div className="workspace-proxy-filters" role="search">
+          <label className="workspace-search-field"><span className="visually-hidden">{t('workspace.proxy.search')}</span><Search size={16} /><input type="search" value={search} placeholder={t('workspace.proxy.search')} onChange={(event) => setSearch(event.target.value)} />{search && <button type="button" aria-label={t('workspace.proxy.clearSearch')} onClick={() => setSearch('')}><X size={14} /></button>}</label>
+          <FilterSelect label={t('workspace.proxy.sourceFilter')} value={sourceId} onChange={setSourceId} options={options.sources} />
+          <FilterSelect label={t('workspace.proxy.availabilityFilter')} value={sourceAvailability} onChange={setSourceAvailability} options={options.sourceAvailabilities.map((value) => ({ value, label: t(sourceStatusMessages[value]) }))} />
+          <FilterSelect label={t('workspace.proxy.compatibilityFilter')} value={compatibility} onChange={setCompatibility} options={options.compatibilities.map((value) => ({ value, label: t(compatibilityMessages[value]) }))} />
+          {filteredState && <button type="button" className="workspace-clear-filters" onClick={() => { setSearch(''); setSourceId(''); setRegion(''); setProtocol(''); setSourceAvailability(''); setCompatibility('') }}>{t('workspace.proxy.clearFilters')}</button>}
+        </div>
+      </section>
     </div>
     <div className="workspace-table-summary">{t('workspace.proxy.results', { shown: filtered.length, total: proxies.length })}</div>
     {filtered.length === 0
       ? <WorkspaceEmpty icon={<Search size={22} />} title={t('workspace.proxy.noMatches')} />
       : <>
-        <div className="workspace-proxy-table-header" aria-hidden="true"><span>{t('workspace.name')}</span><span>{t('workspace.region')}</span><span>{t('workspace.compatibility')}</span><span>{t('workspace.protocol')}</span><span>{t('workspace.source')}</span><span>{t('workspace.sourceStatus.idle')}</span></div>
-        <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxies')}>
+        <div className="workspace-proxy-table-header" aria-hidden="true"><span>{t('workspace.name')}</span><span>{t('workspace.region')}</span><span>{t('workspace.compatibility')}</span><span>{t('workspace.protocol')}</span><span>{t('workspace.source')}</span><span>{t('workspace.proxy.sourceAvailability')}</span></div>
+        <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.nodeList')}>
           {filtered.map((proxy) => {
           const endpointProjection = targetEndpointProjection(proxy, target, targetProjection)
           const fallbackTargetStatus = !endpointProjection && target && target !== 'surge'
