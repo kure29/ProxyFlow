@@ -1,4 +1,5 @@
-import type { DnsIR, DnsResolverIR } from '../../core/ir'
+import type { DnsIR } from '../../core/ir'
+import { projectDnsOwnership, type SharedDnsResolverIntent } from '../../core/dns/ownership'
 import type { CompatibilityIssue } from '../../types/project'
 import { surgeIssue } from './errors'
 import type { SurgeGeneralEntry } from './model'
@@ -9,7 +10,7 @@ export interface SurgeDnsPlan {
 }
 
 type ParsedResolver = {
-  resolver: DnsResolverIR
+  resolver: SharedDnsResolverIntent
   transport: 'traditional' | 'encrypted'
   value: string
   identity: string
@@ -17,11 +18,15 @@ type ParsedResolver = {
 }
 
 export function planSurgeDns(dns: DnsIR | undefined): SurgeDnsPlan {
-  if (!dns?.enabled || dns.mode === 'automatic') return { general: [], issues: [] }
+  const ownership = projectDnsOwnership(dns)
+  const shared = ownership.shared
+  if (!shared || shared.mode === 'automatic') return { general: [], issues: [] }
 
   const issues: CompatibilityIssue[] = []
-  const resolvers = dns.resolvers ?? []
-  if (resolvers.length === 0) {
+  const rawResolvers = dns?.resolvers ?? []
+  const resolvers = shared.resolvers ?? []
+  const { directResolvers, fallbackResolvers } = ownership.targetSpecific.mihomo
+  if (rawResolvers.length === 0) {
     issues.push(surgeIssue(
       'SURGE_DNS_CUSTOM_EMPTY', 'error', 'dns',
       'Custom DNS mode requires at least one resolver before it can be lowered to Surge.', 'dns',
@@ -30,7 +35,7 @@ export function planSurgeDns(dns: DnsIR | undefined): SurgeDnsPlan {
   }
 
   const resolverIds = new Set<string>()
-  for (const resolver of resolvers) {
+  for (const resolver of rawResolvers) {
     if (resolverIds.has(resolver.id)) issues.push(surgeIssue(
       'SURGE_DNS_RESOLVER_ID_DUPLICATE', 'error', 'dns',
       `DNS resolver id “${resolver.id}” occurs more than once and cannot be lowered deterministically.`, resolver.id,
@@ -38,24 +43,21 @@ export function planSurgeDns(dns: DnsIR | undefined): SurgeDnsPlan {
     resolverIds.add(resolver.id)
   }
 
+  for (const resolver of directResolvers) issues.push(surgeIssue(
+    'SURGE_DNS_DIRECT_RESOLVER_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver “${resolverLabel(resolver)}” is scoped to Direct lookups, but Surge has no exact global dns-server role equivalent.`, resolver.id,
+  ))
+  for (const resolver of fallbackResolvers) issues.push(surgeIssue(
+    'SURGE_DNS_FALLBACK_RESOLVER_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver “${resolverLabel(resolver)}” is scoped as Fallback, but Surge's concurrent global resolver list has no fallback role.`, resolver.id,
+  ))
+  for (const resolver of rawResolvers.filter(hasInvalidRole)) issues.push(surgeIssue(
+    'SURGE_DNS_RESOLVER_ROLE_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver “${resolver.name?.trim() || resolver.id}” has an unsupported resolver role.`, resolver.id,
+  ))
+
   const parsed: ParsedResolver[] = []
   for (const resolver of resolvers) {
-    const role = resolver.role ?? 'default'
-    if (role === 'direct') {
-      issues.push(surgeIssue(
-        'SURGE_DNS_DIRECT_RESOLVER_UNSUPPORTED', 'error', 'dns',
-        `DNS resolver “${resolverLabel(resolver)}” is scoped to Direct lookups, but Surge has no exact global dns-server role equivalent.`, resolver.id,
-      ))
-      continue
-    }
-    if (role === 'fallback') {
-      issues.push(surgeIssue(
-        'SURGE_DNS_FALLBACK_RESOLVER_UNSUPPORTED', 'error', 'dns',
-        `DNS resolver “${resolverLabel(resolver)}” is scoped as Fallback, but Surge's concurrent global resolver list has no fallback role.`, resolver.id,
-      ))
-      continue
-    }
-
     const result = parseResolver(resolver)
     if ('issue' in result) issues.push(result.issue)
     else parsed.push(result)
@@ -95,7 +97,7 @@ export function planSurgeDns(dns: DnsIR | undefined): SurgeDnsPlan {
   }
 }
 
-function parseResolver(resolver: DnsResolverIR): ParsedResolver | { issue: CompatibilityIssue } {
+function parseResolver(resolver: SharedDnsResolverIntent): ParsedResolver | { issue: CompatibilityIssue } {
   if (resolver.kind === 'system') {
     const address = resolver.address?.trim()
     if (address !== undefined && address !== '' && address !== 'system') return invalidAddress(
@@ -158,7 +160,7 @@ function parseResolver(resolver: DnsResolverIR): ParsedResolver | { issue: Compa
   return { resolver, transport: 'encrypted', value: address, identity: `encrypted:${identity}`, requiresSurgeIpv6: false }
 }
 
-function invalidAddress(resolver: DnsResolverIR, message: string) {
+function invalidAddress(resolver: SharedDnsResolverIntent, message: string) {
   return { issue: surgeIssue('SURGE_DNS_RESOLVER_ADDRESS_INVALID', 'error', 'dns', message, resolver.id) }
 }
 
@@ -246,6 +248,11 @@ function isIpv6(value: string) {
   return halves.length === 2 ? count < 8 : count === 8
 }
 
-function resolverLabel(resolver: DnsResolverIR) {
+function resolverLabel(resolver: SharedDnsResolverIntent) {
   return resolver.name?.trim() || resolver.id
+}
+
+function hasInvalidRole(resolver: NonNullable<DnsIR['resolvers']>[number]) {
+  const role = (resolver as { role?: unknown }).role
+  return role !== undefined && role !== 'default' && role !== 'direct' && role !== 'fallback'
 }

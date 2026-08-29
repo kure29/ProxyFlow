@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isMihomoTargetSettingManaged, mergeMihomoTargetSettings, resolveMihomoTargetSettingsDisplay, validateMihomoTargetSettings } from './settings'
+import { isMihomoTargetSettingManaged, mergeMihomoTargetSettings, resolveMihomoEffectiveTargetSettings, resolveMihomoTargetSettingsDisplay, validateMihomoTargetSettings } from './settings'
 
 describe('Mihomo target settings', () => {
   it('keeps omitted fields absent and preserves explicit false', () => {
@@ -26,6 +26,9 @@ describe('Mihomo target settings', () => {
     expect(resolveMihomoTargetSettingsDisplay(undefined, fallback)).toEqual(fallback)
     expect(resolveMihomoTargetSettingsDisplay({ mixedPort: 7999, allowLan: false }, fallback)).toEqual({
       mixedPort: 7999, allowLan: false, ipv6: true,
+    })
+    expect(resolveMihomoEffectiveTargetSettings({ ipv6: false }, fallback)).toEqual({
+      mixedPort: 7890, allowLan: true, ipv6: false,
     })
   })
 

@@ -1,6 +1,10 @@
+import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
 import { demoProject } from '../../data/demoProject'
+import { createBlankProject } from '../../data/newProject'
 import { legacyChinaServiceDefinition } from '../../data/legacyServices'
+import type { MihomoConfig } from '../../targets/mihomo/model'
+import { compileMihomo } from '../../targets/mihomo/compiler'
 import { chinaDirectFixture } from '../__fixtures__/graphFixtures'
 import { compileGraph } from '../graphCompiler/compileGraph'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from './version'
@@ -75,6 +79,51 @@ describe('project schema version', () => {
     delete v1Dns.data.universalDnsMode
     v1Dns.data.dnsResolvers = []
     expect(migrateProject(v1).project?.graph.nodes.find((node) => node.id === v1Dns.id)?.data.universalDnsMode).toBe('automatic')
+  })
+
+  it('loads, normalizes and compiles V2 resolver roles without write-back or ownership loss', () => {
+    const project = createBlankProject('mihomo')
+    const dns = project.graph.nodes.find((node) => node.data.blockType === 'dns')!
+    delete dns.data.universalDnsMode
+    dns.data.dnsResolvers = [
+      { id: 'shared', name: 'Shared', kind: 'doh', role: 'default', address: 'https://dns.example/dns-query', enabled: true },
+      { id: 'direct', name: 'Direct', kind: 'udp', role: 'direct', address: '192.0.2.53', enabled: true },
+      { id: 'fallback', name: 'Fallback', kind: 'dot', role: 'fallback', address: 'tls://fallback.example:853', enabled: true },
+    ]
+    const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
+    output.data.mihomoProfile = { ...output.data.mihomoProfile!, dnsMode: 'fake-ip', ipv6: false }
+    project.targetSettings = { mihomo: { ipv6: true } }
+    const persistedBeforeLoad = structuredClone(project)
+
+    const migration = migrateProject(project)
+    expect(migration).toEqual(expect.objectContaining({ success: true, migrated: true, toVersion: 2 }))
+    expect(project).toEqual(persistedBeforeLoad)
+    expect(project.graph.nodes.find((node) => node.id === dns.id)?.data.universalDnsMode).toBeUndefined()
+
+    const loaded = migration.project!
+    const loadedDns = loaded.graph.nodes.find((node) => node.id === dns.id)!
+    expect(loadedDns.data.universalDnsMode).toBe('custom')
+    expect(loadedDns.data.dnsResolvers).toEqual(persistedBeforeLoad.graph.nodes.find((node) => node.id === dns.id)?.data.dnsResolvers)
+    const loadedBeforeCompile = structuredClone(loaded)
+    const graph = compileGraph(loaded)
+    expect(graph.success, graph.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
+    const loadedOutput = loaded.graph.nodes.find((node) => node.id === output.id)!
+    const compiled = compileMihomo(graph.ir!, {
+      profile: loadedOutput.data.mihomoProfile,
+      targetSettings: loaded.targetSettings,
+    })
+    expect(compiled.success, compiled.issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n')).toBe(true)
+    const config = parse(compiled.content) as MihomoConfig
+    expect(config.ipv6).toBe(true)
+    expect(config.dns).toEqual(expect.objectContaining({
+      ipv6: true,
+      'enhanced-mode': 'fake-ip',
+      'fake-ip-range': '198.18.0.0/16',
+      nameserver: ['https://dns.example/dns-query'],
+      'direct-nameserver': ['192.0.2.53'],
+      fallback: ['tls://fallback.example:853'],
+    }))
+    expect(loaded).toEqual(loadedBeforeCompile)
   })
 
   it.each([

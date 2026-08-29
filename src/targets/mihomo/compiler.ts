@@ -5,11 +5,11 @@ import type { CompileResult, ConfigCompiler, TargetCompileOptions } from '../../
 import { compileMihomoChains } from './chain'
 import { checkMihomoCompatibility } from './compatibility'
 import { createMihomoContext } from './context'
-import { compileMihomoDns } from './dns'
+import { compileMihomoDns, resolveMihomoDnsOwnership } from './dns'
 import { mihomoIssue } from './errors'
 import type { MihomoConfig, MihomoSnifferConfig, MihomoTunConfig } from './model'
 import { validateMihomoOutputProfile } from './profile'
-import { validateMihomoTargetSettings } from './settings'
+import { resolveMihomoEffectiveTargetSettings, validateMihomoTargetSettings } from './settings'
 import { compileMihomoProviders } from './providers'
 import { compileMihomoRules } from './rules'
 import { serializeMihomoConfig } from './serializer'
@@ -54,7 +54,8 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   issues.push(...managedSettings.issues)
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
-  const profile = { ...outputProfile.profile, ...managedSettings.settings }
+  const effectiveSettings = resolveMihomoEffectiveTargetSettings(managedSettings.settings, outputProfile.profile)
+  const profile = { ...outputProfile.profile, ...effectiveSettings }
   const compatibility = checkMihomoCompatibility(ir)
   issues.push(...compatibility.issues)
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
@@ -64,7 +65,11 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   compileMihomoStrategies(context)
   compileMihomoChains(context)
   const rules = compileMihomoRules(context)
-  const dns = compileMihomoDns(ir.dns, profile.dnsMode, profile.ipv6)
+  const dnsOwnership = resolveMihomoDnsOwnership(ir.dns, {
+    dnsMode: profile.dnsMode,
+    ipv6: effectiveSettings.ipv6,
+  })
+  const dns = compileMihomoDns(dnsOwnership)
 
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 
