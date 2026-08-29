@@ -43,6 +43,16 @@ describe('ProjectStorage', () => {
     expect(loaded?.graph.nodes.find((node) => node.data.blockType === 'output')?.data.client).toBe('loon')
   })
 
+  it('round-trips optional target settings without changing the V2 schema', async () => {
+    const storage = new MemoryProjectStorage()
+    const project = createBlankProject('mihomo')
+    project.targetSettings = { mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } }
+    await storage.save(project)
+    const loaded = await storage.load()
+    expect(loaded?.version).toBe(2)
+    expect(loaded?.targetSettings).toEqual(project.targetSettings)
+  })
+
   it('stores independent projects and keeps the selected project active across reloads', async () => {
     const storage = new MemoryProjectStorage()
     const first = createBlankProject('mihomo')

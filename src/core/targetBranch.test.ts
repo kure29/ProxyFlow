@@ -54,4 +54,24 @@ describe('target branch boundary', () => {
     expect(results.map(({ target }) => target)).toEqual(['mihomo', 'sing-box', 'surge', 'loon', 'shadowrocket'])
     expect(results.every(({ result }) => typeof result.success === 'boolean')).toBe(true)
   })
+
+  it('does not apply Mihomo settings to another target branch', async () => {
+    const branch = getTargetBranch('surge')!
+    const baseline = await branch.compile(sharedPolicy('surge'))
+    const isolated = await branch.compile(sharedPolicy('surge'), {
+      targetSettings: { mihomo: { mixedPort: 65535, allowLan: true, ipv6: false } },
+    })
+    expect(isolated.content).toBe(baseline.content)
+  })
+
+  it('carries managed Mihomo settings through the branch into serialized output', async () => {
+    const branch = getTargetBranch('mihomo')!
+    const baseline = await branch.compile(sharedPolicy('mihomo'))
+    const managed = await branch.compile(sharedPolicy('mihomo'), {
+      targetSettings: { mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } },
+    })
+    expect(managed.success).toBe(true)
+    expect(managed.content).toContain('mixed-port: 7999')
+    expect(managed.content).not.toBe(baseline.content)
+  })
 })

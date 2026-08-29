@@ -4,11 +4,13 @@ import type { CustomRuleSource, ServiceDefinition } from './services'
 import type { RegionCode, SupportedProxyProtocol } from '../core/proxy'
 import type { PrimaryTarget } from '../core/capabilities'
 import type { SubscriptionExportMode, SubscriptionRequestProfile } from '../core/subscription/types'
+import type { TargetSettings } from './targetSettings'
 import type { TargetNativeFinalOptionsConfig, TargetNativeRouteOptionsConfig, TargetNativeRuleSetSourceConfig, TargetNativeSourcePortConfig, TargetNativeStrategyConfig, TargetNativeSurgeDnsBehaviorConfig, TargetNativeSurgeGeneralConnectivityConfig, TargetNativeSurgeGeneralNetworkConfig, TargetNativeSurgeGeneralProxyBypassConfig } from '../core/targetNative'
 
 export type { TargetClient, OutputDefinition, MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from './output'
 export type { PrimaryTarget } from '../core/capabilities'
 export type { CustomRuleSource, CustomRuleSourceFormat, ServiceCategory, RuleSource, ServiceDefinition, ServiceMatcherDefinition } from './services'
+export type { MihomoTargetSettings, TargetSettings } from './targetSettings'
 
 export type BlockCategory =
   | 'source'
@@ -197,6 +199,8 @@ export interface ProxyFlowProject {
   }
   services: ServiceDefinition[]
   outputs: OutputDefinition[]
+  /** Optional user-managed settings owned by target branches; never part of Universal IR. */
+  targetSettings?: TargetSettings
   updatedAt: string
 }
 
