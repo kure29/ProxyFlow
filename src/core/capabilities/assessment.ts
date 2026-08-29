@@ -1,25 +1,10 @@
 import type { CompatibilityIssue } from '../../types/project'
 import { deduplicateDiagnostics, type StructuredDiagnostic } from '../compiler/diagnostics'
-import type { TargetCompileOptions } from '../compiler/compilerTypes'
+import { targetRegistry, type TargetCompileOptions } from '../compiler'
 import type { ProxyFlowIR, StrategyIR } from '../ir'
 import { findRuleSource } from '../ir/service'
 import { isUnmodeledProxy } from '../ir/source'
-import { proxyCompatibilityForTarget } from './proxyCompatibility'
 import {
-  isTargetNativeFinalOptionsIR,
-  isTargetNativeFinalRouteIR,
-  isTargetNativeRouteIR,
-  isTargetNativeRouteOptionsIR,
-  isTargetNativeRuleSetSourceIR,
-  isTargetNativeStrategyIR,
-  isTargetNativeSurgeDnsBehaviorIR,
-  isTargetNativeSurgeGeneralConnectivityIR,
-  isTargetNativeSurgeGeneralNetworkIR,
-  isTargetNativeSurgeGeneralProxyBypassIR,
-  targetNativeUnsupportedIssues,
-} from '../targetNative'
-import {
-  getTargetCapabilities,
   type CapabilityDeclaration,
   type DnsCapability,
   type PrimaryTarget,
@@ -106,20 +91,22 @@ export async function assessIntentCapability(
   target: PrimaryTarget,
   options: IntentCapabilityAssessmentOptions = {},
 ): Promise<IntentCapabilityAssessment> {
+  const adapter = targetRegistry.get(target)
+  if (!adapter) return unavailableTargetAssessment(target)
   const observations: CapabilityObservation[] = []
   const add = (observation: Omit<CapabilityObservation, 'target' | 'severity'>) => observations.push({
     ...observation,
     target,
     severity: severityForSupport(observation.support),
   })
-  const capabilities = getTargetCapabilities(target)
+  const capabilities = adapter.capabilities
 
   for (const source of ir.sources) {
     add(exactObservation(`source:${source.kind}`, 'source', source.id, `Source “${source.name}” is available to target assessment.`))
     if (source.kind !== 'manual-proxy' && !(source.kind === 'subscription' && source.proxies)) continue
     for (const proxy of source.proxies ?? []) {
       if (isUnmodeledProxy(proxy)) continue
-      const compatibility = proxyCompatibilityForTarget(proxy, target)
+      const compatibility = adapter.proxyCompatibility(proxy)
       const support = compatibility.status === 'unsupported'
         ? 'unsupported'
         : compatibility.status === 'partial'
@@ -253,11 +240,21 @@ export async function assessIntentCapability(
     }
   }
 
-  addNativeInventory(add, target, options.targetOptions)
+  for (const evidence of adapter.nativeCapabilityEvidence?.(options.targetOptions) ?? []) add({
+    authority: evidence.support === 'native-only' ? 'native' : 'adapter',
+    feature: evidence.feature,
+    support: evidence.support,
+    code: evidence.code,
+    message: evidence.message,
+    entityType: entityTypeForFeature(evidence.feature),
+    entityId: evidence.entityId,
+  })
 
   const adapterIssues = options.compatibilityIssues
     ?? await loadTargetCompatibilityEvidence(ir, target, options.targetOptions)
-  const nativeUnsupported = target === 'surge' ? [] : nativeUnsupportedEvidence(ir, target, options.targetOptions)
+  const nativeUnsupported = adapter.nativeCompatibility
+    ? await adapter.nativeCompatibility(ir, options.targetOptions)
+    : []
   for (const issue of deduplicateDiagnostics([...adapterIssues, ...nativeUnsupported])) {
     if (issue.target !== target || issue.severity === 'info' || issue.feature === 'ir' || issue.code.startsWith('IR_')) continue
     const support: SupportLevel = issue.severity === 'error' ? 'unsupported' : 'degraded'
@@ -282,6 +279,26 @@ export async function assessIntentCapability(
     degradedCount: counts.degraded,
     unsupportedCount: counts.unsupported,
     nativeOnlyCount: counts['native-only'],
+  }
+}
+
+function unavailableTargetAssessment(target: PrimaryTarget): IntentCapabilityAssessment {
+  const diagnostic: IntentCapabilityDiagnostic = {
+    target,
+    feature: 'target-adapter',
+    support: 'unsupported',
+    code: 'TARGET_ADAPTER_UNAVAILABLE',
+    severity: 'error',
+    message: `No target adapter is registered for ${String(target)}.`,
+  }
+  return {
+    target,
+    support: 'unsupported',
+    diagnostics: [diagnostic],
+    exactCount: 0,
+    degradedCount: 0,
+    unsupportedCount: 1,
+    nativeOnlyCount: 0,
   }
 }
 
@@ -351,124 +368,30 @@ function remoteUsagePath(sourceId: string, consumerId: string, operations: reado
   return [`source:${sourceId}`, ...operations.map((operation) => `transform:${operation.id}`), `consumer:${consumerId}`].join('>')
 }
 
-function addNativeInventory(
-  add: (observation: Omit<CapabilityObservation, 'target' | 'severity'>) => void,
-  target: PrimaryTarget,
-  options?: TargetCompileOptions,
-) {
-  if (target !== 'surge' || !options) return
-  const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
-  const nativeRuleSets = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
-  const routeOptions = options.targetNativeRouteOptions ?? options.nativeRouteOptions ?? []
-  const nativeOnly = (feature: string, entityType: CapabilityEntityType, entityId: string | undefined, message: string, valid = true) => add({
-    authority: valid ? 'native' : 'adapter',
-    feature,
-    support: valid ? 'native-only' : 'unsupported',
-    code: valid ? 'CAPABILITY_NATIVE_ONLY' : 'CAPABILITY_NATIVE_INVALID',
-    message: valid ? message : `${message} The target-native runtime record is invalid.`,
-    entityType,
-    entityId,
-  })
-  for (const strategy of nativeStrategies) {
-    const record = recordFields(strategy)
-    nativeOnly(
-      `target-native-strategy:${typeof record.kind === 'string' ? record.kind : 'unknown'}`,
-      'strategy',
-      stringField(record.id),
-        typeof record.name === 'string'
-          ? `Strategy “${record.name}” is intentionally owned by the Surge native extension boundary.`
-          : 'A strategy is intentionally owned by the Surge native extension boundary.',
-      isTargetNativeStrategyIR(strategy),
-    )
-  }
-  for (const route of options.nativeRoutes ?? []) {
-    const record = recordFields(route)
-    nativeOnly('target-native-route', 'route', stringField(record.id), typeof record.name === 'string' ? `Route “${record.name}” is intentionally Surge-native.` : 'A route is intentionally Surge-native.', isTargetNativeRouteIR(route))
-  }
-  if (options.nativeFinalRoute) {
-    const record = recordFields(options.nativeFinalRoute)
-    nativeOnly('target-native-final-route', 'route', stringField(record.id), typeof record.name === 'string' ? `Final route “${record.name}” is intentionally Surge-native.` : 'A Final route is intentionally Surge-native.', isTargetNativeFinalRouteIR(options.nativeFinalRoute))
-  }
-  for (const source of nativeRuleSets) {
-    const record = recordFields(source)
-    nativeOnly('target-native-rule-set', 'source', stringField(record.sourceId), typeof record.name === 'string' ? `Rule source “${record.name}” is intentionally Surge-native.` : 'A rule source is intentionally Surge-native.', isTargetNativeRuleSetSourceIR(source))
-  }
-  if (options.targetNativeFinalOptions) nativeOnly('target-native-final-options', 'route', stringField(recordFields(options.targetNativeFinalOptions).finalNodeId), 'Final options are intentionally Surge-native.', isTargetNativeFinalOptionsIR(options.targetNativeFinalOptions))
-  for (const route of routeOptions) nativeOnly('target-native-route-options', 'route', stringField(recordFields(route).routeId), 'Route options are intentionally Surge-native.', isTargetNativeRouteOptionsIR(route))
-  if (options.targetNativeSurgeGeneralNetwork) nativeOnly('target-native-general-network', 'output', stringField(recordFields(options.targetNativeSurgeGeneralNetwork).outputNodeId), 'General Network settings are intentionally Surge-native.', isTargetNativeSurgeGeneralNetworkIR(options.targetNativeSurgeGeneralNetwork))
-  if (options.targetNativeSurgeGeneralConnectivity) nativeOnly('target-native-general-connectivity', 'output', stringField(recordFields(options.targetNativeSurgeGeneralConnectivity).outputNodeId), 'General Connectivity settings are intentionally Surge-native.', isTargetNativeSurgeGeneralConnectivityIR(options.targetNativeSurgeGeneralConnectivity))
-  if (options.targetNativeSurgeGeneralProxyBypass) nativeOnly('target-native-proxy-bypass', 'output', stringField(recordFields(options.targetNativeSurgeGeneralProxyBypass).outputNodeId), 'Proxy Bypass settings are intentionally Surge-native.', isTargetNativeSurgeGeneralProxyBypassIR(options.targetNativeSurgeGeneralProxyBypass))
-  if (options.targetNativeSurgeDnsBehavior) nativeOnly('target-native-dns-behavior', 'dns', stringField(recordFields(options.targetNativeSurgeDnsBehavior).dnsNodeId), 'DNS behavior is intentionally Surge-native.', isTargetNativeSurgeDnsBehaviorIR(options.targetNativeSurgeDnsBehavior))
-}
-
-function recordFields(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
-}
-
-function stringField(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value : undefined
-}
-
 async function loadTargetCompatibilityEvidence(
   ir: ProxyFlowIR,
   target: PrimaryTarget,
   options: TargetCompileOptions = {},
 ): Promise<CompatibilityIssue[]> {
-  switch (target) {
-    case 'mihomo': {
-      const { checkMihomoCompatibility } = await import('../../targets/mihomo/compatibility')
-      return checkMihomoCompatibility(ir).issues
-    }
-    case 'sing-box': {
-      const { checkSingBoxCompatibility } = await import('../../targets/singbox/compatibility')
-      return checkSingBoxCompatibility(ir).issues
-    }
-    case 'surge': {
-      const { checkSurgeCompatibility } = await import('../../targets/surge/compatibility')
-      return checkSurgeCompatibility(
-        ir,
-        undefined,
-        options.targetNativeStrategies ?? options.nativeStrategies ?? [],
-        options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? [],
-        options.nativeRoutes ?? [],
-        options.nativeFinalRoute,
-        options.targetNativeFinalOptions,
-        options.targetNativeRouteOptions ?? options.nativeRouteOptions ?? [],
-        options.effectiveFinalNodeId,
-      ).issues
-    }
-    case 'loon': {
-      const { checkLoonCompatibility } = await import('../../targets/loon/compatibility')
-      return checkLoonCompatibility(ir).issues
-    }
-    case 'shadowrocket': {
-      const { checkShadowrocketCompatibility } = await import('../../targets/shadowrocket/compatibility')
-      return checkShadowrocketCompatibility(ir).issues
-    }
-  }
-}
-
-function nativeUnsupportedEvidence(
-  ir: ProxyFlowIR,
-  target: PrimaryTarget,
-  options: TargetCompileOptions = {},
-) {
-  return targetNativeUnsupportedIssues(
+  const adapter = targetRegistry.get(target)
+  if (!adapter) return [{
     target,
-    options.targetNativeStrategies ?? options.nativeStrategies ?? [],
-    options.nativeRoutes ?? [],
-    options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? [],
-    options.targetNativeFinalOptions,
-    options.targetNativeRouteOptions ?? options.nativeRouteOptions ?? [],
-    options.nativeFinalRoute,
-    options.targetNativeSurgeGeneralNetwork,
-    options.outputNodeId,
-    ir.outputs,
-    options.targetNativeSurgeGeneralConnectivity,
-    options.targetNativeSurgeDnsBehavior,
-    options.effectiveDnsNodeId,
-    options.targetNativeSurgeGeneralProxyBypass,
-  )
+    code: 'TARGET_ADAPTER_UNAVAILABLE',
+    severity: 'error',
+    feature: 'target-adapter',
+    message: `No target adapter is registered for ${String(target)}.`,
+  }]
+  try {
+    return await adapter.compatibility(ir, options)
+  } catch (error) {
+    return [{
+      target,
+      code: 'TARGET_COMPATIBILITY_PROVIDER_FAILED',
+      severity: 'error',
+      feature: 'target-adapter',
+      message: error instanceof Error ? error.message : `Target compatibility assessment failed for ${String(target)}.`,
+    }]
+  }
 }
 
 function entityTypeForFeature(feature: string): CapabilityEntityType | undefined {

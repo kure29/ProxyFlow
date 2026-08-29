@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { validateIR } from '../semanticValidation'
 import type { ProxyFlowIR, ResolvedProxyEndpointIR, StrategyIR } from '../ir'
 import type { CompatibilityIssue } from '../../types/project'
 import type { TargetNativeStrategyIR } from '../targetNative'
 import { assessIntentCapability } from './assessment'
+import { targetRegistry } from '../compiler'
 
 const httpProxy = (id = 'proxy-a'): ResolvedProxyEndpointIR => ({
   kind: 'http', protocol: 'http', id, name: `Proxy ${id}`, server: `${id}.example.com`, port: 8080,
@@ -50,6 +51,19 @@ function remoteIR(
 }
 
 describe('intent capability assessment', () => {
+  it('obtains compatibility evidence through the registered target adapter', async () => {
+    const adapter = targetRegistry.get('mihomo')!
+    const original = adapter.compatibility
+    const delegated = vi.fn((...args: Parameters<typeof original>) => original(...args))
+    adapter.compatibility = delegated
+    try {
+      await assessIntentCapability(portableIR(), 'mihomo')
+    } finally {
+      adapter.compatibility = original
+    }
+    expect(delegated).toHaveBeenCalledTimes(1)
+  })
+
   it('reports portable source, transform, strategy, and route intent as exact', async () => {
     const result = await assessIntentCapability(portableIR(), 'mihomo')
 
