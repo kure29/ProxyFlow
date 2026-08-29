@@ -158,6 +158,11 @@ export class TargetRegistry {
     return this.get(target) !== undefined
   }
 
+  /** Snapshot registered adapters without exposing the registry's mutable map. */
+  list(): TargetAdapter[] {
+    return [...this.adapters.values()]
+  }
+
   getLoaded(target: TargetClient) {
     return isPrimaryTarget(target) ? this.compilers.get(target) : undefined
   }

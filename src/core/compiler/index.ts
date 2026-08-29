@@ -89,3 +89,4 @@ registerTarget('shadowrocket', async (ir) => {
 
 export * from './compilerTypes'
 export * from './diagnostics'
+export { getTargetBranch, listTargetBranches, type TargetBranch } from '../targetBranch'
