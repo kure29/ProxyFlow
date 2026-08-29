@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Boxes, ChevronDown, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
-  Radio, RefreshCw, Route, SearchCheck, ShieldCheck,
+  Boxes, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
+  Radio, RefreshCw, Route, SearchCheck, Server,
 } from 'lucide-react'
 import {
   createWorkspaceProjection, orderWorkspaceProcessingNodes, processingMoveAvailability,
@@ -18,7 +18,7 @@ import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
 import { mergeProjectHealthDiagnostics, summarizeDiagnosticCounts } from '../compiler/diagnosticPresentation'
-import { stateForTarget, TargetSwitchDialog, WorkspaceExportPanel } from './WorkspaceTargets'
+import { stateForTarget, WorkspaceExportPanel } from './WorkspaceTargets'
 import {
   processingCreationOptions, strategyCreationOptions,
 } from './workspaceCreation'
@@ -34,7 +34,6 @@ import {
 import type { ProjectListItem } from '../../storage/projectStorage'
 import { shouldDismissWorkspaceEditor } from './workspaceEditorLifecycle'
 import { isNodeSection, resolveNodeSection } from './mobileWorkspaceNavigationModel'
-import { productNavigationGroups, productNavigationGroupFor } from './productNavigationModel'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
   onViewChange: (view: ProductView) => void
@@ -58,8 +57,6 @@ const navigation = [
   { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced', description: 'workspace.description.dns' },
   { id: 'export', icon: FileOutput, label: 'workspace.output', description: 'workspace.description.output' },
 ] as const
-
-const navigationItemById = new Map(navigation.map((item) => [item.id, item]))
 
 export function WorkspaceShell({
   activeSection, onSectionChange, onViewChange, primaryHealth, lastNodeSection, projects,
@@ -89,8 +86,7 @@ export function WorkspaceShell({
   const refreshingCount = useBuilderStore((state) => Object.values(state.subscriptionRuntimes).filter((runtime) => runtime.refreshStatus === 'loading').length)
   const [editorOpen, setEditorOpen] = useState(false)
   const previousSectionRef = useRef(activeSection)
-  const [targetDialogOpen, setTargetDialogOpen] = useState(false)
-  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || activeSection === 'strategies' || targetDialogOpen)
+  const targetCompiles = useProjectCompiles(activeSection === 'export' || activeSection === 'inspect' || activeSection === 'strategies')
   const activeProductTarget = resolveActiveProductTarget(primaryTarget)
 
   const project = useMemo(() => toProject(), [edges, nodes, primaryTarget, projectId, projectName, toProject])
@@ -132,29 +128,19 @@ export function WorkspaceShell({
     export: projection.outputs.length,
   }
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
-  const activeNavigation = navigation.find((item) => item.id === activeSection)!
-  const groupedNavigation = productNavigationGroups.map((group) => ({
-    ...group,
-    items: group.sections.map((section) => navigationItemById.get(section)!).filter(Boolean),
-  }))
-  const renderNavigationItem = (item: typeof navigation[number], nested = false) => {
-    const active = activeSection === item.id
-    const group = productNavigationGroupFor(item.id)
-    const Icon = item.icon
-    return <button
-      type="button"
-      className={`${nested ? 'workspace-navigation-child ' : ''}${active ? 'is-active' : ''}`}
-      key={item.id}
-      data-navigation-group={group ?? undefined}
-      onClick={() => onSectionChange(item.id)}
-      aria-current={active ? 'page' : undefined}
-    >
-      <Icon size={17} /><span>{t(item.label)}</span>{counts[item.id] !== undefined && <small>{counts[item.id]}</small>}
-    </button>
-  }
-  const nodeNavigation = groupedNavigation[0]
-  const nodeEntries = nodeNavigation.items.filter(({ id }) => isNodeSection(id))
-  const policyEntries = nodeNavigation.items.filter(({ id }) => !isNodeSection(id))
+  const activeNavigation = navigation.find((item) => item.id === activeSection) ?? navigation[0]
+  const isNodesActive = isNodeSection(activeSection)
+  const nodeCount = projection.proxies.length
+  const primaryNavigation = [
+    { id: 'nodes', section: 'proxies', icon: Server, label: 'workspace.nodes', count: nodeCount },
+    { id: 'strategies', section: 'strategies', icon: GitBranch, label: 'workspace.strategies', count: counts.strategies },
+    { id: 'routing', section: 'routing', icon: Route, label: 'workspace.routing', count: counts.routing },
+    { id: 'output', section: 'export', icon: FileOutput, label: 'workspace.output', count: counts.export },
+  ] as const
+  const auxiliaryNavigation = [
+    { id: 'inspect', section: 'inspect', icon: SearchCheck, label: 'workspace.inspect', count: counts.inspect },
+    { id: 'advanced', section: 'dns', icon: Globe2, label: 'workspace.advanced', count: undefined },
+  ] as const
 
   const editInWorkspace = (item: WorkspaceNodeItem) => {
     selectNode(item.node.id)
@@ -188,37 +174,23 @@ export function WorkspaceShell({
     closeEditor()
     onSectionChange(section)
   }, [closeEditor, onSectionChange])
-  const closeTargetDialog = useCallback(() => setTargetDialogOpen(false), [])
-  const selectTarget = useCallback((target: NonNullable<typeof primaryTarget>) => {
-    setPrimaryTarget(target)
-    setTargetDialogOpen(false)
-  }, [setPrimaryTarget])
 
   return <div className="structured-workspace">
     <nav className="workspace-navigation" aria-label={t('workspace.navigation')}>
-      <button type="button" className="workspace-target-summary" onClick={() => setTargetDialogOpen(true)}><ShieldCheck size={17} /><span><small>{t('workspace.primaryTarget')}</small><strong>{targetLabel}</strong></span><ChevronDown size={14} /></button>
       <div className="workspace-navigation-items">
-        {renderNavigationItem(navigation[0])}
-        <section className="workspace-navigation-group" aria-labelledby="workspace-navigation-shared-policy">
-          <h2 id="workspace-navigation-shared-policy">{t('workspace.sharedPolicy')}</h2>
-          <button
-            type="button"
-            className={`workspace-navigation-group-link${isNodeSection(activeSection) ? ' is-active' : ''}`}
-            onClick={() => onSectionChange(resolveNodeSection(activeSection, lastNodeSection))}
-            aria-label={t('workspace.openNodes')}
-            aria-expanded={isNodeSection(activeSection)}
-          >
-            <Boxes size={17} /><span>{t('workspace.nodes')}</span><small>{projection.sources.length + projection.proxies.length}</small>
+        {primaryNavigation.map(({ id, section, icon: Icon, label, count }) => {
+          const active = id === 'nodes' ? isNodesActive : activeSection === section
+          return <button type="button" className={active ? 'is-active' : ''} key={id} aria-current={active ? 'page' : undefined} onClick={() => onSectionChange(id === 'nodes' ? resolveNodeSection(activeSection, lastNodeSection) : section)}>
+            <Icon size={18} /><span>{t(label)}</span>{count !== undefined && <small>{count}</small>}
           </button>
-          <div className="workspace-navigation-children">
-            {nodeEntries.map((item) => renderNavigationItem(item, true))}
-          </div>
-          {policyEntries.map((item) => renderNavigationItem(item))}
-        </section>
-        {groupedNavigation.slice(1).map((group) => <section className={`workspace-navigation-group workspace-navigation-group--${group.id}`} aria-labelledby={`workspace-navigation-${group.id}`} key={group.id}>
-          <h2 id={`workspace-navigation-${group.id}`}>{t(group.id === 'client-output' ? 'workspace.clientOutput' : 'workspace.reviewAdvanced')}</h2>
-          {group.items.map((item) => renderNavigationItem(item))}
-        </section>)}
+        })}
+        <div className="workspace-navigation-divider" aria-hidden="true" />
+        {auxiliaryNavigation.map(({ id, section, icon: Icon, label, count }) => {
+          const active = activeSection === section
+          return <button type="button" className={active ? 'is-active' : ''} key={id} aria-current={active ? 'page' : undefined} onClick={() => onSectionChange(section)}>
+            <Icon size={18} /><span>{t(label)}</span>{count !== undefined && count > 0 && <small>{count}</small>}
+          </button>
+        })}
       </div>
       <MobileWorkspaceNavigation
         activeSection={activeSection}
@@ -238,13 +210,28 @@ export function WorkspaceShell({
 
     <main id="workspace-main" className="workspace-content" tabIndex={-1}>
       <header className="workspace-content-header">
-        <div><h1>{t(activeNavigation.label)}</h1><p>{t(activeNavigation.description)}</p><button type="button" className="workspace-target-context" onClick={() => setTargetDialogOpen(true)}>{t('workspace.targetContext', { target: targetLabel })}<ChevronDown size={12} /></button></div>
+        <div><h1>{isNodesActive ? t('workspace.nodes') : t(activeNavigation.label)}</h1>{!isNodesActive && <p>{t(activeNavigation.description)}</p>}</div>
         {activeSection === 'sources' && <div><button className="secondary-action" disabled={refreshableCount === 0 || refreshingCount > 0} onClick={() => void refreshAllSubscriptions()}><RefreshCw className={refreshingCount > 0 ? 'spin' : ''} size={15} />{t('workspace.refreshAll')}</button><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
         {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(activeProductTarget)} onCreate={addNode} />}
       </header>
 
-      <section className="workspace-section-body" data-section={activeSection}>
+      {isNodesActive && <nav className="workspace-node-tabs" aria-label={t('workspace.nodes')} role="tablist">
+        {(['proxies', 'sources', 'processing'] as const).map((section) => <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === section}
+          aria-controls={`workspace-panel-${section}`}
+          className={activeSection === section ? 'is-active' : ''}
+          key={section}
+          onClick={() => onSectionChange(section)}
+        >
+          <span>{t(`workspace.${section}`)}</span>
+          <small>{counts[section]}</small>
+        </button>)}
+      </nav>}
+
+      <section id={isNodesActive ? `workspace-panel-${activeSection}` : undefined} className="workspace-section-body" data-section={activeSection} role={isNodesActive ? 'tabpanel' : undefined}>
         {activeSection === 'overview' && <ProjectOverview
           projectName={localizeProjectName(projectName, locale)}
           projectId={projectId}
@@ -261,7 +248,7 @@ export function WorkspaceShell({
           onAddStrategy={() => {
             const option = strategyCreationOptions(activeProductTarget).find(({ disabled }) => !disabled)
             if (option) addNode(option.blockType, option.data)
-            else setTargetDialogOpen(true)
+            else onSectionChange('export')
           }}
           onNewProject={onNewProject}
           onSwitchProject={onSwitchProject}
@@ -349,7 +336,6 @@ export function WorkspaceShell({
       </section>
     </main>
     <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} onOpenWorkspaceSection={openSectionFromEditor} />
-    <TargetSwitchDialog open={targetDialogOpen} current={primaryTarget} compiles={targetCompiles} onClose={closeTargetDialog} onSelect={selectTarget} />
   </div>
 }
 

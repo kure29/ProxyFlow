@@ -15,14 +15,18 @@ describe('product navigation model', () => {
     expect(productNavigationReducer(initial, { type: 'open-section', section: 'inspect' }).lastNodeSection).toBe('sources')
   })
 
-  it('keeps the simplified IA as UI-only groupings over existing sections', () => {
+  it('keeps the final IA as UI-only groupings over existing sections', () => {
     expect(productNavigationGroups).toEqual([
-      { id: 'shared-policy', sections: ['sources', 'proxies', 'processing', 'strategies', 'routing'] },
-      { id: 'client-output', sections: ['export'] },
-      { id: 'review-advanced', sections: ['inspect', 'dns'] },
+      { id: 'nodes', sections: ['sources', 'proxies', 'processing'] },
+      { id: 'strategies', sections: ['strategies'] },
+      { id: 'routing', sections: ['routing'] },
+      { id: 'output', sections: ['export'] },
+      { id: 'diagnostics', sections: ['inspect'] },
+      { id: 'advanced', sections: ['dns'] },
     ])
-    expect(productNavigationGroupFor('strategies')).toBe('shared-policy')
-    expect(productNavigationGroupFor('export')).toBe('client-output')
+    expect(productNavigationGroupFor('proxies')).toBe('nodes')
+    expect(productNavigationGroupFor('strategies')).toBe('strategies')
+    expect(productNavigationGroupFor('export')).toBe('output')
     expect(productNavigationGroupFor('overview')).toBeNull()
   })
 })

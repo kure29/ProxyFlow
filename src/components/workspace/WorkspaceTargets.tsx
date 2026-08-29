@@ -154,21 +154,6 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onSelectTarget, 
 
   return <div className="workspace-export-page">
     {pausedTarget && <div className="workspace-target-paused" role="status"><AlertTriangle size={20} /><div><strong>{t('workspace.targetPausedTitle', { target: getTargetCapabilities(primaryTarget).label })}</strong><p>{t('workspace.targetPausedDescription')}</p></div>{onSelectTarget && <button type="button" className="primary-action" onClick={() => onSelectTarget('mihomo')}>{t('workspace.useTarget', { target: getTargetCapabilities('mihomo').label })}</button>}</div>}
-    <div className="workspace-output-boundary">
-      <div className="workspace-output-boundary-copy">
-        <span>{t('workspace.export.boundaryLabel')}</span>
-        <p>{t('workspace.export.boundaryDescription')}</p>
-      </div>
-      <nav className="workspace-output-flow" aria-label={t('workspace.export.flowLabel')}>
-        <span><b>1</b>{t('workspace.export.stepTarget')}</span>
-        <i aria-hidden="true">→</i>
-        <span><b>2</b>{t('workspace.export.stepCompatibility')}</span>
-        <i aria-hidden="true">→</i>
-        <span><b>3</b>{t('workspace.export.stepSettings')}</span>
-        <i aria-hidden="true">→</i>
-        <span><b>4</b>{t('workspace.export.stepExport')}</span>
-      </nav>
-    </div>
     <div className={`workspace-export-layout${settingsOpen && hasTargetSettings ? ' is-settings-open' : ''}`}>
       <aside className="workspace-export-sidebar" aria-labelledby="export-target-title">
         <header><h2 id="export-target-title">{t('workspace.export.targetsHeading')}</h2><p>{t('workspace.export.targetsDescription')}</p></header>

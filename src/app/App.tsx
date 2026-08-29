@@ -195,7 +195,7 @@ export function App() {
     hydrate(null)
     setProjectCreationRequired(true)
     setNewProjectOpen(true)
-    dispatchNavigation({ type: 'open-section', section: 'overview' })
+    dispatchNavigation({ type: 'open-section', section: 'proxies' })
   }
 
   const completeProjectFlow = () => {
@@ -203,7 +203,7 @@ export function App() {
     setNewProjectOpen(false)
     setProjectCreationRequired(false)
     pauseStorage(false)
-    dispatchNavigation({ type: 'open-section', section: 'overview' })
+    dispatchNavigation({ type: 'open-section', section: 'proxies' })
     void persistProject(project).then(() => setSaveStatus('saved'))
   }
 
@@ -213,6 +213,11 @@ export function App() {
       view={view}
       onViewChange={(nextView) => dispatchNavigation({ type: 'set-view', view: nextView })}
       onOpenWorkspaceSection={openWorkspaceSection}
+      projects={projects}
+      onNewProject={() => setNewProjectOpen(true)}
+      onSwitchProject={switchProject}
+      onRenameProject={renameStoredProject}
+      onDeleteProject={deleteProject}
       primaryHealth={primaryHealth}
     />
     {view === 'workspace'

@@ -8,9 +8,12 @@ import { isNodeSection } from './mobileWorkspaceNavigationModel'
  * persisted project/navigation model.
  */
 export const productNavigationGroups = [
-  { id: 'shared-policy', sections: ['sources', 'proxies', 'processing', 'strategies', 'routing'] as const },
-  { id: 'client-output', sections: ['export'] as const },
-  { id: 'review-advanced', sections: ['inspect', 'dns'] as const },
+  { id: 'nodes', sections: ['sources', 'proxies', 'processing'] as const },
+  { id: 'strategies', sections: ['strategies'] as const },
+  { id: 'routing', sections: ['routing'] as const },
+  { id: 'output', sections: ['export'] as const },
+  { id: 'diagnostics', sections: ['inspect'] as const },
+  { id: 'advanced', sections: ['dns'] as const },
 ] as const
 
 export type ProductNavigationGroupId = typeof productNavigationGroups[number]['id']
@@ -31,7 +34,9 @@ export type ProductNavigationAction =
 
 export const initialProductNavigationState: ProductNavigationState = {
   view: 'workspace',
-  workspaceSection: 'overview',
+  // A project opens in its existing Nodes context. Overview remains a
+  // compatibility route, but is no longer a primary product entry point.
+  workspaceSection: 'proxies',
   lastNodeSection: 'proxies',
 }
 

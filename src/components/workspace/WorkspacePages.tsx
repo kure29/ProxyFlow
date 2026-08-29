@@ -140,8 +140,10 @@ export function ProxiesWorkspace({ proxies, target, targetProjection }: {
     <div className="workspace-table-summary">{t('workspace.proxy.results', { shown: filtered.length, total: proxies.length })}</div>
     {filtered.length === 0
       ? <WorkspaceEmpty icon={<Search size={22} />} title={t('workspace.proxy.noMatches')} />
-      : <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxies')}>
-        {filtered.map((proxy) => {
+      : <>
+        <div className="workspace-proxy-table-header" aria-hidden="true"><span>{t('workspace.name')}</span><span>{t('workspace.region')}</span><span>{t('workspace.compatibility')}</span><span>{t('workspace.protocol')}</span><span>{t('workspace.source')}</span><span>{t('workspace.sourceStatus.idle')}</span></div>
+        <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxies')}>
+          {filtered.map((proxy) => {
           const endpointProjection = targetEndpointProjection(proxy, target, targetProjection)
           const fallbackTargetStatus = !endpointProjection && target && target !== 'surge'
             ? staticTargetStatus(proxy.compatibility)
@@ -156,8 +158,9 @@ export function ProxiesWorkspace({ proxies, target, targetProjection }: {
           </div>
           <footer><code>{proxy.protocol}</code><span title={proxy.sourceName}>{proxy.sourceName}</span><SourceStatus status={proxy.sourceAvailability} label={t(sourceStatusMessages[proxy.sourceAvailability])} /></footer>
         </article>
-        })}
-      </div>}
+          })}
+        </div>
+      </>}
   </div>
 }
 
