@@ -141,6 +141,28 @@ describe('MihomoCompiler', () => {
     expect(config['mixed-port']).not.toBe(baseline['mixed-port'])
   })
 
+  it.each([
+    ['managed true over legacy false', false, true, true],
+    ['managed false over legacy true', true, false, false],
+    ['missing managed value falls back to legacy profile', false, undefined, false],
+    ['missing managed and legacy profile uses the normalized default', undefined, undefined, true],
+  ] as const)('resolves Mihomo IPv6 ownership: %s', (_label, legacyIpv6, managedIpv6, expected) => {
+    const ir = baseIR()
+    ir.dns = { enabled: true, mode: 'automatic' }
+    const profile = legacyIpv6 === undefined
+      ? undefined
+      : { ...createMihomoOutputProfile(), ipv6: legacyIpv6 }
+    const result = compileMihomo(ir, {
+      now: fixedNow,
+      profile,
+      ...(managedIpv6 === undefined ? {} : { targetSettings: { mihomo: { ipv6: managedIpv6 } } }),
+    })
+    expect(result.success).toBe(true)
+    const config = parse(result.content) as MihomoConfig
+    expect(config.ipv6).toBe(expected)
+    expect(config.dns?.ipv6).toBe(expected)
+  })
+
   it('fails closed for malformed managed Mihomo settings', () => {
     const result = compileMihomo(baseIR(), {
       now: fixedNow,

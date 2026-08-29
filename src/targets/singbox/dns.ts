@@ -1,11 +1,13 @@
 import type { DnsIR } from '../../core/ir'
+import { projectDnsOwnership } from '../../core/dns/ownership'
 import type { SingBoxCompileContext } from './context'
 import { singBoxIssue } from './errors'
 import type { SingBoxConfig, SingBoxDnsServer } from './model'
 
 export function compileSingBoxDns(dns: DnsIR | undefined, context: SingBoxCompileContext): SingBoxConfig['dns'] | undefined {
-  if (!dns?.enabled) return undefined
-  const resolvers = dns.resolvers ?? []
+  const shared = projectDnsOwnership(dns).shared
+  if (!shared) return undefined
+  const resolvers = shared.resolvers ?? []
   if (resolvers.length === 0) {
     const tag = context.names.allocate('local-dns', 'local-dns')
     context.dnsTag = tag

@@ -1,4 +1,5 @@
-import type { DnsIR, DnsResolverIR } from '../../core/ir'
+import type { DnsIR } from '../../core/ir'
+import { projectDnsOwnership, type SharedDnsResolverIntent } from '../../core/dns/ownership'
 import type { CompatibilityIssue } from '../../types/project'
 import { loonIssue } from './errors'
 import type { LoonGeneralEntry } from './model'
@@ -9,18 +10,22 @@ export interface LoonDnsPlan {
 }
 
 type ParsedResolver = {
-  resolver: DnsResolverIR
+  resolver: SharedDnsResolverIntent
   transport: 'traditional' | 'doh'
   value: string
   identity: string
 }
 
 export function planLoonDns(dns: DnsIR | undefined): LoonDnsPlan {
-  if (!dns?.enabled || dns.mode === 'automatic') return { general: [], issues: [] }
+  const ownership = projectDnsOwnership(dns)
+  const shared = ownership.shared
+  if (!shared || shared.mode === 'automatic') return { general: [], issues: [] }
 
   const issues: CompatibilityIssue[] = []
-  const resolvers = dns.resolvers ?? []
-  if (resolvers.length === 0) {
+  const rawResolvers = dns?.resolvers ?? []
+  const resolvers = shared.resolvers ?? []
+  const { directResolvers, fallbackResolvers } = ownership.targetSpecific.mihomo
+  if (rawResolvers.length === 0) {
     issues.push(loonIssue(
       'LOON_DNS_CUSTOM_EMPTY', 'error', 'dns',
       'Custom DNS mode requires at least one resolver before it can be lowered to Loon.', 'dns',
@@ -29,7 +34,7 @@ export function planLoonDns(dns: DnsIR | undefined): LoonDnsPlan {
   }
 
   const resolverIds = new Set<string>()
-  for (const resolver of resolvers) {
+  for (const resolver of rawResolvers) {
     if (resolverIds.has(resolver.id)) issues.push(loonIssue(
       'LOON_DNS_RESOLVER_ID_DUPLICATE', 'error', 'dns',
       `DNS resolver id "${resolver.id}" occurs more than once and cannot be lowered deterministically.`, resolver.id,
@@ -37,31 +42,21 @@ export function planLoonDns(dns: DnsIR | undefined): LoonDnsPlan {
     resolverIds.add(resolver.id)
   }
 
+  for (const resolver of directResolvers) issues.push(loonIssue(
+    'LOON_DNS_DIRECT_RESOLVER_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver "${resolverLabel(resolver)}" is scoped to Direct lookups, but Loon's audited global DNS keys do not preserve that role.`, resolver.id,
+  ))
+  for (const resolver of fallbackResolvers) issues.push(loonIssue(
+    'LOON_DNS_FALLBACK_RESOLVER_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver "${resolverLabel(resolver)}" is scoped as Fallback, but Loon's audited global DNS keys do not preserve that role.`, resolver.id,
+  ))
+  for (const resolver of rawResolvers.filter(hasInvalidRole)) issues.push(loonIssue(
+    'LOON_DNS_RESOLVER_ROLE_UNSUPPORTED', 'error', 'dns',
+    `DNS resolver "${resolver.name?.trim() || resolver.id}" has an unsupported resolver role.`, resolver.id,
+  ))
+
   const parsed: ParsedResolver[] = []
   for (const resolver of resolvers) {
-    const role = resolver.role ?? 'default'
-    if (role === 'direct') {
-      issues.push(loonIssue(
-        'LOON_DNS_DIRECT_RESOLVER_UNSUPPORTED', 'error', 'dns',
-        `DNS resolver "${resolverLabel(resolver)}" is scoped to Direct lookups, but Loon's audited global DNS keys do not preserve that role.`, resolver.id,
-      ))
-      continue
-    }
-    if (role === 'fallback') {
-      issues.push(loonIssue(
-        'LOON_DNS_FALLBACK_RESOLVER_UNSUPPORTED', 'error', 'dns',
-        `DNS resolver "${resolverLabel(resolver)}" is scoped as Fallback, but Loon's audited global DNS keys do not preserve that role.`, resolver.id,
-      ))
-      continue
-    }
-    if (role !== 'default') {
-      issues.push(loonIssue(
-        'LOON_DNS_RESOLVER_ROLE_UNSUPPORTED', 'error', 'dns',
-        `DNS resolver "${resolverLabel(resolver)}" has an unsupported resolver role.`, resolver.id,
-      ))
-      continue
-    }
-
     const result = parseResolver(resolver)
     if ('issue' in result) issues.push(result.issue)
     else parsed.push(result)
@@ -94,7 +89,7 @@ export function planLoonDns(dns: DnsIR | undefined): LoonDnsPlan {
   }
 }
 
-function parseResolver(resolver: DnsResolverIR): ParsedResolver | { issue: CompatibilityIssue } {
+function parseResolver(resolver: SharedDnsResolverIntent): ParsedResolver | { issue: CompatibilityIssue } {
   if (resolver.kind === 'system') {
     const rawAddress = resolver.address
     if (rawAddress !== undefined && hasUnsafeAddressCharacters(rawAddress)) return invalidAddress(
@@ -128,7 +123,7 @@ function parseResolver(resolver: DnsResolverIR): ParsedResolver | { issue: Compa
 }
 
 function parseUdpResolver(
-  resolver: DnsResolverIR,
+  resolver: SharedDnsResolverIntent,
   address: string,
 ): ParsedResolver | { issue: CompatibilityIssue } {
   if (isIpv4(address)) return {
@@ -159,7 +154,7 @@ function parseUdpResolver(
 }
 
 function parseDohResolver(
-  resolver: DnsResolverIR,
+  resolver: SharedDnsResolverIntent,
   address: string,
 ): ParsedResolver | { issue: CompatibilityIssue } {
   let url: URL
@@ -181,7 +176,7 @@ function parseDohResolver(
   return { resolver, transport: 'doh', value: address, identity: `doh:${url.href}` }
 }
 
-function invalidAddress(resolver: DnsResolverIR, message: string) {
+function invalidAddress(resolver: SharedDnsResolverIntent, message: string) {
   return { issue: loonIssue('LOON_DNS_RESOLVER_ADDRESS_INVALID', 'error', 'dns', message, resolver.id) }
 }
 
@@ -240,6 +235,11 @@ function isIpv6(value: string) {
   return halves.length === 2 ? count < 8 : count === 8
 }
 
-function resolverLabel(resolver: DnsResolverIR) {
+function resolverLabel(resolver: SharedDnsResolverIntent) {
   return resolver.name?.trim() || resolver.id
+}
+
+function hasInvalidRole(resolver: NonNullable<DnsIR['resolvers']>[number]) {
+  const role = (resolver as { role?: unknown }).role
+  return role !== undefined && role !== 'default' && role !== 'direct' && role !== 'fallback'
 }

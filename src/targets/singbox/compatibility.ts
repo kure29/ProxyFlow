@@ -1,4 +1,5 @@
 import { findRuleSource, isUnmodeledProxy, type ProxyFlowIR, type ProxySetRef, type StrategyIR } from '../../core/ir'
+import { projectDnsOwnership } from '../../core/dns/ownership'
 import { getTargetCapabilities, proxyCompatibilityForTarget, type RuleSourceFormat, type StrategyCapability } from '../../core/capabilities'
 import { isPortableShadowsocksMethod } from '../../core/proxy'
 import { createMaterializationContext, materializeProxySet, planRemoteProxySource } from '../../core/proxySet'
@@ -150,14 +151,23 @@ export function checkSingBoxCompatibility(ir: ProxyFlowIR): SingBoxCompatibility
     ))
   }
 
-  for (const resolver of ir.dns?.resolvers ?? []) {
+  const dnsOwnership = projectDnsOwnership(ir.dns)
+  const sharedResolvers = dnsOwnership.shared?.resolvers ?? []
+  const { directResolvers, fallbackResolvers } = dnsOwnership.targetSpecific.mihomo
+  for (const resolver of [...sharedResolvers, ...directResolvers, ...fallbackResolvers]) {
     if (!resolver.address || !['doh', 'dot', 'udp', 'system'].includes(resolver.kind)) issues.push(singBoxIssue(
       'SINGBOX_INVALID_DNS', 'error', 'dns', `DNS resolver “${resolver.id}” 缺少可用地址。`, resolver.id,
     ))
-    if (resolver.role && resolver.role !== 'default') issues.push(singBoxIssue(
-      'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的 ${resolver.role} 角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
-    ))
   }
+  for (const resolver of directResolvers) issues.push(singBoxIssue(
+    'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的 direct 角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
+  ))
+  for (const resolver of fallbackResolvers) issues.push(singBoxIssue(
+    'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的 fallback 角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
+  ))
+  for (const resolver of (ir.dns?.resolvers ?? []).filter(hasInvalidDnsRole)) issues.push(singBoxIssue(
+    'SINGBOX_DNS_ROLE_UNSUPPORTED', 'error', 'dns', `DNS resolver “${resolver.id}” 的角色无法由当前 sing-box DNS 路由无损表达。`, resolver.id,
+  ))
 
   issues.push(singBoxIssue(
     'SINGBOX_RUNTIME_INBOUND_NOT_CONFIGURED', 'info', 'inbound',
@@ -175,6 +185,11 @@ function strategyProxySetRefs(strategy: StrategyIR, ir: ProxyFlowIR): ProxySetRe
     return source ? [{ kind: 'source', id: source.id }] : []
   }
   return []
+}
+
+function hasInvalidDnsRole(resolver: NonNullable<NonNullable<ProxyFlowIR['dns']>['resolvers']>[number]) {
+  const role = (resolver as { role?: unknown }).role
+  return role !== undefined && role !== 'default' && role !== 'direct' && role !== 'fallback'
 }
 
 export function isSingBoxRuleSource(source: { format?: string }) {

@@ -18,6 +18,22 @@ export interface MihomoTargetSettingsValidation {
 }
 
 /**
+ * Resolve the one compiler-visible target setting value. Managed Project
+ * settings are canonical; the legacy Output profile is a compatibility
+ * fallback, and its normalized defaults are the final fallback.
+ */
+export function resolveMihomoEffectiveTargetSettings(
+  managed: MihomoTargetSettings | undefined,
+  fallback: EffectiveMihomoTargetSettings,
+): EffectiveMihomoTargetSettings {
+  return {
+    mixedPort: managed?.mixedPort ?? fallback.mixedPort,
+    allowLan: managed?.allowLan ?? fallback.allowLan,
+    ipv6: managed?.ipv6 ?? fallback.ipv6,
+  }
+}
+
+/**
  * Resolve the values shown by the Mihomo settings UI without persisting any
  * fallback. Nullish semantics preserve an explicit false value while allowing
  * an omitted managed field to inherit the legacy profile/default.
@@ -27,11 +43,7 @@ export function resolveMihomoTargetSettingsDisplay(
   fallback: EffectiveMihomoTargetSettings,
 ): EffectiveMihomoTargetSettings {
   const normalized = validateMihomoTargetSettings(managed).settings
-  return {
-    mixedPort: normalized.mixedPort ?? fallback.mixedPort,
-    allowLan: normalized.allowLan ?? fallback.allowLan,
-    ipv6: normalized.ipv6 ?? fallback.ipv6,
-  }
+  return resolveMihomoEffectiveTargetSettings(normalized, fallback)
 }
 
 /** Apply a target-scoped patch; undefined explicitly removes a managed field. */
