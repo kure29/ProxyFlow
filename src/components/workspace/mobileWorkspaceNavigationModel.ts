@@ -21,8 +21,8 @@ export function resolveMobilePrimarySection(section: WorkspaceSectionId): Mobile
   return 'more'
 }
 
-export function resolveNodeSection(section: WorkspaceSectionId, lastNodeSection: WorkspaceSectionId = 'proxies'): WorkspaceSectionId {
-  return isNodeSection(section) ? section : isNodeSection(lastNodeSection) ? lastNodeSection : 'proxies'
+export function resolveNodeSection(section: WorkspaceSectionId, lastNodeSection: WorkspaceSectionId = 'sources'): WorkspaceSectionId {
+  return isNodeSection(section) ? section : isNodeSection(lastNodeSection) ? lastNodeSection : 'sources'
 }
 
 export function activateMobileWorkspaceSection(

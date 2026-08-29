@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Check, ChevronDown, Download, Globe2, MoreHorizontal } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Download, FolderTree, Globe2, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react'
 import proxyFlowLogo from '../../assets/brand/proxyflow-logo.png'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
@@ -11,16 +11,28 @@ import type { ProductView } from '../workspace/types'
 import type { WorkspaceSectionId } from '../../core/workspace'
 import { getTargetCapabilities } from '../../core/capabilities'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
+import type { ProjectListItem } from '../../storage/projectStorage'
 
 interface TopBarProps {
   view: ProductView
   onViewChange: (view: ProductView) => void
   onOpenWorkspaceSection: (section: WorkspaceSectionId) => void
   primaryHealth: PrimaryTargetHealth
+  projects: ProjectListItem[]
+  onNewProject: () => void
+  onSwitchProject: (projectId: string) => Promise<void>
+  onRenameProject: (projectId: string, name: string) => Promise<boolean>
+  onDeleteProject: (projectId: string) => Promise<void>
 }
 
-export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHealth }: TopBarProps) {
+export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHealth, projects, onNewProject, onSwitchProject, onRenameProject, onDeleteProject }: TopBarProps) {
   const [globalMenuOpen, setGlobalMenuOpen] = useState(false)
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false)
+  const [renameProjectId, setRenameProjectId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [deleteProjectId, setDeleteProjectId] = useState<string | null>(null)
+  const projectMenuRef = useRef<HTMLDivElement>(null)
+  const projectTriggerRef = useRef<HTMLButtonElement>(null)
   const { locale, setLocale, t } = useI18n()
   const projectName = useBuilderStore((state) => state.projectName)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
@@ -44,17 +56,80 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
     }
   }, [globalMenuOpen])
 
+  useEffect(() => {
+    if (!projectMenuOpen) return
+    const close = () => {
+      setProjectMenuOpen(false)
+      projectTriggerRef.current?.focus()
+    }
+    const closeOutside = (event: PointerEvent) => {
+      if (!projectMenuRef.current?.contains(event.target as Node)) close()
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('pointerdown', closeOutside)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOutside)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [projectMenuOpen])
+
+  const openRename = (project: ProjectListItem) => {
+    setDeleteProjectId(null)
+    setRenameProjectId(project.id)
+    setRenameDraft(localizeProjectName(project.name, locale))
+  }
+  const submitRename = async (projectId: string) => {
+    if (!renameDraft.trim()) return
+    if (await onRenameProject(projectId, renameDraft)) setRenameProjectId(null)
+  }
+  const submitDelete = async (projectId: string) => {
+    await onDeleteProject(projectId)
+    setDeleteProjectId(null)
+  }
+  const closeProjectMenu = () => {
+    setProjectMenuOpen(false)
+    projectTriggerRef.current?.focus()
+  }
+
   return <header className="topbar" data-view={view}>
-    <button className="brand" type="button" aria-label={t('workspace.overview')} onClick={() => onOpenWorkspaceSection('overview')}>
+    <button className="brand" type="button" aria-label={t('workspace.nodes')} onClick={() => onOpenWorkspaceSection('sources')}>
       <img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" />
       <strong>ProxyFlow</strong>
       <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>
     </button>
 
-    <div className="topbar-project" title={visibleProjectName}>
-      <small>{t('top.currentProject')}</small>
-      <span className="current-project-separator" aria-hidden="true">·</span>
-      <strong>{visibleProjectName}</strong>
+    <div className="topbar-project-selector" ref={projectMenuRef}>
+      <button ref={projectTriggerRef} type="button" className="topbar-project-trigger" aria-haspopup="dialog" aria-controls={projectMenuOpen ? 'topbar-project-menu' : undefined} aria-expanded={projectMenuOpen} onClick={() => projectMenuOpen ? closeProjectMenu() : setProjectMenuOpen(true)}>
+        <FolderTree size={18} aria-hidden="true" />
+        <strong title={visibleProjectName}>{visibleProjectName}</strong>
+        <ChevronDown size={17} aria-hidden="true" />
+      </button>
+      {projectMenuOpen && <div id="topbar-project-menu" className="topbar-project-menu" role="dialog" aria-label={t('top.projectMenu')}>
+        <header><span>{t('top.recentProjects')}</span><button type="button" aria-label={t('newProject.close')} onClick={() => { closeProjectMenu(); onNewProject() }}><Plus size={15} /></button></header>
+        <div className="topbar-project-list">
+          {projects.map((project) => {
+            const active = project.active
+            const visibleName = localizeProjectName(project.name, locale)
+            const itemTarget = project.primaryTarget ? getTargetCapabilities(project.primaryTarget).label : t('workspace.targetRequired')
+            return <article key={project.id} className={active ? 'is-active' : ''}>
+              {renameProjectId === project.id
+                ? <form className="topbar-project-rename" onSubmit={(event) => { event.preventDefault(); void submitRename(project.id) }}>
+                  <input autoFocus value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} aria-label={t('project.name')} />
+                  <button type="submit" aria-label={t('project.save')}><Check size={14} /></button>
+                  <button type="button" aria-label={t('workspace.cancel')} onClick={() => setRenameProjectId(null)}><X size={14} /></button>
+                </form>
+                : deleteProjectId === project.id
+                  ? <div className="topbar-project-delete-confirm"><span>{t('project.deleteConfirmation', { name: visibleName })}</span><div><button type="button" onClick={() => setDeleteProjectId(null)}>{t('workspace.cancel')}</button><button type="button" className="danger" onClick={() => void submitDelete(project.id)}><Trash2 size={13} />{t('project.delete')}</button></div></div>
+                  : <><button type="button" className="topbar-project-select" disabled={active} onClick={() => { closeProjectMenu(); void onSwitchProject(project.id) }}><span className="topbar-project-check">{active && <Check size={14} />}</span><span><strong>{visibleName}</strong><small>{itemTarget}{active ? ` · ${t('project.current')}` : ''}</small></span></button><div className="topbar-project-actions"><button type="button" aria-label={t('project.rename')} onClick={() => openRename(project)}><Pencil size={13} /></button><button type="button" aria-label={t('project.delete')} onClick={() => { setRenameProjectId(null); setDeleteProjectId(project.id) }}><Trash2 size={13} /></button></div></>
+              }
+            </article>
+          })}
+        </div>
+        <button type="button" className="topbar-project-new" onClick={() => { closeProjectMenu(); onNewProject() }}><Plus size={15} />{t('top.newProject')}</button>
+      </div>}
     </div>
 
     <SegmentedControl className="product-view-switcher" label={t('top.productViews')}>

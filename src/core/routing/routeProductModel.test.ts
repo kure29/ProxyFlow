@@ -82,4 +82,11 @@ describe('routing product model adapter', () => {
     expect(blockByType.has('provider')).toBe(true)
     expect(blockByType.has('import-config')).toBe(true)
   })
+
+  it('places Proxy Chain in the Strategy library group without changing its graph category', () => {
+    const strategyGroups = blockLibrary.filter((group) => group.category === 'strategy')
+    expect(strategyGroups.flatMap((group) => group.items).map((item) => item.type)).toContain('proxy-chain')
+    expect(blockLibrary.some((group) => group.category === 'chain')).toBe(false)
+    expect(blockByType.get('proxy-chain')?.category).toBe('chain')
+  })
 })
