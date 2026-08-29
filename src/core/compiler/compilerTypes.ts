@@ -1,6 +1,9 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
 import type { ProxyFlowIR } from '../ir'
+import type { ResolvedProxyEndpointIR } from '../proxy'
+import { isPrimaryTarget, targetCapabilityRegistry, type PrimaryTarget, type TargetCapabilityProfile } from '../capabilities/targetCapabilities'
 import type { TargetNativeFinalOptionsIR, TargetNativeFinalRouteIR, TargetNativeRouteIR, TargetNativeRouteOptionsIR, TargetNativeRuleSetSourceIR, TargetNativeStrategyIR, TargetNativeSurgeDnsBehaviorIR, TargetNativeSurgeGeneralConnectivityIR, TargetNativeSurgeGeneralNetworkIR, TargetNativeSurgeGeneralProxyBypassIR } from '../targetNative'
+import type { TargetNativeCapabilityEvidenceProvider } from '../targetNative/capabilityEvidence'
 
 export type TargetProjectionStatus = 'ready' | 'partial' | 'blocked'
 
@@ -102,31 +105,72 @@ export interface ConfigCompiler {
 
 export type CompilerLoader = () => Promise<ConfigCompiler>
 
-export class CompilerRegistry {
-  private loaders = new Map<TargetClient, CompilerLoader>()
-  private compilers = new Map<TargetClient, ConfigCompiler>()
-  private pending = new Map<TargetClient, Promise<ConfigCompiler>>()
+export type TargetCompatibilityProvider = (ir: ProxyFlowIR, options?: TargetCompileOptions) => Promise<CompatibilityIssue[]> | CompatibilityIssue[]
+export type TargetProxyCompatibilityProvider = (proxy: ResolvedProxyEndpointIR) => {
+  status: 'supported' | 'partial' | 'unsupported' | 'target-native'
+  unsupportedFeatures: string[]
+}
 
-  register(target: TargetClient, loader: CompilerLoader) {
-    this.loaders.set(target, loader)
+export interface TargetAdapter {
+  /** Stable target identifier owned by the adapter registration. */
+  target: PrimaryTarget
+  /** Declarative target capability evidence exposed at the universal boundary. */
+  capabilities: TargetCapabilityProfile
+  /** Target-specific endpoint compatibility evidence. */
+  proxyCompatibility: TargetProxyCompatibilityProvider
+  /** Target-specific IR compatibility evidence. */
+  compatibility: TargetCompatibilityProvider
+  /** Target-native extension compatibility owned by this target boundary. */
+  nativeCompatibility?: TargetCompatibilityProvider
+  /** Optional target-native capability evidence owned by this adapter. */
+  nativeCapabilityEvidence?: TargetNativeCapabilityEvidenceProvider
+  /** Lazy target compiler; serialization remains inside that compiler. */
+  compiler: CompilerLoader
+}
+
+/**
+ * Single registration point for target capabilities, compatibility, and
+ * compilation.  CompilerRegistry is retained as a type/name alias below for
+ * existing callers while all registrations are stored as TargetAdapters.
+ */
+export class TargetRegistry {
+  private adapters = new Map<PrimaryTarget, TargetAdapter>()
+  private compilers = new Map<PrimaryTarget, ConfigCompiler>()
+  private pending = new Map<PrimaryTarget, Promise<ConfigCompiler>>()
+
+  register(adapter: TargetAdapter): boolean
+  /** Backward-compatible compiler-only registration for existing integrations. */
+  register(target: TargetClient, loader: CompilerLoader): boolean
+  register(adapterOrTarget: TargetAdapter | TargetClient, loader?: CompilerLoader): boolean {
+    const adapter = typeof adapterOrTarget === 'string'
+      ? createLegacyAdapter(adapterOrTarget, loader)
+      : adapterOrTarget
+    if (!isTargetAdapter(adapter) || this.adapters.has(adapter.target)) return false
+    this.adapters.set(adapter.target, adapter)
+    return true
+  }
+
+  get(target: TargetClient): TargetAdapter | undefined {
+    return isPrimaryTarget(target) ? this.adapters.get(target) : undefined
   }
 
   has(target: TargetClient) {
-    return this.loaders.has(target)
+    return this.get(target) !== undefined
   }
 
   getLoaded(target: TargetClient) {
-    return this.compilers.get(target)
+    return isPrimaryTarget(target) ? this.compilers.get(target) : undefined
   }
 
   async load(target: TargetClient) {
+    if (!isPrimaryTarget(target)) return undefined
     const loaded = this.compilers.get(target)
     if (loaded) return loaded
     const existing = this.pending.get(target)
     if (existing) return existing
-    const loader = this.loaders.get(target)
-    if (!loader) return undefined
-    const pending = loader().then((compiler) => {
+    const adapter = this.adapters.get(target)
+    if (!adapter) return undefined
+    const pending = adapter.compiler().then((compiler) => {
       if (compiler.target !== target) throw new Error(`Compiler loader for ${target} returned ${compiler.target}.`)
       this.compilers.set(target, compiler)
       this.pending.delete(target)
@@ -140,4 +184,30 @@ export class CompilerRegistry {
   }
 }
 
-export const compilerRegistry = new CompilerRegistry()
+function createLegacyAdapter(target: TargetClient, loader?: CompilerLoader): TargetAdapter | undefined {
+  if (!loader || !isPrimaryTarget(target)) return undefined
+  return {
+    target,
+    capabilities: targetCapabilityRegistry[target],
+    proxyCompatibility: () => ({ status: 'supported', unsupportedFeatures: [] }),
+    compatibility: () => [],
+    compiler: loader,
+  }
+}
+
+function isTargetAdapter(value: unknown): value is TargetAdapter {
+  if (!value || typeof value !== 'object') return false
+  const adapter = value as Partial<TargetAdapter>
+  return isPrimaryTarget(adapter.target)
+    && adapter.capabilities?.target === adapter.target
+    && typeof adapter.proxyCompatibility === 'function'
+    && typeof adapter.compatibility === 'function'
+    && typeof adapter.compiler === 'function'
+}
+
+/** Existing name retained for callers while registration ownership is unified. */
+export { TargetRegistry as CompilerRegistry }
+
+export const targetRegistry = new TargetRegistry()
+/** Existing compiler API alias; both names reference the same registry instance. */
+export const compilerRegistry = targetRegistry

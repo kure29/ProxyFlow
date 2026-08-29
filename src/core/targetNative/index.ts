@@ -1,5 +1,6 @@
 export * from './strategy'
 export * from './compatibility'
+export * from './capabilityEvidence'
 export * from './ruleSet'
 export * from './final'
 export * from './routeOptions'
