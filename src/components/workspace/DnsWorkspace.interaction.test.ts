@@ -53,6 +53,13 @@ function findTextarea(value: any): any {
   return undefined
 }
 
+function findButtons(value: any): any[] {
+  if (!value || typeof value !== 'object') return []
+  const matches = value.type === 'button' ? [value] : []
+  const children = value.props?.children
+  return matches.concat((Array.isArray(children) ? children : [children]).flatMap(findButtons))
+}
+
 describe('DNS Workspace always-real-ip draft lifecycle', () => {
   it('keeps typed drafts across rerenders and synchronizes only persisted changes', async () => {
     const { DnsWorkspace } = await import('./DnsWorkspace')
@@ -85,5 +92,37 @@ describe('DNS Workspace always-real-ip draft lifecycle', () => {
     node.targetNativeSurgeDnsBehavior = { target: 'surge', kind: 'dns-behavior', alwaysRealIp: ['*.persisted.example'] }
     render()
     expect(findTextarea(render()).props.value).toBe('*.persisted.example')
+  })
+
+  it('adds Mihomo target-specific resolvers without changing shared DNS mode', async () => {
+    const { DnsWorkspace } = await import('./DnsWorkspace')
+    const onChange = vi.fn()
+    const render = () => {
+      harness.cursor = 0
+      harness.refCursor = 0
+      harness.effects = []
+      const rendered = DnsWorkspace({
+        node: {
+          id: 'dns',
+          universalDnsMode: 'none',
+          dnsResolvers: [],
+        },
+        target: 'mihomo',
+        copy,
+        onCreateDns: vi.fn(),
+        onChange,
+      })
+      harness.previousEffects = harness.effects.slice()
+      return rendered
+    }
+
+    const rendered = render()
+    const directButton = findButtons(rendered).find((button) => button.props.children?.includes('Add Direct resolver'))
+    expect(directButton).toBeDefined()
+    directButton.props.onClick()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const [nextResolvers, nextMode] = onChange.mock.calls[0]
+    expect(nextMode).toBeUndefined()
+    expect(nextResolvers).toEqual([expect.objectContaining({ role: 'direct', name: 'Custom DNS' })])
   })
 })

@@ -59,9 +59,9 @@ describe('DNS Workspace mobile actions', () => {
     const html = renderToStaticMarkup(createElement(DnsWorkspace, {
       node: {
         id: 'dns',
-        dnsResolvers: [{ id: 'direct', name: 'Direct DNS', kind: 'doh', role: 'direct', address: 'https://dns.example.com/dns-query', enabled: true }],
+        dnsResolvers: [{ id: 'system', name: 'System DNS', kind: 'system', role: 'default', address: 'system', enabled: true }],
       },
-      target: 'sing-box',
+      target: 'mihomo',
       copy,
       onCreateDns: () => undefined,
       onChange: () => undefined,
@@ -69,7 +69,7 @@ describe('DNS Workspace mobile actions', () => {
 
     expect(html).toContain('is-unsupported')
     expect(html).toContain('Unsupported by target')
-    expect(html).toMatch(/<button[^>]*aria-label="Role"[^>]*aria-invalid="true"/)
+    expect(html).not.toContain('aria-label="Role"')
   })
 
   it('shows retained Surge always-real-ip intent in DNS Workspace across target switches', () => {
@@ -94,8 +94,52 @@ describe('DNS Workspace mobile actions', () => {
       onCreateDns: () => undefined,
       onChange: () => undefined,
     }))
-    expect(mihomoHtml).toMatch(/id="dns-always-real-ip"[^>]*disabled/)
-    expect(mihomoHtml).toContain('Remove resolver')
+    expect(mihomoHtml).toContain('This project retains Surge-specific DNS settings.')
+    expect(mihomoHtml).not.toContain('id="dns-always-real-ip"')
+    expect(mihomoHtml).not.toContain('Remove resolver')
+  })
+
+  it('presents shared and current-target DNS at one ownership level', () => {
+    const node = {
+      id: 'dns',
+      dnsResolvers: [
+        { id: 'default', name: 'Default DNS', kind: 'doh' as const, role: 'default' as const, address: 'https://dns.example.com/default', enabled: true },
+        { id: 'direct', name: 'Direct DNS', kind: 'doh' as const, role: 'direct' as const, address: 'https://dns.example.com/direct', enabled: true },
+        { id: 'fallback', name: 'Fallback DNS', kind: 'doh' as const, role: 'fallback' as const, address: 'https://dns.example.com/fallback', enabled: true },
+      ],
+      targetNativeSurgeDnsBehavior: { target: 'surge' as const, kind: 'dns-behavior' as const, alwaysRealIp: ['example.com'] },
+    }
+
+    const mihomoHtml = renderToStaticMarkup(createElement(DnsWorkspace, {
+      node, target: 'mihomo', copy, onCreateDns: () => undefined, onChange: () => undefined,
+    }))
+    expect(mihomoHtml).toContain('<h2 id="dns-general-title">General DNS</h2>')
+    expect(mihomoHtml).toContain('<h2 id="dns-client-specific-title">Client-specific DNS</h2>')
+    expect(mihomoHtml).toContain('<h3 id="dns-mihomo-title">Mihomo-specific</h3>')
+    expect(mihomoHtml).toContain('<h4>Direct resolvers</h4>')
+    expect(mihomoHtml).toContain('<h4>Fallback resolvers</h4>')
+    expect(mihomoHtml).toContain('This project retains Surge-specific DNS settings.')
+    expect((mihomoHtml.match(/aria-label="Role"/g) ?? []).length).toBe(2)
+
+    const surgeHtml = renderToStaticMarkup(createElement(DnsWorkspace, {
+      node, target: 'surge', copy, onCreateDns: () => undefined, onChange: () => undefined,
+    }))
+    expect(surgeHtml).toContain('<h2 id="dns-general-title">General DNS</h2>')
+    expect(surgeHtml).toContain('<h2 id="dns-client-specific-title">Client-specific DNS</h2>')
+    expect(surgeHtml).toContain('<h3 id="dns-surge-title">Surge-specific</h3>')
+    expect(surgeHtml).toContain('Always Real IP')
+    expect(surgeHtml).not.toContain('<h3 id="dns-mihomo-title">')
+    expect(surgeHtml).not.toContain('Direct resolvers</h4>')
+    expect(surgeHtml).not.toContain('Fallback resolvers</h4>')
+
+    for (const target of ['loon', 'shadowrocket', 'sing-box'] as const) {
+      const html = renderToStaticMarkup(createElement(DnsWorkspace, {
+        node: { id: 'dns', dnsResolvers: [node.dnsResolvers[0]] },
+        target, copy, onCreateDns: () => undefined, onChange: () => undefined,
+      }))
+      expect(html).toContain('<h2 id="dns-general-title">General DNS</h2>')
+      expect(html).not.toContain('<h2 id="dns-client-specific-title">Client-specific DNS</h2>')
+    }
   })
 
   it.each(['example.com', null, {}] as const)('renders malformed retained native state safely (%s)', (alwaysRealIp) => {

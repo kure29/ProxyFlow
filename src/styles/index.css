@@ -2653,6 +2653,138 @@
   }
 
   /* DNS workspace */
+  .dns-ownership-section {
+    min-width: 0;
+  }
+
+  .dns-ownership-section + .dns-ownership-section {
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .dns-ownership-heading {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-1);
+    margin-bottom: var(--space-5);
+  }
+
+  .dns-ownership-heading h2,
+  .dns-target-heading h3,
+  .dns-target-resolver-group h4,
+  .dns-native-behavior-heading h4 {
+    margin: 0;
+    color: var(--color-text);
+    font-weight: 650;
+    letter-spacing: -.01em;
+  }
+
+  .dns-ownership-heading h2 {
+    font-size: var(--text-section-size);
+    line-height: var(--text-section-line);
+  }
+
+  .dns-ownership-heading p,
+  .dns-target-heading p {
+    max-width: 680px;
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--text-body-size);
+    line-height: var(--text-body-line);
+  }
+
+  .dns-ownership-section .workspace-section-intro {
+    align-items: end;
+  }
+
+  .dns-ownership-section .workspace-section-intro > p {
+    flex: 1 1 auto;
+  }
+
+  .dns-ownership-empty {
+    margin: var(--space-4) 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-meta-size);
+    line-height: var(--text-meta-line);
+  }
+
+  .dns-target-section {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .dns-target-heading {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .dns-target-heading h3 {
+    font-size: var(--text-body-size);
+    line-height: var(--text-body-line);
+  }
+
+  .dns-target-heading p {
+    font-size: var(--text-meta-size);
+    line-height: var(--text-meta-line);
+  }
+
+  .dns-target-resolver-group {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .dns-target-resolver-group > header {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .dns-target-resolver-group h4,
+  .dns-native-behavior-heading h4 {
+    font-size: var(--text-label-size);
+    line-height: var(--text-label-line);
+  }
+
+  .dns-target-resolver-group .secondary-action {
+    flex: 0 0 auto;
+  }
+
+  .dns-resolver-list--mihomo {
+    border-top: 0;
+  }
+
+  .dns-retained-notice {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    color: var(--color-text-secondary);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-meta-size);
+    line-height: var(--text-meta-line);
+  }
+
+  .dns-retained-notice svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--color-info);
+  }
+
+  .dns-retained-notice p {
+    min-width: 0;
+    margin: 0;
+  }
+
   .workspace-empty-state--action > p,
   .dns-workspace .workspace-empty-state > p {
     max-width: 520px;
