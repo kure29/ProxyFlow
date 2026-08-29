@@ -135,7 +135,7 @@ export function WorkspaceShell({
     { id: 'nodes', section: 'proxies', icon: Server, label: 'workspace.nodes', count: nodeCount },
     { id: 'strategies', section: 'strategies', icon: GitBranch, label: 'workspace.strategies', count: counts.strategies },
     { id: 'routing', section: 'routing', icon: Route, label: 'workspace.routing', count: counts.routing },
-    { id: 'output', section: 'export', icon: FileOutput, label: 'workspace.output', count: counts.export },
+    { id: 'output', section: 'export', icon: FileOutput, label: 'workspace.output', count: undefined },
   ] as const
   const auxiliaryNavigation = [
     { id: 'inspect', section: 'inspect', icon: SearchCheck, label: 'workspace.inspect', count: counts.inspect },
