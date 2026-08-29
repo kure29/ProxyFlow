@@ -8,7 +8,7 @@ import { createBlankProject } from '../../data/newProject'
 import { I18nProvider } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { TargetCompileState } from '../compiler/useTargetCompile'
-import { stateForTarget, targetStatus, TargetSwitchDialog, WorkspaceExportPanel, type ProjectCompiles } from './WorkspaceTargets'
+import { stateForTarget, targetStatus, MihomoSettingsDrawer, TargetSwitchDialog, WorkspaceExportPanel, type ProjectCompiles } from './WorkspaceTargets'
 
 const successResult: CompileResult = {
   success: true,
@@ -408,5 +408,23 @@ describe('Workspace target status', () => {
     expect(html).toContain('aria-controls="workspace-export-settings-drawer"')
     expect(html).not.toContain('workspace-export-configuration')
     expect(html).not.toContain('<aside id="workspace-export-settings-drawer"')
+  })
+
+  it('renders managed Mihomo values ahead of legacy profile values without writing on read', () => {
+    const onManagedChange = () => { throw new Error('read-only render must not update settings') }
+    const profile = {
+      preset: 'local-proxy' as const, mixedPort: 7890, allowLan: true, ipv6: true,
+      dnsMode: 'redir-host' as const, tunStack: 'mixed' as const, strictRoute: false,
+      sniffer: false, storeSelected: true, unifiedDelay: true, tcpConcurrent: true,
+    }
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(MihomoSettingsDrawer, {
+      targetLabel: 'Mihomo', profile, managedSettings: { mixedPort: 7999, allowLan: false, ipv6: false },
+      dnsResolverCount: 0, onChange: () => undefined, onManagedChange, onManagedReset: () => undefined,
+      onPresetChange: () => undefined, onClose: () => undefined,
+    })))
+    expect(html).toContain('value="7999"')
+    expect(html).toContain('<strong>LAN access</strong></span><input type="checkbox"/>')
+    expect(html).toContain('<strong>IPv6 traffic</strong>')
+    expect(html).toContain('Use profile/default')
   })
 })

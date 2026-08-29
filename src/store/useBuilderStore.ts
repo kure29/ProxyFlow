@@ -27,6 +27,7 @@ import { resolveProjectPrimaryTarget } from '../core/project/primaryTarget'
 import { canUseWorkspaceInput, moveWorkspaceProcessingStep, updateWorkspaceNodeData } from '../core/workspace'
 import { normalizeValidProjectName } from '../core/project/projectName'
 import { findAvailableNodePosition } from './nodePlacement'
+import { mergeMihomoTargetSettings, validateMihomoTargetSettings, type MihomoTargetSettingsPatch } from '../targets/mihomo/settings'
 
 interface GraphSnapshot {
   primaryTarget: PrimaryTarget | null
@@ -79,6 +80,7 @@ interface BuilderState {
   setOutputClient: (id: string, client: TargetClient) => void
   setPrimaryTarget: (target: PrimaryTarget) => void
   setTargetSettings: (settings: TargetSettings | undefined) => void
+  updateMihomoTargetSettings: (patch: MihomoTargetSettingsPatch) => void
   beginTransaction: () => void
   commitTransaction: () => void
   undo: () => void
@@ -633,6 +635,17 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       })
     },
     setTargetSettings: (targetSettings) => set({ targetSettings: targetSettings ? structuredClone(targetSettings) : undefined, saveStatus: 'saving' }),
+    updateMihomoTargetSettings: (patch) => set((state) => {
+      const nextMihomo = mergeMihomoTargetSettings(state.targetSettings?.mihomo, patch)
+      if (validateMihomoTargetSettings(nextMihomo).issues.some((issue) => issue.severity === 'error')) return state
+      const nextTargetSettings = { ...(state.targetSettings ?? {}) }
+      if (nextMihomo) nextTargetSettings.mihomo = nextMihomo
+      else delete nextTargetSettings.mihomo
+      return {
+        targetSettings: Object.keys(nextTargetSettings).length ? nextTargetSettings : undefined,
+        saveStatus: 'saving',
+      }
+    }),
     beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.primaryTarget, state.nodes, state.edges) })),
     commitTransaction: () => {
       const start = get().transactionStart
