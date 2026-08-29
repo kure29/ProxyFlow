@@ -1,5 +1,5 @@
 import { parseDocument } from 'yaml'
-import { detectRegion, isModeledShadowsocksMethod, isPortableShadowsocksPlugin, makeProxyId, stableOpaqueHash, type Hysteria2HopIntervalIR, type Hysteria2PortIR, type ProxyCompatibilityHint, type ProxyTlsIR, type ProxyTransportIR, type ResolvedProxyEndpointIR } from '../proxy'
+import { cloneJsonObject, cloneJsonValue, detectRegion, isModeledShadowsocksMethod, isPortableShadowsocksPlugin, makeProxyId, stableOpaqueHash, type Hysteria2HopIntervalIR, type Hysteria2PortIR, type OpaqueProxyOrigin, type ProxyCompatibilityHint, type ProxyTlsIR, type ProxyTransportIR, type ResolvedProxyEndpointIR } from '../proxy'
 import { subscriptionIssue } from './errors'
 import type { ParseSubscriptionOptions, ParsedSubscriptionNode, ProxyEndpointDraft, SubscriptionIssue } from './types'
 import { booleanValue, isValidUuid, mergeEndpointSemanticCompatibility, stringValue, validPort } from './utils'
@@ -16,13 +16,20 @@ export function parseClashSubscription(input: string, options: Required<Pick<Par
   let value: unknown
   try { value = document.toJS({ maxAliasCount: 32 }) } catch { return undefined }
   if (!isRecord(value) || !Array.isArray(value.proxies)) return undefined
-  return parseClashRecords(value.proxies, options, Object.keys(value).some((key) => key !== 'proxies'))
+  return parseClashRecords(value.proxies, options, Object.keys(value).some((key) => key !== 'proxies'), {
+    kind: 'target', target: 'mihomo', format: 'clash-yaml',
+  })
 }
 
-export function parseClashRecords(records: unknown[], options: Required<Pick<ParseSubscriptionOptions, 'sourceId'>> & ParseSubscriptionOptions, hasNonProxySections = false): ClashParseResult {
+export function parseClashRecords(
+  records: unknown[],
+  options: Required<Pick<ParseSubscriptionOptions, 'sourceId'>> & ParseSubscriptionOptions,
+  hasNonProxySections = false,
+  opaqueOrigin?: OpaqueProxyOrigin,
+): ClashParseResult {
   const sourceName = options.sourceName ?? 'Subscription'
   const issues: SubscriptionIssue[] = []
-  const nodes = records.map((raw, index) => parseClashNode(raw, options.sourceId, sourceName, index + 1, issues))
+  const nodes = records.map((raw, index) => parseClashNode(raw, options.sourceId, sourceName, index + 1, issues, opaqueOrigin))
   return {
     nodes,
     issues,
@@ -30,7 +37,7 @@ export function parseClashRecords(records: unknown[], options: Required<Pick<Par
   }
 }
 
-function parseClashNode(raw: unknown, sourceId: string, sourceName: string, index: number, allIssues: SubscriptionIssue[]): ParsedSubscriptionNode {
+function parseClashNode(raw: unknown, sourceId: string, sourceName: string, index: number, allIssues: SubscriptionIssue[], opaqueOrigin?: OpaqueProxyOrigin): ParsedSubscriptionNode {
   const record = isRecord(raw) ? raw : {}
   const type = stringValue(record.type)?.toLocaleLowerCase() ?? 'unknown'
   const name = stringValue(record.name) ?? `Node ${index}`
@@ -257,6 +264,7 @@ function parseClashNode(raw: unknown, sourceId: string, sourceName: string, inde
     ...draft,
     id: makeProxyId(sourceId, draft),
     metadata: { sourceId, sourceName, region: detectRegion(name) },
+    ...(opaqueOrigin ? opaqueClashPreservation(record, type, opaqueOrigin) : {}),
   } as ResolvedProxyEndpointIR
   const mergedCompatibility = mergeEndpointSemanticCompatibility(endpointWithoutCompatibility, compatibility, nodeIssues, { nodeName: name })
   const endpoint = {
@@ -447,4 +455,59 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function primitiveRecord(value: unknown): Record<string, string | number | boolean> {
   if (!isRecord(value)) return {}
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string | number | boolean] => ['string', 'number', 'boolean'].includes(typeof entry[1])))
+}
+
+const CLASH_COMMON_KEYS = new Set([
+  'name', 'type', 'server', 'port', 'username', 'password', 'tls', 'sni', 'servername',
+  'skip-cert-verify', 'disable-sni', 'disable_sni', 'alpn', 'network', 'ws-opts', 'http-opts',
+  'h2-opts', 'grpc-opts', 'xhttp-opts', 'client-fingerprint', 'uuid', 'flow', 'security',
+  'encryption', 'cipher', 'alterId', 'alter-id', 'plugin', 'plugin-opts', 'obfs',
+  'obfs-password', 'up', 'down', 'ports', 'hop-interval', 'congestion-controller',
+  'udp-relay-mode', 'udp', 'idle-session-check-interval', 'idle-session-timeout', 'min-idle-session', 'httpupgrade-opts',
+])
+
+const CLASH_NESTED_KEYS: Record<string, ReadonlySet<string>> = {
+  'ws-opts': new Set(['path', 'headers', 'max-early-data', 'early-data-header-name', 'v2ray-http-upgrade']),
+  'http-opts': new Set(['path', 'headers']),
+  'h2-opts': new Set(['path', 'host']),
+  'grpc-opts': new Set(['grpc-service-name']),
+  'xhttp-opts': new Set(['path', 'host', 'mode']),
+  'httpupgrade-opts': new Set(['path', 'host']),
+  'reality-opts': new Set(['public-key', 'short-id']),
+}
+
+/** Preserve only fields outside the modeled Clash/Mihomo endpoint contract. */
+function opaqueClashPreservation(record: Record<string, unknown>, type: string, origin: OpaqueProxyOrigin) {
+  const known = new Set(CLASH_COMMON_KEYS)
+  known.add('reality-opts')
+  if (type === 'ss') known.add('plugin-opts')
+  const fields: Record<string, unknown> = Object.create(null)
+  for (const [key, value] of Object.entries(record)) {
+    if (!known.has(key)) {
+      const cloned = cloneJsonValue(value)
+      if (cloned !== undefined) fields[key] = cloned
+      continue
+    }
+    const nestedKeys = CLASH_NESTED_KEYS[key]
+    if (!nestedKeys || !isRecord(value)) continue
+    const nested = opaqueNestedFields(value, nestedKeys)
+    if (Object.keys(nested).length > 0) fields[key] = nested
+  }
+  const cloned = cloneJsonObject(fields)
+  return cloned && Object.keys(cloned).length > 0 ? { opaque: { origin, fields: cloned } } : {}
+}
+
+function opaqueNestedFields(record: Record<string, unknown>, known: ReadonlySet<string>) {
+  const fields: Record<string, unknown> = Object.create(null)
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'headers' && isRecord(value)) {
+      const headers = opaqueNestedFields(value, new Set(['Host']))
+      if (Object.keys(headers).length > 0) fields[key] = headers
+      continue
+    }
+    if (known.has(key)) continue
+    const cloned = cloneJsonValue(value)
+    if (cloned !== undefined) fields[key] = cloned
+  }
+  return fields
 }

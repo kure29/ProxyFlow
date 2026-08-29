@@ -15,6 +15,7 @@ import anytls from '../../../fixtures/subscriptions/anytls.txt?raw'
 import anytlsClash from '../../../fixtures/subscriptions/anytls-clash.yaml?raw'
 import loonSimpleObfsSource from '../../../fixtures/loon/simple-obfs-source.yaml?raw'
 import { encodeBase64Text } from './base64'
+import { parseClashRecords } from './parseClash'
 import { parseSubscription } from './parseSubscription'
 import { redactSecret, redactSubscriptionUrl } from '../proxy'
 
@@ -81,6 +82,64 @@ describe('subscription parser', () => {
     expect(result.proxies).toHaveLength(6)
     expect(result.issues.map((issue) => issue.code)).toContain('ONLY_PROXY_SECTION_IMPORTED')
     expect(result.proxies.map((proxy) => proxy.metadata?.region?.code)).toEqual(['UNKNOWN', 'UNKNOWN', 'HK', 'US', 'JP', 'SG'])
+  })
+
+  it('preserves unknown Mihomo fields with provenance while stripping modeled keys', () => {
+    const result = parseSubscription(`proxies:
+  - name: Opaque Trojan
+    type: trojan
+    server: opaque.example.invalid
+    port: 443
+    password: fixture-password
+    tls: true
+    network: ws
+    ws-opts:
+      path: /known
+      headers:
+        Host: cdn.example.invalid
+        X-Future-Header: fixture-header
+      future-options:
+        enabled: true
+    future-field: fixture-value
+    future-array: [one, 2]
+    future-null: null
+`, options)
+    const endpoint = result.proxies[0]
+    expect(endpoint.opaque).toEqual({
+      origin: { kind: 'target', target: 'mihomo', format: 'clash-yaml' },
+      fields: {
+        'future-field': 'fixture-value',
+        'future-array': ['one', 2],
+        'future-null': null,
+        'ws-opts': {
+          headers: { 'X-Future-Header': 'fixture-header' },
+          'future-options': { enabled: true },
+        },
+      },
+    })
+    expect(endpoint.opaque?.fields).not.toHaveProperty('name')
+    expect(endpoint.opaque?.fields).not.toHaveProperty('server')
+  })
+
+  it('clones opaque records instead of retaining parser input aliases', () => {
+    const future = { nested: { value: 'before' } }
+    const raw = {
+      name: 'Opaque SOCKS', type: 'socks5', server: 'opaque.example.invalid', port: 1080,
+      future,
+    }
+    const result = parseClashRecords([raw], options, false, { kind: 'target', target: 'mihomo', format: 'clash-json' })
+    future.nested.value = 'after'
+    expect(result.nodes[0].endpoint?.opaque?.fields.future).toEqual({ nested: { value: 'before' } })
+  })
+
+  it('keeps prototype-like opaque keys as data without mutating global prototypes', () => {
+    const raw = JSON.parse('{"name":"Prototype Key","type":"http","server":"prototype.example.invalid","port":8080,"__proto__":{"polluted":true},"constructor":"fixture-constructor"}') as Record<string, unknown>
+    const result = parseClashRecords([raw], options, false, { kind: 'target', target: 'mihomo', format: 'clash-json' })
+    const fields = result.nodes[0].endpoint?.opaque?.fields
+    expect(Object.prototype.hasOwnProperty.call(fields, '__proto__')).toBe(true)
+    expect(fields?.['__proto__']).toEqual({ polluted: true })
+    expect(fields?.constructor).toBe('fixture-constructor')
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
   })
 
   it('preserves SIP003 simple-obfs source option names for target lowering', () => {

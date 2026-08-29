@@ -14,7 +14,7 @@ export function parseStructuredSubscription(input: string, options: ParseSubscri
     return undefined
   }
   if (format === 'sub-store-json') return Array.isArray(value) ? parseClashRecords(value.map(toSubStoreRecord), options) : undefined
-  if (format === 'clash-json') return isRecord(value) && Array.isArray(value.proxies) ? parseClashRecords(value.proxies, options, Object.keys(value).some((key) => key !== 'proxies')) : undefined
+  if (format === 'clash-json') return isRecord(value) && Array.isArray(value.proxies) ? parseClashRecords(value.proxies, options, Object.keys(value).some((key) => key !== 'proxies'), { kind: 'target', target: 'mihomo', format: 'clash-json' }) : undefined
   if (format === 'egern') return isRecord(value) && Array.isArray(value.proxies) ? parseClashRecords(value.proxies.map(toEgernRecord), options, true) : undefined
   if (!isRecord(value) || !Array.isArray(value.outbounds)) return undefined
   if (format === 'sing-box-json') return parseClashRecords(value.outbounds.flatMap((outbound) => toSingBoxRecord(outbound)), options, true)

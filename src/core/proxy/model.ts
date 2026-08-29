@@ -1,4 +1,5 @@
 import type { IsoAlpha2Code } from './regionCodes'
+import type { OpaqueProxyPreservation } from './opaque'
 
 export type SupportedProxyProtocol = 'http' | 'socks5' | 'shadowsocks' | 'trojan' | 'vmess' | 'vless' | 'hysteria2' | 'tuic' | 'anytls'
 
@@ -30,6 +31,8 @@ interface ProxyEndpointBase {
   server: string
   port: number
   metadata?: ProxyEndpointMetadata
+  /** Unknown imported endpoint fields with explicit target provenance. */
+  opaque?: OpaqueProxyPreservation
 }
 
 export interface ProxyTlsIR {

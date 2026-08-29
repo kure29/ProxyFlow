@@ -1,4 +1,5 @@
 import type { Hysteria2HopIntervalIR, Hysteria2PortIR, ProxySetRef, ProxyTlsIR, ResolvedProxyEndpointIR } from '../../core/ir'
+import { isOpaqueProxyPreservation, type JsonObject } from '../../core/proxy'
 import { materializeProxySet, planRemoteProxySource, type RemoteSourceConsumer } from '../../core/proxySet'
 import type { MihomoCompileContext, ResolvedProxySet } from './context'
 import { MIHOMO_DEFAULTS } from './defaults'
@@ -86,29 +87,29 @@ export function registerMihomoEndpoint(endpoint: ResolvedProxyEndpointIR, contex
 function endpointProxy(endpoint: ResolvedProxyEndpointIR, name: string): MihomoProxy {
   const common = { name, server: endpoint.server, port: endpoint.port, udp: endpoint.protocol !== 'http', ...mihomoTransport(endpoint) }
   switch (endpoint.protocol) {
-    case 'http': return { ...common, type: 'http', ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}), ...mihomoTls(endpoint.tls, 'sni') }
-    case 'socks5': return { ...common, type: 'socks5', ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}) }
-    case 'shadowsocks': return {
+    case 'http': return mergeOpaqueMihomo(endpoint, { ...common, type: 'http', ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}), ...mihomoTls(endpoint.tls, 'sni') })
+    case 'socks5': return mergeOpaqueMihomo(endpoint, { ...common, type: 'socks5', ...(endpoint.username ? { username: endpoint.username } : {}), ...(endpoint.password ? { password: endpoint.password } : {}) })
+    case 'shadowsocks': return mergeOpaqueMihomo(endpoint, {
       ...common, type: 'ss', cipher: endpoint.method, password: endpoint.password,
       ...(endpoint.plugin ? { plugin: endpoint.plugin.name, ...(endpoint.plugin.options ? { 'plugin-opts': pluginOptions(endpoint.plugin.options) } : {}) } : {}),
-    }
-    case 'trojan': return { ...common, type: 'trojan', password: endpoint.password, ...mihomoTls(endpoint.tls, 'sni') }
-    case 'vmess': return { ...common, type: 'vmess', uuid: endpoint.uuid, alterId: endpoint.alterId ?? 0, cipher: endpoint.security, ...mihomoTls(endpoint.tls, 'servername') }
-    case 'vless': return { ...common, type: 'vless', uuid: endpoint.uuid, ...(endpoint.flow ? { flow: endpoint.flow } : {}), ...mihomoTls(endpoint.tls, 'servername') }
-    case 'hysteria2': return {
+    })
+    case 'trojan': return mergeOpaqueMihomo(endpoint, { ...common, type: 'trojan', password: endpoint.password, ...mihomoTls(endpoint.tls, 'sni') })
+    case 'vmess': return mergeOpaqueMihomo(endpoint, { ...common, type: 'vmess', uuid: endpoint.uuid, alterId: endpoint.alterId ?? 0, cipher: endpoint.security, ...mihomoTls(endpoint.tls, 'servername') })
+    case 'vless': return mergeOpaqueMihomo(endpoint, { ...common, type: 'vless', uuid: endpoint.uuid, ...(endpoint.flow ? { flow: endpoint.flow } : {}), ...mihomoTls(endpoint.tls, 'servername') })
+    case 'hysteria2': return mergeOpaqueMihomo(endpoint, {
       ...common, type: 'hysteria2', password: endpoint.password, ...mihomoQuicTls(endpoint.tls),
       ...(endpoint.obfs ? { obfs: endpoint.obfs.type, 'obfs-password': endpoint.obfs.password } : {}),
       ...(endpoint.upMbps !== undefined ? { up: endpoint.upMbps } : {}), ...(endpoint.downMbps !== undefined ? { down: endpoint.downMbps } : {}),
       ...(endpoint.serverPorts?.length ? { ports: endpoint.serverPorts.map(mihomoPort).join(',') } : {}),
       ...(endpoint.hopInterval ? { 'hop-interval': mihomoHopInterval(endpoint.hopInterval) } : {}),
-    }
-    case 'tuic': return {
+    })
+    case 'tuic': return mergeOpaqueMihomo(endpoint, {
       ...common, type: 'tuic', uuid: endpoint.uuid, password: endpoint.password, ...mihomoQuicTls(endpoint.tls),
       ...(endpoint.tls.disableSni ? { 'disable-sni': true } : {}),
       ...(endpoint.congestionControl ? { 'congestion-controller': endpoint.congestionControl } : {}),
       ...(endpoint.udpRelayMode ? { 'udp-relay-mode': endpoint.udpRelayMode } : {}),
-    }
-    case 'anytls': return {
+    })
+    case 'anytls': return mergeOpaqueMihomo(endpoint, {
       ...common, type: 'anytls', password: endpoint.password, udp: endpoint.udpEnabled ?? true,
       ...(endpoint.tls.serverName ? { sni: endpoint.tls.serverName } : {}),
       ...(endpoint.tls.allowInsecure ? { 'skip-cert-verify': true } : {}),
@@ -117,8 +118,36 @@ function endpointProxy(endpoint: ResolvedProxyEndpointIR, name: string): MihomoP
       ...(endpoint.idleSessionCheckIntervalSeconds !== undefined ? { 'idle-session-check-interval': endpoint.idleSessionCheckIntervalSeconds } : {}),
       ...(endpoint.idleSessionTimeoutSeconds !== undefined ? { 'idle-session-timeout': endpoint.idleSessionTimeoutSeconds } : {}),
       ...(endpoint.minIdleSession !== undefined ? { 'min-idle-session': endpoint.minIdleSession } : {}),
-    }
+    })
   }
+}
+
+/** Re-emit opaque fields only when Mihomo owns their imported provenance. */
+function mergeOpaqueMihomo(endpoint: ResolvedProxyEndpointIR, generated: MihomoProxy): MihomoProxy {
+  if (!isOpaqueProxyPreservation(endpoint.opaque)) return generated
+  return deepMergeJson(endpoint.opaque.fields, generated as unknown as Record<string, unknown>) as unknown as MihomoProxy
+}
+
+function deepMergeJson(base: JsonObject | Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = Object.create(null)
+  for (const [key, value] of Object.entries(base)) merged[key] = cloneMergeValue(value)
+  for (const [key, value] of Object.entries(override)) {
+    const current = merged[key]
+    merged[key] = isRecord(current) && isRecord(value)
+      ? deepMergeJson(current, value)
+      : cloneMergeValue(value)
+  }
+  return merged
+}
+
+function cloneMergeValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneMergeValue)
+  if (isRecord(value)) return deepMergeJson(value, {})
+  return value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function mihomoPort(port: Hysteria2PortIR) {
