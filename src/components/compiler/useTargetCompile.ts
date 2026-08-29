@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { compilerRegistry, type CompileResult, type TargetCompileOptions } from '../../core/compiler'
+import { getTargetBranch, type CompileResult, type TargetCompileOptions } from '../../core/compiler'
 import type { ProxyFlowIR } from '../../core/ir'
 import type { TargetClient } from '../../types/project'
 import { translateCurrent } from '../../i18n'
@@ -64,15 +64,16 @@ export function useTargetCompile(
     }
 
     setStored({ requestToken: request.token, state: { status: 'loading' } })
-    void compilerRegistry.load(target).then(async (compiler) => {
-      if (!compiler) {
-        if (!cancelled && requestRef.current.token === request.token) setStored({
-          requestToken: request.token,
-          state: { status: 'unavailable', error: translateCurrent('compiler.notImplemented', { target }) },
-        })
-        return
-      }
-      const result = await compiler.compile(ir, options)
+    const branch = getTargetBranch(target)
+    if (!branch) {
+      if (!cancelled && requestRef.current.token === request.token) setStored({
+        requestToken: request.token,
+        state: { status: 'unavailable', error: translateCurrent('compiler.notImplemented', { target }) },
+      })
+      return () => { cancelled = true }
+    }
+
+    void branch.compile(ir, options).then((result) => {
       if (!cancelled && requestRef.current.token === request.token) setStored({ requestToken: request.token, state: { status: result.success ? 'success' : 'error', result } })
     }).catch((error: unknown) => {
       if (!cancelled && requestRef.current.token === request.token) setStored({
