@@ -1,5 +1,5 @@
 import type { GraphNode } from '../../types/project'
-import type { HealthCheckIR, ProxySetRef, StrategyCandidateRef } from '../ir'
+import type { ProxySetRef, StrategyCandidateRef } from '../ir'
 import { semanticIssue } from '../ir'
 import type { GraphCompileContext } from './context'
 
@@ -79,13 +79,4 @@ export function firstProxySetInput(
     ))
   }
   return inputs[0]
-}
-
-export function healthCheckForNode(node: GraphNode): HealthCheckIR | undefined {
-  const healthCheck: HealthCheckIR = {
-    url: node.data.testUrl,
-    intervalSeconds: node.data.interval,
-    toleranceMs: node.data.tolerance,
-  }
-  return Object.values(healthCheck).some((value) => value !== undefined) ? healthCheck : undefined
 }
