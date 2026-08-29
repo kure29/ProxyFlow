@@ -9,6 +9,7 @@ import { compileMihomoDns } from './dns'
 import { mihomoIssue } from './errors'
 import type { MihomoConfig, MihomoSnifferConfig, MihomoTunConfig } from './model'
 import { validateMihomoOutputProfile } from './profile'
+import { validateMihomoTargetSettings } from './settings'
 import { compileMihomoProviders } from './providers'
 import { compileMihomoRules } from './rules'
 import { serializeMihomoConfig } from './serializer'
@@ -19,6 +20,7 @@ export interface MihomoCompileOptions {
   now?: () => Date
   outputNodeId?: string
   profile?: unknown
+  targetSettings?: import('../../types/targetSettings').TargetSettings
   targetNativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
   nativeStrategies?: import('../../core/targetNative').TargetNativeStrategyIR[]
   nativeRoutes?: import('../../core/targetNative').TargetNativeRouteIR[]
@@ -48,8 +50,11 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   const nativeStrategies = options.targetNativeStrategies ?? options.nativeStrategies ?? []
   const nativeRuleSetSources = options.targetNativeRuleSetSources ?? options.nativeRuleSetSources ?? []
   issues.push(...targetNativeUnsupportedIssues('mihomo', nativeStrategies, options.nativeRoutes ?? [], nativeRuleSetSources, options.targetNativeFinalOptions, options.targetNativeRouteOptions ?? options.nativeRouteOptions, options.nativeFinalRoute, options.targetNativeSurgeGeneralNetwork, options.outputNodeId, ir.outputs, options.targetNativeSurgeGeneralConnectivity, options.targetNativeSurgeDnsBehavior, options.effectiveDnsNodeId, options.targetNativeSurgeGeneralProxyBypass))
+  const managedSettings = validateMihomoTargetSettings(options.targetSettings?.mihomo, options.outputNodeId ?? 'mihomo-settings')
+  issues.push(...managedSettings.issues)
   const outputProfile = validateMihomoOutputProfile(options.profile, Boolean(ir.dns?.enabled), options.outputNodeId)
   issues.push(...outputProfile.issues)
+  const profile = { ...outputProfile.profile, ...managedSettings.settings }
   const compatibility = checkMihomoCompatibility(ir)
   issues.push(...compatibility.issues)
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
@@ -59,24 +64,24 @@ export function compileMihomo(ir: ProxyFlowIR, options: MihomoCompileOptions = {
   compileMihomoStrategies(context)
   compileMihomoChains(context)
   const rules = compileMihomoRules(context)
-  const dns = compileMihomoDns(ir.dns, outputProfile.profile.dnsMode, outputProfile.profile.ipv6)
+  const dns = compileMihomoDns(ir.dns, profile.dnsMode, profile.ipv6)
 
   if (issues.some((issue) => issue.severity === 'error')) return { success: false, content: '', issues: deduplicateDiagnostics(issues), generatedAt, mock: false }
 
   const config: MihomoConfig = {
-    'mixed-port': outputProfile.profile.mixedPort,
-    'allow-lan': outputProfile.profile.allowLan,
-    ipv6: outputProfile.profile.ipv6,
+    'mixed-port': profile.mixedPort,
+    'allow-lan': profile.allowLan,
+    ipv6: profile.ipv6,
     mode: 'rule',
     'log-level': 'info',
-    'unified-delay': outputProfile.profile.unifiedDelay,
-    'tcp-concurrent': outputProfile.profile.tcpConcurrent,
+    'unified-delay': profile.unifiedDelay,
+    'tcp-concurrent': profile.tcpConcurrent,
     profile: {
-      'store-selected': outputProfile.profile.storeSelected,
+      'store-selected': profile.storeSelected,
       'store-fake-ip': dns?.['enhanced-mode'] === 'fake-ip',
     },
-    ...(outputProfile.profile.preset === 'desktop-tun' ? { tun: compileTun(outputProfile.profile) } : {}),
-    ...(outputProfile.profile.sniffer ? { sniffer: compileSniffer() } : {}),
+    ...(profile.preset === 'desktop-tun' ? { tun: compileTun(profile) } : {}),
+    ...(profile.sniffer ? { sniffer: compileSniffer() } : {}),
     ...(context.proxies.size > 0 ? { proxies: [...context.proxies.values()] } : {}),
     ...(context.providers.size > 0 ? { 'proxy-providers': Object.fromEntries(context.providers) } : {}),
     ...(context.groups.length > 0 ? { 'proxy-groups': context.groups } : {}),
@@ -100,7 +105,7 @@ export class MihomoCompiler implements ConfigCompiler {
   constructor(private readonly now: () => Date = () => new Date()) {}
 
   async compile(ir: ProxyFlowIR, options?: TargetCompileOptions) {
-    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity, targetNativeSurgeGeneralProxyBypass: options?.targetNativeSurgeGeneralProxyBypass, targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior, effectiveDnsNodeId: options?.effectiveDnsNodeId })
+    return compileMihomo(ir, { now: this.now, outputNodeId: options?.outputNodeId, profile: options?.targetProfile, targetSettings: options?.targetSettings, targetNativeStrategies: options?.targetNativeStrategies, nativeStrategies: options?.nativeStrategies, nativeRoutes: options?.nativeRoutes, nativeFinalRoute: options?.nativeFinalRoute, targetNativeFinalOptions: options?.targetNativeFinalOptions, targetNativeRouteOptions: options?.targetNativeRouteOptions, nativeRouteOptions: options?.nativeRouteOptions, targetNativeRuleSetSources: options?.targetNativeRuleSetSources, nativeRuleSetSources: options?.nativeRuleSetSources, targetNativeSurgeGeneralNetwork: options?.targetNativeSurgeGeneralNetwork, targetNativeSurgeGeneralConnectivity: options?.targetNativeSurgeGeneralConnectivity, targetNativeSurgeGeneralProxyBypass: options?.targetNativeSurgeGeneralProxyBypass, targetNativeSurgeDnsBehavior: options?.targetNativeSurgeDnsBehavior, effectiveDnsNodeId: options?.effectiveDnsNodeId })
   }
 }
 

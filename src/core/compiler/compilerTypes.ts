@@ -1,4 +1,5 @@
 import type { CompatibilityIssue, TargetClient } from '../../types/project'
+import type { TargetSettings } from '../../types/targetSettings'
 import type { ProxyFlowIR } from '../ir'
 import type { ResolvedProxyEndpointIR } from '../proxy'
 import { isPrimaryTarget, targetCapabilityRegistry, type PrimaryTarget, type TargetCapabilityProfile } from '../capabilities/targetCapabilities'
@@ -71,6 +72,8 @@ export interface CompileResult {
 export interface TargetCompileOptions {
   outputNodeId?: string
   targetProfile?: unknown
+  /** User-managed target settings. Branches consume only their own section. */
+  targetSettings?: TargetSettings
   /** Explicit target-native extension extracted from the Project graph. */
   targetNativeStrategies?: TargetNativeStrategyIR[]
   /** Short alias accepted by headless integrations. */

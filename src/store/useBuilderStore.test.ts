@@ -40,6 +40,17 @@ describe('builder store', () => {
     expect(useBuilderStore.getState().nodes).toHaveLength(initialCount)
   })
 
+  it('persists optional target settings without changing the shared graph', () => {
+    const graphBefore = structuredClone({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges })
+    useBuilderStore.getState().setTargetSettings({ mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } })
+    expect(useBuilderStore.getState().toProject().targetSettings).toEqual({ mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } })
+    expect({ nodes: useBuilderStore.getState().nodes, edges: useBuilderStore.getState().edges }).toEqual(graphBefore)
+
+    const saved = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
+    useBuilderStore.getState().hydrate(saved)
+    expect(useBuilderStore.getState().targetSettings).toEqual({ mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } })
+  })
+
   it('creates every Strategy menu option as the expected graph block', () => {
     const types = ['manual-select', 'auto-select', 'fallback', 'load-balance', 'proxy-chain'] as const
     const ids = types.map((type, index) => useBuilderStore.getState().addNode(type, { x: 120 + index * 30, y: 120 })!)

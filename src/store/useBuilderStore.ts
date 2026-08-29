@@ -6,7 +6,7 @@ import { withLegacyChinaCompatibility } from '../data/legacyServices'
 import { createBlankProject } from '../data/newProject'
 import { isConnectionAllowed, semanticForConnection } from '../core/graph/graphRules'
 import { migrateProject, PROJECT_SCHEMA_VERSION } from '../core/project/version'
-import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient } from '../types/project'
+import type { BlockNodeData, BlockType, GraphEdge, GraphNode, ProxyFlowProject, TargetClient, TargetSettings } from '../types/project'
 import { moveRoutingRule, moveRoutingRuleToIndex } from '../core/routing/routeProductModel'
 import {
   clearRuntimeServiceConfig, loadRuntimeServiceConfig, saveRuntimeServiceConfig, ServerRuntimeProvider,
@@ -38,6 +38,7 @@ interface BuilderState {
   projectId: string
   projectName: string
   primaryTarget: PrimaryTarget | null
+  targetSettings?: TargetSettings
   nodes: GraphNode[]
   edges: GraphEdge[]
   selectedNodeId: string | null
@@ -77,6 +78,7 @@ interface BuilderState {
   moveHop: (chainId: string, from: number, to: number) => void
   setOutputClient: (id: string, client: TargetClient) => void
   setPrimaryTarget: (target: PrimaryTarget) => void
+  setTargetSettings: (settings: TargetSettings | undefined) => void
   beginTransaction: () => void
   commitTransaction: () => void
   undo: () => void
@@ -288,6 +290,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
     projectId: demoProject.id,
     projectName: demoProject.name,
     primaryTarget: demoProject.primaryTarget ?? null,
+    targetSettings: structuredClone(demoProject.targetSettings),
     nodes: structuredClone(demoProject.graph.nodes),
     edges: structuredClone(demoProject.graph.edges),
     selectedNodeId: null,
@@ -629,6 +632,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         } : node) : state.nodes,
       })
     },
+    setTargetSettings: (targetSettings) => set({ targetSettings: targetSettings ? structuredClone(targetSettings) : undefined, saveStatus: 'saving' }),
     beginTransaction: () => set((state) => ({ transactionStart: cloneSnapshot(state.primaryTarget, state.nodes, state.edges) })),
     commitTransaction: () => {
       const start = get().transactionStart
@@ -975,6 +979,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
         set({
           projectId: demoProject.id, projectName: demoProject.name,
           primaryTarget: demoProject.primaryTarget ?? null,
+          targetSettings: structuredClone(demoProject.targetSettings),
           nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
           historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
           recoveryRequired: true,
@@ -987,7 +992,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       }
       const primaryTarget = resolveProjectPrimaryTarget(value).target
       set({
-        projectId: value.id, projectName: value.name, primaryTarget, nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
+        projectId: value.id, projectName: value.name, primaryTarget, targetSettings: structuredClone(value.targetSettings), nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], hydrated: true, selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: migration?.recoveryRequired ?? false,
         recoveryNotice: migration?.message ?? null,
@@ -1010,6 +1015,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       set({
         projectId: demoProject.id, projectName: demoProject.name,
         primaryTarget: demoProject.primaryTarget ?? null,
+        targetSettings: structuredClone(demoProject.targetSettings),
         nodes: structuredClone(demoProject.graph.nodes), edges: structuredClone(demoProject.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.resetDemo'),
@@ -1026,7 +1032,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const value = createBlankProject(primaryTarget)
       const projectName = normalizeValidProjectName(name ?? value.name) ?? value.name
       set({
-        projectId: value.id, projectName, primaryTarget,
+        projectId: value.id, projectName, primaryTarget, targetSettings: structuredClone(value.targetSettings),
         nodes: structuredClone(value.graph.nodes), edges: structuredClone(value.graph.edges),
         historyPast: [], historyFuture: [], selectedNodeId: null, selectedEdgeId: null,
         recoveryRequired: false, recoveryNotice: translateCurrent('recovery.createdBlank'),
@@ -1048,6 +1054,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => {
       const project: ProxyFlowProject = {
         version: PROJECT_SCHEMA_VERSION, id: state.projectId, name: state.projectName,
         ...(state.primaryTarget ? { primaryTarget: state.primaryTarget } : {}),
+        ...(state.targetSettings ? { targetSettings: structuredClone(state.targetSettings) } : {}),
         graph: { nodes: state.nodes.map(({ selected: _selected, ...node }) => node as GraphNode), edges: state.edges.map(({ selected: _selected, ...edge }) => edge as GraphEdge) },
         services: [...withLegacyChinaCompatibility(demoProject.services, state.nodes)], outputs: demoProject.outputs, updatedAt: new Date().toISOString(),
       }

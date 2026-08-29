@@ -40,6 +40,7 @@ export function App() {
   const toProject = useBuilderStore((state) => state.toProject)
   const resetToDemo = useBuilderStore((state) => state.resetToDemo)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
+  const targetSettings = useBuilderStore((state) => state.targetSettings)
   const dismissRecoveryNotice = useBuilderStore((state) => state.dismissRecoveryNotice)
   const primaryCompiles = useProjectCompiles(Boolean(primaryTarget))
   const primaryHealth = summarizePrimaryTargetHealth(primaryCompiles, primaryTarget)
@@ -56,9 +57,10 @@ export function App() {
     projectId,
     projectName,
     primaryTarget,
+    targetSettings,
     nodes: nodes.map(({ selected: _selected, ...node }) => node),
     edges: edges.map(({ selected: _selected, ...edge }) => edge),
-  }), [edges, nodes, primaryTarget, projectId, projectName])
+  }), [edges, nodes, primaryTarget, projectId, projectName, targetSettings])
   const refreshProjectList = useCallback(async () => {
     setProjects(await projectStorage.list())
   }, [])

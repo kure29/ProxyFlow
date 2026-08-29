@@ -41,6 +41,7 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const projectId = useBuilderStore((state) => state.projectId)
   const projectName = useBuilderStore((state) => state.projectName)
   const primaryTarget = useBuilderStore((state) => state.primaryTarget)
+  const targetSettings = useBuilderStore((state) => state.targetSettings)
   const nodes = useBuilderStore((state) => state.nodes)
   const edges = useBuilderStore((state) => state.edges)
   const toProject = useBuilderStore((state) => state.toProject)
@@ -67,6 +68,7 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
   const mihomoOptions = useMemo(() => ({
     outputNodeId: mihomoOutput?.id,
     targetProfile: mihomoOutput?.data.mihomoProfile,
+    targetSettings,
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
@@ -79,9 +81,10 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, mihomoOutput?.id),
     targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(g3cRecords, mihomoOutput?.id),
     targetNativeSurgeDnsBehavior: graphResult.targetNativeSurgeDnsBehavior,
-  }), [g1Records, g2Records, g3cRecords, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput])
+  }), [g1Records, g2Records, g3cRecords, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, mihomoOutput, targetSettings])
   const targetNativeOptions = useMemo(() => ({
     outputNodeId: surgeOutput?.id,
+    targetSettings,
     targetNativeStrategies: graphResult.nativeStrategies ?? [],
     nativeRoutes: graphResult.nativeRoutes ?? [],
     nativeFinalRoute: graphResult.nativeFinalRoute,
@@ -94,7 +97,7 @@ export function useProjectCompiles(enabled: boolean, selection: ProjectCompileSe
     targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, surgeOutput?.id),
     targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(g3cRecords, surgeOutput?.id),
     targetNativeSurgeDnsBehavior: graphResult.targetNativeSurgeDnsBehavior,
-  }), [g1Records, g2Records, g3cRecords, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, surgeOutput])
+  }), [g1Records, g2Records, g3cRecords, graphResult.effectiveDnsNodeId, graphResult.effectiveFinalNodeId, graphResult.nativeFinalRoute, graphResult.nativeRoutes, graphResult.nativeStrategies, graphResult.targetNativeFinalOptions, graphResult.targetNativeRouteOptions, graphResult.targetNativeRuleSetSources, surgeOutput, targetSettings])
   const singBoxOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: singBoxOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, singBoxOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, singBoxOutput?.id), targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(g3cRecords, singBoxOutput?.id) }), [g1Records, g2Records, g3cRecords, singBoxOutput, targetNativeOptions])
   const loonOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: loonOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, loonOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, loonOutput?.id), targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(g3cRecords, loonOutput?.id) }), [g1Records, g2Records, g3cRecords, loonOutput, targetNativeOptions])
   const shadowrocketOptions = useMemo(() => ({ ...targetNativeOptions, outputNodeId: shadowrocketOutput?.id, targetNativeSurgeGeneralNetwork: selectTargetNativeSurgeGeneralNetwork(g1Records, shadowrocketOutput?.id), targetNativeSurgeGeneralConnectivity: selectTargetNativeSurgeGeneralConnectivity(g2Records, shadowrocketOutput?.id), targetNativeSurgeGeneralProxyBypass: selectTargetNativeSurgeGeneralProxyBypass(g3cRecords, shadowrocketOutput?.id) }), [g1Records, g2Records, g3cRecords, shadowrocketOutput, targetNativeOptions])

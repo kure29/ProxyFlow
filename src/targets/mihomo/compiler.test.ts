@@ -129,6 +129,27 @@ describe('MihomoCompiler', () => {
     expect(config.dns).toBeUndefined()
   })
 
+  it('applies managed Mihomo settings through the target compiler and preserves explicit false', () => {
+    const baseline = parseConfig(baseIR()).config
+    const result = compileMihomo(baseIR(), {
+      now: fixedNow,
+      targetSettings: { mihomo: { mixedPort: 7999, allowLan: true, ipv6: false } },
+    })
+    expect(result.success).toBe(true)
+    const config = parse(result.content) as MihomoConfig
+    expect(config).toEqual(expect.objectContaining({ 'mixed-port': 7999, 'allow-lan': true, ipv6: false }))
+    expect(config['mixed-port']).not.toBe(baseline['mixed-port'])
+  })
+
+  it('fails closed for malformed managed Mihomo settings', () => {
+    const result = compileMihomo(baseIR(), {
+      now: fixedNow,
+      targetSettings: { mihomo: { mixedPort: 0 } },
+    })
+    expect(result).toEqual(expect.objectContaining({ success: false, content: '' }))
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: 'MIHOMO_TARGET_SETTINGS_MIXED_PORT_INVALID' }))
+  })
+
   it('compiles a new Mihomo project with the validated starter defaults', () => {
     const project = createBlankProject('mihomo')
     const graph = compileGraph(project)

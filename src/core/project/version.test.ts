@@ -11,6 +11,12 @@ describe('project schema version', () => {
     expect(migrateProject(demoProject)).toEqual(expect.objectContaining({ success: true, migrated: false, project: demoProject }))
   })
 
+  it('keeps optional target settings intact without migration or default injection', () => {
+    const project = structuredClone(demoProject)
+    project.targetSettings = { mihomo: { allowLan: false, ipv6: false } }
+    expect(migrateProject(project)).toEqual(expect.objectContaining({ success: true, migrated: false, project }))
+  })
+
   it('preserves optional Surge G1 intent at the V2 migration boundary', () => {
     const project = structuredClone(demoProject)
     const output = project.graph.nodes.find((node) => node.data.blockType === 'output')!
