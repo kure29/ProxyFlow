@@ -12,7 +12,8 @@ import { presentDiagnostics, summarizeDiagnosticCounts } from '../compiler/diagn
 import { AssetIcon } from '../icons/AssetIcon'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { createMihomoOutputProfile, resolveMihomoOutputProfile } from '../../targets/mihomo/profile'
-import type { MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTunStack } from '../../types/project'
+import { isMihomoTargetSettingManaged, resolveMihomoTargetSettingsDisplay, type MihomoTargetSettingsField, type MihomoTargetSettingsPatch } from '../../targets/mihomo/settings'
+import type { MihomoDnsMode, MihomoOutputProfile, MihomoRuntimePreset, MihomoTargetSettings, MihomoTunStack } from '../../types/project'
 import { buildTargetExportArtifact, targetFileMeta, type TargetExportFormat } from '../compiler/exportFile'
 import { countEnabledDnsResolvers } from '../../core/dns/resolverProfiles'
 import { WebSelect } from '../ui/WebSelect'
@@ -98,6 +99,8 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onSelectTarget, 
   const projectName = useBuilderStore((state) => state.projectName)
   const nodes = useBuilderStore((state) => state.nodes)
   const updateNodeData = useBuilderStore((state) => state.updateNodeData)
+  const targetSettings = useBuilderStore((state) => state.targetSettings)
+  const updateMihomoTargetSettings = useBuilderStore((state) => state.updateMihomoTargetSettings)
   const setToast = useBuilderStore((state) => state.setToast)
   const [copied, setCopied] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -191,21 +194,45 @@ export function WorkspaceExportPanel({ primaryTarget, compiles, onSelectTarget, 
       </div>
       {settingsOpen && hasTargetSettings && <>
         <div className="workspace-export-settings-backdrop" aria-hidden="true" onMouseDown={() => setSettingsOpen(false)} />
-        <MihomoSettingsDrawer targetLabel={capabilities.label} profile={mihomoProfile} dnsResolverCount={dnsResolverCount} onChange={setMihomoProfile} onPresetChange={setPreset} onClose={() => setSettingsOpen(false)} />
+        <MihomoSettingsDrawer targetLabel={capabilities.label} profile={mihomoProfile} managedSettings={targetSettings?.mihomo} dnsResolverCount={dnsResolverCount} onChange={setMihomoProfile} onManagedChange={updateMihomoTargetSettings} onManagedReset={(field) => updateMihomoTargetSettings({ [field]: undefined })} onPresetChange={setPreset} onClose={() => setSettingsOpen(false)} />
       </>}
     </div>
   </div>
 }
 
-function MihomoSettingsDrawer({ targetLabel, profile, dnsResolverCount, onChange, onPresetChange, onClose }: {
+export function MihomoSettingsDrawer({ targetLabel, profile, managedSettings, dnsResolverCount, onChange, onManagedChange, onManagedReset, onPresetChange, onClose }: {
   targetLabel: string
   profile: MihomoOutputProfile
+  managedSettings?: MihomoTargetSettings
   dnsResolverCount: number
   onChange: (patch: Partial<MihomoOutputProfile>) => void
+  onManagedChange: (patch: MihomoTargetSettingsPatch) => void
+  onManagedReset: (field: MihomoTargetSettingsField) => void
   onPresetChange: (preset: MihomoRuntimePreset) => void
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const [mixedPortError, setMixedPortError] = useState(false)
+  const displaySettings = resolveMihomoTargetSettingsDisplay(managedSettings, {
+    mixedPort: profile.mixedPort,
+    allowLan: profile.allowLan,
+    ipv6: profile.ipv6,
+  })
+  const displayProfile = { ...profile, ...displaySettings }
+  const managed = (field: MihomoTargetSettingsField) => isMihomoTargetSettingManaged(managedSettings, field)
+  const resetManaged = (field: MihomoTargetSettingsField) => {
+    if (field === 'mixedPort') setMixedPortError(false)
+    onManagedReset(field)
+  }
+  const updateMixedPort = (raw: string) => {
+    const value = Number(raw)
+    if (Number.isInteger(value) && value >= 1 && value <= 65_535) {
+      setMixedPortError(false)
+      onManagedChange({ mixedPort: value })
+    } else {
+      setMixedPortError(true)
+    }
+  }
   return <aside id="workspace-export-settings-drawer" className="workspace-export-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="workspace-export-settings-title">
     <header>
       <h2 id="workspace-export-settings-title">{t('workspace.export.targetSettings', { target: targetLabel })}</h2>
@@ -215,8 +242,9 @@ function MihomoSettingsDrawer({ targetLabel, profile, dnsResolverCount, onChange
       <details className="workspace-export-settings-section" open>
         <summary><span><Network size={17} /><strong>{t('workspace.export.network')}</strong></span><ChevronDown size={17} /></summary>
         <div className="workspace-export-settings-section-body">
-          <label><span>{t('workspace.export.proxyPort')}</span><input type="number" min="1" max="65535" value={profile.mixedPort} onChange={(event) => onChange({ mixedPort: Number(event.target.value) })} /></label>
-          <label className="toggle-row compact"><span><strong>{t('workspace.export.lanAccess')}</strong></span><input type="checkbox" checked={profile.allowLan} onChange={(event) => onChange({ allowLan: event.target.checked })} /></label>
+          <label><span>{t('workspace.export.proxyPort')}</span><input type="number" min="1" max="65535" step="1" value={displayProfile.mixedPort} aria-invalid={mixedPortError} onChange={(event) => updateMixedPort(event.target.value)} />{mixedPortError && <small className="workspace-export-settings-error">{t('workspace.export.mixedPortInvalid')}</small>}<button type="button" className="row-action workspace-export-settings-reset" disabled={!managed('mixedPort')} onClick={() => resetManaged('mixedPort')}>{t('workspace.export.useInherited')}</button></label>
+          <label className="toggle-row compact"><span><strong>{t('workspace.export.lanAccess')}</strong></span><input type="checkbox" checked={displayProfile.allowLan} onChange={(event) => onManagedChange({ allowLan: event.target.checked })} /></label>
+          <button type="button" className="row-action workspace-export-settings-reset" disabled={!managed('allowLan')} onClick={() => resetManaged('allowLan')}>{t('workspace.export.useInherited')}</button>
         </div>
       </details>
 
@@ -244,7 +272,8 @@ function MihomoSettingsDrawer({ targetLabel, profile, dnsResolverCount, onChange
       <details className="workspace-export-settings-section">
         <summary><span><Settings2 size={17} /><strong>{t('workspace.export.advanced')}</strong></span><ChevronDown size={17} /></summary>
         <div className="workspace-export-settings-section-body">
-          <label className="toggle-row compact"><span><strong>{t('inspector.mihomoIpv6')}</strong><small>{t('inspector.mihomoIpv6Hint')}</small></span><input type="checkbox" checked={profile.ipv6} onChange={(event) => onChange({ ipv6: event.target.checked })} /></label>
+          <label className="toggle-row compact"><span><strong>{t('inspector.mihomoIpv6')}</strong><small>{t('inspector.mihomoIpv6Hint')}</small></span><input type="checkbox" checked={displayProfile.ipv6} onChange={(event) => onManagedChange({ ipv6: event.target.checked })} /></label>
+          <button type="button" className="row-action workspace-export-settings-reset" disabled={!managed('ipv6')} onClick={() => resetManaged('ipv6')}>{t('workspace.export.useInherited')}</button>
           <label className="toggle-row compact"><span><strong>{t('inspector.mihomoSniffer')}</strong><small>{t('inspector.mihomoSnifferHint')}</small></span><input type="checkbox" checked={profile.sniffer} onChange={(event) => onChange({ sniffer: event.target.checked })} /></label>
           <label className="toggle-row compact"><span><strong>{t('inspector.mihomoStoreSelected')}</strong><small>{t('inspector.mihomoStoreSelectedHint')}</small></span><input type="checkbox" checked={profile.storeSelected} onChange={(event) => onChange({ storeSelected: event.target.checked })} /></label>
           <label className="toggle-row compact"><span><strong>{t('inspector.mihomoUnifiedDelay')}</strong><small>{t('inspector.mihomoUnifiedDelayHint')}</small></span><input type="checkbox" checked={profile.unifiedDelay} onChange={(event) => onChange({ unifiedDelay: event.target.checked })} /></label>

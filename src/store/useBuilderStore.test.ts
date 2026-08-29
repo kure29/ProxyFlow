@@ -11,6 +11,7 @@ import { createMihomoOutputProfile } from '../targets/mihomo/profile'
 import { createBlankProject } from '../data/newProject'
 import { legacyChinaServiceDefinition } from '../data/legacyServices'
 import { appendDnsResolverPreset, deleteDnsResolver, patchDnsResolver } from '../core/dns/resolverProfiles'
+import { getTargetBranch } from '../core/targetBranch'
 
 function semanticNodes(nodes: ReturnType<typeof useBuilderStore.getState>['nodes']) {
   return nodes.map((node) => {
@@ -48,6 +49,48 @@ describe('builder store', () => {
 
     const saved = JSON.parse(JSON.stringify(useBuilderStore.getState().toProject()))
     useBuilderStore.getState().hydrate(saved)
+    expect(useBuilderStore.getState().targetSettings).toEqual({ mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } })
+  })
+
+  it('updates only Mihomo settings, preserves other target sections, and supports clearing', () => {
+    useBuilderStore.getState().setTargetSettings({
+      mihomo: { mixedPort: 7890, allowLan: true },
+      surge: { future: true },
+    } as any)
+    useBuilderStore.getState().updateMihomoTargetSettings({ allowLan: false, ipv6: false })
+    expect(useBuilderStore.getState().targetSettings).toEqual({
+      mihomo: { mixedPort: 7890, allowLan: false, ipv6: false },
+      surge: { future: true },
+    })
+
+    useBuilderStore.getState().updateMihomoTargetSettings({ mixedPort: undefined, allowLan: undefined, ipv6: undefined })
+    expect(useBuilderStore.getState().targetSettings).toEqual({ surge: { future: true } })
+  })
+
+  it('does not save an invalid Mihomo patch', () => {
+    useBuilderStore.getState().setTargetSettings({ mihomo: { mixedPort: 7890 } })
+    useBuilderStore.getState().updateMihomoTargetSettings({ mixedPort: 70_000 })
+    expect(useBuilderStore.getState().targetSettings).toEqual({ mihomo: { mixedPort: 7890 } })
+  })
+
+  it('carries a UI-style managed update through Project serialization into Mihomo YAML', async () => {
+    useBuilderStore.getState().hydrate(structuredClone(createBlankProject('mihomo')))
+    useBuilderStore.getState().updateMihomoTargetSettings({ mixedPort: 7999, allowLan: false, ipv6: false })
+    const project = useBuilderStore.getState().toProject()
+    const graph = compileGraph(project, { validationTarget: 'mihomo' })
+    expect(graph.ir).toBeDefined()
+    const result = await getTargetBranch('mihomo')!.compile(graph.ir!, { targetSettings: project.targetSettings })
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('mixed-port: 7999')
+    expect(result.content).toContain('allow-lan: false')
+    expect(result.content).toContain('ipv6: false')
+  })
+
+  it('keeps managed settings while switching the active target', () => {
+    useBuilderStore.getState().hydrate(structuredClone(createBlankProject('mihomo')))
+    useBuilderStore.getState().updateMihomoTargetSettings({ mixedPort: 7999, allowLan: false, ipv6: false })
+    useBuilderStore.getState().setPrimaryTarget('surge')
+    expect(useBuilderStore.getState().primaryTarget).toBe('surge')
     expect(useBuilderStore.getState().targetSettings).toEqual({ mihomo: { mixedPort: 7999, allowLan: false, ipv6: false } })
   })
 
