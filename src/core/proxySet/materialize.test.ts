@@ -124,6 +124,34 @@ describe('ProxySet materialization', () => {
     expect(materializeProxySet(irWith([rename], content), { kind: 'transform', id: 'rename' }).proxies[0].name).toBe('HongKong-01')
   })
 
+  it('retains opaque provenance through rename and does not make it part of identity', () => {
+    const content = `proxies:
+  - name: Opaque Node
+    type: http
+    server: opaque.example.invalid
+    port: 8080
+    future-field: fixture-value
+`
+    const rename: TransformIR = {
+      kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' },
+      mode: 'simple', pattern: 'Opaque', replacement: 'Renamed', global: true,
+    }
+    const ir = irWith([rename], content)
+    const source = ir.sources[0] as Extract<ProxyFlowIR['sources'][number], { kind: 'subscription' }>
+    const original = source.proxies![0]
+    const renamed = materializeProxySet(ir, { kind: 'transform', id: 'rename' }).proxies[0]
+    expect(renamed.name).toBe('Renamed Node')
+    expect(renamed.opaque).toEqual(original.opaque)
+
+    source.proxies = [
+      original,
+      { ...original, id: `${original.id}-opaque-variant`, opaque: { ...original.opaque!, fields: { 'other-field': 'different' } } },
+    ]
+    const dedupe: TransformIR = { kind: 'deduplicate', id: 'dedupe', name: 'Dedupe', input: { kind: 'source', id: 'source' }, by: 'identity' }
+    const deduped = materializeProxySet({ ...ir, transforms: [dedupe] }, { kind: 'transform', id: 'dedupe' })
+    expect(deduped.outputCount).toBe(1)
+  })
+
   it('fails closed with a stable issue for invalid rename regex', () => {
     const rename: TransformIR = { kind: 'rename', id: 'rename', name: 'Rename', input: { kind: 'source', id: 'source' }, mode: 'regex', pattern: '(', replacement: 'Node' }
     const result = materializeProxySet(irWith([rename]), { kind: 'transform', id: 'rename' })

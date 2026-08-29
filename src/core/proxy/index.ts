@@ -1,5 +1,6 @@
 export * from './identity'
 export * from './model'
+export * from './opaque'
 export * from './region'
 export * from './regionCodes'
 export * from './security'

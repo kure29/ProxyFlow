@@ -1,4 +1,5 @@
 import type { SubscriptionSnapshot } from './types'
+import { isOpaqueProxyPreservation } from '../proxy'
 
 export const RUNTIME_STORAGE_SCHEMA_VERSION = 1 as const
 export const RUNTIME_DATABASE_NAME = 'proxyflow.runtime.v1'
@@ -261,7 +262,8 @@ function isValidEndpoint(value: unknown) {
     || typeof value.name !== 'string'
     || typeof value.server !== 'string'
     || !isPort(value.port)
-    || !isValidEndpointMetadata(value.metadata)) return false
+    || !isValidEndpointMetadata(value.metadata)
+    || value.opaque !== undefined && !isOpaqueProxyPreservation(value.opaque)) return false
   switch (value.protocol) {
     case 'http': return value.kind === 'http' && optionalString(value.username) && optionalString(value.password) && optionalTls(value.tls)
     case 'socks5': return value.kind === 'socks' && value.version === '5' && optionalString(value.username) && optionalString(value.password)

@@ -6,6 +6,9 @@ import { compileMihomo } from '../../targets/mihomo/compiler'
 import type { MihomoConfig } from '../../targets/mihomo/model'
 import { compileSingBox } from '../../targets/singbox/compiler'
 import type { SingBoxConfig } from '../../targets/singbox/model'
+import { compileSurge } from '../../targets/surge/compiler'
+import { compileLoon } from '../../targets/loon/compiler'
+import { compileShadowrocket } from '../../targets/shadowrocket/compiler'
 import { materializeProxySet } from './materialize'
 import hysteria2 from '../../../fixtures/subscriptions/hysteria2.txt?raw'
 import mixedModern from '../../../fixtures/subscriptions/mixed-modern.txt?raw'
@@ -81,6 +84,29 @@ describe('real subscription cross-target pipeline', () => {
     expect(singBox.outbounds.filter((outbound) => outbound.type === 'http')).toEqual([
       expect.objectContaining({ tls: expect.objectContaining({ enabled: true, server_name: 'secure-http.example.com' }) }),
     ])
+  })
+
+  it('keeps Mihomo-owned opaque fields out of other target outputs', () => {
+    const parsed = parseSubscription(`proxies:
+  - name: Opaque HTTP
+    type: http
+    server: opaque.example.invalid
+    port: 8080
+    future-field: fixture-value
+    future-object: { enabled: true }
+`, { sourceId: 'opaque-cross-target', sourceName: 'Opaque Cross Target' })
+    const ir = directIR(parsed.proxies)
+    const mihomoResult = compileMihomo(ir, { now })
+    expect(mihomoResult.success).toBe(true)
+    expect((parseYaml(mihomoResult.content) as MihomoConfig).proxies).toContainEqual(expect.objectContaining({ 'future-field': 'fixture-value', 'future-object': { enabled: true } }))
+
+    const otherTargetResults = [
+      compileSingBox(ir, { now }),
+      compileSurge(ir, { now }),
+      compileLoon(ir, { now }),
+      compileShadowrocket(ir, { now }),
+    ]
+    for (const result of otherTargetResults) expect(result.content).not.toContain('future-field')
   })
 
   it('lowers complete Reality and Vision semantics independently to both targets', () => {

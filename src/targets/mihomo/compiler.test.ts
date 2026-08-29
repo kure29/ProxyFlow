@@ -66,6 +66,53 @@ function baseIR(): ProxyFlowIR {
 }
 
 describe('MihomoCompiler', () => {
+  it('re-emits same-owner opaque fields while modeled edits take precedence', () => {
+    const parsed = parseSubscription(`proxies:
+  - name: Imported Trojan
+    type: trojan
+    server: old.example.invalid
+    port: 443
+    password: fixture-password
+    tls: true
+    network: ws
+    ws-opts:
+      path: /known
+      headers:
+        Host: cdn.example.invalid
+        X-Future-Header: fixture-header
+      future-options:
+        enabled: true
+    future-field: fixture-value
+`, { sourceId: 'opaque-source', sourceName: 'Opaque Source' })
+    const imported = parsed.proxies[0]
+    expect(imported?.opaque?.origin).toEqual({ kind: 'target', target: 'mihomo', format: 'clash-yaml' })
+    const edited = {
+      ...imported,
+      name: 'Edited Trojan',
+      server: 'new.example.invalid',
+      // Also exercise the merge guard if a legacy/full opaque payload reaches
+      // the compiler with modeled keys still present.
+      opaque: imported?.opaque ? {
+        ...imported.opaque,
+        fields: { ...imported.opaque.fields, name: 'Stale Name', server: 'stale.example.invalid' },
+      } : undefined,
+    }
+    const ir = baseIR()
+    ir.sources = [{ kind: 'manual-proxy', id: 'source', name: 'Source', proxies: [edited] }]
+    ir.strategies = [{ kind: 'select', id: 'select', name: 'Select', candidates: [{ kind: 'source', id: 'source' }] }]
+    ir.finalRoute = { target: { kind: 'strategy', id: 'select' } }
+
+    const config = parseConfig(ir).config
+    const output = config.proxies?.find((proxy) => proxy.name === 'Edited Trojan') as unknown as Record<string, unknown>
+    expect(output).toEqual(expect.objectContaining({ name: 'Edited Trojan', server: 'new.example.invalid', 'future-field': 'fixture-value' }))
+    expect(output).not.toHaveProperty('Stale Name')
+    expect(output['ws-opts']).toEqual({
+      path: '/known',
+      headers: { Host: 'cdn.example.invalid', 'X-Future-Header': 'fixture-header' },
+      'future-options': { enabled: true },
+    })
+  })
+
   it('uses the safe Local Proxy profile when an older project has no target profile', () => {
     const config = parseConfig(baseIR()).config
     expect(config).toEqual(expect.objectContaining({

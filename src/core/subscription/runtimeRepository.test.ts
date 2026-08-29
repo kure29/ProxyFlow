@@ -88,6 +88,29 @@ describe('subscription IndexedDB runtime repository', () => {
     expect(await repository.readActive(scope)).toEqual(stored)
   })
 
+  it('round-trips Mihomo opaque endpoint fields without a schema migration', async () => {
+    const repository = new IndexedDbSubscriptionRuntimeRepository(new IDBFactory())
+    const scope = cacheScope('opaque-fingerprint')
+    const body = `proxies:
+  - name: Opaque
+    type: http
+    server: opaque.example.invalid
+    port: 8080
+    future-field: fixture-value
+`
+    const result = parseSubscription(body, { sourceId: scope.sourceId })
+    const candidate = await createSnapshotCandidate({
+      sourceId: scope.sourceId, inputKind: 'url', sourceConfigFingerprint: scope.sourceConfigFingerprint,
+      content: body, result, fetchedAt: '2026-08-15T00:00:00.000Z', parsedAt: '2026-08-15T00:00:00.000Z',
+    })
+    const stored = commitCandidate(candidate, '2026-08-15T00:00:00.000Z')
+    await repository.writeActive(scope, stored)
+    expect((await repository.readActive(scope))?.result.proxies[0].opaque).toEqual({
+      origin: { kind: 'target', target: 'mihomo', format: 'clash-yaml' },
+      fields: { 'future-field': 'fixture-value' },
+    })
+  })
+
   it('discards a malformed nested endpoint without affecting another source', async () => {
     const factory = new IDBFactory()
     const repository = new IndexedDbSubscriptionRuntimeRepository(factory)

@@ -1,7 +1,7 @@
 import type { ResolvedProxyEndpointIR } from './model'
 
 type ProxyIdentity = ResolvedProxyEndpointIR extends infer Endpoint
-  ? Endpoint extends ResolvedProxyEndpointIR ? Omit<Endpoint, 'id' | 'name' | 'metadata'> : never
+  ? Endpoint extends ResolvedProxyEndpointIR ? Omit<Endpoint, 'id' | 'name' | 'metadata' | 'opaque'> : never
   : never
 
 export function stableOpaqueHash(value: string): string {
@@ -38,7 +38,7 @@ export function makeProxyId(sourceId: string, endpoint: ProxyIdentity): string {
 }
 
 export function proxyFingerprint(endpoint: ResolvedProxyEndpointIR): string {
-  const { id: _id, name: _name, metadata: _metadata, ...identity } = endpoint
+  const { id: _id, name: _name, metadata: _metadata, opaque: _opaque, ...identity } = endpoint
   return stableOpaqueHash(proxyIdentityMaterial(identity))
 }
 
