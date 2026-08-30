@@ -95,7 +95,7 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
   }
 
   return <header className="topbar" data-view={view}>
-    <button className="brand" type="button" aria-label={t('workspace.nodes')} onClick={() => onOpenWorkspaceSection('sources')}>
+    <button className="brand" type="button" aria-label={t('workspace.sources')} onClick={() => onOpenWorkspaceSection('sources')}>
       <img className="brand-mark" src={proxyFlowLogo} alt="" aria-hidden="true" />
       <strong>ProxyFlow</strong>
       <small className="version-mark" title={APP_VERSION_LABEL}>{APP_VERSION_BADGE}</small>

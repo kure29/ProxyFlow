@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Boxes, Check, GitBranch, Home, MoreHorizontal, Route, type LucideIcon } from 'lucide-react'
+import { Check, GitBranch, Home, ListFilter, MoreHorizontal, Radio, Route, type LucideIcon } from 'lucide-react'
 import type { WorkspaceSectionId } from '../../core/workspace'
 import {
   isNodeSection, resolveMobilePrimarySection, resolveNodeSection,
@@ -21,6 +21,7 @@ interface MobileWorkspaceNavigationProps {
     title: string
     home: string
     nodes: string
+    processing?: string
     strategies: string
     routing: string
     more: string
@@ -105,7 +106,8 @@ export function MobileWorkspaceNavigation({
   }
   const controls: Array<{ id: MobilePrimarySection; icon: LucideIcon; label: string }> = [
     { id: 'home', icon: Home, label: labels.home },
-    { id: 'nodes', icon: Boxes, label: labels.nodes },
+    { id: 'nodes', icon: Radio, label: labels.nodes },
+    { id: 'processing', icon: ListFilter, label: labels.processing ?? labels.nodes },
     { id: 'strategies', icon: GitBranch, label: labels.strategies },
     { id: 'routing', icon: Route, label: labels.routing },
     { id: 'more', icon: MoreHorizontal, label: labels.more },

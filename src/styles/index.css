@@ -1288,7 +1288,7 @@
     .structured-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
     .workspace-navigation { min-height: auto; padding: var(--space-2) var(--space-6); border-right: 0; border-bottom: 1px solid var(--color-border); }
     .workspace-target-summary, .workspace-navigation-items, .visual-flow-link { display: none; }
-    .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
+    .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-1); }
     .workspace-mobile-navigation-trigger {
       width: 100%;
       min-height: var(--touch-target);
@@ -1446,7 +1446,7 @@
     .structured-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
     .workspace-navigation { min-height: auto; padding: var(--space-2) var(--space-3); border-right: 0; border-bottom: 1px solid var(--color-border); }
     .workspace-target-summary, .workspace-navigation-items, .visual-flow-link { display: none; }
-    .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
+    .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-1); }
     .workspace-content-header { padding: var(--space-4) var(--space-6); }
     .workspace-content-header > div:last-child:not(:first-child) { flex-wrap: wrap; justify-content: flex-end; }
     .workspace-section-body { width: 100%; padding: var(--space-4) var(--space-6) var(--space-8); overflow-x: hidden; }
@@ -1638,7 +1638,7 @@
       background: color-mix(in srgb, var(--color-surface) 92%, transparent);
       backdrop-filter: blur(12px);
     }
-    .workspace-mobile-navigation { width: 100%; height: 56px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+    .workspace-mobile-navigation { width: 100%; height: 56px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; }
     .workspace-mobile-navigation > button {
       min-height: var(--touch-target);
       display: flex;
@@ -2146,7 +2146,7 @@
   .structured-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .structured-workspace .workspace-navigation { min-height: auto; display: block; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .structured-workspace .workspace-navigation-items { display: none; }
-  .structured-workspace .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .structured-workspace .workspace-mobile-navigation { width: 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
   .structured-workspace .workspace-content-header { min-height: 92px; padding: 26px 30px 18px; }
   .structured-workspace .workspace-content-header h1 { font-size: 28px; line-height: 36px; }
   .structured-workspace .workspace-node-tabs { gap: 28px; padding-inline: 30px; }
@@ -3602,8 +3602,8 @@
   }
 }
 
-/* Final product UI baseline: a quiet desktop shell with Nodes as the
-   aggregate entry point. These rules intentionally sit last so legacy
+/* Final product UI baseline: a quiet desktop shell with Sources as the
+   aggregate entry point and proxy inventory nested beneath it. These rules intentionally sit last so legacy
    presentation layers cannot re-introduce the previous grouped sidebar. */
 @layer ui2 {
   .structured-workspace {

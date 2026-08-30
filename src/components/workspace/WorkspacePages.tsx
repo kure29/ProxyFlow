@@ -150,7 +150,7 @@ export function ProxiesWorkspace({ proxies, target, targetProjection }: {
       ? <WorkspaceEmpty icon={<Search size={22} />} title={t('workspace.proxy.noMatches')} />
       : <>
         <div className="workspace-proxy-table-header" aria-hidden="true"><span>{t('workspace.name')}</span><span>{t('workspace.region')}</span><span>{t('workspace.compatibility')}</span><span>{t('workspace.protocol')}</span><span>{t('workspace.source')}</span><span>{t('workspace.proxy.sourceAvailability')}</span></div>
-        <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.nodeList')}>
+        <div className="workspace-proxy-grid" role="list" aria-label={t('workspace.proxyInventory')}>
           {filtered.map((proxy) => {
           const endpointProjection = targetEndpointProjection(proxy, target, targetProjection)
           const fallbackTargetStatus = !endpointProjection && target && target !== 'surge'
