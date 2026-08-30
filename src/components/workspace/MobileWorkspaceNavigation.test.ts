@@ -16,17 +16,18 @@ const items: MobileWorkspaceNavigationItem[] = [
 ]
 
 describe('Mobile Workspace navigation', () => {
-  it('renders the stable five-entry navigation and active More state', () => {
+  it('renders the consolidated mobile workflow and active More state', () => {
     const html = renderToStaticMarkup(createElement(MobileWorkspaceNavigation, {
       activeSection: 'dns',
       lastNodeSection: 'proxies',
       items,
-      labels: { title: 'Project navigation', home: 'Home', nodes: 'Nodes', strategies: 'Strategies', routing: 'Routing', more: 'More' },
+      labels: { title: 'Project navigation', home: 'Home', nodes: 'Sources', processing: 'Processing', strategies: 'Strategies', routing: 'Routing', more: 'More' },
       onSectionChange: () => undefined,
     }))
 
     expect(html).toContain('Home')
-    expect(html).toContain('Nodes')
+    expect(html).toContain('Sources')
+    expect(html).toContain('Processing')
     expect(html).toContain('Strategies')
     expect(html).toContain('Routing')
     expect(html).toContain('More')

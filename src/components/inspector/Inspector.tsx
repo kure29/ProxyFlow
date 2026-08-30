@@ -1454,8 +1454,8 @@ function DnsInspector({ node, onOpenWorkspaceSection }: InspectorProps) {
   const enabledCount = resolvers.filter((resolver) => resolver.enabled).length
   return <>
     <TextField node={node} field="title" label={t('inspector.name')} />
-    <div className="compat-card"><Globe2 size={18} /><div><strong>{t('workspace.dnsAdvanced')}</strong><span>{t('workspace.export.resolvers', { count: enabledCount })}</span></div><b>{enabledCount}</b></div>
-    {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('dns')}><Globe2 size={15} /> {t('workspace.open')} {t('workspace.dnsAdvanced')}</button>}
+    <div className="compat-card"><Globe2 size={18} /><div><strong>{t('workspace.settings')}</strong><span>{t('workspace.export.resolvers', { count: enabledCount })}</span></div><b>{enabledCount}</b></div>
+    {onOpenWorkspaceSection && <button className="inspector-primary-button" onClick={() => onOpenWorkspaceSection('dns')}><Globe2 size={15} /> {t('workspace.open')} {t('workspace.settings')}</button>}
   </>
 }
 

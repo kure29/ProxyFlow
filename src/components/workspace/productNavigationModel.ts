@@ -8,19 +8,27 @@ import { isNodeSection } from './mobileWorkspaceNavigationModel'
  * persisted project/navigation model.
  */
 export const productNavigationGroups = [
-  { id: 'nodes', sections: ['sources', 'proxies', 'processing'] as const },
+  { id: 'nodes', sections: ['sources', 'proxies'] as const },
+  { id: 'processing', sections: ['processing'] as const },
   { id: 'strategies', sections: ['strategies'] as const },
   { id: 'routing', sections: ['routing'] as const },
+  { id: 'settings', sections: ['dns'] as const },
+  // Keep the existing output/diagnostics group ids stable; only their visible
+  // labels and placement are part of this presentation slice.
   { id: 'output', sections: ['export'] as const },
   { id: 'diagnostics', sections: ['inspect'] as const },
-  { id: 'advanced', sections: ['dns'] as const },
 ] as const
 
 export const productNodeTabs = [
   { section: 'sources', label: 'workspace.subscriptionSources' },
-  { section: 'proxies', label: 'workspace.nodeList' },
-  { section: 'processing', label: 'workspace.processing' },
+  { section: 'proxies', label: 'workspace.proxyInventory' },
 ] as const
+
+/** Primary authoring stages, expressed as stable workspace section ids. */
+export const productPrimarySections = ['sources', 'processing', 'strategies', 'routing', 'dns', 'export'] as const
+
+/** Secondary project/review surfaces kept reachable outside the authoring flow. */
+export const productSecondarySections = ['overview', 'inspect'] as const
 
 export type ProductNavigationGroupId = typeof productNavigationGroups[number]['id']
 
@@ -40,7 +48,7 @@ export type ProductNavigationAction =
 
 export const initialProductNavigationState: ProductNavigationState = {
   view: 'workspace',
-  // New projects start with the source-first Nodes workflow. Overview remains
+  // New projects start with the source-first configuration workflow. Overview remains
   // a compatibility route, but is no longer a primary product entry point.
   workspaceSection: 'sources',
   lastNodeSection: 'sources',

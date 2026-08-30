@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Boxes, FileOutput, GitBranch, Globe2, Home, ListFilter, Plus,
-  Radio, RefreshCw, Route, SearchCheck, Server,
+  Radio, RefreshCw, Route, SearchCheck,
 } from 'lucide-react'
 import {
   createWorkspaceProjection, orderWorkspaceProcessingNodes, processingMoveAvailability,
@@ -50,13 +50,13 @@ interface WorkspaceShellProps extends WorkspaceNavigationState {
 const navigation = [
   { id: 'overview', icon: Home, label: 'workspace.home', description: 'workspace.description.overview' },
   { id: 'sources', icon: Radio, label: 'workspace.sources', description: 'workspace.description.sources' },
-  { id: 'proxies', icon: Boxes, label: 'workspace.proxies', description: 'workspace.description.proxies' },
+  { id: 'proxies', icon: Boxes, label: 'workspace.proxyInventory', description: 'workspace.description.proxies' },
   { id: 'processing', icon: ListFilter, label: 'workspace.processing', description: 'workspace.description.processing' },
   { id: 'strategies', icon: GitBranch, label: 'workspace.strategies', description: 'workspace.description.strategies' },
   { id: 'routing', icon: Route, label: 'workspace.routing', description: 'workspace.description.routing' },
   { id: 'inspect', icon: SearchCheck, label: 'workspace.inspect', description: 'workspace.description.inspect' },
-  { id: 'dns', icon: Globe2, label: 'workspace.dnsAdvanced', description: 'workspace.description.dns' },
-  { id: 'export', icon: FileOutput, label: 'workspace.output', description: 'workspace.description.output' },
+  { id: 'dns', icon: Globe2, label: 'workspace.settings', description: 'workspace.description.dns' },
+  { id: 'export', icon: FileOutput, label: 'workspace.export', description: 'workspace.description.export' },
 ] as const
 
 export function WorkspaceShell({
@@ -131,16 +131,17 @@ export function WorkspaceShell({
   const targetLabel = primaryTarget ? getTargetCapabilities(primaryTarget).label : t('workspace.targetRequired')
   const activeNavigation = navigation.find((item) => item.id === activeSection) ?? navigation[0]
   const isNodesActive = isNodeSection(activeSection)
-  const nodeCount = projection.proxies.length
   const primaryNavigation = [
-    { id: 'nodes', section: 'sources', icon: Server, label: 'workspace.nodes', count: nodeCount },
+    { id: 'sources', section: 'sources', icon: Radio, label: 'workspace.sources', count: counts.sources },
+    { id: 'processing', section: 'processing', icon: ListFilter, label: 'workspace.processing', count: counts.processing },
     { id: 'strategies', section: 'strategies', icon: GitBranch, label: 'workspace.strategies', count: counts.strategies },
     { id: 'routing', section: 'routing', icon: Route, label: 'workspace.routing', count: counts.routing },
-    { id: 'output', section: 'export', icon: FileOutput, label: 'workspace.output', count: undefined },
+    { id: 'settings', section: 'dns', icon: Globe2, label: 'workspace.settings', count: undefined },
+    { id: 'export', section: 'export', icon: FileOutput, label: 'workspace.export', count: undefined },
   ] as const
   const auxiliaryNavigation = [
+    { id: 'overview', section: 'overview', icon: Home, label: 'workspace.home', count: undefined },
     { id: 'inspect', section: 'inspect', icon: SearchCheck, label: 'workspace.inspect', count: counts.inspect },
-    { id: 'advanced', section: 'dns', icon: Globe2, label: 'workspace.advanced', count: undefined },
   ] as const
 
   const editInWorkspace = (item: WorkspaceNodeItem) => {
@@ -180,8 +181,8 @@ export function WorkspaceShell({
     <nav className="workspace-navigation" aria-label={t('workspace.navigation')}>
       <div className="workspace-navigation-items">
         {primaryNavigation.map(({ id, section, icon: Icon, label, count }) => {
-          const active = id === 'nodes' ? isNodesActive : activeSection === section
-          return <button type="button" className={active ? 'is-active' : ''} key={id} aria-current={active ? 'page' : undefined} onClick={() => onSectionChange(id === 'nodes' ? resolveNodeSection(activeSection, lastNodeSection) : section)}>
+          const active = id === 'sources' ? isNodesActive : activeSection === section
+          return <button type="button" className={active ? 'is-active' : ''} key={id} aria-current={active ? 'page' : undefined} onClick={() => onSectionChange(id === 'sources' ? resolveNodeSection(activeSection, lastNodeSection) : section)}>
             <Icon size={18} /><span>{t(label)}</span>{count !== undefined && <small>{count}</small>}
           </button>
         })}
@@ -203,7 +204,8 @@ export function WorkspaceShell({
         labels={{
           title: t('workspace.mobileNavigation.title'),
           home: t('workspace.mobileNavigation.home'),
-          nodes: t('workspace.mobileNavigation.nodes'),
+          nodes: t('workspace.mobileNavigation.sources'),
+          processing: t('workspace.processing'),
           strategies: t('workspace.mobileNavigation.strategies'),
           routing: t('workspace.mobileNavigation.routing'),
           more: t('workspace.mobileNavigation.more'),
@@ -214,13 +216,13 @@ export function WorkspaceShell({
 
     <main id="workspace-main" className="workspace-content" tabIndex={-1}>
       <header className="workspace-content-header">
-        <div><h1>{isNodesActive ? t('workspace.nodes') : t(activeNavigation.label)}</h1>{!isNodesActive && <p>{t(activeNavigation.description)}</p>}</div>
+        <div><h1>{isNodesActive ? (activeSection === 'proxies' ? t('workspace.proxyInventory') : t('workspace.sources')) : t(activeNavigation.label)}</h1>{!isNodesActive && <p>{t(activeNavigation.description)}</p>}</div>
         {activeSection === 'sources' && <div><button className="secondary-action" disabled={refreshableCount === 0 || refreshingCount > 0} onClick={() => void refreshAllSubscriptions()}><RefreshCw className={refreshingCount > 0 ? 'spin' : ''} size={15} />{t('workspace.refreshAll')}</button><button className="secondary-action" onClick={() => addNode('manual-proxy')}><Plus size={15} />{t('workspace.pasteLinks')}</button><button className="primary-action" onClick={() => addNode('subscription')}><Plus size={15} />{t('workspace.addSubscription')}</button></div>}
         {activeSection === 'processing' && <WorkspaceAddMenu label={t('workspace.addProcessing')} options={processingCreationOptions} onCreate={addNode} />}
         {activeSection === 'strategies' && <WorkspaceAddMenu label={t('workspace.addStrategy')} options={strategyCreationOptions(activeProductTarget)} onCreate={addNode} />}
       </header>
 
-      {isNodesActive && <nav className="workspace-node-tabs" aria-label={t('workspace.nodes')} role="tablist">
+      {isNodesActive && <nav className="workspace-node-tabs" aria-label={t('workspace.sources')} role="tablist">
         {productNodeTabs.map(({ section, label }) => <button
           type="button"
           role="tab"

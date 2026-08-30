@@ -1,8 +1,8 @@
 import type { WorkspaceSectionId } from '../../core/workspace'
 
-export type MobilePrimarySection = 'home' | 'nodes' | 'strategies' | 'routing' | 'more'
+export type MobilePrimarySection = 'home' | 'nodes' | 'processing' | 'strategies' | 'routing' | 'more'
 
-const nodeSections = new Set<WorkspaceSectionId>(['sources', 'proxies', 'processing'])
+const nodeSections = new Set<WorkspaceSectionId>(['sources', 'proxies'])
 const moreSections = new Set<WorkspaceSectionId>(['dns', 'inspect', 'export'])
 
 export function isNodeSection(section: WorkspaceSectionId) {
@@ -16,6 +16,7 @@ export function isMoreSection(section: WorkspaceSectionId) {
 export function resolveMobilePrimarySection(section: WorkspaceSectionId): MobilePrimarySection {
   if (section === 'overview') return 'home'
   if (isNodeSection(section)) return 'nodes'
+  if (section === 'processing') return 'processing'
   if (section === 'strategies') return 'strategies'
   if (section === 'routing') return 'routing'
   return 'more'
