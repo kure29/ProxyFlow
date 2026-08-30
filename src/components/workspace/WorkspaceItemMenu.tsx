@@ -1,20 +1,18 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, GitBranch, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useI18n } from '../../i18n'
 
 export function WorkspaceItemMenu({
   title,
   protectedItem = false,
   onEdit,
-  onShowFlow,
   onDuplicate,
   onDelete,
 }: {
   title: string
   protectedItem?: boolean
   onEdit: () => void
-  onShowFlow: () => void
   onDuplicate?: () => void
   onDelete?: () => void
 }) {
@@ -33,7 +31,7 @@ export function WorkspaceItemMenu({
     const rect = trigger.getBoundingClientRect()
     const width = 220
     const left = Math.min(Math.max(12, rect.right - width), window.innerWidth - width - 12)
-    const estimatedHeight = confirming ? 150 : onDuplicate ? 190 : 150
+    const estimatedHeight = confirming ? 150 : onDuplicate ? 150 : 110
     const top = rect.bottom + estimatedHeight + 8 <= window.innerHeight
       ? rect.bottom + 6
       : Math.max(12, rect.top - estimatedHeight - 6)
@@ -61,12 +59,25 @@ export function WorkspaceItemMenu({
       triggerRef.current?.focus()
     }}>
       {confirming ? <div className="workspace-item-delete-confirm" role="alert"><strong>{t('workspace.deleteConfirmTitle')}</strong><p>{t('workspace.deleteConfirmDescription', { name: title })}</p><div><button type="button" onClick={() => setConfirming(false)}>{t('workspace.cancel')}</button><button type="button" className="danger" onClick={() => onDelete && run(onDelete)}>{t('workspace.delete')}</button></div></div>
-        : <>
-          <button type="button" role="menuitem" onClick={() => run(onEdit)}><Pencil size={16} />{t('workspace.edit')}</button>
-          <button type="button" role="menuitem" onClick={() => run(onShowFlow)}><GitBranch size={16} />{t('workspace.showInFlow')}</button>
-          {onDuplicate && <button type="button" role="menuitem" onClick={() => run(onDuplicate)}><Copy size={16} />{t('canvas.copyNode')}</button>}
-          {onDelete && <button type="button" role="menuitem" className="danger" disabled={protectedItem} onClick={() => setConfirming(true)}><Trash2 size={16} />{t('workspace.delete')}</button>}
-        </>}
+        : <WorkspaceItemMenuActions protectedItem={protectedItem} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} onRun={run} onConfirmDelete={() => setConfirming(true)} />}
     </div>, document.body)}
+  </>
+}
+
+export function WorkspaceItemMenuActions({
+  protectedItem = false, onEdit, onDuplicate, onDelete, onRun, onConfirmDelete,
+}: {
+  protectedItem?: boolean
+  onEdit: () => void
+  onDuplicate?: () => void
+  onDelete?: () => void
+  onRun: (action: () => void) => void
+  onConfirmDelete: () => void
+}) {
+  const { t } = useI18n()
+  return <>
+    <button type="button" role="menuitem" onClick={() => onRun(onEdit)}><Pencil size={16} />{t('workspace.edit')}</button>
+    {onDuplicate && <button type="button" role="menuitem" onClick={() => onRun(onDuplicate)}><Copy size={16} />{t('canvas.copyNode')}</button>}
+    {onDelete && <button type="button" role="menuitem" className="danger" disabled={protectedItem} onClick={onConfirmDelete}><Trash2 size={16} />{t('workspace.delete')}</button>}
   </>
 }

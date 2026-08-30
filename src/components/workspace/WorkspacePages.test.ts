@@ -127,7 +127,6 @@ describe('Workspace page presentation helpers', () => {
       onMove: () => undefined,
       onToggle: () => undefined,
       onEdit: () => undefined,
-      onShowFlow: () => undefined,
       onDuplicate: () => undefined,
       onDelete: () => undefined,
     })))
@@ -150,7 +149,7 @@ describe('Workspace page presentation helpers', () => {
     const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(StrategiesWorkspace, {
       items: [item], target: 'surge', runtime: new Map([[item.node.id, { status: 'ready' as const, inputCount: 13, outputCount: 13, removedCount: 0, issues: [] }]]),
       issues: [], targetProjection: projection,
-      onEdit: () => undefined, onShowFlow: () => undefined, onDuplicate: () => undefined, onDelete: () => undefined,
+      onEdit: () => undefined, onDuplicate: () => undefined, onDelete: () => undefined,
     })))
 
     expect(html).toContain('13 candidates')

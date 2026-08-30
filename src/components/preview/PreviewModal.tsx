@@ -24,7 +24,7 @@ const targetMeta = {
   shadowrocket: { label: 'Shadowrocket', icon: outputDefinitions.find((output) => output.target === 'shadowrocket')!.icon, descriptionKey: 'preview.shadowrocketCompiler' as const },
 } as const
 
-export function PreviewModal() {
+export function PreviewModal({ onLocateNode }: { onLocateNode?: (nodeId: string) => void }) {
   const { locale, t } = useI18n()
   const open = useBuilderStore((state) => state.previewOpen)
   const projectName = useBuilderStore((state) => state.projectName)
@@ -133,6 +133,10 @@ export function PreviewModal() {
     const nodeId = diagnosticNodeId(issue, availableNodeIds)
     if (!nodeId) return
     setOpen(false)
+    if (onLocateNode) {
+      onLocateNode(nodeId)
+      return
+    }
     selectNode(nodeId)
     window.requestAnimationFrame(() => {
       void fitView({ nodes: [{ id: nodeId }], padding: 0.85, minZoom: 0.5, maxZoom: 1.25, duration: 450 })
@@ -166,7 +170,7 @@ export function PreviewModal() {
           <button className={mode === 'ir' ? 'is-active' : ''} onClick={() => setMode('ir')}><b>{'{ }'}</b><div><strong><span className="preview-ir-short">IR</span><span className="preview-ir-long">Universal IR</span></strong><small>{t('preview.developerDebug')}</small></div>{mode === 'ir' && <Check size={13} />}</button>
           <span className="preview-subheading">{t('preview.targetCompilers')}</span>
           {targetCompileEnabled && graphResult.success && <CompatibilitySummary label={targetLabel} state={targetState} warningCount={warningCount} />}
-          <div className="preview-stats"><span>{t('preview.blueprint')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warningCount > 0 ? `⚠ ${t(warningCount === 1 ? 'preview.warning' : 'preview.warnings', { count: warningCount })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
+          <div className="preview-stats"><span>{t('preview.projectGraph')}</span><strong>{t('status.nodes', { count: nodes.length })}</strong><span>{mode === 'ir' ? t('preview.graphCompile') : t('preview.compatibility')}</span><strong className={compileSuccess ? 'good' : 'bad'}>{loading ? `… ${t('preview.loading')}` : compileSuccess ? warningCount > 0 ? `⚠ ${t(warningCount === 1 ? 'preview.warning' : 'preview.warnings', { count: warningCount })}` : `✓ ${t('preview.compiled')}` : `× ${t('preview.errors', { count: Math.max(errors.length, loadError.length) })}`}</strong></div>
         </aside>
         <div className={`code-panel${!compileSuccess && !loading ? ' ir-failed' : ''}`}>
           <div className="code-toolbar"><span>{compileSuccess ? mode === 'ir' ? 'proxyflow.ir.json' : artifact?.filename : loading ? 'loading-compiler.log' : 'compile-issues.log'}</span><button onClick={copy} disabled={!compileSuccess}>{copied ? <Check size={13} /> : <Clipboard size={13} />} {copied ? t('preview.copied') : t('preview.copy')}</button></div>

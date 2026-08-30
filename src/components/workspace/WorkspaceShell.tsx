@@ -13,7 +13,7 @@ import { getTargetCapabilities, resolveActiveProductTarget, type PrimaryTarget }
 import { localizeNodeTitle, localizeProjectName, localizeSubscriptionSnapshots, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import type { BlockNodeData, BlockType } from '../../types/project'
-import type { ProductView, WorkspaceNavigationState } from './types'
+import type { WorkspaceNavigationState } from './types'
 import { WorkspaceNodeEditor } from './WorkspaceNodeEditor'
 import { useProjectCompiles } from '../compiler/useProjectCompiles'
 import type { PrimaryTargetHealth } from '../compiler/useProjectCompiles'
@@ -37,9 +37,10 @@ import { shouldDismissWorkspaceEditor } from './workspaceEditorLifecycle'
 import { isNodeSection, resolveNodeSection } from './mobileWorkspaceNavigationModel'
 
 interface WorkspaceShellProps extends WorkspaceNavigationState {
-  onViewChange: (view: ProductView) => void
   primaryHealth: PrimaryTargetHealth
   lastNodeSection: WorkspaceSectionId
+  nodeEditorRequest?: { nodeId: string; requestId: number } | null
+  onNodeEditorRequestHandled?: (requestId: number) => void
   projects: ProjectListItem[]
   onNewProject: () => void
   onSwitchProject: (projectId: string) => Promise<void>
@@ -60,7 +61,7 @@ const navigation = [
 ] as const
 
 export function WorkspaceShell({
-  activeSection, onSectionChange, onViewChange, primaryHealth, lastNodeSection, projects,
+  activeSection, onSectionChange, primaryHealth, lastNodeSection, nodeEditorRequest, onNodeEditorRequestHandled, projects,
   onNewProject, onSwitchProject, onRenameProject, onDeleteProject,
 }: WorkspaceShellProps) {
   const { locale, t } = useI18n()
@@ -152,11 +153,6 @@ export function WorkspaceShell({
     selectNode(nodeId)
     setEditorOpen(true)
   }
-  const showInFlow = (item: WorkspaceNodeItem) => {
-    setEditorOpen(false)
-    selectNode(item.node.id)
-    onViewChange('visual-flow')
-  }
   const addNode = (type: BlockType, data?: Partial<BlockNodeData>, openEditor = true) => {
     const index = nodes.filter((node) => node.data.blockType === type).length
     const id = addLibraryNode(type, { x: 80 + index * 36, y: 90 + index * 42 }, data)
@@ -171,7 +167,14 @@ export function WorkspaceShell({
     }
     previousSectionRef.current = activeSection
   }, [activeSection, selectNode])
-  const showEditorInFlow = useCallback(() => { setEditorOpen(false); onViewChange('visual-flow') }, [onViewChange])
+  useEffect(() => {
+    if (!nodeEditorRequest) return
+    if (nodes.some((node) => node.id === nodeEditorRequest.nodeId)) {
+      selectNode(nodeEditorRequest.nodeId)
+      setEditorOpen(true)
+    }
+    onNodeEditorRequestHandled?.(nodeEditorRequest.requestId)
+  }, [nodeEditorRequest, nodes, onNodeEditorRequestHandled, selectNode])
   const openSectionFromEditor = useCallback((section: WorkspaceSectionId) => {
     closeEditor()
     onSectionChange(section)
@@ -278,7 +281,6 @@ export function WorkspaceShell({
           onMove={(nodeId, direction) => { moveProcessingStep(nodeId, direction) }}
           onToggle={(item, disabled) => updateNodeData(item.node.id, { disabled })}
           onEdit={editInWorkspace}
-          onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
           onDelete={(item) => removeNode(item.node.id)}
         />}
@@ -289,7 +291,6 @@ export function WorkspaceShell({
           issues={projection.compileIssues}
           targetProjection={activeTargetProjection}
           onEdit={editInWorkspace}
-          onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
           onDelete={(item) => removeNode(item.node.id)}
         />}
@@ -305,7 +306,6 @@ export function WorkspaceShell({
           onMove={moveRule}
           onMoveToIndex={moveRuleToIndex}
           onEdit={editInWorkspace}
-          onShowFlow={showInFlow}
           onDuplicate={(item) => duplicateNode(item.node.id)}
           onDelete={(item) => removeNode(item.node.id)}
           getNodeTitle={(node) => localizeNodeTitle(node, locale)}
@@ -341,7 +341,7 @@ export function WorkspaceShell({
         />}
       </section>
     </main>
-    <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onShowFlow={showEditorInFlow} onOpenWorkspaceSection={openSectionFromEditor} />
+    <WorkspaceNodeEditor open={editorOpen} onClose={closeEditor} onOpenWorkspaceSection={openSectionFromEditor} />
   </div>
 }
 

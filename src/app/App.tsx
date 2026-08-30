@@ -12,11 +12,13 @@ import { NewProjectDialog } from '../components/workspace/NewProjectDialog'
 import type { WorkspaceSectionId } from '../core/workspace'
 import { summarizePrimaryTargetHealth, useProjectCompiles } from '../components/compiler/useProjectCompiles'
 import {
-  initialProductNavigationState, productNavigationReducer,
+  initialProductNavigationState, productNavigationReducer, workspaceSectionForNode,
 } from '../components/workspace/productNavigationModel'
 import { deleteStoredProject } from '../components/workspace/projectManagement'
 import { normalizeValidProjectName } from '../core/project/projectName'
 
+// Slice 11B removes every product entry into this branch. The internal view
+// representation and Canvas implementation stay intact for Slice 11C cleanup.
 const VisualFlowWorkspace = lazy(() => import('../components/workspace/VisualFlowWorkspace'))
 const PreviewModal = lazy(() => import('../components/preview/PreviewModal').then(({ PreviewModal: Component }) => ({ default: Component })))
 
@@ -49,6 +51,8 @@ export function App() {
   const storagePausedRef = useRef(false)
   const [navigationState, dispatchNavigation] = useReducer(productNavigationReducer, initialProductNavigationState)
   const { view, workspaceSection, lastNodeSection } = navigationState
+  const [nodeEditorRequest, setNodeEditorRequest] = useState<{ nodeId: string; requestId: number } | null>(null)
+  const nodeEditorRequestId = useRef(0)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [projectCreationRequired, setProjectCreationRequired] = useState(false)
   const [storagePaused, setStoragePaused] = useState(false)
@@ -148,6 +152,7 @@ export function App() {
     const project = await projectStorage.activate(nextProjectId)
     if (!project) return
     hydrate(project)
+    dispatchNavigation({ type: 'open-section', section: workspaceSection })
     await refreshProjectList()
   }
 
@@ -160,6 +165,15 @@ export function App() {
 
   const openWorkspaceSection = useCallback((section: WorkspaceSectionId) => {
     dispatchNavigation({ type: 'open-section', section })
+  }, [])
+  const openWorkspaceNode = useCallback((nodeId: string) => {
+    const node = useBuilderStore.getState().nodes.find((candidate) => candidate.id === nodeId)
+    dispatchNavigation({ type: 'open-section', section: node ? workspaceSectionForNode(node) : 'inspect' })
+    nodeEditorRequestId.current += 1
+    setNodeEditorRequest({ nodeId, requestId: nodeEditorRequestId.current })
+  }, [])
+  const finishWorkspaceNodeRequest = useCallback((requestId: number) => {
+    setNodeEditorRequest((current) => current?.requestId === requestId ? null : current)
   }, [])
 
   const renameStoredProject = async (renamedProjectId: string, name: string) => {
@@ -188,6 +202,7 @@ export function App() {
     if (!deletingCurrent) return
     if (result.nextProject) {
       hydrate(result.nextProject)
+      dispatchNavigation({ type: 'open-section', section: workspaceSection })
       setProjectCreationRequired(false)
       pauseStorage(false)
       return
@@ -211,7 +226,6 @@ export function App() {
     <a href={view === 'workspace' ? '#workspace-main' : '#canvas'} className="skip-link">{view === 'workspace' ? t('app.skipToWorkspace') : t('app.skipToCanvas')}</a>
     <TopBar
       view={view}
-      onViewChange={(nextView) => dispatchNavigation({ type: 'set-view', view: nextView })}
       onOpenWorkspaceSection={openWorkspaceSection}
       projects={projects}
       onNewProject={() => setNewProjectOpen(true)}
@@ -224,9 +238,10 @@ export function App() {
       ? <WorkspaceShell
         activeSection={workspaceSection}
         lastNodeSection={lastNodeSection}
+        nodeEditorRequest={nodeEditorRequest}
+        onNodeEditorRequestHandled={finishWorkspaceNodeRequest}
         projects={projects}
         onSectionChange={openWorkspaceSection}
-        onViewChange={(nextView) => dispatchNavigation({ type: 'set-view', view: nextView })}
         onNewProject={() => setNewProjectOpen(true)}
         onSwitchProject={switchProject}
         onRenameProject={renameStoredProject}
@@ -235,7 +250,7 @@ export function App() {
       />
       : <Suspense fallback={<div className="visual-flow-loading" role="status"><Route size={22} /><span>{t('app.loading')}</span></div>}><VisualFlowWorkspace onOpenWorkspaceSection={openWorkspaceSection} /></Suspense>}
     <StatusBar view={view} health={primaryHealth} />
-    {previewOpen && <Suspense fallback={null}><PreviewModal /></Suspense>}
+    {previewOpen && <Suspense fallback={null}><PreviewModal onLocateNode={openWorkspaceNode} /></Suspense>}
     <SubscriptionEmptyConfirmation />
     {recoveryNotice && <section className={`recovery-banner${recoveryRequired ? ' is-required' : ''}`} role={recoveryRequired ? 'alertdialog' : 'status'} aria-label={t('app.recoveryLabel')}>
       <div><strong>{recoveryRequired ? t('app.recoveryRequiredTitle') : t('app.recoveryMigratedTitle')}</strong><span>{localizeKnownSystemText(recoveryNotice, locale)}</span></div>

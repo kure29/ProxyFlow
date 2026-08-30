@@ -1,4 +1,5 @@
 import type { WorkspaceSectionId } from '../../core/workspace'
+import type { GraphNode } from '../../types/project'
 import type { ProductView } from './types'
 import { isNodeSection } from './mobileWorkspaceNavigationModel'
 
@@ -34,6 +35,16 @@ export type ProductNavigationGroupId = typeof productNavigationGroups[number]['i
 
 export function productNavigationGroupFor(section: WorkspaceSectionId): ProductNavigationGroupId | null {
   return productNavigationGroups.find((group) => (group.sections as readonly WorkspaceSectionId[]).includes(section))?.id ?? null
+}
+
+export function workspaceSectionForNode(node: Pick<GraphNode, 'data'>): WorkspaceSectionId {
+  if (node.data.category === 'source') return 'sources'
+  if (node.data.category === 'processing') return 'processing'
+  if (node.data.category === 'strategy' || node.data.category === 'chain') return 'strategies'
+  if (node.data.category === 'routing') return 'routing'
+  if (node.data.category === 'dns') return 'dns'
+  if (node.data.category === 'output') return 'export'
+  return 'inspect'
 }
 
 export interface ProductNavigationState {

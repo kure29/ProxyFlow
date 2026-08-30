@@ -4,7 +4,7 @@ import proxyFlowLogo from '../../assets/brand/proxyflow-logo.png'
 import { useBuilderStore } from '../../store/useBuilderStore'
 import { localizeProjectName, useI18n } from '../../i18n'
 import { RuntimeServicePanel } from '../runtime/RuntimeServicePanel'
-import { Button, SegmentedControl } from '../ui/Primitives'
+import { Button } from '../ui/Primitives'
 import { APP_VERSION_BADGE, APP_VERSION_LABEL } from '../../version'
 import { resolveTopBarActions } from './shellState'
 import type { ProductView } from '../workspace/types'
@@ -15,7 +15,6 @@ import type { ProjectListItem } from '../../storage/projectStorage'
 
 interface TopBarProps {
   view: ProductView
-  onViewChange: (view: ProductView) => void
   onOpenWorkspaceSection: (section: WorkspaceSectionId) => void
   primaryHealth: PrimaryTargetHealth
   projects: ProjectListItem[]
@@ -25,7 +24,7 @@ interface TopBarProps {
   onDeleteProject: (projectId: string) => Promise<void>
 }
 
-export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHealth, projects, onNewProject, onSwitchProject, onRenameProject, onDeleteProject }: TopBarProps) {
+export function TopBar({ view, onOpenWorkspaceSection, primaryHealth, projects, onNewProject, onSwitchProject, onRenameProject, onDeleteProject }: TopBarProps) {
   const [globalMenuOpen, setGlobalMenuOpen] = useState(false)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const [renameProjectId, setRenameProjectId] = useState<string | null>(null)
@@ -131,11 +130,6 @@ export function TopBar({ view, onViewChange, onOpenWorkspaceSection, primaryHeal
         <button type="button" className="topbar-project-new" onClick={() => { closeProjectMenu(); onNewProject() }}><Plus size={15} />{t('top.newProject')}</button>
       </div>}
     </div>
-
-    <SegmentedControl className="product-view-switcher" label={t('top.productViews')}>
-      <button type="button" className={view === 'workspace' ? 'is-active' : ''} aria-pressed={view === 'workspace'} onClick={() => onViewChange('workspace')}><span>{t('top.configuration')}</span></button>
-      <button type="button" className={view === 'visual-flow' ? 'is-active' : ''} aria-pressed={view === 'visual-flow'} onClick={() => onViewChange('visual-flow')}><span>{t('top.blueprint')}</span></button>
-    </SegmentedControl>
 
     <span className="topbar-mobile-target" title={t('workspace.primaryTarget')}>{targetLabel}</span>
     <span className="topbar-mobile-health" data-status={primaryHealth.status} role="status" aria-label={healthLabel} title={healthLabel} />
