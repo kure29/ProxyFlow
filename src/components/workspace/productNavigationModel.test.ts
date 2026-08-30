@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { initialProductNavigationState, productNavigationGroupFor, productNavigationGroups, productNavigationReducer, productNodeTabs, productPrimarySections, productSecondarySections } from './productNavigationModel'
+import { initialProductNavigationState, productNavigationGroupFor, productNavigationGroups, productNavigationReducer, productNodeTabs, productPrimarySections, productSecondarySections, workspaceSectionForNode } from './productNavigationModel'
+import { demoNodes } from '../../data/demoProject'
 
 describe('product navigation model', () => {
   it('starts a project in the source-first configuration workflow', () => {
@@ -9,11 +10,11 @@ describe('product navigation model', () => {
     })
   })
 
-  it('preserves the configuration section across Blueprint mode', () => {
+  it('keeps the internal Canvas state isolated and returns to Workspace on section navigation', () => {
     const configured = productNavigationReducer(initialProductNavigationState, { type: 'open-section', section: 'routing' })
-    const blueprint = productNavigationReducer(configured, { type: 'set-view', view: 'visual-flow' })
-    expect(blueprint).toEqual({ ...configured, view: 'visual-flow' })
-    expect(productNavigationReducer(blueprint, { type: 'set-view', view: 'workspace' })).toEqual(configured)
+    const internalCanvas = productNavigationReducer(configured, { type: 'set-view', view: 'visual-flow' })
+    expect(internalCanvas).toEqual({ ...configured, view: 'visual-flow' })
+    expect(productNavigationReducer(internalCanvas, { type: 'open-section', section: 'routing' })).toEqual(configured)
   })
 
   it('updates lastNodeSection only when entering a node section', () => {
@@ -63,5 +64,13 @@ describe('product navigation model', () => {
       ...productSecondarySections,
       ...productNodeTabs.map(({ section }) => section),
     ])).toEqual(new Set(['overview', 'sources', 'proxies', 'processing', 'strategies', 'routing', 'dns', 'inspect', 'export']))
+  })
+
+  it('routes diagnostic node locations into Structured Workspace sections', () => {
+    const sections = Object.fromEntries(demoNodes.map((node) => [node.data.category, workspaceSectionForNode(node)]))
+    expect(sections).toMatchObject({
+      source: 'sources', processing: 'processing', strategy: 'strategies', chain: 'strategies',
+      routing: 'routing', dns: 'dns', output: 'export',
+    })
   })
 })

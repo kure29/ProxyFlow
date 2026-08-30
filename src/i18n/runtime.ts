@@ -35,7 +35,7 @@ export function setCurrentLocale(locale: Locale) {
   }
   if (typeof document !== 'undefined') {
     document.documentElement.lang = locale
-    document.title = locale === 'zh-CN' ? 'ProxyFlow · 代理配置蓝图' : 'ProxyFlow · Proxy configuration blueprint'
+    document.title = locale === 'zh-CN' ? 'ProxyFlow · 代理配置工作区' : 'ProxyFlow · Proxy configuration workspace'
     document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute('content', translate(locale, 'app.metaDescription'))
   }
 }

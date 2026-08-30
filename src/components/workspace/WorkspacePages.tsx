@@ -196,7 +196,7 @@ function targetCompatibilityLabel(
   return t(`workspace.proxy.targetCompatibility.${status}` as MessageKey, { target: getTargetCapabilities(target).label })
 }
 
-export function ProcessingWorkspace({ items, runtime, issues, availability, onMove, onToggle, onEdit, onShowFlow, onDuplicate, onDelete }: {
+export function ProcessingWorkspace({ items, runtime, issues, availability, onMove, onToggle, onEdit, onDuplicate, onDelete }: {
   items: WorkspaceNodeItem[]
   runtime: ReadonlyMap<string, PipelineNodeRuntime>
   issues: StructuredDiagnostic[]
@@ -204,7 +204,6 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
   onMove: (nodeId: string, direction: 'up' | 'down') => void
   onToggle: (item: WorkspaceNodeItem, disabled: boolean) => void
   onEdit: (item: WorkspaceNodeItem) => void
-  onShowFlow: (item: WorkspaceNodeItem) => void
   onDuplicate: (item: WorkspaceNodeItem) => void
   onDelete: (item: WorkspaceNodeItem) => void
 }) {
@@ -228,21 +227,20 @@ export function ProcessingWorkspace({ items, runtime, issues, availability, onMo
       <div className="workspace-step-actions" data-action-layout="horizontal">
         <button type="button" className="icon-button" disabled={!canMove.up} title={canMove.up ? t('workspace.processing.moveUp') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveUp')} onClick={() => onMove(step.id, 'up')}><ArrowUp size={16} /></button>
         <button type="button" className="icon-button" disabled={!canMove.down} title={canMove.down ? t('workspace.processing.moveDown') : t('workspace.processing.reorderUnavailable')} aria-label={t('workspace.processing.moveDown')} onClick={() => onMove(step.id, 'down')}><ArrowDown size={16} /></button>
-        <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
+        <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
       </div>
       {index < items.length - 1 && <ArrowDown className="workspace-processing-connector" size={14} aria-hidden="true" />}
     </li>
   })}</ol>
 }
 
-export function StrategiesWorkspace({ items, target, runtime, issues, targetProjection, onEdit, onShowFlow, onDuplicate, onDelete }: {
+export function StrategiesWorkspace({ items, target, runtime, issues, targetProjection, onEdit, onDuplicate, onDelete }: {
   items: WorkspaceNodeItem[]
   target: PrimaryTarget | null
   runtime: ReadonlyMap<string, PipelineNodeRuntime>
   issues: StructuredDiagnostic[]
   targetProjection?: TargetProjectionSummary
   onEdit: (item: WorkspaceNodeItem) => void
-  onShowFlow: (item: WorkspaceNodeItem) => void
   onDuplicate: (item: WorkspaceNodeItem) => void
   onDelete: (item: WorkspaceNodeItem) => void
 }) {
@@ -253,8 +251,8 @@ export function StrategiesWorkspace({ items, target, runtime, issues, targetProj
   if (!items.length) return <WorkspaceEmpty icon={<GitBranch size={22} />} title={t('workspace.empty.strategies')} />
 
   return <div className="workspace-strategy-page">
-    {basic.length > 0 && <section aria-labelledby="strategy-basic-title"><h2 id="strategy-basic-title">{t('workspace.strategy.basic')}</h2><div className="workspace-strategy-grid">{basic.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onShowFlow={onShowFlow} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></section>}
-    {advanced.length > 0 && <details className="workspace-advanced-section"><summary>{t('workspace.strategy.advanced', { count: advanced.length })}</summary><div className="workspace-strategy-grid">{advanced.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onShowFlow={onShowFlow} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></details>}
+    {basic.length > 0 && <section aria-labelledby="strategy-basic-title"><h2 id="strategy-basic-title">{t('workspace.strategy.basic')}</h2><div className="workspace-strategy-grid">{basic.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></section>}
+    {advanced.length > 0 && <details className="workspace-advanced-section"><summary>{t('workspace.strategy.advanced', { count: advanced.length })}</summary><div className="workspace-strategy-grid">{advanced.map(({ item, strategy }) => <StrategyCard key={strategy.id} item={item} strategy={strategy} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />)}</div></details>}
   </div>
 }
 
@@ -469,11 +467,10 @@ function processingSummaryLabel(summary: ReturnType<typeof summarizeWorkspacePro
   return t('workspace.processing.summary.unknown')
 }
 
-function StrategyCard({ item, strategy, onEdit, onShowFlow, onDuplicate, onDelete }: {
+function StrategyCard({ item, strategy, onEdit, onDuplicate, onDelete }: {
   item: WorkspaceNodeItem
   strategy: ReturnType<typeof summarizeWorkspaceStrategy>
   onEdit: (item: WorkspaceNodeItem) => void
-  onShowFlow: (item: WorkspaceNodeItem) => void
   onDuplicate: (item: WorkspaceNodeItem) => void
   onDelete: (item: WorkspaceNodeItem) => void
 }) {
@@ -495,7 +492,7 @@ function StrategyCard({ item, strategy, onEdit, onShowFlow, onDuplicate, onDelet
           : <b className={'is-' + strategy.capability}>{strategy.capability === 'unknown' ? t('workspace.compatibility.unknown') : t(compatibilityMessages[strategy.capability])}</b>}
       </span>
     </button>
-    <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
+    <WorkspaceItemMenu title={localizeNodeTitle(item.node, locale)} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
   </article>
 }
 

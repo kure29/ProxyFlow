@@ -1,10 +1,14 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { demoEdges, demoNodes } from '../../data/demoProject'
+import { I18nProvider } from '../../i18n'
 import type { GraphNode } from '../../types/project'
 import {
   resolveWorkspaceInputCandidates,
   resolveWorkspaceInputMode,
   shouldPortalWorkspaceEditor,
+  WorkspaceEditorToolbar,
 } from './WorkspaceNodeEditor'
 
 function withBlockType(node: GraphNode, blockType: GraphNode['data']['blockType'], category = node.data.category): GraphNode {
@@ -63,5 +67,15 @@ describe('WorkspaceNodeEditor input semantics', () => {
       disabled: true,
       unavailable: true,
     })
+  })
+
+  it('keeps editing controls without exposing Show in Flow', () => {
+    const html = renderToStaticMarkup(createElement(I18nProvider, null, createElement(WorkspaceEditorToolbar, {
+      title: 'Processing step', onClose: () => undefined,
+    })))
+    expect(html).toContain('Processing step')
+    expect(html).toContain('Close Workspace editor')
+    expect(html).not.toContain('Show in Visual Flow')
+    expect(html).not.toContain('Blueprint')
   })
 })

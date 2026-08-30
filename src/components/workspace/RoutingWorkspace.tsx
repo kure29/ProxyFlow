@@ -75,7 +75,6 @@ export interface RoutingWorkspaceProps {
   onMove: (nodeId: string, direction: 'up' | 'down') => void
   onMoveToIndex: (nodeId: string, targetIndex: number) => void
   onEdit: (item: WorkspaceNodeItem) => void
-  onShowFlow: (item: WorkspaceNodeItem) => void
   onDuplicate: (item: WorkspaceNodeItem) => void
   onDelete: (item: WorkspaceNodeItem) => void
   getNodeTitle?: (node: GraphNode) => string
@@ -94,7 +93,6 @@ export function RoutingWorkspace({
   onMove,
   onMoveToIndex,
   onEdit,
-  onShowFlow,
   onDuplicate,
   onDelete,
   getNodeTitle,
@@ -290,7 +288,7 @@ export function RoutingWorkspace({
           <div className="routing-rule-actions">
             <button type="button" className="icon-button" disabled={index === 0} aria-label={`${copy.moveUp}: ${title}`} title={copy.moveUp} onClick={() => onMove(item.node.id, 'up')}><ArrowUp size={15} /></button>
             <button type="button" className="icon-button" disabled={index === items.length - 1} aria-label={`${copy.moveDown}: ${title}`} title={copy.moveDown} onClick={() => onMove(item.node.id, 'down')}><ArrowDown size={15} /></button>
-            <WorkspaceItemMenu title={title} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
+            <WorkspaceItemMenu title={title} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} />
           </div>
         </article>
       })}
@@ -304,7 +302,7 @@ export function RoutingWorkspace({
           <button type="button" className="routing-rule-summary" onClick={() => onEdit(item)}><strong>{title}</strong><span><b>{copy.finalRoute}</b></span></button>
           <button type="button" className="routing-rule-target" aria-label={`${copy.target}: ${target}`} onClick={() => onEdit(item)}><small>{copy.target}</small><span><ArrowRight size={14} /><strong>{target}</strong></span></button>
           <RuleStatus status={status} label={copy.statusLabels[status]} />
-          <div className="routing-rule-actions"><WorkspaceItemMenu title={title} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onShowFlow={() => onShowFlow(item)} onDelete={() => onDelete(item)} /></div>
+          <div className="routing-rule-actions"><WorkspaceItemMenu title={title} protectedItem={Boolean(item.node.data.protected)} onEdit={() => onEdit(item)} onDelete={() => onDelete(item)} /></div>
         </article>
       })}
     </div>

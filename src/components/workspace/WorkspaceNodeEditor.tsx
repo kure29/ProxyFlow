@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from 'react'
 import { createPortal } from 'react-dom'
-import { Network, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { canUseWorkspaceInput, type WorkspaceSectionId } from '../../core/workspace'
 import { categoryKey, localizeNodeTitle, useI18n } from '../../i18n'
 import { useBuilderStore } from '../../store/useBuilderStore'
@@ -21,12 +21,11 @@ import {
 interface WorkspaceNodeEditorProps {
   open: boolean
   onClose: () => void
-  onShowFlow: () => void
   onOpenWorkspaceSection: (section: WorkspaceSectionId) => void
 }
 
-export function WorkspaceNodeEditor({ open, onClose, onShowFlow, onOpenWorkspaceSection }: WorkspaceNodeEditorProps) {
-  const { locale, t } = useI18n()
+export function WorkspaceNodeEditor({ open, onClose, onOpenWorkspaceSection }: WorkspaceNodeEditorProps) {
+  const { locale } = useI18n()
   const nodes = useBuilderStore((state) => state.nodes)
   const selectedNodeId = useBuilderStore((state) => state.selectedNodeId)
   const selected = nodes.find((node) => node.id === selectedNodeId)
@@ -107,10 +106,7 @@ export function WorkspaceNodeEditor({ open, onClose, onShowFlow, onOpenWorkspace
       aria-labelledby="workspace-editor-title"
       onMouseDown={(event) => event.stopPropagation()}
     >
-      <header className="workspace-editor-toolbar">
-        <div><span>{t('workspace.editor')}</span><strong id="workspace-editor-title">{title}</strong></div>
-        <div><button type="button" onClick={onShowFlow}><Network size={15} /><span>{t('workspace.showInFlow')}</span></button><button ref={closeRef} type="button" aria-label={t('workspace.closeEditor')} onClick={onClose}><X size={18} /></button></div>
-      </header>
+      <WorkspaceEditorToolbar title={title} closeRef={closeRef} onClose={onClose} />
       <div className="workspace-editor-scroll-content">
         <WorkspaceInputEditor node={selected} />
         <Inspector onOpenWorkspaceSection={onOpenWorkspaceSection} />
@@ -119,6 +115,18 @@ export function WorkspaceNodeEditor({ open, onClose, onShowFlow, onOpenWorkspace
   </div>
 
   return shouldPortalWorkspaceEditor(shellMode) ? createPortal(editor, document.body) : editor
+}
+
+export function WorkspaceEditorToolbar({ title, closeRef, onClose }: {
+  title: string
+  closeRef?: Ref<HTMLButtonElement>
+  onClose: () => void
+}) {
+  const { t } = useI18n()
+  return <header className="workspace-editor-toolbar">
+    <div><span>{t('workspace.editor')}</span><strong id="workspace-editor-title">{title}</strong></div>
+    <div><button ref={closeRef} type="button" aria-label={t('workspace.closeEditor')} onClick={onClose}><X size={18} /></button></div>
+  </header>
 }
 
 export function shouldPortalWorkspaceEditor(shellMode: ShellMode): boolean {

@@ -11,7 +11,6 @@ const health: PrimaryTargetHealth = { status: 'ready', diagnostics: [] }
 function renderTopBar() {
   return renderToStaticMarkup(createElement(I18nProvider, null, createElement(TopBar, {
     view: 'workspace',
-    onViewChange: () => undefined,
     onOpenWorkspaceSection: () => undefined,
     primaryHealth: health,
     projects: [{ id: 'demo', name: 'Demo project', updatedAt: '2026-08-29T00:00:00.000Z', primaryTarget: 'mihomo', active: true }],
@@ -30,5 +29,12 @@ describe('TopBar project selector', () => {
     expect(html).toContain('class="topbar-project-trigger" aria-haspopup="dialog"')
     expect(html).toContain(`title="${localizeProjectName(demoProject.name, 'en-US')}"`)
     expect(html).not.toContain('Current project')
+  })
+
+  it('does not render the deprecated Configuration or Blueprint mode switch', () => {
+    const html = renderTopBar()
+    expect(html).not.toContain('product-view-switcher')
+    expect(html).not.toContain('>Configuration<')
+    expect(html).not.toContain('>Blueprint<')
   })
 })
